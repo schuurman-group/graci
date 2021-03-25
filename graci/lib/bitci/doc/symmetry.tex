@@ -1,0 +1,113 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{titling}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{array, caption, floatrow, tabularx, makecell, booktabs}%
+\captionsetup{labelfont = sc}
+\setcellgapes{3pt}
+
+% Font for routines, variables, code
+\newcommand*\code[1]{\mbox{\texttt{{#1}}}}
+
+\begin{document}
+
+\predate{}
+\postdate{}
+
+\author{}
+\title{Irrep Ordering and Indexing}
+\date{} % clear date
+
+\maketitle
+
+\noindent
+Tabulated below are the orderings of the irreps of the Abelian point groups used in the \code{bitCI} library. Also given are the indices, starting from $0$, used to index each irrep.
+
+\vspace{1cm}
+
+\begin{tabular}{c}
+  $\mathbf{C_{1}}$ \\
+  \begin{tabular}{|c|c|}
+    \hline
+    $A$ & $0$ \\
+    \hline
+  \end{tabular} \\
+\end{tabular}
+
+\vspace{1cm}
+
+\begin{tabular}{ccc}
+  $\mathbf{C_{2}}$ & $\mathbf{C_{i}}$ & $\mathbf{C_{s}}$ \\
+  \begin{tabular}{|c|c|}
+    \hline
+    $A$ & $0$ \\
+    $B$ & $1$ \\
+    \hline
+  \end{tabular} &
+  \begin{tabular}{|c|c|}
+    \hline
+    $A_{g}$ & $0$ \\
+    $A_{u}$ & $1$ \\
+    \hline
+  \end{tabular} &
+  \begin{tabular}{|c|c|}
+    \hline
+    $A'$ & $0$ \\
+    $A''$ & $1$ \\
+    \hline
+  \end{tabular} \\
+\end{tabular}
+
+\vspace{1cm}
+
+\begin{tabular}{ccc}
+  $\mathbf{C_{2h}}$ & $\mathbf{C_{2v}}$ & $\mathbf{D_{2}}$ \\
+  \begin{tabular}{|c|c|}
+    \hline
+    $A_{g}$ & $0$ \\
+    $B_{g}$ & $1$ \\
+    $A_{u}$ & $2$ \\
+    $B_{u}$ & $3$ \\
+    \hline
+  \end{tabular} &
+  \begin{tabular}{|c|c|}
+    \hline
+    $A_{1}$ & $0$ \\
+    $A_{2}$ & $1$ \\
+    $B_{1}$ & $2$ \\
+    $B_{2}$ & $3$ \\
+    \hline
+  \end{tabular} &
+   \begin{tabular}{|c|c|}
+    \hline
+    $A_{1}$ & $0$ \\
+    $B_{1}$ & $1$ \\
+    $B_{2}$ & $2$ \\
+    $B_{3}$ & $3$ \\
+    \hline
+  \end{tabular} \\
+\end{tabular}
+
+\vspace{1cm}
+
+\begin{tabular}{c}
+  $\mathbf{D_{2h}}$ \\
+  \begin{tabular}{|c|c|}
+    \hline
+    $A_{1g}$ & $0$ \\
+    $B_{1g}$ & $1$ \\
+    $B_{2g}$ & $2$ \\
+    $B_{3g}$ & $3$ \\
+    $A_{1u}$ & $4$ \\
+    $B_{1u}$ & $5$ \\
+    $B_{2u}$ & $6$ \\
+    $B_{3u}$ & $7$ \\
+    \hline
+  \end{tabular} \\
+\end{tabular}
+
+\end{document}
