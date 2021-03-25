@@ -1,0 +1,18 @@
+#!/bin/bash
+
+#
+# Make the build directory
+#
+if [ -d build ]; then
+    rm -r build/*
+else
+    mkdir build
+fi
+
+#
+# Move into the build directory and build and install bitlib
+#
+cd build
+cmake ../ -DCMAKE_INSTALL_PREFIX=..
+make
+make install

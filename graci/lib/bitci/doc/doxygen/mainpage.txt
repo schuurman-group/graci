@@ -1,0 +1,14 @@
+/**
+@mainpage Document Title
+
+@section Introduction
+ Write some introductory remarks in this section.  For example,
+
+ This document describes the source code for the XYZ model.
+
+ One can add diagrams to the document.  For example,
+ The following diagram shows the breakdown of the entire XYZ model.
+
+@image html logo_tmp.png
+
+*/
