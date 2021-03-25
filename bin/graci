@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-The main GRaCI driver.
+The main graci driver.
 """
 import os
 import sys as sys
@@ -13,7 +13,7 @@ import d3CI.core.fileio as fileio
 #
 def init():
     """
-    Initializes GRaCI
+    Initializes graci
 
     Read command line arguments 
     Set relevant global variables.
