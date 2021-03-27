@@ -1,9 +1,9 @@
 """
 Module for computing DFT/MRCI energies
 """
-import graci.core.methods.scf as scf
-import graci.core.methods.params as params
-import graci.core.fileio.output as output
+import graci.methods.scf as scf
+import graci.methods.params as params
+import graci.io.output as output
 
 def energy(nroots):
 """ compute the DFT/MRCI energy for nroots """

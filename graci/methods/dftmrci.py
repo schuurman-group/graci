@@ -1,8 +1,13 @@
 """
 Module for computing DFT/MRCI energies
 """
-import graci.core.methods.scf as scf
-
+import graci.methods.scf as scf
+import graci.tools.init_libs as init_libs
+import graci.tools.ref_space as ref_space
+import graci.tools.ref_diag as ref_diag
+import graci.tools.mrci_space as mrci_space
+import graci.tools.mrci_diag as mrci_diag
+import graci.tools.mrci_refine as mrci_refine
 
 def energy(nroots):
 """ compute the DFT/MRCI energy for nroots """
@@ -10,18 +15,11 @@ def energy(nroots):
     # run the KS-DFT computation 
     scf.run(mol)
 
-    # if this is an interface file generation run,
-    # then write it and finish here
-    if var.d3_inp['interface_only']:
-        interface.write_interface(mol)
-        d3io.cleanup()
-        sys.exit()
-
     # initialize int_pyscf
-    lib_intpyscf = init.init_intpyscf(mol)
+    lib_intpyscf = init_libs.init_intpyscf(mol)
 
     # initialize bitci
-    lib_bitci = init.init_bitci(mol)
+    lib_bitci = init_libs.init_bitci(mol)
 
     # generate the reference space configurations
     conf0 = ref_space.generate(mol, lib_bitci)
@@ -61,9 +59,12 @@ def slater_dets(state)
 
     return
 
-def csf(state)
+def csfs(state)
 """ return the CSF list for state 'state'"""
 
     return
+
+##########################################################################
+
 
 

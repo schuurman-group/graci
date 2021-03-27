@@ -5,63 +5,58 @@ The main graci driver.
 import os
 import sys as sys
 import graci.utils.timing as timing
-import graci.core.refspace as refspace
-import d3CI.core.mrci as mrci
-import d3CI.core.fileio as fileio
+import graci.methods.params as params
+import graci.tools.job_build as job_build
+import graci.io.parse as parse
+import graci.io.output as output
 
 #
-def init():
-    """
-    Initializes graci
+def main():
+    """Runs a graci computation."""
 
-    Read command line arguments 
+    # start the global timer
+    timing.start('global')
+
+    # read command line options
+    read_cmdline()
+
+    # parse input
+    mol = parse.parse_input()
+
+    # print output file header
+    output.print_header(mol)
+
+    # build computatoin 
+    job_build.run(mol)
+
+    # cleanup
+    output.print_cleanup()
+
+    return
+
+
+def read_cmdline():
+    """
+    Read command line arguments
     Set relevant global variables.
     """
 
-    fileio.params['input_file'] = sys.argv[1].strip()
-    job_stub  = fileio.d3_params['input_file'].split('.inp')[0]
+    params.file_param['input_file'] = sys.argv[1].strip()
+    job_stub  = params.file_param['input_file'].split('.inp')[0]
     pyscf_out = job_stub+'.pyscf.out'
-    eri       = job_stub+'.eri.h5'
+    two_int   = '2e_int.h5'
+    one_int   = '1e_int.h5'
 
     if '-o' in sys.argv:
         out_file = sys.argv[sys.argv.index('-o')+1].strip()
     else:
         out_file  = job_stub+'.out'
 
-    fileio.d3_params['out_file']  = out_file
-    fileio.d3_params['pyscf_out'] = pyscf_out
-    fileio.d3_params['eri']       = eri
+    params.file_param['out_file']  = out_file
+    params.file_param['pyscf_out'] = pyscf_out
+    params.file_param['2ei']       = two_int
+    params.file_param['1ei']       = one_int
     return
-
-#
-def main():
-    """Runs a d3CI computation."""
-
-    # start the global timer
-    timing.start('global')
-
-    init()
-
-    # parse input
-    mol = fileio.parse_input()
-
-    # print output file header
-    fileio.print_header(mol)
- 
-    # evaluate the KS DFT energy    
-    dft.evaluate_dft(mol)
-
-    # generate the reference space
-#    refspace.generate(mol)
-
-    # perform the selected CI computation
-#    mrci.evalaute(mol)
-
-    # end global timer
-
-    # print timing summaries and do cleanup
-    fileio.cleanup()
-
 
 if __name__ == '__main__':
 

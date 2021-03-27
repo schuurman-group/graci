@@ -7,8 +7,8 @@ import sys
 import h5py
 import math
 import numpy as np
-import graci.core.methods.params as params
-import graci.core.fileio.output as output
+import graci.methods.params as params
+import graci.io.output as output
 import graci.utils.timing as timing
 from pyscf.lib import logger
 from pyscf import gto, scf, dft, symm, ao2mo, df

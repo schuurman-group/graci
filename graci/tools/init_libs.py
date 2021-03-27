@@ -4,8 +4,8 @@ import os
 import sys
 import numpy as np
 import ctypes as ctypes
-import d3CI.core.d3io as d3io
-import d3CI.core.var as var
+import graci.methods.params
+import graci.io.convert
 
 #
 def init_bitci(mol):
@@ -21,16 +21,16 @@ def init_bitci(mol):
     
     # set all variable that have to be passed to bitci_initialise
     # (note that the pgrp and iham variables use Fortran indexing)
-    imult = d3io.convert_ctypes(mol.mult,                    dtype='int32')
-    nel   = d3io.convert_ctypes(mol.nel,                     dtype='int32')
-    nmo   = d3io.convert_ctypes(mol.nmo,                     dtype='int32')
-    mosym = d3io.convert_ctypes(np.array(mol.orb_sym),       dtype='int64')
-    moen  = d3io.convert_ctypes(np.array(mol.orb_ener),      dtype='double')
+    imult = convert.convert_ctypes(mol.mult,               dtype='int32')
+    nel   = convert.convert_ctypes(mol.nel,                dtype='int32')
+    nmo   = convert.convert_ctypes(mol.nmo,                dtype='int32')
+    mosym = convert.convert_ctypes(np.array(mol.orb_sym),  dtype='int64')
+    moen  = convert.convert_ctypes(np.array(mol.orb_ener), dtype='double')
     isym  = mol.sym_indx + 1 if mol.sym_indx > 0 else 1
-    pgrp  = d3io.convert_ctypes(isym,                        dtype='int32')
-    enuc  = d3io.convert_ctypes(mol.enuc,                    dtype='double')
-    iham = d3io.convert_ctypes(
-        var.hamiltonians.index(var.d3_inp['hamiltonian'])+1, dtype='int32')
+    pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
+    enuc  = convert.convert_ctypes(mol.enuc,               dtype='double')
+    iham  = convert.convert_ctypes(
+        params.hamiltonians.index(params.mrci_param['hamiltonian'])+1, dtype='int32')
 
     # call to bitci_initialise
     lib_bitci.bitci_initialise(ctypes.byref(imult),
@@ -56,11 +56,11 @@ def init_intpyscf(mol):
     lib_intpyscf = ctypes.cdll.LoadLibrary(intpyscf_path)
 
     # set the variables that have to be passed to load_mo_integrals
-    nmo     = d3io.convert_ctypes(mol.nmo,              dtype='int32')
-    naux    = d3io.convert_ctypes(mol.naux,             dtype='int32')
-    use_df  = d3io.convert_ctypes(var.d3_inp['use_df'], dtype='logical')
-    thresh  = d3io.convert_ctypes(1e-14,                dtype='double')
-    max_mem = d3io.convert_ctypes(-1,                   dtype='int32')   
+    nmo     = convert.convert_ctypes(mol.nmo,              dtype='int32')
+    naux    = convert.convert_ctypes(mol.naux,             dtype='int32')
+    use_df  = convert.convert_ctypes(var.d3_inp['use_df'], dtype='logical')
+    thresh  = convert.convert_ctypes(1e-14,                dtype='double')
+    max_mem = convert.convert_ctypes(-1,                   dtype='int32')   
  
     # call to load_mo_integrals
     lib_intpyscf.load_mo_integrals(ctypes.byref(nmo),
