@@ -12,7 +12,7 @@ import graci.io.output as output
 
 #
 def main():
-    """Runs a graci computation."""
+    """Runs a d3CI computation."""
 
     # start the global timer
     timing.start('global')
