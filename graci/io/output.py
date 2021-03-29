@@ -5,12 +5,19 @@ import ctypes
 import numpy as np
 import graci.utils.constants as constants
 import graci.utils.timing as timing
-import graci.molecule.molecule as molecule
 import graci.methods.params as params
+import graci.methods.molecule as molecule
 
 #
-def print_header(mol):
+file_names = {'input_file'   : '',
+              'out_file'     : '',
+              'pyscf_out'    : '',
+              '1ei'          : '',
+              '2ei'          : ''}
+
+def print_header(run_list):
     """print the output log file header"""
+    global file_names
 
     header =(" -----------------------------------------------------\n"+
              "                                                     \n"+
@@ -24,91 +31,99 @@ def print_header(mol):
     inp_key =" Input Parameters \n"
 
     # Read input file. Small enough to gulp the whole thing
-    with open(params.d3_inp['out_file'], 'w') as outfile:
-        print(header+'\n\n', flush=True)
-        
-        print(inp_key+'\n', flush=True)
-        
-        print(' $geometry section\n -----------------\n', flush=True)
-        ostr = ''
-        for iatm in range(mol.n_atoms()):
-            cstr = '   '.join(['{:10.4f}'.format(mol.geom[iatm,j])
-                   for j in range(3)])
-            ostr = ' ' + str(mol.atoms[iatm]) + cstr
-            print(ostr+'\n', flush=True)
+    with open(file_names['out_file'], 'w') as outfile:
+        outfile.write(header+'\n\n')
+        outfile.write(inp_key+'\n')
+
+        for calc_obj in run_list:
+
+            calc_type = params.method_name(calc_obj)
+
+            # if molecule object, we need to pull out the 
+            # geometry
+            if calc_type == 'molecule':
+                mol = calc_obj
+                outfile.write(' $geometry section\n -----------------\n')
+                for iatm in range(mol.n_atoms()):
+                    cstr = '   '.join(['{:10.4f}'.format(mol.geom[iatm,j])
+                           for j in range(3)])
+                    ostr = ' ' + str(mol.atoms[iatm]) + cstr
+                    outfile.write(ostr+'\n')
             
-        print('\n $molecule section\n -----------------\n', flush=True)
-        ostr = ''
-        for kword in params.mol_param:
-            ostr += ' '+kword.ljust(12,' ')+' = '+str(params.mol_param[kword])+'\n'
-        print(ostr, flush=True)
-        
-        print('\n $scf section\n ------------\n', flush=True)
-        ostr = ''
-        for kword in params.scf_param:
-            ostr += ' '+kword.ljust(12,' ')+' = '+str(params.scf_param[kword])+'\n'
-        print(ostr, flush=True)
-        
-        print('\n $mrci section\n -------------\n', flush=True)
-        ostr = ''
-        for kword in params.mrci_param:
-            ostr += ' '+kword.ljust(12,' ')+' = '+str(params.mrci_param[kword])+'\n'
-        print(ostr, flush=True)
-        
-        print('\n', flush=True)
-        print(' Full symmetry:     '+str(mol.full_sym)+'\n', flush=True)
-        print(' Abelian sub-group: '+str(mol.comp_sym)+'\n', flush=True)
-        print('\n', flush=True)
+            # else just outfile.write the keyword input
+            outfile.write('\n $'+calc_type+' section\n ------------\n')
+            ostr = ''
+            for kword in params.kwords[calc_type].keys():
+                ostr += ' '+kword.ljust(12,' ')+\
+                        ' = '+str(getattr(calc_obj,kword))+'\n'
+            outfile.write(ostr)
+
+        outfile.write('\n')
+        outfile.write(' Full symmetry:     '+str(mol.full_sym)+'\n')
+        outfile.write(' Abelian sub-group: '+str(mol.comp_sym)+'\n')
+        outfile.write('\n')
+        outfile.flush()
         
     return
 
 #
 def print_scf_header():
     """print the SCF header"""
+    global file_names
 
-    print(' SCF Computation with PySCF\n', flush=True)
-    print(' -----------------------------\n\n', flush=True)
-    
+    with open(file_names['out_file'], 'a+') as outfile:
+        outfile.write(' SCF Computation with PySCF\n')
+        outfile.write(' -----------------------------\n\n')
+        outfile.flush()
+
     return
 
 #
 def print_scf_summary(scf_energy, mol):
     """print summary of the SCF computation"""
+    global file_names
 
-    print(' DFT energy = {:16.10f}\n\n'.format(scf_energy), flush=True)
-    print(' Orbital Energies and Occupations\n', flush=True)
-    print(' --------------------------------\n', flush=True)
-    print(' {:>5}  {:>9}  {:>10}  {:>8}\n'.
-          format('Index','Symmetry','Energy','Occ'), flush=True)
+    with open(file_names['out_file'], 'a+') as outfile:
+        outfile.write(' SCF energy = {:16.10f}\n\n'.format(scf_energy))
+        outfile.write(' Orbital Energies and Occupations\n')
+        outfile.write(' --------------------------------\n')
+        outfile.write(' {:>5}  {:>9}  {:>10}  {:>8}\n'.
+              format('Index','Symmetry','Energy','Occ'))
 
-    if mol.comp_sym != 'c1':
-        orb_cnt = np.zeros(molecule.nirrep[mol.sym_indx], dtype=int)
-    else:
-        orb_cnt = np.zeros(1, dtype=int)
+        if mol.comp_sym != 'c1':
+            orb_cnt = np.zeros(molecule.nirrep[mol.sym_indx], dtype=int)
+        else:
+            orb_cnt = np.zeros(1, dtype=int)
 
-    for iorb in range(mol.nmo):
-        sym_indx = mol.orb_sym[iorb]
-        orb_cnt[sym_indx] += 1
-        print(' {:5d}  {:>4d}({:>3})  {:10.5f}  {:8.4}\n'.
-              format(iorb+1,
-                     orb_cnt[sym_indx],
-                     mol.orb_irrep[iorb],
-                     mol.orb_ener[iorb],
-                     mol.orb_occ[iorb]),
-              flush=True)
-    
+        for iorb in range(mol.nmo):
+            sym_indx = mol.orb_sym[iorb]
+            orb_cnt[sym_indx] += 1
+            outfile.write(' {:5d}  {:>4d}({:>3})  {:10.5f}  {:8.4}\n'.
+                  format(iorb+1,
+                         orb_cnt[sym_indx],
+                         mol.orb_irrep[iorb],
+                         mol.orb_ener[iorb],
+                         mol.orb_occ[iorb]))
+        outfile.flush()
+
     return
 
 #
 def print_refdiag_header():
     """print the reference space diagonalisation header"""
-    print('\n Reference Space Diagonalisation\n', flush=True)
-    print(' -------------------------------', flush=True)
+    global file_names
+
+    with open(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Reference Space Diagonalisation\n')
+        outfile.write(' -------------------------------')
+        outfile.flush()
+
     return
 
 #
-def print_refdiag_summary(mol, refdets):
+def print_refdiag_summary(mol, nstates, refdets):
     """print the summary of the reference space diagonalisation"""
+    global file_names
 
     if mol.comp_sym != 'c1':
         nirrep = molecule.nirrep[mol.sym_indx]
@@ -117,39 +132,51 @@ def print_refdiag_summary(mol, refdets):
 
     mine = np.amin(refdets.ener)
 
-    print('\n Reference state energies', flush=True)
-    print(' -------------------------', flush=True)
+    with open(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Reference state energies')
+        outfile.write(' -------------------------')
     
-    for i in range(nirrep):
-        if params.d3_inp['nstates'][i] > 0:
-            print('\n', flush=True)
-            for n in range(params.d3_inp['nstates'][i]):
-                print(' {:<3d} {:3} {:10.6f} {:10.6f}'
-                      .format(n+1, mol.irreplbl[i],
-                             refdets.ener[n][i],
-                             (refdets.ener[n][i]-mine)*constants.au2ev),
-                      flush=True)
-    
+        for i in range(nirrep):
+            if nstates[i] > 0:
+                outfile.write('\n')
+                for n in range(nstates[i]):
+                    outfile.write(' {:<3d} {:3} {:10.6f} {:10.6f}'
+                          .format(n+1, mol.irreplbl[i],
+                            refdets.ener[n][i],
+                            (refdets.ener[n][i]-mine)*constants.au2ev))
+        outfile.flush()
+
     return
 
 #
 def print_mrcispace_header():
     """print the MRCI space generation header"""
-    print('\n MRCI Configuration Generation\n', flush=True)
-    print(' -------------------------------', flush=True)
+    global file_names
+
+    with open(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n MRCI Configuration Generation\n')
+        outfile.write(' -------------------------------')
+        outfile.flush()
 
 #
 def print_autoras_header():
     """print the automatic RAS space generation header"""
-    print('\n Automatic RAS Space Generation\n', flush=True)
-    print(' -------------------------------', flush=True)
+    global file_names
+
+    with open(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Automatic RAS Space Generation\n')
+        outfile.write(' -------------------------------')
+        outfile.flush()
     
 #
 def print_cleanup():
     """shutdown the timers and print timing information"""
+    global file_names
 
     ostr = timing.print_timings()
 
-    print(ostr, flush=True)
+    with open(file_names['out_file'], 'a+') as outfile:
+        outfile.write(ostr)
+        outfile.flush()
         
     return

@@ -3,14 +3,28 @@ Module for computing DFT/MRCI energies
 """
 
 
-def energy(nroots):
-""" compute the DFT/MRCI energy for nroots """
+class Dftcis:
+    """Class constructor for SCF object"""
+    def __init__(self):
+        self.name   = ''
 
-    return 
+    def run(mol):
+        """runs a dftcis calculation"""
 
+        return
 
-def density(states):
-""" computes the density matrices for the states in 
-    the array 'states'"""
+    def density(mol):
+        """return the density matrix for state i"""
 
-    return
+        return
+
+    def slater_dets(state):
+        """return the slater determinant list for state 'state'"""
+
+        return
+
+    def csfs(state):
+        """csf list for state 'state'"""
+
+        return
+

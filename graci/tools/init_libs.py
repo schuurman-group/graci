@@ -8,17 +8,21 @@ import graci.methods.params
 import graci.io.convert
 
 #
-def init_bitci(mol):
+def init_bitci(mol, hamiltonian):
     """Initialize the bitci library"""
     
     # load the appropriate library
-    bitci_path = os.environ['D3CI']+'/d3CI/bitci/lib/libbitci.{}'.format(
+    bitci_path = os.environ['GRACI']+'/graci/lib/bitci/libbitci.{}'.format(
         'so' if sys.platform != 'darwin' else 'dylib')
     
     if not os.path.isfile(bitci_path):
         raise FileNotFoundError('bitci library not found: '+bitci_path)
     lib_bitci = ctypes.cdll.LoadLibrary(bitci_path)
-    
+
+    if hamiltonian not in params.hamiltonians:
+        print("init_bitci called with unkown Hamiltonian: "
+                +str(hamiltonian))
+
     # set all variable that have to be passed to bitci_initialise
     # (note that the pgrp and iham variables use Fortran indexing)
     imult = convert.convert_ctypes(mol.mult,               dtype='int32')
@@ -30,7 +34,7 @@ def init_bitci(mol):
     pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
     enuc  = convert.convert_ctypes(mol.enuc,               dtype='double')
     iham  = convert.convert_ctypes(
-        params.hamiltonians.index(params.mrci_param['hamiltonian'])+1, dtype='int32')
+        params.hamiltonians.index(hamiltonian)+1, dtype='int32')
 
     # call to bitci_initialise
     lib_bitci.bitci_initialise(ctypes.byref(imult),
@@ -49,10 +53,12 @@ def init_intpyscf(mol):
     """Initialize the int_pyscf library"""
 
     # load the appropriate library
-    intpyscf_path = os.environ['D3CI']+'/d3CI/integrals/lib/libint_pyscf.{}'.format(
-        'so' if sys.platform != 'darwin' else 'dylib')
+    intpyscf_path = os.environ['GRACI']+'/graci/lib/integral/libint_pyscf.{}'. \
+            format('so' if sys.platform != 'darwin' else 'dylib')
+
     if not os.path.isfile(intpyscf_path):
         raise FileNotFoundError('int_pyscf library not found: '+intpyscf_path)
+
     lib_intpyscf = ctypes.cdll.LoadLibrary(intpyscf_path)
 
     # set the variables that have to be passed to load_mo_integrals

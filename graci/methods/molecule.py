@@ -26,6 +26,7 @@ class Molecule:
         self.spin      = 0.
         self.charge    = 0.
         self.nel       = 0
+        self.use_sym   = False
         self.full_sym  = ''
         self.comp_sym  = ''
         self.sym_indx  = -1
@@ -39,6 +40,9 @@ class Molecule:
         self.orb_sym   = []
         self.nmo       = 0
         self.naux      = 0
+        self.units     = 'bohr'
+        self.basis     = ''
+        self.ri_basis  = ''
         
     #
     def set_geom(self, geom):

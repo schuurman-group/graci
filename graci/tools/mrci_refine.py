@@ -6,11 +6,10 @@ import sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.params as params
-import graci.molecule.molecule as molecule
+import graci.methods.molecule as molecule
 import graci.io.convert
 
-def refine_ref_space(mol, conf0, confsd, lib_bitci):
+def refine_ref_space(mol, ci, conf0, confsd, lib_bitci):
     """Refinement of the reference space"""
 
     # Start timing
@@ -23,15 +22,15 @@ def refine_ref_space(mol, conf0, confsd, lib_bitci):
         nirrep = 1
 
     # Bitci MRCI configuration scratch file numbers
-    confscrM = convert.convert_ctypes(np.array(confsd.confscr, dtype=int),
-                                   dtype='int32')
+    confscrM = convert.convert_ctypes(np.array(confsd.confscr, 
+                                      dtype=int),dtype='int32')
         
     # Bitci eigenvector scratch file numbers
-    vecscr = convert.convert_ctypes(np.array(confsd.vecscr, dtype=int),
-                                 dtype='int32')
+    vecscr = convert.convert_ctypes(np.array(confsd.vecscr, 
+                                      dtype=int), dtype='int32')
 
     # No. roots per irrep
-    nstates = convert.convert_ctypes(params.mol_param['nstates'], dtype='int32')
+    nstates = convert.convert_ctypes(ci.nstates, dtype='int32')
 
     # Configuration selection threshold. We will just hardcode this
     # for now
@@ -41,8 +40,8 @@ def refine_ref_space(mol, conf0, confsd, lib_bitci):
     min_norm = convert.convert_ctypes(0., dtype='double')
     
     # Scratch file numbers for the updated reference configurations
-    confscrR = convert.convert_ctypes(np.array(conf0.confscr, dtype=int),
-                                   dtype='int32')
+    confscrR = convert.convert_ctypes(np.array(conf0.confscr, 
+                                      dtype=int), dtype='int32')
 
     # New number of reference space configurations per irrep
     nconf0 = np.zeros(nirrep, dtype=int)

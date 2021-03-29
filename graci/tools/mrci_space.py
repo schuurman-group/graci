@@ -7,13 +7,12 @@ import sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.params as params
-import graci.molecule.molecule as molecule
-import graci.molecule.wavefunction as wavefunction
-import graci.io.convert
-import graci.io.output
+import graci.methods.molecule as molecule
+import graci.methods.wavefunction as wavefunction
+import graci.io.convert as convert
+import graci.io.output as output
 
-def generate(mol, conf0, lib_bitci):
+def generate(mol, ci, conf0, lib_bitci):
     """generate the MRCI configurations"""
 
     # Construct the molecule object
@@ -49,7 +48,7 @@ def generate(mol, conf0, lib_bitci):
                                dtype='double')
         
     # Number of roots for each irrep
-    nroots = convert.convert_ctypes(np.array(params.mol_param['nstates'], 
+    nroots = convert.convert_ctypes(np.array(ci.nstates, 
                                dtype=int),dtype='int32')
 
     # Reference space eigenvector scratch file numbers
@@ -72,8 +71,8 @@ def generate(mol, conf0, lib_bitci):
 
         # Optional filtering based on the ASCI selection
         # criterion
-        if params.mrci_param['asci'] != 'off':
-            thrsh = params.asci_param[params.mrci_param['asci']]
+        if ci.asci != 'off':
+            thrsh = ci.asci_thresh[ci.asci]
             thrsh = convert.convert_ctypes(thrsh, dtype='double')
             lib_bitci.filter_asci(ctypes.byref(thrsh),
                                   ctypes.byref(irrep),

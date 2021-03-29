@@ -1,0 +1,27 @@
+ $geometry section
+ O   0.0000   0.0000   0.1191
+ H   0.0000   0.7555  -0.4764
+ H   0.0000  -0.7555  -0.4764
+ $end
+
+ $molecule section
+ units        = angstrom
+ charge       = 0
+ mult         = 1
+ basis        = aug-cc-pvtz
+ use_sym      = True
+ use_df       = False
+ $end
+
+ $scf section
+ xc           = bhandhlyp
+ $end
+
+ $dftmrci section
+ nstates      = 4 4 4 4
+ hamiltonian  = grimme_standard
+ autoras      = True
+ nhole1       = 2
+ nelec3       = 2
+ $end
+

@@ -6,12 +6,11 @@ import sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.params as params
-import graci.molecule.molecule as molecule
-import graci.io.convert
-import graci.io.output
+import graci.methods.molecule as molecule
+import graci.io.convert as convert
+import graci.io.output as output
 
-def diag(mol, conf0, lib_bitci):
+def diag(mol, ci, conf0, lib_bitci):
     """Diagonalisation of the reference space Hamiltonian"""
 
     # Construct the molecule object
@@ -43,7 +42,7 @@ def diag(mol, conf0, lib_bitci):
     for i in range(nirrep):
     
         # Number of roots for the current irrep
-        nroots = ctypes.c_int32(params.mol_param['nstates'][i])
+        nroots = ctypes.c_int32(ci.nstates[i])
     
         # Irrep number
         irrep = ctypes.c_int32(i)
@@ -61,21 +60,21 @@ def diag(mol, conf0, lib_bitci):
         # If the number of reference space configurations for the
         # current irrep is less than the requested number of roots
         # then reset nstates accordingly
-        if nroots.value < params.mol_param['nstates'][i]:
-            params.mol_param['nstates'][i] = nroots.value
+        if nroots.value < ci.nstates[i]:
+            ci.nstates[i] = nroots.value
     
     # Retrieve the reference space energies
-    maxroots = max(params.mol_param['nstates'])
+    maxroots = max(ci.nstates)
     ener = np.zeros((nirrep, maxroots), dtype=float)
     for i in range(nirrep):
-        if params.mol_param['nstates'][i] > 0:
+        if ci.nstates[i] > 0:
     
             # Energies
-            ener1 = np.zeros(params.mol_param['nstates'][i], dtype=float)
+            ener1 = np.zeros(ci.nstates[i], dtype=float)
             ener1 = convert.convert_ctypes(ener1, dtype='double')
     
             # Number of roots for the current irrep
-            nroots = ctypes.c_int32(params.mol_param['nstates'][i])
+            nroots = ctypes.c_int32(ci.nstates[i])
     
             # Eigenvector Scratch file number
             vecscr1 = ctypes.c_int32(vecscr[i])
@@ -84,7 +83,7 @@ def diag(mol, conf0, lib_bitci):
             lib_bitci.retrieve_energies(ctypes.byref(vecscr1),
                                         ctypes.byref(nroots),
                                         ener1)
-            ener[i][:params.mol_param['nstates'][i]] = ener1[:]
+            ener[i][:ci.nstates[i]] = ener1[:]
             
     # Save the list of bitci eigenvector scratch numbers
     conf0.set_vecscr(vecscr)

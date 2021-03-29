@@ -5,13 +5,12 @@ Module for constructing the reference space configurations
 import sys
 import ctypes as ctypes
 import numpy as np
-import graci.molecule.molecule as molecule
-import graci.molecule.wavefunction as wavefunction
-import graci.methods.params as params
+import graci.methods.molecule as molecule
+import graci.methods.wavefunction as wavefunction
 import graci.io.output as output
 import graci.io.convert as convert
 
-def generate(mol, lib_bitci):
+def generate(mol, ci, lib_bitci):
     """generate the reference space object"""
 
     # Initialise the reference space wavefunction object
@@ -19,8 +18,8 @@ def generate(mol, lib_bitci):
 
     # Optional automated determination of the RAS MO
     # spaces via the analysis of the DFT/CIS eigenvectors
-    if params.mrci_param['autoras']:
-        autoras(mol, conf0, lib_bitci)
+    if ci.autoras:
+        autoras(mol, ci, conf0, lib_bitci)
     
     # Generate the reference space configurations
     genconf(mol, conf0, lib_bitci)
@@ -28,7 +27,7 @@ def generate(mol, lib_bitci):
     return conf0
 
 
-def genconf(mol, conf0, lib_bitci):
+def genconf(mol, ci, conf0, lib_bitci):
     """generate the reference space configurations"""
         
     # Temporary fix: make sure that all the RAS entries in
@@ -39,33 +38,33 @@ def genconf(mol, conf0, lib_bitci):
     # entry is given.
     # This should be fixed within the input parser itself, but
     # we will just put in this hack for now.
-    for key in ['ras1', 'ras2', 'ras3']:
-        if isinstance(params.mrci_param[key], int):
-            params.mrci_param[key] = np.array([params.mrci_param[key]])
-        elif isinstance(params.mrci_param[key], list):
-            params.mrci_param[key] = np.array([])
+    #for key in ['ras1', 'ras2', 'ras3']:
+    #    if isinstance(params.mrci_param[key], int):
+    #        params.mrci_param[key] = np.array([params.mrci_param[key]])
+    #    elif isinstance(params.mrci_param[key], list):
+    #        params.mrci_param[key] = np.array([])
             
     # Number of orbitals in RAS1, RAS2, and RAS3
-    m1 = convert.convert_ctypes(params.mrci_param['ras1'].size, dtype='int32')
-    m2 = convert.convert_ctypes(params.mrci_param['ras2'].size, dtype='int32')
-    m3 = convert.convert_ctypes(params.mrci_param['ras3'].size, dtype='int32')
+    m1 = convert.convert_ctypes(ci.ras1.size, dtype='int32')
+    m2 = convert.convert_ctypes(ci.ras2.size, dtype='int32')
+    m3 = convert.convert_ctypes(ci.ras3.size, dtype='int32')
 
     # Number of electrons in RAS2
     n2 = 0
-    for i in params.mrci_param['ras2']:
+    for i in ci.ras2:
         n2 += int(mol.orb_occ[i-1])
     n2 = convert.convert_ctypes(n2, dtype='int32')
 
     # Maximum number of holes in RAS1
-    nh1 = convert.convert_ctypes(params.mrci_param['nhole1'], dtype='int32')    
+    nh1 = convert.convert_ctypes(ci.nhole1, dtype='int32')    
     
     # Maximum number of electrons in RAS3
-    ne3 = convert.convert_ctypes(params.mrci_param['nelec3'], dtype='int32')
+    ne3 = convert.convert_ctypes(ci.nelec3, dtype='int32')
     
     # Array of RAS1 orbital indices
     iras1 = np.zeros(mol.nmo, dtype=int)
     k = -1
-    for i in params.mrci_param['ras1']:
+    for i in ci.ras1:
         k +=1
         iras1[k] = i
     iras1 = convert.convert_ctypes(iras1, dtype='int32')
@@ -73,7 +72,7 @@ def genconf(mol, conf0, lib_bitci):
     # Array of RAS2 orbital indices    
     iras2 = np.zeros(mol.nmo, dtype=int)
     k = -1
-    for i in params.mrci_param['ras2']:
+    for i in ci.ras2:
         k +=1
         iras2[k] = i
     iras2 = convert.convert_ctypes(iras2, dtype='int32')
@@ -81,7 +80,7 @@ def genconf(mol, conf0, lib_bitci):
     # Array of RAS3 orbital indices
     iras3 = np.zeros(mol.nmo, dtype=int)
     k = -1
-    for i in params.mrci_param['ras3']:
+    for i in ci.ras3:
         k +=1
         iras3[k] = i
     iras3 = convert.convert_ctypes(iras3, dtype='int32')
@@ -128,7 +127,7 @@ def genconf(mol, conf0, lib_bitci):
     return
 
 
-def autoras(mol, conf0, lib_bitci):
+def autoras(mol, ci, conf0, lib_bitci):
     """determination of the RAS subspaces via preliminary
     DFT/CIS calculations"""
 
@@ -155,7 +154,7 @@ def autoras(mol, conf0, lib_bitci):
     for i in range(nirrep):
 
         # Number of roots for the current irrep
-        nroots = ctypes.c_int32(params.mol_param['nstates'][i] + n_extra)
+        nroots = ctypes.c_int32(ci.nstates[i] + n_extra)
 
         # Irrep number
         irrep = ctypes.c_int32(i)
@@ -179,7 +178,7 @@ def autoras(mol, conf0, lib_bitci):
     for i in range(nirrep):
 
         # Number of roots for the current irrep
-        nroots = ctypes.c_int32(params.mol_param['nstates'][i] + n_extra)
+        nroots = ctypes.c_int32(ci.nstates[i] + n_extra)
 
         # Irrep number
         irrep = ctypes.c_int32(i)
@@ -208,12 +207,12 @@ def autoras(mol, conf0, lib_bitci):
             else:
                 # RAS1 MO
                 ras1.append(n+1)
-    params.mrci_param['ras1'] = np.array(ras1, dtype=int)
-    params.mrci_param['ras3'] = np.array(ras3, dtype=int)
+    ci.ras1 = np.array(ras1, dtype=int)
+    ci.ras3 = np.array(ras3, dtype=int)
 
     # Output the selected RAS1 & RAS3 spaces
     print('\n Selected RAS MOs:', flush=True)
-    print('\n RAS1',[n for n in params.mrci_param['ras1']], flush=True)
-    print(' RAS3',[n for n in params.mrci_param['ras3']], flush=True)
+    print('\n RAS1',[n for n in ci.ras1], flush=True)
+    print(' RAS3',[n for n in ci.ras3], flush=True)
 
     return

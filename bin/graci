@@ -5,7 +5,6 @@ The main graci driver.
 import os
 import sys as sys
 import graci.utils.timing as timing
-import graci.methods.params as params
 import graci.tools.job_build as job_build
 import graci.io.parse as parse
 import graci.io.output as output
@@ -21,13 +20,13 @@ def main():
     read_cmdline()
 
     # parse input
-    mol = parse.parse_input()
+    calc_array = parse.parse_input()
 
     # print output file header
-    output.print_header(mol)
+    output.print_header(calc_array)
 
     # build computatoin 
-    job_build.run(mol)
+    job_build.run(calc_array)
 
     # cleanup
     output.print_cleanup()
@@ -41,8 +40,8 @@ def read_cmdline():
     Set relevant global variables.
     """
 
-    params.file_param['input_file'] = sys.argv[1].strip()
-    job_stub  = params.file_param['input_file'].split('.inp')[0]
+    output.file_names['input_file'] = sys.argv[1].strip()
+    job_stub  = output.file_names['input_file'].split('.inp')[0]
     pyscf_out = job_stub+'.pyscf.out'
     two_int   = '2e_int.h5'
     one_int   = '1e_int.h5'
@@ -52,10 +51,10 @@ def read_cmdline():
     else:
         out_file  = job_stub+'.out'
 
-    params.file_param['out_file']  = out_file
-    params.file_param['pyscf_out'] = pyscf_out
-    params.file_param['2ei']       = two_int
-    params.file_param['1ei']       = one_int
+    output.file_names['out_file']  = out_file
+    output.file_names['pyscf_out'] = pyscf_out
+    output.file_names['2ei']       = two_int
+    output.file_names['1ei']       = one_int
     return
 
 if __name__ == '__main__':

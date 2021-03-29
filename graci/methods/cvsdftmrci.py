@@ -10,7 +10,7 @@ import graci.tools.mrci_diag as mrci_diag
 import graci.tools.mrci_refine as mrci_refine
 
 
-class Dftmrci:
+class Cvsdftmrci:
     """Class constructor for DFT/MRCI object"""
     def __init__(self):
         self.nstates        = []
@@ -36,7 +36,7 @@ class Dftmrci:
         self.name           = ''
 
 
-    def run(self, mol, scf):
+    def run(self, mol):
         """ compute the DFT/MRCI energy for nroots """
 
         # run the KS-DFT computation 
