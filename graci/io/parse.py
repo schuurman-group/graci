@@ -25,7 +25,7 @@ def parse_input():
         run_list.extend(parse_section(valid_section, input_file)) 
 
     # check the input
-    check_input()
+    check_input(run_list)
 
     # add the geometry to the molecule object
     for run_obj in run_list:
@@ -183,17 +183,33 @@ def parse_value(valstr):
         return convert_array(split_lines)
 
 #
-def check_input():
+def check_input(run_list):
     """Checks on the user-supplied input"""
     
     # Make sure that nstates is an array - in the case of C1
     # symmetry this will be a single integer, but it needs
     # to be a numpy array for use later on
-#    if isinstance(params.user_inp['nstates'], int):
-#        arr = np.zeros(1, dtype=int)
-#        arr[0] = params.user_inp['nstates']
-#        params.user_inp['nstates'] = arr
-    
+    for obj in run_list:
+        sec_name = params.method_name(obj)
+
+        # Make sure that nstates is an array - in the case of C1
+        # symmetry this will be a single integer, but it needs
+        # to be a numpy array for use later on
+        if 'nstates' in params.kwords[sec_name].keys():
+            if isinstance(obj.nstates, int):
+                obj.nstates = np.array([obj.nstates], dtype=int)
+
+        # Make sure that all the RAS entries are numpy arrays.
+        ras_key = ['ras1','ras2','ras3']
+        for key in ras_key:
+            if key in params.kwords[sec_name].keys():
+                if isinstance(getattr(obj, key), int):
+                    setattr(obj, key, 
+                            np.array([getattr(obj, key)], dtype=int))
+                elif isinstance(getattr(obj, key), list):
+                    setattr(obj, key,
+                            np.array(getattr(obj, key), dtype=int))
+
     return
     
 #

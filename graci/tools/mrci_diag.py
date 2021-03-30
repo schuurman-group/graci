@@ -18,7 +18,7 @@ def diag(mol, ci, confsd, lib_bitci):
     # Get the information needed to run the MRCI diagonalisation
     # calculation
     nirrep, confscr, vecscr1, ialg, tol, niter, \
-        blocksize, deflate = diag_vars(mol, confsd)
+        blocksize, deflate = diag_vars(mol, ci, confsd)
 
     # Initialise the list to hold the eigenvector scratch file
     # numbers
@@ -90,7 +90,7 @@ def diag(mol, ci, confsd, lib_bitci):
     
     return
 
-def diag_vars(mol, confsd):
+def diag_vars(mol, ci, confsd):
     """ Returns the variables needed for the MRCI diagonalisation"""
 
     # Number of irreps
@@ -118,7 +118,7 @@ def diag_vars(mol, confsd):
             +' '+ci.diag_algorithm)
 
     # Maximum no. iterations
-    niter = convert.convert_ctypes(params.mrci_param['diag_iter'],
+    niter = convert.convert_ctypes(ci.diag_iter,
                                 dtype='int32')
     
     # Blocksizes

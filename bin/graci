@@ -49,7 +49,9 @@ def read_cmdline():
     if '-o' in sys.argv:
         out_file = sys.argv[sys.argv.index('-o')+1].strip()
     else:
-        out_file  = job_stub+'.out'
+        out_file   = None 
+        #out_file  = job_stub+'.out'
+
 
     output.file_names['out_file']  = out_file
     output.file_names['pyscf_out'] = pyscf_out

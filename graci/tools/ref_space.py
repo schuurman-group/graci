@@ -22,7 +22,7 @@ def generate(mol, ci, lib_bitci):
         autoras(mol, ci, conf0, lib_bitci)
     
     # Generate the reference space configurations
-    genconf(mol, conf0, lib_bitci)
+    genconf(mol, ci, conf0, lib_bitci)
     
     return conf0
 
@@ -30,20 +30,6 @@ def generate(mol, ci, lib_bitci):
 def genconf(mol, ci, conf0, lib_bitci):
     """generate the reference space configurations"""
         
-    # Temporary fix: make sure that all the RAS entries in
-    # the d3_inp dictionary are numpy arrays.
-    # This is currently required because the input parser
-    # will create integer types if only a single orbital index
-    # is given in the input and empty lists if no input file
-    # entry is given.
-    # This should be fixed within the input parser itself, but
-    # we will just put in this hack for now.
-    #for key in ['ras1', 'ras2', 'ras3']:
-    #    if isinstance(params.mrci_param[key], int):
-    #        params.mrci_param[key] = np.array([params.mrci_param[key]])
-    #    elif isinstance(params.mrci_param[key], list):
-    #        params.mrci_param[key] = np.array([])
-            
     # Number of orbitals in RAS1, RAS2, and RAS3
     m1 = convert.convert_ctypes(ci.ras1.size, dtype='int32')
     m2 = convert.convert_ctypes(ci.ras2.size, dtype='int32')

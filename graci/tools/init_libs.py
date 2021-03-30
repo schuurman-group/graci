@@ -4,15 +4,15 @@ import os
 import sys
 import numpy as np
 import ctypes as ctypes
-import graci.methods.params
-import graci.io.convert
+import graci.methods.params as params
+import graci.io.convert as convert
 
 #
 def init_bitci(mol, hamiltonian):
     """Initialize the bitci library"""
     
     # load the appropriate library
-    bitci_path = os.environ['GRACI']+'/graci/lib/bitci/libbitci.{}'.format(
+    bitci_path = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitci.{}'.format(
         'so' if sys.platform != 'darwin' else 'dylib')
     
     if not os.path.isfile(bitci_path):
@@ -31,6 +31,7 @@ def init_bitci(mol, hamiltonian):
     mosym = convert.convert_ctypes(np.array(mol.orb_sym),  dtype='int64')
     moen  = convert.convert_ctypes(np.array(mol.orb_ener), dtype='double')
     isym  = mol.sym_indx + 1 if mol.sym_indx > 0 else 1
+    print("mol.sym_indx="+str(mol.sym_indx)+" isym="+str(isym))
     pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
     enuc  = convert.convert_ctypes(mol.enuc,               dtype='double')
     iham  = convert.convert_ctypes(
@@ -53,7 +54,7 @@ def init_intpyscf(mol):
     """Initialize the int_pyscf library"""
 
     # load the appropriate library
-    intpyscf_path = os.environ['GRACI']+'/graci/lib/integral/libint_pyscf.{}'. \
+    intpyscf_path = os.environ['GRACI']+'/graci/lib/integrals/lib/libint_pyscf.{}'. \
             format('so' if sys.platform != 'darwin' else 'dylib')
 
     if not os.path.isfile(intpyscf_path):
@@ -62,11 +63,11 @@ def init_intpyscf(mol):
     lib_intpyscf = ctypes.cdll.LoadLibrary(intpyscf_path)
 
     # set the variables that have to be passed to load_mo_integrals
-    nmo     = convert.convert_ctypes(mol.nmo,              dtype='int32')
-    naux    = convert.convert_ctypes(mol.naux,             dtype='int32')
-    use_df  = convert.convert_ctypes(var.d3_inp['use_df'], dtype='logical')
-    thresh  = convert.convert_ctypes(1e-14,                dtype='double')
-    max_mem = convert.convert_ctypes(-1,                   dtype='int32')   
+    nmo     = convert.convert_ctypes(mol.nmo,    dtype='int32')
+    naux    = convert.convert_ctypes(mol.naux,   dtype='int32')
+    use_df  = convert.convert_ctypes(mol.use_df, dtype='logical')
+    thresh  = convert.convert_ctypes(1e-14,      dtype='double')
+    max_mem = convert.convert_ctypes(-1,         dtype='int32')   
  
     # call to load_mo_integrals
     lib_intpyscf.load_mo_integrals(ctypes.byref(nmo),

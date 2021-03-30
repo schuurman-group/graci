@@ -7,7 +7,7 @@ import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
 import graci.methods.molecule as molecule
-import graci.io.convert
+import graci.io.convert as convert
 
 def refine_ref_space(mol, ci, conf0, confsd, lib_bitci):
     """Refinement of the reference space"""

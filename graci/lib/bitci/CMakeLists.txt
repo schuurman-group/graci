@@ -18,25 +18,48 @@ if (CBINDING)
 endif()
 
 #
+# HDF5 include and lib directories
+#
+if (HDF5_INC_DIR)
+  include_directories(${HDF5_INC_DIR})
+endif()
+if (HDF5_LIB_DIR)
+  link_directories(${HDF5_LIB_DIR})
+endif()
+
+#
 # Compiler-specific flags
 #
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-    set(dialect "-O0 -cpp -ffree-form -fimplicit-none")
-    set(bounds "-fbounds-check")
+  set(dialect "-g -O0 -fcheck=all -fbacktrace -cpp -ffree-form -fimplicit-none \
+        -mavx -lblas -llapack")
+  set(bounds "-fbounds-check")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    set(dialect "-g -O2 -cpp -stand f08 -free -implicitnone -traceback")
-    set(bounds "-check bounds")
+  set(dialect "-g -O3 -cpp -free -implicitnone -traceback \
+        -xCORE-AVX2 -mkl -diag-disable 7423 -qopenmp")
+  set(bounds "-check bounds")
 endif()
 
 list(APPEND CMAKE_Fortran_FLAGS_DEBUG ${bounds})
 list(APPEND CMAKE_Fortran_FLAGS ${dialect})
 
 #
-# Compile
+# int_pyscf include and lib directories
 #
-file(GLOB_RECURSE sources  src/*.f90 src/*.F90)
+set(INT_PYSCF_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/modules)
+include_directories(${INT_PYSCF_INC_DIR})
+set(INT_PYSCF_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/lib)
+link_directories(${INT_PYSCF_LIB_DIR})
+
+#
+# Add the library target 
+#
+file(GLOB_RECURSE sources src/*)
 add_library(bitci SHARED ${sources})
+
+# Link to int_pyscf
+target_link_libraries(bitci -lint_pyscf)
 
 #
 # Install

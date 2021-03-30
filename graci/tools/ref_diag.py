@@ -92,7 +92,7 @@ def diag(mol, ci, conf0, lib_bitci):
     conf0.set_ener(np.transpose(ener))
     
     # Print the section header
-    output.print_refdiag_summary(mol, conf0)
+    output.print_refdiag_summary(mol, ci.nstates, conf0)
     
     # Stop timing
     timing.stop('ref_diag')

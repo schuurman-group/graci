@@ -1,0 +1,749 @@
+\documentclass[12pt,a4paper]{report}
+
+\usepackage{psfrag}
+\usepackage{colordvi}
+\usepackage{color}
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{epsf}
+\usepackage{nomencl}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage{fancyheadings}
+\usepackage{rotating}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{cite}
+\usepackage{notoccite}
+\usepackage{caption}
+\usepackage{colortbl}
+\usepackage{lscape}
+\usepackage{appendix}
+\usepackage[normalem]{ulem}
+\usepackage{stmaryrd}
+\usepackage{soul}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\newcommand*\code[1]{\mbox{\texttt{{#1}}}} % routines, variables, code
+
+\begin{document}
+
+
+\chapter{CSF representation of the electronic Hamiltonian}
+\section{CSF expansion of the electronic wavefunctions}
+Following Segal and Wetmore\cite{segal_ci_matrix_elements_1975}, let
+each CSF $| \text{w} \omega \rangle$ be specifed by a spatial
+occupation $\text{w}$ and a spin-coupling $\omega$.
+
+\section{Hamiltonian matrix build}
+\subsection{Form of the Hamiltonian}
+The second quantisation form of the electronic Hamiltonian reads
+
+\begin{equation}
+  \hat{H} = \sum_{ij} h_{ij} \hat{E}_{i}^{j} + \frac{1}{2} \sum_{ijkl}
+  V_{ijkl} \left( \hat{E}_{i}^{j} \hat{E}_{k}^{l} + \delta_{jk}
+  \hat{E}_{i}^{l} \right),
+\end{equation}
+
+\noindent
+where $\hat{E}_{i}^{j}$ denotes a spin-traced singlet exciation
+operator,
+
+\begin{equation}
+  \hat{E}_{i}^{j} = \sum_{\sigma=\alpha,\beta}
+  \hat{a}_{i\sigma}^{\dagger} \hat{a}_{j\sigma},
+\end{equation}
+
+\noindent
+$h_{ij}$ is an element of the core Hamiltonian matrix, and $V_{ijkl}$
+is a two-electron integral in the Chemist's notation.
+
+Following Segal and Wetmore\cite{segal_ci_matrix_elements_1975}, the
+electronic Hamiltonian may be re-expressed in the following form:
+
+\begin{equation}\label{eq:ham_segal}
+  \begin{aligned}
+    \hat{H} &= E_{\text{SCF}} - \sum_{i} F_{ii} + \frac{1}{2}
+    \sum_{ij} \left(V_{iijj} - \frac{1}{2} V_{ijji} \right)
+    \bar{\text{w}}_{i} \bar{\text{w}}_{j} + \sum_{ij} F_{ij}
+    \hat{E}_{i}^{j} - \sum_{ijkl} \left( V_{ijkk} - \frac{1}{2}
+    V_{ikkj} \right) \bar{\text{w}}_{k} \hat{E}_{i}^{j} \\
+    &+ \frac{1}{2} \sum_{ijkl} V_{ijkl} \left( \hat{E}_{i}^{j}
+    \hat{E}_{k}^{l} + \delta_{jk} \hat{E}_{i}^{l} \right)
+  \end{aligned}
+\end{equation}
+
+\noindent
+Here, $\bar{\text{w}}$ denotes the spatial occupation of the base
+configuration, and $E_{\text{SCF}}$ and $\boldsymbol{F}$ are the SCF
+energy and Fock matrix evaluated in the basis of the one-electron
+basis being used:
+
+\begin{equation}
+  F_{ij} = h_{ij} + \sum_{k} \left(V_{ijkk} - \frac{1}{2} V_{ikkj}
+  \right) \bar{\text{w}}_{k},
+\end{equation}
+
+\begin{equation}
+  E_{\text{SCF}} = \sum_{i} F_{ii} \bar{\text{w}} - \frac{1}{2}
+  \sum_{ij} \left( V_{iijj} - \frac{1}{2} V_{ijji} \right)
+  \bar{\text{w}}_{i} \bar{\text{w}}_{j}.
+\end{equation}
+
+\noindent
+Note that $E_{\text{SCF}}$ is not the Hartree-Fock (HF) energy, and
+$\boldsymbol{F}$ is not diagonal if non-HF MOs are used as the
+single-particle basis.
+
+The form of the electronic Hamiltonian given in Equation
+\ref{eq:ham_segal} may at first look redundant and unecessarily
+complicated. However, it's use leads to Hamiltonian matrix element
+expressions that contain only terms expressed with respect to
+singly-occupied MOs in the ket configuration and MOs with different
+occupations relative to the base configuration $\bar{\text{w}}$. In
+turn, this results in significant computational savings. This is
+especially true if the configurations admitted into the CSF basis are
+limited to a maximum number of open shells and excitation degree
+relative to the base configuration. To understand how this reduction
+in terms occurs, it is first necessary to consider some elementary
+properties of the singlet excitation operators $\hat{E}_{i}^{j}$.
+
+\subsection{Properties of the singlet excitation operators}
+\subsubsection{Commutation relations}
+The elementary Fermionic creation and annihilation operators satisfy
+the following anti-commutation relations:
+
+\begin{equation}
+  [ \hat{a}_{i\sigma}^{\dagger}, \hat{a}_{j\tau}^{\dagger} ]_{+} = [
+    \hat{a}_{i\sigma}, \hat{a}_{j\tau} ]_{+} = 0,
+\end{equation}
+
+\begin{equation}
+  [ \hat{a}_{i\sigma}^{\dagger}, \hat{a}_{j\tau} ]_{+} = \delta_{ij}
+  \delta_{\sigma\tau}.
+\end{equation}
+
+\noindent
+Using these relations, it is found that the singlet excitation
+operators obey the following commutation relation:
+
+\begin{equation}\label{eq:generator_commutation}
+  [\hat{E}_{i}^{j}, \hat{E}_{k}^{l}] = \delta_{jk} \hat{E}_{i}^{l} -
+  \delta_{il} \hat{E}_{k}^{j}.
+\end{equation}
+
+\subsubsection{Number operators}
+The diagonal singlet excitation operator $\hat{E}_{i}^{i}$ corresponds
+to a number operator in the sense that taking it's expectation value
+with respect to any CSF $| \text{w} \omega \rangle$ yields the
+occupation of the $i$th MO in the configuration $\text{w}$:
+
+\begin{equation}\label{eq:number_operator}
+  \langle \text{w} \omega | \hat{E}_{i}^{i} | \text{w} \omega \rangle
+  = \text{w}_{i}
+\end{equation}
+
+This is readily verified by expanding the CSF $| \text{w} \omega
+\rangle$ in terms of Slater determinants $| \boldsymbol{k} \rangle$:
+
+\begin{equation}
+  | \text{w} \omega \rangle = \sum_{\boldsymbol{K}} C_{\boldsymbol{K}}
+  | \boldsymbol{K} \rangle,
+\end{equation}
+
+\begin{equation}
+    \langle \text{w} \omega | \hat{E}_{i}^{i} | \text{w} \omega
+    \rangle = \sum_{\boldsymbol{KL}} C_{\boldsymbol{L}}
+    C_{\boldsymbol{K}} \sum_{\sigma} \langle \boldsymbol{L}
+    |\hat{a}_{i\sigma}^{\dagger} \hat{a}_{i\sigma} | \boldsymbol{K}
+    \rangle = \sum_{\boldsymbol{K}} |C_{\boldsymbol{K}}|^{2}
+    \sum_{\sigma} K_{i\sigma}.
+\end{equation}
+
+\noindent
+Now, the quantity $\sum_{\sigma} K_{i\sigma}$ is independent of the
+determinant $| \boldsymbol{K} \rangle$, being just the occupation of
+the $i$th spatial MO, i.e., $\sum_{\sigma} K_{i\sigma} =
+\text{w}_{i}$. We thus arrive at the desired result:
+
+\begin{equation}
+  \langle \text{w} \omega | \hat{E}_{i}^{i} | \text{w} \omega \rangle
+  = \text{w}_{i} \sum_{\boldsymbol{K}} |C_{\boldsymbol{K}}|^{2} =
+  \text{w}_{i}.
+\end{equation}
+
+One last useful result is that the number operator matrix elements
+between CSFs with the same spatial configuration but different spin
+couplings are zero, i.e.,
+
+\begin{equation}
+  \langle \text{w} \omega' | \hat{E}_{i}^{i} | \text{w} \omega \rangle
+  = 0.
+\end{equation}
+
+\noindent
+This is again easily verified by
+inserting the Slater determinant expansions of the two CSFs.
+
+\subsection{Hamiltonian matrix elements}
+Using the above properties of the singlet excitation operators and the
+form of the electronic Hamiltonian given in Equation
+\ref{eq:ham_segal}, we will show how the Hamiltonian matrix elements
+reduce to contain only terms involving open shell MOs in the ket
+configuration and those MOs differently occupied relative to the base
+determinant. The complete derivation is somewhat lengthy and tedious,
+and instead we take as our starting point Equations 15-17 of Reference
+\citenum{segal_ci_matrix_elements_1975}.
+
+\subsubsection{On-diagonal elements}
+In Reference \citenum{segal_ci_matrix_elements_1975}, the on-diagonal
+Hamiltonian matrix elements are given as
+
+\begin{equation}\label{eq:hii_segal}
+  \begin{aligned}
+    \langle \text{w} \omega | \hat{H} - E_{\text{SCF}} | \text{w}
+    \omega \rangle &= \sum_{i} F_{ii} \Delta \text{w}_{i} +
+    \frac{1}{2} \sum_{ij} \left( V_{iijj} - \frac{1}{2} V_{ijji}
+    \right) \Delta \text{w}_{i} \Delta \text{w}_{j} \\
+    &+ \frac{1}{2} \sum_{i \ne j} V_{ijji}
+    \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega) + \frac{1}{2}
+    \sum_{ij} V_{ijji} \left( \frac{1}{2} \text{w}_{i} \text{w}_{j} -
+    \text{w}_{i} \right),
+  \end{aligned}
+\end{equation}
+
+\noindent
+where
+
+\begin{equation}
+  \Delta \text{w}_{i} = \text{w}_{i} - \bar{\text{w}}_{i},
+\end{equation}
+
+\noindent
+and
+
+\begin{equation}\label{eq:eta_ijji}
+  \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega) = \langle \text{w}
+  \omega | \hat{E}_{i}^{j} \hat{E}_{j}^{i} | \text{w} \omega \rangle.
+\end{equation}
+
+Let $U_{\text{w}}$, $S_{\text{w}}$ and $D_{\text{w}}$ denote the sets
+of indices of the MOs that are unoccupied, singly-occupied and
+doubly-occupied in the configuration $\text{w}$, respectively. Then,
+Equation \ref{eq:hii_segal} can be re-written as
+
+\begin{equation}
+  \begin{aligned}
+    \langle \text{w} \omega | \hat{H} - E_{\text{SCF}} | \text{w}
+    \omega \rangle &= \sum_{i} F_{ii} \Delta \text{w}_{i} +
+    \frac{1}{2} \sum_{ij} \left( V_{iijj} - \frac{1}{2} V_{ijji}
+    \right) \Delta \text{w}_{i} \Delta \text{w}_{j} \\
+    &+ \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in S_{\text{w}}}
+    V_{ijji} \left[ \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega)
+      (1-\delta_{ij}) + \frac{1}{2} \text{w}_{i} \text{w}_{j} -
+      \text{w}_{i} \right] \\
+    &+ \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in U_{\text{w}}}
+    V_{ijji} \left[ \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega) +
+      \frac{1}{2} \text{w}_{i} \text{w}_{j} - \text{w}_{i} \right] \\
+    &+ \frac{1}{2} \sum_{i \in D_{\text{w}}} \sum_{j \in S_{\text{w}}}
+    V_{ijji} \left[ \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega) +
+      \frac{1}{2} \text{w}_{i} \text{w}_{j} - \text{w}_{i} \right] \\
+    &+ \frac{1}{2} \sum_{i \in D_{\text{w}}} \sum_{j \in U_{\text{w}}}
+    V_{ijji} \left[ \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega) +
+      \frac{1}{2} \text{w}_{i} \text{w}_{j} - \text{w}_{i} \right]
+  \end{aligned}
+\end{equation}
+
+Using the commutation relation \ref{eq:generator_commutation} and
+Equation \ref{eq:number_operator}, we find that
+
+\begin{equation}
+  \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega) =
+  \eta_{ji}^{ij}(\text{w},\omega,\text{w},\omega) + \text{w}_{i} -
+  \text{w}_{j},
+\end{equation}
+
+\noindent
+which allows us to write
+
+\begin{equation}
+  \begin{aligned}
+    \langle \text{w} \omega | \hat{H} - E_{\text{SCF}} | \text{w}
+    \omega \rangle &= \sum_{i} F_{ii} \Delta \text{w}_{i} +
+    \frac{1}{2} \sum_{ij} \left( V_{iijj} - \frac{1}{2} V_{ijji}
+    \right) \Delta \text{w}_{i} \Delta \text{w}_{j} \\
+    &+ \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in S_{\text{w}}}
+    V_{ijji} \left[ \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega)
+      (1-\delta_{ij}) + \frac{1}{2} \text{w}_{i} \text{w}_{j} -
+      \text{w}_{i} \right] \\
+    &+ \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in U_{\text{w}}}
+    V_{ijji} \left[ \eta_{ji}^{ij}(\text{w},\omega,\text{w},\omega) +
+      \frac{1}{2} \text{w}_{i} \text{w}_{j} - \text{w}_{j} \right] \\
+    &+ \frac{1}{2} \sum_{i \in D_{\text{w}}} \sum_{j \in S_{\text{w}}}
+    V_{ijji} \left[ \eta_{ji}^{ij}(\text{w},\omega,\text{w},\omega) +
+      \frac{1}{2} \text{w}_{i} \text{w}_{j} - \text{w}_{j} \right] \\
+    &+ \frac{1}{2} \sum_{i \in D_{\text{w}}} \sum_{j \in U_{\text{w}}}
+    V_{ijji} \left[ \eta_{ji}^{ij}(\text{w},\omega,\text{w},\omega) +
+      \frac{1}{2} \text{w}_{i} \text{w}_{j} - \text{w}_{j} \right]
+  \end{aligned}
+\end{equation}
+
+\noindent
+Now, from Equation \ref{eq:eta_ijji} we see that
+$\eta_{ji}^{ij}(\text{w},\omega,\text{w},\omega) = 0$ if $j \in
+U_{\text{w}}$ or $i \in D_{\text{w}}$. Using this, and inserting the
+values of the occupations $\text{w}_{i}$, we arrive at the following
+working equation:
+
+\begin{equation}\label{eq:hii_working}
+  \begin{aligned}
+    \langle \text{w} \omega | \hat{H} - E_{\text{SCF}} | \text{w}
+    \omega \rangle &= \sum_{i} F_{ii} \Delta \text{w}_{i} +
+    \frac{1}{2} \sum_{ij} \left( V_{iijj} - \frac{1}{2} V_{ijji}
+    \right) \Delta \text{w}_{i} \Delta \text{w}_{j} \\
+    &+ \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in S_{\text{w}}}
+    V_{ijji} \left[ \eta_{ij}^{ji}(\text{w},\omega,\text{w},\omega)
+      (1-\delta_{ij}) - \frac{1}{2} \right]
+  \end{aligned}
+\end{equation}
+
+\subsubsection{Off-diagonal elements (i): same spatial occupation, different spin-coupling}
+For $\omega \ne \omega'$, we have
+
+\begin{equation}\label{eq:hij_zero_segal}
+  \langle \text{w} \omega' | \hat{H} | \text{w} \omega \rangle =
+  \frac{1}{2} \sum_{i \ne j} V_{ijji}
+  \eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega).
+\end{equation}
+
+Decomposing the sum in this equation into individual contributions
+from the different excitation classes gives
+
+\begin{equation}
+  \begin{aligned}
+    \langle \text{w} \omega' | \hat{H} | \text{w} \omega \rangle &=
+    \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in U_{\text{w}}}
+    V_{ijji} \eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega) \\
+    &+ \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in S_{\text{w}}}
+    V_{ijji} \eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega) \\
+    &+ \frac{1}{2} \sum_{i \in D_{\text{w}}} \sum_{j \in U_{\text{w}}}
+    V_{ijji} \eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega) \\
+    &+ \frac{1}{2} \sum_{i \in D_{\text{w}}} \sum_{j \in s_{\text{w}}}
+    V_{ijji} \eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega).
+  \end{aligned}
+\end{equation}
+
+Now, from Equation \ref{eq:generator_commutation} we see that
+
+\begin{equation}
+  \begin{aligned}
+    \eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega) &= \langle
+    \text{w} \omega' | \hat{E}_{j}^{i} \hat{E}_{i}^{j} | \text{w}
+    \omega \rangle + \langle \text{w} \omega' | \hat{E}_{i}^{i} |
+    \text{w} \omega \rangle - \langle \text{w} \omega' |
+    \hat{E}_{j}^{j} | \text{w} \omega \rangle \\
+    &= \langle \text{w} \omega' | \hat{E}_{j}^{i} \hat{E}_{i}^{j} |
+    \text{w} \omega \rangle.
+  \end{aligned}
+\end{equation}
+
+\noindent
+We thus see that $\eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega)=0$
+if $i \in D_{\text{w}}$ or $j \in U_{\text{w}}$. Using this property,
+Equation \ref{eq:hij_zero_segal} reduces to the following working
+equation:
+
+\begin{equation}\label{eq:hij_zero_working}
+  \langle \text{w} \omega' | \hat{H} | \text{w} \omega \rangle =
+  \frac{1}{2} \sum_{i \in S_{\text{w}}} \sum_{j \in S_{\text{w}}}
+  V_{ijji} \eta_{ij}^{ji}(\text{w},\omega',\text{w},\omega)
+  (1-\delta_{ij}).
+\end{equation}
+
+\subsubsection{Off-diagonal elements (ii): one-electron differences}
+Let the spatial occupations $\text{w}$ and $\text{w}'$ be linked by
+the single excitation from MO $i$ to MO $a$. Then,
+
+\begin{equation}\label{eq:hij_single_segal}
+  \begin{aligned}
+    \langle \text{w}' \omega' | \hat{H} | \text{w} \omega \rangle &=
+    \left[ F_{ia} + \sum_{k} \left( V_{iakk} - \frac{1}{2} V_{ikka}
+      \right) \Delta \text{w}_{k} \right]
+    \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) \\
+    &+ \sum_{k \ne i,a} V_{ikka} \left[
+      \eta_{ak}^{ki}(\text{w}',\omega',\text{w},\omega) + \left(
+      \frac{1}{2}\text{w}_{k} -1 \right)
+      \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) \right] \\
+    &+ \left[ V_{aaai} \text{w}_{a} + V_{aiii} \left( \text{w}_{i} -2
+      \right) \right] \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega),
+  \end{aligned}
+\end{equation}
+
+\noindent
+where
+
+\begin{equation}
+  \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) = \langle \text{w}'
+  \omega' | \hat{E}_{a}^{i} | \text{w} \omega \rangle.
+\end{equation}
+
+\noindent
+Now, the sum in Equation \ref{eq:hij_single_segal} involving the
+integrals $V_{ikka}$, $k \ne i,a$, contains non-zero contributions
+only for $k \in S_{\text{w}}$, which can be shown as follows.
+
+For $k \in D_{\text{w}}$, we have $\text{w}_{k}=2$ and, for $k \ne i$,
+
+\begin{equation}\label{eq:eta_akki_kinD}
+  \eta_{ak}^{ki}(\text{w}',\omega',\text{w},\omega) = \langle
+  \text{w}' \omega' | \hat{E}_{a}^{k} \hat{E}_{k}^{i} | \text{w}
+  \omega \rangle = 0.
+\end{equation}
+
+\noindent
+We thus see that
+
+\begin{equation}
+  \eta_{ak}^{ki}(\text{w}',\omega',\text{w},\omega) + \left(
+  \frac{1}{2} \text{w}_{k} -1 \right)
+  \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) = 0, \hspace{0.5cm}
+  k \in D_{w}, k \ne i.
+\end{equation}
+
+To show that the contibutions for $k \in U_{\text{w}}$ are zero, we
+first make use of the commutation relation
+
+\begin{equation}
+  [\hat{E}_{a}^{k}, \hat{E}_{k}^{i}] = \hat{E}_{a}^{i}, \hspace{0.5cm}
+  i \ne a.
+\end{equation}
+
+\noindent
+This allows us to write
+
+\begin{equation}
+  \begin{aligned}
+  \eta_{ak}^{ki}(\text{w}',\omega',\text{w},\omega) &= \langle
+  \text{w}' \omega' | \hat{E}_{a}^{k} \hat{E}_{k}^{i} | \text{w}
+  \omega \rangle \\
+  &= \langle \text{w}' \omega' | \hat{E}_{k}^{i} \hat{E}_{a}^{k} |
+  \text{w} \omega \rangle + \langle \text{w}' \omega' |
+  \hat{E}_{a}^{i} | \text{w} \omega \rangle \\
+  &= \langle \text{w}' \omega' | \hat{E}_{a}^{i} | \text{w} \omega
+  \rangle, \hspace{0.5cm} \text{for } \hspace{0.5cm} k \in
+  U_{\text{w}}.
+  \end{aligned}
+\end{equation}
+
+\noindent
+That is, for $k \in U_{\text{w}}$,
+$\eta_{ak}^{ki}(\text{w}',\omega',\text{w},\omega) =
+\eta_{a}^{i}(\text{w}',\omega',\text{w},\omega)$. This allows us to
+write the contibutions for $k \in U_{\text{w}}$ as
+
+\begin{equation}
+  \eta_{ak}^{ki}(\text{w}',\omega',\text{w},\omega) + \left(
+  \frac{1}{2} \text{w}_{k} - 1 \right)
+  \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) = \frac{1}{2}
+  \text{w}_{k} \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) =
+  0, \hspace{0.5cm} k \in U_{\text{w}}.
+\end{equation}
+
+Collecting together these results, we arrive at the following working
+equation:
+
+\begin{equation}\label{eq:hij_single_working}
+  \begin{aligned}
+   \langle \text{w}' \omega' | \hat{H} | \text{w} \omega \rangle &=
+   \left[ F_{ia} + \sum_{k} \left( V_{iakk} - \frac{1}{2} V_{ikka}
+     \right) \Delta \text{w}_{k} \right]
+   \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) \\
+   &+ \sum_{\substack{k \in S_{\text{w}} \\ k \ne i,a}} V_{ikka}
+   \left[ \eta_{ak}^{ki}(\text{w}',\omega',\text{w},\omega) + \left(
+     \frac{1}{2}\text{w}_{k} -1 \right)
+     \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega) \right] \\
+   &+ \left[ V_{aaai} \text{w}_{a} + V_{aiii} \left( \text{w}_{i} -2
+     \right) \right] \eta_{a}^{i}(\text{w}',\omega',\text{w},\omega).
+  \end{aligned}
+\end{equation}
+
+\subsubsection{Off-diagonal elements (iii): two-electron differences}
+Let the spatial occupations $\text{w}$ and $\text{w}'$ be linked by
+the two excitations from MO $i$ to MO $a$, and from MO $j$ to MO
+$b$. Then our working equation simply reads
+
+\begin{equation}\label{eq:hij_double_working}
+  \langle \text{w}' \omega' | \hat{H} | \text{w} \omega \rangle =
+  \left[ V_{aibj} \eta_{ab}^{ij}(\text{w}',\omega',\text{w},\omega) +
+    V_{ajbi} \eta_{ab}^{ji}(\text{w}',\omega',\text{w},\omega) \right]
+  \left[ (1+\delta_{ab}) (1+\delta_{ij}) \right]^{-1}.
+\end{equation}
+
+%----------------------------------------------------------------------
+% Bit string representation of configurations
+%----------------------------------------------------------------------
+\chapter{Bit string representation of spatial configurations}
+In order to efficiently evaluate the Hamiltonian matrix working
+equations, we need to be able to:
+
+\begin{enumerate}
+\item Rapidly compute the excitation degree between any two
+  configurations $\text{w}$ and $\text{w}'$ as well as the indices of
+  the MOs differently occupied in them.
+\item Efficiently retrieve the required spin-coupling coefficients
+  $\eta_{i}^{j}(\text{w}',\omega',\text{w},\omega)$ from memory.
+\end{enumerate}
+
+\noindent
+To achieve this, a dual representation of the configurations
+$\text{w}$ was adopted, with one representation tailored to each of
+these tasks. These are termed the `configuration' (CONF) and `spatial
+occupation pattern' (SOP) representations.
+
+\section{CONF representation}
+In the CONF representation, each spatial configuration $\text{w}$ is
+represented using a bit string pair $(C_{\text{w}}^{(1)},
+C_{\text{w}}^{(2)})$. For $M$ spatial orbitals, $C_{\text{w}}^{(1)}$
+and $C_{\text{w}}$ are both composed of $M$ bits. An unnocupied MO
+$\phi_{i}$ is represented by unset bits in the $i$th positions of
+$C_{\text{w}}^{(1)}$ and $C_{\text{w}}$. A singly-occupied MO
+$\phi_{i}$ is represented by a set bits in the $i$th position of
+$C_{\text{w}}^{(1)}$ and unset bit in the $i$th position of
+$C_{\text{w}}$. A doubly-occupied MO $\phi_{i}$ is represented by a
+set bits in both the $i$th position of $C_{\text{w}}^{(1)}$ and
+$C_{\text{w}}$. Thus, for example, the spatial configuration
+
+\begin{equation*}
+  \text{w} = (2,2,1,0,1,0)
+\end{equation*}
+
+\noindent
+would be represented by the CONF bit string pair
+
+\begin{equation*}
+  \begin{aligned}
+    &C_{\text{w}}^{(1)} = 1 1 1 0 1 0 \\
+    &C_{\text{w}}^{(2)} = 1 1 0 0 0 0
+  \end{aligned}
+\end{equation*}
+
+\section{The SOP representation}
+In the SOP representation, each spatial configuration $\text{w}$ is
+also represented using a bit string pair, denoted by
+$(S_{\text{w}}^{(1)}, S_{\text{w}}^{(2)})$. A singly-occupied MO
+$\phi_{i}$ is represented by a set bit in $S_{\text{w}}^{(1)}$, and a
+doubly-occupied MO $\phi_{i}$ is represented by a set bit in
+$S_{\text{w}}^{(2)}$. An unoccupied MO is represented by unset bits in
+both $S_{\text{w}}^{(1)}$ and $S_{\text{w}}^{(2)}$. So, the same
+configuration
+
+\begin{equation*}
+  \text{w} = (2,2,1,0,1,0)
+\end{equation*}
+
+\noindent
+is represented by the SOP bit string pair
+
+\begin{equation*}
+  \begin{aligned}
+    &S_{\text{w}}^{(1)} = 0 0 1 0 1 0 \\
+    &S_{\text{w}}^{(2)} = 1 1 0 0 0 0
+  \end{aligned}
+\end{equation*}
+
+\section{Calculation of excitation degrees}
+The excitation degree $N_{\text{w}\text{w}'}$ for a pair of
+configurations $\text{w}$ and $\text{w}'$ is defined simply as
+
+\begin{equation}
+  N_{\text{w}\text{w}'} = \frac{1}{2}\sum_{i=1}^{M} |\text{w}_{i} -
+  \text{w}_{i}'|
+\end{equation}
+
+\noindent
+This quantity may be computed rapidly as follows
+
+\begin{equation}
+  N_{\text{w}\text{w}'} = \frac{1}{2} \left( \left|\left|
+  C_{\text{w}}^{(1)} \oplus C_{\text{w}'}^{(1)} \right|\right| +
+  \left|\left| C_{\text{w}}^{(2)} \oplus C_{\text{w}'}^{(2)}
+  \right|\right| \right),
+\end{equation}
+
+\noindent
+where $\oplus$ denotes the bitwise XOR operation, and $||I||$ is the
+Hamming weight of the bit string $I$, that is, the number of set bits
+in $I$.
+
+\section{Determination of hole and particle indices}
+Given a ket configuration $\text{w}$ and a bra configuration
+$\text{w}'$, the hole (particle) MOs are defined as those with
+negative (positive) $\text{w}_{i}' - \text{w}_{i}$ values. Using the
+CONF representation of $\text{w}$ and $\text{w}'$, the indices of the
+hole and particle MOs can be determined as follows.
+
+Firstly, the bit strings
+
+\begin{equation}
+  x^{(1)} = C_{\text{w}}^{(1)} \oplus C_{\text{w}'}^{(2)}
+\end{equation}
+
+\noindent
+and
+
+\begin{equation}
+  x^{(2)} = C_{\text{w}}^{(2)} \oplus C_{\text{w}'}^{(2)}
+\end{equation}
+
+\noindent
+are computed, which have set bits only in the positions of the hole
+and particle MOs.
+
+Two bit strings which together encode the positions of the hole MOs
+are then computed as
+
+\begin{equation}
+  h^{(1)} = C_{\text{w}}^{(1)} \wedge x^{(1)}
+\end{equation}
+
+\noindent
+and
+
+\begin{equation}
+  h^{(2)} = C_{\text{w}}^{(2)} \wedge x^{(2)},
+\end{equation}
+
+\noindent
+where $\wedge$ denotes the bitwise AND operation. Extracting the
+indices of the set bits in $h^{(1)}$ and $h^{(2)}$ then gives the list
+of hole indices.
+
+Similarly, the indices of the particle MOs are extracted from the
+positions of the set bits in the two bit strings
+
+\begin{equation}
+  p^{(1)} = C_{\text{w}'}^{(1)} \wedge x^{(1)}
+\end{equation}
+
+\noindent
+and
+
+\begin{equation}
+  p^{(2)} = C_{\text{w}'}^{(2)} \wedge x^{(2)}.
+\end{equation}
+
+\section{Sidenote - extraction of the positions of set bits in a bit string}
+Often in the \code{bitci} code, we need to extract the positions of
+set bits in some bit string. For example, in the determination of hole
+and particle indices. For a give bit string $I$, this is efficiently
+accomplished by counting the trailing zeros (unset bits), clearing the
+set bits up to the first set bit, and repeating until $I$ is composed
+only of unset bits. The pseudo-code for this is given in Algorith
+\ref{alg:list_from_bitstring}. Here, $\code{trailz}(I)$ returns the
+number of trailing unset bits in the bit string $I$, and
+$\code{ibclr}(I,e)$ returns the bit string $I$ with the bit at the
+$e$th position cleared (set to zero).
+
+\begin{algorithm}
+  \caption{Extraction of the list of set bit indices in a given bit
+    string. The input arguments are a bit string $I$ and the array $L$
+    to be filled with the positions of the set bits in
+    $I$.}\label{alg:list_from_bitstring}
+
+  \begin{algorithmic}[1]
+
+    \Procedure{list\_from\_bitstring}{$I$,$L$}
+    
+    \State $k \leftarrow 0$ 
+
+    \While{$I \ne 0$}
+
+    \State $e \leftarrow \code{trailz}(I) + 1$
+    \State $I \leftarrow \code{ibclr}(I,e)$
+    \State $L[k] \leftarrow e$
+    \State $k \leftarrow k + 1$
+    \EndWhile
+    
+    \EndProcedure
+
+  \end{algorithmic}
+\end{algorithm}
+
+\subsection{Determination of difference configurations}
+In the calculation of the Hamiltonian matrix elements, we need to
+determine the difference configurations $\Delta \text{w}$, defined as
+the vector of differences between the ket and base
+configurations. That is,
+
+\begin{equation}
+  \Delta \text{w}_i = \text{w}_i - \bar{\text{w}}_i.
+\end{equation}
+
+Bit strings encoding of indices of non-zero $\Delta \text{w}_{i}$
+values may be computed as follows. First, bit string pairs encoding
+the positions of the hole and particle MOs are constructed as
+
+\begin{equation}
+  h^{(i)} = \left( C_{\text{w}}^{(i)} \oplus C_{\bar{\text{w}}}^{(i)}
+  \right) \wedge C_{\text{w}}^{(i)}, \hspace{0.5cm} i=1,2,
+\end{equation}
+
+\noindent
+and
+
+\begin{equation}
+  p^{(i)} = \left( C_{\text{w}}^{(i)} \oplus C_{\bar{\text{w}}}^{(i)}
+  \right) \wedge C_{\bar{\text{w}}}^{(i)}, \hspace{0.5cm} i=1,2,
+\end{equation}
+
+\noindent
+respectively. Next, separate bit strings encoding the indices of the
+MOs with values $\Delta \text{w}_{i}=-2,-1,+1, \text{ and }+2$ are
+computed as
+
+\begin{equation}
+  d^{(1)} = h^{(1)} \oplus h^{(2)} \hspace{0.5cm} \text{(Positions of
+    the MOs for which $\Delta \text{w}_{i} = -1$)},
+\end{equation}
+
+\begin{equation}
+  d^{(2)} = h^{(1)} \wedge h^{(2)} \hspace{0.5cm} \text{(Positions of
+    the MOs for which $\Delta \text{w}_{i} = -2$)},
+\end{equation}
+
+\begin{equation}
+  a^{(1)} = p^{(1)} \oplus p^{(2)} \hspace{0.5cm} \text{(Positions of
+    the MOs for which $\Delta \text{w}_{i} = +1$)},
+\end{equation}
+
+\noindent
+and
+
+\begin{equation}
+  a^{(2)} = p^{(1)} \wedge p^{(2)} \hspace{0.5cm} \text{(Positions of
+    the MOs for which $\Delta \text{w}_{i} = +2$)}.
+\end{equation}
+
+Finally, the list of non-zero $\Delta \text{w}_{i}$ values and
+corresponding MO indices $i$ can be extracted from the bit strings
+$d^{(1)}$, $d^{(2)}$, $a^{(1)}$, and $a^{(2)}$ using a slightly
+modified version of Algorithm \ref{alg:list_from_bitstring}.
+
+%----------------------------------------------------------------------
+% References
+%----------------------------------------------------------------------
+\newpage
+\clearpage
+%\bibliographystyle{/home/simon/latex/papers/bib/bst/jcp}
+%\bibliography{references}
+
+\clearpage
+\lhead{\fancyplain{}{}} \chead{\fancyplain{}{\bfseries Bibliography}}
+\cfoot{\fancyplain{\bfseries Bibliography}{\bfseries Bibliography}}
+\addcontentsline{toc}{chapter}{Bibliography} \bibliographystyle{./jcp}
+\bibliography{./references}
+
+\end{document}
+

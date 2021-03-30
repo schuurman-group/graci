@@ -3,6 +3,7 @@
 import sys
 import ctypes
 import numpy as np
+from contextlib import contextmanager
 import graci.utils.constants as constants
 import graci.utils.timing as timing
 import graci.methods.params as params
@@ -14,6 +15,17 @@ file_names = {'input_file'   : '',
               'pyscf_out'    : '',
               '1ei'          : '',
               '2ei'          : ''}
+
+@contextmanager
+def output_file(file_name, mode):
+    """return the file handle if file_name string is not None, else
+       return stdout"""
+
+    if file_name is None:
+        yield sys.stdout
+    else:
+        with open(file_name, mode) as out_file:
+            yield out_file
 
 def print_header(run_list):
     """print the output log file header"""
@@ -31,7 +43,7 @@ def print_header(run_list):
     inp_key =" Input Parameters \n"
 
     # Read input file. Small enough to gulp the whole thing
-    with open(file_names['out_file'], 'w') as outfile:
+    with output_file(file_names['out_file'], 'w') as outfile:
         outfile.write(header+'\n\n')
         outfile.write(inp_key+'\n')
 
@@ -71,7 +83,7 @@ def print_scf_header():
     """print the SCF header"""
     global file_names
 
-    with open(file_names['out_file'], 'a+') as outfile:
+    with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write(' SCF Computation with PySCF\n')
         outfile.write(' -----------------------------\n\n')
         outfile.flush()
@@ -83,7 +95,7 @@ def print_scf_summary(scf_energy, mol):
     """print summary of the SCF computation"""
     global file_names
 
-    with open(file_names['out_file'], 'a+') as outfile:
+    with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write(' SCF energy = {:16.10f}\n\n'.format(scf_energy))
         outfile.write(' Orbital Energies and Occupations\n')
         outfile.write(' --------------------------------\n')
@@ -113,7 +125,7 @@ def print_refdiag_header():
     """print the reference space diagonalisation header"""
     global file_names
 
-    with open(file_names['out_file'], 'a+') as outfile:
+    with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference Space Diagonalisation\n')
         outfile.write(' -------------------------------')
         outfile.flush()
@@ -132,7 +144,7 @@ def print_refdiag_summary(mol, nstates, refdets):
 
     mine = np.amin(refdets.ener)
 
-    with open(file_names['out_file'], 'a+') as outfile:
+    with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
         outfile.write(' -------------------------')
     
@@ -153,7 +165,7 @@ def print_mrcispace_header():
     """print the MRCI space generation header"""
     global file_names
 
-    with open(file_names['out_file'], 'a+') as outfile:
+    with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n MRCI Configuration Generation\n')
         outfile.write(' -------------------------------')
         outfile.flush()
@@ -163,7 +175,7 @@ def print_autoras_header():
     """print the automatic RAS space generation header"""
     global file_names
 
-    with open(file_names['out_file'], 'a+') as outfile:
+    with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Automatic RAS Space Generation\n')
         outfile.write(' -------------------------------')
         outfile.flush()
@@ -175,7 +187,7 @@ def print_cleanup():
 
     ostr = timing.print_timings()
 
-    with open(file_names['out_file'], 'a+') as outfile:
+    with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write(ostr)
         outfile.flush()
         

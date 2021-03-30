@@ -7,6 +7,7 @@ module accuracy
   implicit none
 
   public
+    integer, parameter :: cik         = selected_int_kind(2)       ! cache-sized integers for integral storage
     integer, parameter :: sik         = selected_int_kind(4)       ! Small integers
     integer, parameter :: ik          = selected_int_kind(8)       ! 64-bit integers
     integer, parameter :: hik         = selected_int_kind(18)      ! "Pointer" integers - sufficient to mem address
