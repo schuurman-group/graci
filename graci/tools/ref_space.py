@@ -5,12 +5,11 @@ Module for constructing the reference space configurations
 import sys
 import ctypes as ctypes
 import numpy as np
-import graci.methods.molecule as molecule
 import graci.methods.wavefunction as wavefunction
 import graci.io.output as output
 import graci.io.convert as convert
 
-def generate(mol, ci, lib_bitci):
+def generate(scf, ci, lib_bitci):
     """generate the reference space object"""
 
     # Initialise the reference space wavefunction object
@@ -19,17 +18,20 @@ def generate(mol, ci, lib_bitci):
     # Optional automated determination of the RAS MO
     # spaces via the analysis of the DFT/CIS eigenvectors
     if ci.autoras:
-        autoras(mol, ci, conf0, lib_bitci)
+        autoras(scf, ci, conf0, lib_bitci)
     
     # Generate the reference space configurations
-    genconf(mol, ci, conf0, lib_bitci)
+    genconf(scf, ci, conf0, lib_bitci)
     
     return conf0
 
 
-def genconf(mol, ci, conf0, lib_bitci):
+def genconf(scf, ci, conf0, lib_bitci):
     """generate the reference space configurations"""
-        
+       
+    # number of irreps
+    nirr = len(ci.nstates)
+
     # Number of orbitals in RAS1, RAS2, and RAS3
     m1 = convert.convert_ctypes(ci.ras1.size, dtype='int32')
     m2 = convert.convert_ctypes(ci.ras2.size, dtype='int32')
@@ -38,7 +40,7 @@ def genconf(mol, ci, conf0, lib_bitci):
     # Number of electrons in RAS2
     n2 = 0
     for i in ci.ras2:
-        n2 += int(mol.orb_occ[i-1])
+        n2 += int(scf.orb_occ[i-1])
     n2 = convert.convert_ctypes(n2, dtype='int32')
 
     # Maximum number of holes in RAS1
@@ -48,7 +50,7 @@ def genconf(mol, ci, conf0, lib_bitci):
     ne3 = convert.convert_ctypes(ci.nelec3, dtype='int32')
     
     # Array of RAS1 orbital indices
-    iras1 = np.zeros(mol.nmo, dtype=int)
+    iras1 = np.zeros(scf.nmo, dtype=int)
     k = -1
     for i in ci.ras1:
         k +=1
@@ -56,7 +58,7 @@ def genconf(mol, ci, conf0, lib_bitci):
     iras1 = convert.convert_ctypes(iras1, dtype='int32')
     
     # Array of RAS2 orbital indices    
-    iras2 = np.zeros(mol.nmo, dtype=int)
+    iras2 = np.zeros(scf.nmo, dtype=int)
     k = -1
     for i in ci.ras2:
         k +=1
@@ -64,25 +66,19 @@ def genconf(mol, ci, conf0, lib_bitci):
     iras2 = convert.convert_ctypes(iras2, dtype='int32')
     
     # Array of RAS3 orbital indices
-    iras3 = np.zeros(mol.nmo, dtype=int)
+    iras3 = np.zeros(scf.nmo, dtype=int)
     k = -1
     for i in ci.ras3:
         k +=1
         iras3[k] = i
     iras3 = convert.convert_ctypes(iras3, dtype='int32')
 
-    # Number of irreps
-    if mol.comp_sym != 'c1':
-        nirrep = molecule.nirrep[mol.sym_indx]
-    else:
-        nirrep = 1
-
     # Number of reference space configurations per irrep
-    nconf0 = np.zeros(nirrep, dtype=int)
+    nconf0 = np.zeros(nirr, dtype=int)
     nconf0 = convert.convert_ctypes(nconf0, dtype='int32')
 
     # Reference space configurations scratch file number
-    confscr = np.zeros(nirrep, dtype=int)
+    confscr = np.zeros(nirr, dtype=int)
     confscr = convert.convert_ctypes(confscr, dtype='int32')
     
     # Construct the reference space configurations
@@ -113,18 +109,15 @@ def genconf(mol, ci, conf0, lib_bitci):
     return
 
 
-def autoras(mol, ci, conf0, lib_bitci):
+def autoras(scf, ci, conf0, lib_bitci):
     """determination of the RAS subspaces via preliminary
     DFT/CIS calculations"""
 
     # Print the section header
     output.print_autoras_header()
-    
-    # Number of irreps
-    if mol.comp_sym != 'c1':
-        nirrep = molecule.nirrep[mol.sym_indx]
-    else:
-        nirrep = 1
+   
+    # number of irreps
+    nirr = len(ci.nstates)
 
     # Number of extra roots
     n_extra = 2
@@ -137,7 +130,7 @@ def autoras(mol, ci, conf0, lib_bitci):
     vecscr  = []
 
     # Loop over irreps
-    for i in range(nirrep):
+    for i in range(nirr):
 
         # Number of roots for the current irrep
         nroots = ctypes.c_int32(ci.nstates[i] + n_extra)
@@ -157,11 +150,11 @@ def autoras(mol, ci, conf0, lib_bitci):
     # RAS1 and RAS3 guess
     #
     # Dominant particle/hole indices
-    iph  = np.zeros(mol.nmo, dtype=int)
-    iph1 = convert.convert_ctypes(np.zeros(mol.nmo, dtype=int),
+    iph  = np.zeros(scf.nmo, dtype=int)
+    iph1 = convert.convert_ctypes(np.zeros(scf.nmo, dtype=int),
                                dtype='int32')
     # Loop over irreps
-    for i in range(nirrep):
+    for i in range(nirr):
 
         # Number of roots for the current irrep
         nroots = ctypes.c_int32(ci.nstates[i] + n_extra)
@@ -185,9 +178,9 @@ def autoras(mol, ci, conf0, lib_bitci):
     # RAS1 & RAS3 MO indices
     ras1 = []
     ras3 = []
-    for n in range(mol.nmo):
+    for n in range(scf.nmo):
         if iph[n] == 1:
-            if mol.orb_occ[n] == 0:
+            if scf.orb_occ[n] == 0:
                 # RAS3 MO
                 ras3.append(n+1)
             else:

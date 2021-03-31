@@ -7,16 +7,18 @@ import sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.molecule as molecule
 import graci.methods.wavefunction as wavefunction
 import graci.io.convert as convert
 import graci.io.output as output
 
-def generate(mol, ci, conf0, lib_bitci):
+def generate(ci, conf0, lib_bitci):
     """generate the MRCI configurations"""
 
     # Construct the molecule object
     timing.start('mrci_space')
+
+    # number of irreps
+    nirr = len(ci.nstates)
 
     # Print the section header
     output.print_mrcispace_header()
@@ -24,22 +26,16 @@ def generate(mol, ci, conf0, lib_bitci):
     # Initialise the reference space wavefunction object
     confsd = wavefunction.Wavefunction()
 
-    # Number of irreps
-    if mol.comp_sym != 'c1':
-        nirrep = molecule.nirrep[mol.sym_indx]
-    else:
-        nirrep = 1
-    
     # Bitci reference configuration scratch file numbers
     conf0scr = convert.convert_ctypes(np.array(conf0.confscr, dtype=int),
                                dtype='int32')
 
     # Bitci MRCI configuration scratch file numbers
-    confMscr = convert.convert_ctypes(np.zeros(nirrep, dtype=int),
+    confMscr = convert.convert_ctypes(np.zeros(nirr, dtype=int),
                                dtype='int32')
 
     # Number of MRCI configurations per irrep
-    nconf = convert.convert_ctypes(np.zeros(nirrep, dtype=int),
+    nconf = convert.convert_ctypes(np.zeros(nirr, dtype=int),
                                dtype='int32')
     
     # Energy of the highest-lying reference space
@@ -56,7 +52,7 @@ def generate(mol, ci, conf0, lib_bitci):
                                dtype='int32')
     
     # Loop over irreps
-    for i in range(nirrep):
+    for i in range(nirr):
 
         # Irrep number
         irrep = ctypes.c_int32(i)

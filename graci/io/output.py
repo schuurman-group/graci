@@ -91,31 +91,28 @@ def print_scf_header():
     return
 
 #
-def print_scf_summary(scf_energy, mol):
+def print_scf_summary(mol, scf):
     """print summary of the SCF computation"""
     global file_names
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write(' SCF energy = {:16.10f}\n\n'.format(scf_energy))
+        outfile.write(' SCF energy = {:16.10f}\n\n'.format(scf.energy))
         outfile.write(' Orbital Energies and Occupations\n')
         outfile.write(' --------------------------------\n')
         outfile.write(' {:>5}  {:>9}  {:>10}  {:>8}\n'.
               format('Index','Symmetry','Energy','Occ'))
 
-        if mol.comp_sym != 'c1':
-            orb_cnt = np.zeros(molecule.nirrep[mol.sym_indx], dtype=int)
-        else:
-            orb_cnt = np.zeros(1, dtype=int)
+        orb_cnt = np.zeros(mol.n_irrep(), dtype=int)
 
-        for iorb in range(mol.nmo):
-            sym_indx = mol.orb_sym[iorb]
+        for iorb in range(scf.nmo):
+            sym_indx = scf.orb_sym[iorb]
             orb_cnt[sym_indx] += 1
             outfile.write(' {:5d}  {:>4d}({:>3})  {:10.5f}  {:8.4}\n'.
                   format(iorb+1,
                          orb_cnt[sym_indx],
-                         mol.orb_irrep[iorb],
-                         mol.orb_ener[iorb],
-                         mol.orb_occ[iorb]))
+                         scf.orb_irrep[iorb],
+                         scf.orb_ener[iorb],
+                         scf.orb_occ[iorb]))
         outfile.flush()
 
     return
@@ -137,18 +134,13 @@ def print_refdiag_summary(mol, nstates, refdets):
     """print the summary of the reference space diagonalisation"""
     global file_names
 
-    if mol.comp_sym != 'c1':
-        nirrep = molecule.nirrep[mol.sym_indx]
-    else:
-        nirrep = 1
-
     mine = np.amin(refdets.ener)
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
         outfile.write(' -------------------------')
     
-        for i in range(nirrep):
+        for i in range(len(nstates)):
             if nstates[i] > 0:
                 outfile.write('\n')
                 for n in range(nstates[i]):

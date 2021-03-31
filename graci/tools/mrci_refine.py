@@ -6,20 +6,16 @@ import sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.molecule as molecule
 import graci.io.convert as convert
 
-def refine_ref_space(mol, ci, conf0, confsd, lib_bitci):
+def refine_ref_space(ci, conf0, confsd, lib_bitci):
     """Refinement of the reference space"""
 
     # Start timing
     timing.start('mrci_refine')
 
-    # Number of irreps
-    if mol.comp_sym != 'c1':
-        nirrep = molecule.nirrep[mol.sym_indx]
-    else: 
-        nirrep = 1
+    # number of irreps given by length of ci.nstates vector
+    nirr = len(ci.nstates)
 
     # Bitci MRCI configuration scratch file numbers
     confscrM = convert.convert_ctypes(np.array(confsd.confscr, 
@@ -44,7 +40,7 @@ def refine_ref_space(mol, ci, conf0, confsd, lib_bitci):
                                       dtype=int), dtype='int32')
 
     # New number of reference space configurations per irrep
-    nconf0 = np.zeros(nirrep, dtype=int)
+    nconf0 = np.zeros(nirr, dtype=int)
     nconf0 = convert.convert_ctypes(nconf0, dtype='int32')
     
     # Refine the reference space

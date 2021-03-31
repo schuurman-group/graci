@@ -9,7 +9,6 @@ import graci.tools.mrci_space as mrci_space
 import graci.tools.mrci_diag as mrci_diag
 import graci.tools.mrci_refine as mrci_refine
 
-
 class Cvsdftmrci:
     """Class constructor for DFT/MRCI object"""
     def __init__(self):
@@ -36,35 +35,39 @@ class Cvsdftmrci:
         self.name           = ''
 
 
-    def run(self, mol):
+    def run(self, mol, scf):
         """ compute the DFT/MRCI energy for nroots """
 
         # run the KS-DFT computation 
         scf.run(mol)
 
         # initialize int_pyscf
-        lib_intpyscf = init_libs.init_intpyscf(mol)
+        lib_intpyscf = init_libs.init_intpyscf(mol, scf)
 
         # initialize bitci
-        lib_bitci = init_libs.init_bitci(mol, self.hamiltonian)
+        lib_bitci = init_libs.init_bitci(mol, scf, self.hamiltonian)
 
+        # number of irreps -- should check this is constant with 
+        # length self.nstates?
+        nirr = mol.n_irrep()
+  
         # generate the reference space configurations
-        conf0 = ref_space.generate(mol, self, lib_bitci)
+        conf0 = ref_space.generate(scf, self, lib_bitci)
 
         # Perform the MRCI iterations, refining the reference space
         # as we go
         for i in range(self.refiter):
             # reference space diagonalisation
-            ref_diag.diag(mol, self, conf0, lib_bitci)
+            ref_diag.diag(ci.nstates, conf0, lib_bitci)
 
             # generate the MRCI configurations
-            confsd = mrci_space.generate(mol, self, conf0, lib_bitci)
+            confsd = mrci_space.generate(self, conf0, lib_bitci)
 
             # MRCI diagonalisation
-            mrci_diag.diag(mol, self, confsd, lib_bitci)
+            mrci_diag.diag(self, confsd, lib_bitci)
 
             # refine the reference space
-            min_norm = mrci_refine.refine_ref_space(mol, self, conf0, confsd, lib_bitci)
+            min_norm = mrci_refine.refine_ref_space(self, conf0, confsd, lib_bitci)
 
             # break if the reference space is converged
             if min_norm > 0.95 and i > 0:

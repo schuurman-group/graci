@@ -32,32 +32,22 @@ def parse_input():
         if params.method_name(run_obj) == 'molecule':
             parse_geometry(run_obj, input_file)
 
-            atms = run_obj.atoms
-            cart = run_obj.geom
-            mol_str = ';'.join([atms[i]+'   '+
-                      ' '.join([str(cart[i,j]) for j in range(3)])
-                        for i in range(run_obj.n_atoms())])
-
-            pymol = gto.M(
-                   dump_input = False,
-                   parse_arg  = False,
-                   verbose    = 0,
-                   atom       = mol_str,
-                   charge     = run_obj.charge,
-                   spin       = run_obj.spin,
-                   output     = output.file_names['pyscf_out'],
-                   basis      = run_obj.basis,
-                   symmetry   = run_obj.use_sym,
-                   unit       = run_obj.units)
-            pymol.build()
-
+            # create a pyscf mole object using already set info
+            pymol = run_obj.pymol()
+            # the nuclear repulsion energy
+            run_obj.enuc     = pymol.energy_nuc()
+            # the number of electrons
             run_obj.nel      = int(sum(pymol.nelec))
+            # full point group symmetry of the molecule
             run_obj.full_sym = pymol.topgroup.lower()
+            # point group to be used for computation
             run_obj.comp_sym = pymol.groupname.lower()
             if pymol.symmetry:
                 run_obj.sym_indx = molecule.point_grps.index(run_obj.comp_sym)
+                run_obj.irreplbl = pymol.irrep_name
             else:
                 run_obj.sym_indx = -1
+                run_obj.irreplbl = ['A']
 
     return run_list
 

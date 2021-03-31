@@ -17,8 +17,16 @@ from pyscf.tools import molden
 class Scf:
     """Class constructor for SCF object"""
     def __init__(self):
-        self.xc   = 'hf'
-        self.name = ''
+        self.xc        = 'hf'
+        self.name      = ''
+        self.energy    = None
+        self.orbs      = None
+        self.orb_occ   = None
+        self.orb_ener  = None
+        self.orb_irrep = []
+        self.orb_sym   = []
+        self.nmo       = 0
+        self.naux      = 0
 
     def run(self, mol):
         """compute the DFT energy and KS orbitals"""
@@ -27,23 +35,9 @@ class Scf:
         timing.start('scf.run')
 
         output.print_scf_header()
-    
-        atms = mol.atoms
-        cart = mol.geom
-        mol_str = ';'.join([atms[i]+'   '+
-                 ' '.join([str(cart[i,j]) for j in range(3)])
-                           for i in range(mol.n_atoms())])
-        pymol = gto.M(
-            dump_input = False,
-            parse_arg  = False,
-            verbose    = logger.NOTE,
-            atom       = mol_str,
-            charge     = mol.charge,
-            spin       = mol.spin,
-            output     = output.file_names['pyscf_out'],
-            basis      = mol.basis,
-            symmetry   = mol.use_sym,
-            unit       = mol.units)
+   
+        # create pyscf mole object 
+        pymol = mol.pymol()
     
         # if var.d3_inp['xc']='hf', use canonical hf orbitals
         if self.xc == 'hf': 
@@ -84,7 +78,7 @@ class Scf:
                 mf.with_df = False    
                 
         # run the dft computation
-        ref_energy = mf.kernel()
+        self.energy = mf.kernel()
 
         # if not converged, kill things
         if not mf.converged:
@@ -125,32 +119,23 @@ class Scf:
             f['hcore_mo'] = h1_mo
 
         # extract orbitals, occupations and energies
-        mol.orbs      = mf.mo_coeff
-        mol.orb_occ   = mf.mo_occ
-        mol.orb_ener  = mf.mo_energy
-        mol.orb_irrep = orb_sym
-        mol.orb_sym   = orb_id
-        mol.nmo       = len(mf.mo_occ)
+        self.orbs      = ref_orbs
+        self.orb_occ   = mf.mo_occ
+        self.orb_ener  = mf.mo_energy
+        self.orb_irrep = orb_sym
+        self.orb_sym   = orb_id
+        self.nmo       = len(mf.mo_occ)
         if (mol.use_df):
-            mol.naux      = int(mf.with_df.auxmol.nao_nr())
+            self.naux      = int(mf.with_df.auxmol.nao_nr())
 
-        # save the irrep labels
-        if mol.sym_indx == -1:
-            mol.irreplbl = ['A']
-        else:
-            mol.irreplbl = pymol.irrep_name
-
-        # save the nuclear repulsion energy
-        mol.enuc = mf.energy_nuc()
-    
         # print the summary of the output to file
-        output.print_scf_summary(ref_energy, mol)
+        output.print_scf_summary(mol, self)
 
         # write the Molden file
         with open('mos.molden', 'w') as f1:
             molden.header(pymol, f1)
-            molden.orbital_coeff(pymol, f1, mf.mo_coeff, ene=mf.mo_energy,
-                             occ=mf.mo_occ)
+            molden.orbital_coeff(pymol, f1, ref_orbs, ene=mf.mo_energy,
+                                 occ=mf.mo_occ)
 
         timing.stop('scf.run')
 

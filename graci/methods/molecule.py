@@ -1,8 +1,10 @@
 """
 The Molecule object and its associated functions.
 """
-
 import numpy as np
+import graci.io.output as output
+from pyscf.lib import logger
+from pyscf import gto
 
 atom_name  = ['X', 'H', 'D', 'T', 'He', 
               'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
@@ -20,30 +22,57 @@ nirrep     = [1, 2, 2, 2, 4, 4, 4, 8]
 class Molecule:
     """Class constructor for the Molecule object."""
     def __init__(self):
-        self.geom      = None
-        self.atoms     = None
-        self.mult      = 1
-        self.spin      = 0.
-        self.charge    = 0.
-        self.nel       = 0
-        self.use_sym   = False
-        self.full_sym  = ''
-        self.comp_sym  = ''
-        self.sym_indx  = -1
-        self.irreplbl  = None
-        self.hij       = None
-        self.enuc      = 0.
-        self.orbs      = None
-        self.orb_occ   = None
-        self.orb_ener  = None
-        self.orb_irrep = []
-        self.orb_sym   = []
-        self.nmo       = 0
-        self.naux      = 0
-        self.units     = 'bohr'
-        self.basis     = ''
-        self.ri_basis  = ''
-        
+        self.geom     = None
+        self.atoms    = None
+        self.mult     = 1
+        self.spin     = 0.
+        self.charge   = 0.
+        self.nel      = 0
+        self.use_sym  = False
+        self.full_sym = ''
+        self.comp_sym = ''
+        self.sym_indx = -1
+        self.irreplbl = None
+        self.hij      = None
+        self.enuc     = 0.
+        self.units    = 'bohr'
+        self.basis    = ''
+        self.ri_basis = ''
+        self.mol_obj  = None
+
+    def pymol(self, force_make=False):
+        """return a gto.Molecule object: 
+           compute it if one doesn't exist, or force_make=True"""
+  
+        if self.mol_obj is None or force_make:
+            atms = self.atoms
+            cart = self.geom
+            mol_str = ';'.join([atms[i]+'   '+
+                 ' '.join([str(cart[i,j]) for j in range(3)])
+                           for i in range(self.n_atoms())])
+
+            self.mol_obj = gto.M(
+                         dump_input = False,
+                         parse_arg  = False,
+                         verbose    = logger.NOTE,
+                         atom       = mol_str,
+                         charge     = self.charge,
+                         spin       = self.spin,
+                         output     = output.file_names['pyscf_out'],
+                         basis      = self.basis,
+                         symmetry   = self.use_sym,
+                         unit       = self.units)
+
+        return self.mol_obj
+
+    # 
+    def n_irrep(self):
+        """return the number of irreps"""
+        if self.comp_sym != 'c1':
+            return nirrep[self.sym_indx]
+        else:
+            return 1
+
     #
     def set_geom(self, geom):
         """Set the cartesian geometry"""
@@ -65,24 +94,6 @@ class Molecule:
         return
 
     #
-    def set_orbs(self, orbs):
-        """set the molecular orbitals"""
-        self.orbs = orbs
-        return
-
-    # 
-    def set_occ(self, occ):
-        """sets the natural orbital occupations"""
-        self.occ = occ
-        return
-
-    #
-    def set_ener(self, ener):
-        """sets the orbital energies"""
-        self.ener = ener
-        return
-
-    #
     def set_mult(self, mult):
         """sets the multiplicity"""
         self.mult = mult
@@ -93,11 +104,6 @@ class Molecule:
     def set_charge(self, charge):
         """ses the molecular charge"""
         self.charge = charge
-        return
-
-    #
-    def sort_orbs(self, method):
-        """sorts the orbitals based on value of method"""
         return
 
     # 

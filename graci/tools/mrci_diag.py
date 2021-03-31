@@ -6,10 +6,9 @@ import sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.molecule as molecule
 import graci.io.convert as convert
 
-def diag(mol, ci, confsd, lib_bitci):
+def diag(ci, confsd, lib_bitci):
     """Diagonalisation of the MRCI Hamiltonian"""
 
     # Start timing
@@ -17,15 +16,15 @@ def diag(mol, ci, confsd, lib_bitci):
 
     # Get the information needed to run the MRCI diagonalisation
     # calculation
-    nirrep, confscr, vecscr1, ialg, tol, niter, \
-        blocksize, deflate = diag_vars(mol, ci, confsd)
+    nirr, confscr, vecscr1, ialg, tol, niter, \
+        blocksize, deflate = diag_vars(ci, confsd)
 
     # Initialise the list to hold the eigenvector scratch file
     # numbers
     vecscr  = []
     
     # Loop over irreps
-    for i in range(nirrep):
+    for i in range(nirr):
 
         # Number of roots for the current irrep
         nroots = ctypes.c_int32(ci.nstates[i])
@@ -52,8 +51,8 @@ def diag(mol, ci, confsd, lib_bitci):
 
     # Retrieve the MRCI energies
     maxroots = max(ci.nstates)
-    ener = np.zeros((nirrep, maxroots), dtype=float)
-    for i in range(nirrep):
+    ener = np.zeros((nirr, maxroots), dtype=float)
+    for i in range(nirr):
         if ci.nstates[i] > 0:
 
             # Energies
@@ -90,14 +89,11 @@ def diag(mol, ci, confsd, lib_bitci):
     
     return
 
-def diag_vars(mol, ci, confsd):
+def diag_vars(ci, confsd):
     """ Returns the variables needed for the MRCI diagonalisation"""
 
-    # Number of irreps
-    if mol.comp_sym != 'c1':
-        nirrep = molecule.nirrep[mol.sym_indx]
-    else: 
-        nirrep = 1
+    # nirr is given by the length of the nstates vector in ci obj
+    nirr = len(ci.nstates)
 
     # Bitci MRCI configuration scratch file numbers
     confscr = np.array(confsd.confscr, dtype=int)
@@ -141,4 +137,4 @@ def diag_vars(mol, ci, confsd):
     
     tol = convert.convert_ctypes(ci.diag_tol, dtype='double')
     
-    return nirrep, confscr, vecscr1, ialg, tol, niter, blocksize, deflate
+    return nirr, confscr, vecscr1, ialg, tol, niter, blocksize, deflate
