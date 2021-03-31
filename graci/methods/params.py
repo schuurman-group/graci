@@ -13,11 +13,13 @@ molecule_kword = {'units'   : str,
                   'basis'    : str,
                   'ri_basis' : str,
                   'use_sym'  : bool,
-                  'use_df'   : bool
+                  'use_df'   : bool,
+                  'name'     : str
                   }
 
 # DFT section input keywords and data types
-scf_kword      = {'xc'          : str}
+scf_kword      = {'xc'          : str,
+                  'name'        : str}
 
 # MRCI section input keywords and data types
 dftmrci_kword  = {'nstates'        : int,
@@ -36,7 +38,8 @@ dftmrci_kword  = {'nstates'        : int,
                   'diag_tol'       : float,
                   'diag_iter'      : int,
                   'diag_blocksize' : int,
-                  'diag_deflate'   : bool
+                  'diag_deflate'   : bool,
+                  'name'           : str
                  }
 
 cvsdftmrci_kword =  {'nstates'        : int,
@@ -55,7 +58,8 @@ cvsdftmrci_kword =  {'nstates'        : int,
                   'diag_tol'       : float,
                   'diag_iter'      : int,
                   'diag_blocksize' : int,
-                  'diag_deflate'   : bool
+                  'diag_deflate'   : bool,
+                  'name'           : str
                  }
 
 dftcis_kword   = {'nstates'        : int,

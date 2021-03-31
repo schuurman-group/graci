@@ -13,6 +13,7 @@ import graci.tools.mrci_refine as mrci_refine
 class Dftmrci:
     """Class constructor for DFT/MRCI object"""
     def __init__(self):
+        # user defined quanties
         self.nstates        = []
         self.hamiltonian    = 'canonical'
         self.de_select      = 0.8
@@ -30,11 +31,12 @@ class Dftmrci:
         self.diag_iter      = 50
         self.diag_blocksize = []
         self.diag_deflate   = False
+        self.name           = ''
+
+        # class variables
         self.asci_thresh    = {'tight'  : 1e-5,
                                'normal' : 1e-4,
                                'loose'  : 1e-3}
-        self.name           = ''
-
 
     def run(self, mol, scf):
         """ compute the DFT/MRCI energy for nroots """

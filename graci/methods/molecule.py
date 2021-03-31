@@ -22,22 +22,29 @@ nirrep     = [1, 2, 2, 2, 4, 4, 4, 8]
 class Molecule:
     """Class constructor for the Molecule object."""
     def __init__(self):
+        # the following is determined from user input 
+        # (or subject to user input) -- these are keywords
+        # in params module
+        self.mult     = 1
+        self.charge   = 0.
+        self.use_sym  = False
+        self.units    = 'bohr'
+        self.basis    = ''
+        self.ri_basis = ''
+        self.use_df   = False
+        self.name     = ''
+
+        # the following are determined based on user
+        # input
+        self.nel      = 0
+        self.spin     = 0
         self.geom     = None
         self.atoms    = None
-        self.mult     = 1
-        self.spin     = 0.
-        self.charge   = 0.
-        self.nel      = 0
-        self.use_sym  = False
         self.full_sym = ''
         self.comp_sym = ''
         self.sym_indx = -1
         self.irreplbl = None
-        self.hij      = None
         self.enuc     = 0.
-        self.units    = 'bohr'
-        self.basis    = ''
-        self.ri_basis = ''
         self.mol_obj  = None
 
     def pymol(self, force_make=False):

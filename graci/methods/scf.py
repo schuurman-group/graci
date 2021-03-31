@@ -17,8 +17,11 @@ from pyscf.tools import molden
 class Scf:
     """Class constructor for SCF object"""
     def __init__(self):
+        # user defined input paramaters
         self.xc        = 'hf'
         self.name      = ''
+
+        # computed quantities
         self.energy    = None
         self.orbs      = None
         self.orb_occ   = None
