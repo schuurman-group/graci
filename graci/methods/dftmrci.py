@@ -9,7 +9,6 @@ import graci.tools.mrci_space as mrci_space
 import graci.tools.mrci_diag as mrci_diag
 import graci.tools.mrci_refine as mrci_refine
 
-
 class Dftmrci:
     """Class constructor for DFT/MRCI object"""
     def __init__(self):
@@ -37,6 +36,8 @@ class Dftmrci:
         self.asci_thresh    = {'tight'  : 1e-5,
                                'normal' : 1e-4,
                                'loose'  : 1e-3}
+        self.ref_conf       = None
+        self.mrci_conf      = None
 
     def run(self, mol, scf):
         """ compute the DFT/MRCI energy for nroots """
@@ -50,27 +51,25 @@ class Dftmrci:
         # initialize bitci
         lib_bitci = init_libs.init_bitci(mol, scf, self.hamiltonian)
 
-        # number of irreps -- should check this is constant with 
-        # length self.nstates?
-        nirr = mol.n_irrep()
-  
         # generate the reference space configurations
-        conf0 = ref_space.generate(scf, self, lib_bitci)
+        self.ref_conf = self.Wavefunction()
+        ref_space.generate(scf, self, lib_bitci)
 
         # Perform the MRCI iterations, refining the reference space
         # as we go
         for i in range(self.refiter):
             # reference space diagonalisation
-            ref_diag.diag(mol, self.nstates, conf0, lib_bitci)
+            ref_diag.diag(mol, self, lib_bitci)
 
             # generate the MRCI configurations
-            confsd = mrci_space.generate(self, conf0, lib_bitci)
+            self.mrci_conf = self.Wavefunction()
+            mrci_space.generate(self, lib_bitci)
 
             # MRCI diagonalisation
-            mrci_diag.diag(self, confsd, lib_bitci)
+            mrci_diag.diag(self, lib_bitci)
 
             # refine the reference space
-            min_norm = mrci_refine.refine_ref_space(self, conf0, confsd, lib_bitci)
+            min_norm = mrci_refine.refine_ref_space(self, lib_bitci)
 
             # break if the reference space is converged
             if min_norm > 0.95 and i > 0:
@@ -95,6 +94,48 @@ class Dftmrci:
 
         return
 
+    #
+    class Wavefunction:
+        """wavefunction object for DFT/MRCI method"""
+        def __init__(self):
+            # List of numbers of configurations per irrep
+            self.nconf       = None
+            # bitci configuration scratch file numbers
+            self.confscr     = 0
+            # List of bitci eigenvector scratch file numbers (one per irrep)
+            self.vecscr      = None
+            # State energies
+            self.ener        = None
+            # Hamiltonian integer label
+            self.hamiltonian = None
 
+        #
+        def set_nconf(self, nconf):
+            """Sets the numbers of configurations"""
+            self.nconf = nconf
+            return
 
+        #
+        def set_confscr(self, confscr):
+            """Sets the bitci configuration scratch file numbers"""
+            self.confscr = confscr
+            return
+
+        #
+        def set_vecscr(self, vecscr):
+            """Adds the list of bitci eigenvector scratch file numbers"""
+            self.vecscr = vecscr
+            return
+
+        #
+        def set_ener(self, ener):
+            """Adds the array of state energies"""
+            self.ener = ener
+            return
+
+        #
+        def set_hamiltonian(self, lbl):
+            """Set the Hamiltonian integer label"""
+            self.hamiltonian = hamiltonians.index(lbl)
+            return
 

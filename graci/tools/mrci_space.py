@@ -7,11 +7,10 @@ import sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.wavefunction as wavefunction
 import graci.io.convert as convert
 import graci.io.output as output
 
-def generate(ci, conf0, lib_bitci):
+def generate(ci, lib_bitci):
     """generate the MRCI configurations"""
 
     # Construct the molecule object
@@ -23,12 +22,9 @@ def generate(ci, conf0, lib_bitci):
     # Print the section header
     output.print_mrcispace_header()
     
-    # Initialise the reference space wavefunction object
-    confsd = wavefunction.Wavefunction()
-
     # Bitci reference configuration scratch file numbers
-    conf0scr = convert.convert_ctypes(np.array(conf0.confscr, dtype=int),
-                               dtype='int32')
+    conf0scr = convert.convert_ctypes(np.array(ci.ref_conf.confscr, 
+                               dtype=int), dtype='int32')
 
     # Bitci MRCI configuration scratch file numbers
     confMscr = convert.convert_ctypes(np.zeros(nirr, dtype=int),
@@ -40,16 +36,17 @@ def generate(ci, conf0, lib_bitci):
     
     # Energy of the highest-lying reference space
     # state of interest relative to the ground state
-    emax = convert.convert_ctypes(conf0.ener.max()-conf0.ener.min(),
-                               dtype='double')
+    emax = convert.convert_ctypes(ci.ref_conf.ener.max() - 
+                                  ci.ref_conf.ener.min(), 
+                                  dtype='double')
         
     # Number of roots for each irrep
     nroots = convert.convert_ctypes(np.array(ci.nstates, 
                                dtype=int),dtype='int32')
 
     # Reference space eigenvector scratch file numbers
-    vec0scr = convert.convert_ctypes(np.array(conf0.vecscr, dtype=int),
-                               dtype='int32')
+    vec0scr = convert.convert_ctypes(np.array(ci.ref_conf.vecscr, 
+                               dtype=int), dtype='int32')
     
     # Loop over irreps
     for i in range(nirr):
@@ -84,14 +81,14 @@ def generate(ci, conf0, lib_bitci):
     confMscr=confMscr[:]
 
     # Set the number of MRCI configurations
-    confsd.set_nconf(nconf)
+    ci.mrci_conf.set_nconf(nconf)
     
     # Set the reference space determinants scratch file number
-    confsd.set_confscr(confMscr)
+    ci.mrci_conf.set_confscr(confMscr)
 
     # Stop timing
     timing.stop('mrci_space')
     
-    return confsd
+    return
 
 

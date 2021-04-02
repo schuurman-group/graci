@@ -130,24 +130,24 @@ def print_refdiag_header():
     return
 
 #
-def print_refdiag_summary(mol, nstates, refdets):
+def print_refdiag_summary(mol, ci):
     """print the summary of the reference space diagonalisation"""
     global file_names
 
-    mine = np.amin(refdets.ener)
+    mine = np.amin(ci.ref_conf.ener)
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
         outfile.write(' -------------------------')
     
-        for i in range(len(nstates)):
-            if nstates[i] > 0:
+        for i in range(len(ci.nstates)):
+            if ci.nstates[i] > 0:
                 outfile.write('\n')
-                for n in range(nstates[i]):
+                for n in range(ci.nstates[i]):
                     outfile.write(' {:<3d} {:3} {:10.6f} {:10.6f}'
                           .format(n+1, mol.irreplbl[i],
-                            refdets.ener[n][i],
-                            (refdets.ener[n][i]-mine)*constants.au2ev))
+                            ci.ref_conf.ener[n][i],
+                            (ci.ref_conf.ener[n][i]-mine)*constants.au2ev))
         outfile.flush()
 
     return

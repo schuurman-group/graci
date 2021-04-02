@@ -8,7 +8,7 @@ import numpy as np
 import graci.utils.timing as timing
 import graci.io.convert as convert
 
-def refine_ref_space(ci, conf0, confsd, lib_bitci):
+def refine_ref_space(ci, lib_bitci):
     """Refinement of the reference space"""
 
     # Start timing
@@ -18,11 +18,11 @@ def refine_ref_space(ci, conf0, confsd, lib_bitci):
     nirr = len(ci.nstates)
 
     # Bitci MRCI configuration scratch file numbers
-    confscrM = convert.convert_ctypes(np.array(confsd.confscr, 
+    confscrM = convert.convert_ctypes(np.array(ci.mrci_conf.confscr, 
                                       dtype=int),dtype='int32')
         
     # Bitci eigenvector scratch file numbers
-    vecscr = convert.convert_ctypes(np.array(confsd.vecscr, 
+    vecscr = convert.convert_ctypes(np.array(ci.mrci_conf.vecscr, 
                                       dtype=int), dtype='int32')
 
     # No. roots per irrep
@@ -36,7 +36,7 @@ def refine_ref_space(ci, conf0, confsd, lib_bitci):
     min_norm = convert.convert_ctypes(0., dtype='double')
     
     # Scratch file numbers for the updated reference configurations
-    confscrR = convert.convert_ctypes(np.array(conf0.confscr, 
+    confscrR = convert.convert_ctypes(np.array(ci.ref_conf.confscr, 
                                       dtype=int), dtype='int32')
 
     # New number of reference space configurations per irrep
@@ -56,10 +56,10 @@ def refine_ref_space(ci, conf0, confsd, lib_bitci):
     confscrR=confscrR[:]
 
     # Set the number of reference space configurations
-    conf0.set_nconf(nconf0)
+    ci.ref_conf.set_nconf(nconf0)
     
     # Set the reference space configurations scratch file number
-    conf0.set_confscr(confscrR)
+    ci.ref_conf.set_confscr(confscrR)
         
     # Stop timing
     timing.stop('mrci_refine')

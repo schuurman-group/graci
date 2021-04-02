@@ -11,7 +11,7 @@ import graci.io.output as output
 
 #
 def main():
-    """Runs a d3CI computation."""
+    """Runs a GRaCI computation."""
 
     # start the global timer
     timing.start('global')
@@ -20,13 +20,13 @@ def main():
     read_cmdline()
 
     # parse input
-    calc_array = parse.parse_input()
+    job_array = parse.parse_input()
 
     # print output file header
-    output.print_header(calc_array)
+    output.print_header(job_array)
 
-    # build computatoin 
-    job_build.run(calc_array)
+    # build and run computation 
+    job_build.run(job_array)
 
     # cleanup
     output.print_cleanup()

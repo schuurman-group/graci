@@ -5,28 +5,23 @@ Module for constructing the reference space configurations
 import sys
 import ctypes as ctypes
 import numpy as np
-import graci.methods.wavefunction as wavefunction
 import graci.io.output as output
 import graci.io.convert as convert
 
 def generate(scf, ci, lib_bitci):
     """generate the reference space object"""
 
-    # Initialise the reference space wavefunction object
-    conf0 = wavefunction.Wavefunction()
-
     # Optional automated determination of the RAS MO
     # spaces via the analysis of the DFT/CIS eigenvectors
     if ci.autoras:
-        autoras(scf, ci, conf0, lib_bitci)
-    
+        autoras(scf, ci, lib_bitci)
+
     # Generate the reference space configurations
-    genconf(scf, ci, conf0, lib_bitci)
-    
-    return conf0
+    genconf(scf, ci, lib_bitci)
 
+    return
 
-def genconf(scf, ci, conf0, lib_bitci):
+def genconf(scf, ci, lib_bitci):
     """generate the reference space configurations"""
        
     # number of irreps
@@ -101,15 +96,15 @@ def genconf(scf, ci, conf0, lib_bitci):
     confscr=confscr[:]
 
     # Set the number of reference space configurations
-    conf0.set_nconf(nconf0)
+    ci.ref_conf.set_nconf(nconf0)
     
     # Set the reference space configuration scratch file number
-    conf0.set_confscr(confscr)
+    ci.ref_conf.set_confscr(confscr)
     
     return
 
 
-def autoras(scf, ci, conf0, lib_bitci):
+def autoras(scf, ci, lib_bitci):
     """determination of the RAS subspaces via preliminary
     DFT/CIS calculations"""
 

@@ -8,7 +8,7 @@ import numpy as np
 import graci.utils.timing as timing
 import graci.io.convert as convert
 
-def diag(ci, confsd, lib_bitci):
+def diag(ci, lib_bitci):
     """Diagonalisation of the MRCI Hamiltonian"""
 
     # Start timing
@@ -16,8 +16,8 @@ def diag(ci, confsd, lib_bitci):
 
     # Get the information needed to run the MRCI diagonalisation
     # calculation
-    nirr, confscr, vecscr1, ialg, tol, niter, \
-        blocksize, deflate = diag_vars(ci, confsd)
+    nirr, confscr, vecscr1, ialg, tol, niter, blocksize, deflate = \
+            diag_vars(ci)
 
     # Initialise the list to hold the eigenvector scratch file
     # numbers
@@ -72,13 +72,13 @@ def diag(ci, confsd, lib_bitci):
             ener[i][:ci.nstates[i]] = ener1[:]
 
     # Save the list of bitci eigenvector scratch numbers
-    confsd.set_vecscr(vecscr)
+    ci.mrci_conf.set_vecscr(vecscr)
     
     # Save the MRCI state energies
-    confsd.set_ener(np.transpose(ener))
+    ci.mrci_conf.set_ener(np.transpose(ener))
 
     # Print the report of the MRCI states
-    vecscr = convert.convert_ctypes(np.array(confsd.vecscr, dtype=int),
+    vecscr = convert.convert_ctypes(np.array(ci.mrci_conf.vecscr, dtype=int),
                                  dtype='int32')
     nstates = convert.convert_ctypes(ci.nstates, 
                                  dtype='int32')
@@ -89,14 +89,14 @@ def diag(ci, confsd, lib_bitci):
     
     return
 
-def diag_vars(ci, confsd):
+def diag_vars(ci):
     """ Returns the variables needed for the MRCI diagonalisation"""
 
     # nirr is given by the length of the nstates vector in ci obj
     nirr = len(ci.nstates)
 
     # Bitci MRCI configuration scratch file numbers
-    confscr = np.array(confsd.confscr, dtype=int)
+    confscr = np.array(ci.mrci_conf.confscr, dtype=int)
     confscr = convert.convert_ctypes(confscr, dtype='int32')
 
     # Bitci eigenvector scratch file numbers
