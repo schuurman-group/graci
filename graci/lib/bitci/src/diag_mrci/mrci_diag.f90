@@ -19,8 +19,8 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   use conftype
   use hii
   use hij_disk
+  use mrci_guess
   use full_diag
-  use guessvecs_mrci
   use blockdav
   use gendav
   use iomod
@@ -169,8 +169,8 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
      if (guessdim > cfg%csfdim) guessdim=int(cfg%csfdim*0.9d0)
      
      ! Generate the guess vectors
-     call guess_subspace(guessscr,blocksize,cfg,cfg%csfdim,guessdim,&
-          hdiag,averageii,cfg%confdim)
+     call mrci_guess_subspace(guessscr,blocksize,cfg,cfg%csfdim,&
+          guessdim,hdiag,averageii,cfg%confdim)
      
      ! Set the sigma-vector algorithm information
      if (direct) then
@@ -183,10 +183,11 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
         isigma(3)=nrec
      endif
 
-     ! Generalised Davidson preconditioner
+     ! Generalised Davidson preconditioner: DPR is still
+     ! faster for small numbers of CSFs
      if (ialg == 1) then
         if (cfg%csfdim <= 60000) then
-           ! Diagonal preconditione residue
+           ! Diagonal preconditiond residue
            ipre=1
         else
            ! Generalised Davidson preconditioner

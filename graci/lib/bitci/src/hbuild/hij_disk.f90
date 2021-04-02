@@ -128,7 +128,7 @@ contains
 !----------------------------------------------------------------------
     write(6,'(/,x,a,x,i0)') 'Number of saved matrix elements:', &
          nrec*bufsize+nbuf
-    
+
 !----------------------------------------------------------------------
 ! Write the remaining elements in the buffer to disk
 !----------------------------------------------------------------------
@@ -1271,7 +1271,7 @@ contains
     ! Timing variables
     real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
                                   twall_end
-
+    
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -1430,11 +1430,11 @@ contains
           
                 ! 2E - 2E matrix elements
                 if (cfg%off2E(bn) /= cfg%off2E(bn+1)) then
-                   call save_hij_2E_2E(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                   call save_hij_2E_2E(nac1,hlist,plist,maxexci,&
+                        bn,ioff,kconf_full,ksop_full,kconf_int,&
+                        ksop_int,n_int_I,ndiff,Dw,nbefore,socc,&
+                        nsocc,knopen,knsp,averageii,confdim,iscratch,&
+                        hbuffer,ibuffer,nbuf,nrec,cfg)
                 endif
           
                 ! 2E - 1I1E matrix elements
@@ -3927,9 +3927,10 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 
 !######################################################################
 
-  subroutine save_hij_2E_2E(bn,ikconf2E,kconf_full,ksop_full,&
-        kconf_int,ksop_int,n_int_I,ndiff,Dw,nbefore,socc,nsocc,knopen,&
-        knsp,averageii,confdim,iscratch,hbuffer,ibuffer,nbuf,nrec,cfg)
+  subroutine save_hij_2E_2E(nac1,hlist1,plist1,hpdim,bn,ikconf2E,&
+       kconf_full,ksop_full,kconf_int,ksop_int,n_int_I,ndiff,Dw,&
+       nbefore,socc,nsocc,knopen,knsp,averageii,confdim,iscratch,&
+       hbuffer,ibuffer,nbuf,nrec,cfg)
 
     use constants
     use bitglobal
@@ -3941,6 +3942,12 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     
     implicit none
 
+    ! Creation and annihilation operators linking the ket 1E
+    ! and bra 1-hole configurations
+    integer(is)                :: nac1
+    integer(is)                :: hpdim
+    integer(is)                :: hlist1(hpdim),plist1(hpdim)
+    
     ! Index of the bra 2-hole configuration
     integer(is), intent(in)    :: bn
 
@@ -3996,12 +4003,16 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     integer(is)                :: ioff,ibconf2E
     integer(is)                :: nexci,bnopen,bnsp
 
+    
+    integer(is) :: j,k,m,n,nexci1,tmp,counter
+
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
     harr2=0.0d0
-
+    
 !----------------------------------------------------------------------
 ! Compute the 2E-2E matrix elements
 !----------------------------------------------------------------------
@@ -4012,33 +4023,89 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
        ! Bra 2E configuration counter
        ibconf2E=ioff
 
-       ! Cycle if we are at an on-diagonal element
-       !if (ibconf2E == ikconf2E) cycle
+       ! Cycle if we are at a duplicate pair of configurations
        if (ibconf2E <= ikconf2E) cycle
-       
+
        ! Bra 2E configuration in the full MO space
        bconf_full=cfg%conf2E(:,:,ibconf2E)
        bsop_full=cfg%sop2E(:,:,ibconf2E)
+       
+       ! Shortcut: if the two configurations differ by two excitations
+       ! within the internal space, they cannot be interacting if
+       ! the external MOs are not identical
+       if (nac1 == 4) then
+          if (cfg%a2E(1,ikconf2E) /= cfg%a2E(1,ibconf2E) &
+               .or. cfg%a2E(2,ikconf2E) /= cfg%a2E(2,ibconf2E)) cycle
+       endif
+       
+       ! No. excitations within the internal space 
+       nexci1=nac1/2
 
-       ! Compute the excitation degree between the two
-       ! configurations
-       nexci=exc_degree_conf(kconf_full,bconf_full,n_int)
-
+       ! Ket creation operator indices
+       j=cfg%a2E(1,ikconf2E)
+       k=cfg%a2E(2,ikconf2E)
+       
+       ! Bra creation operator indices
+       m=cfg%a2E(1,ibconf2E)
+       n=cfg%a2E(2,ibconf2E)
+       
+       ! Remove creation operator indices that appear in both
+       ! the bra and ket
+       nexci=nexci1+2
+       if (j == m) then
+          nexci=nexci-1
+          j=0
+          m=0
+       endif
+       if (j == n .and. j /= 0) then
+          nexci=nexci-1
+          j=0
+          n=0
+       endif
+       if (k == m .and. k /= 0) then
+          nexci=nexci-1
+          k=0
+          m=0
+       endif
+       if (k == n .and. k /= 0 .and. n /= 0) then
+          nexci=nexci-1
+          k=0
+          n=0
+       endif
+       
        ! Cycle if the excitation degree is greater than 2
        if (nexci > 2) cycle
-
+       
+       ! Hole indices
+       hlist(1:nexci1)=hlist1(1:nexci1)
+       counter=nexci1
+       if (j /= 0) then
+          counter=counter+1
+          hlist(counter)=j
+       endif
+       if (k /= 0) then
+          counter=counter+1
+          hlist(counter)=k
+       endif
+       
+       ! Particle indices
+       plist(1:nexci1)=plist1(1:nexci1)
+       counter=nexci1
+       if (m /= 0) then
+          counter=counter+1
+          plist(counter)=m
+       endif
+       if (n /= 0) then
+          counter=counter+1
+          plist(counter)=n
+       endif
+       
        ! Number of open shells in the bra configuration
        bnopen=sop_nopen(bsop_full,n_int)
-    
+       
        ! Number of bra CSFs
        bnsp=ncsfs(bnopen)
        
-       ! Get the indices of the MOs involved in the excitation
-       hlist=0
-       plist=0
-       call get_exci_indices(kconf_full,bconf_full,n_int,&
-            hlist(1:nexci),plist(1:nexci),nexci)
-
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
        call hij_mrci(harr2,ncsfs(nomax),nexci,&

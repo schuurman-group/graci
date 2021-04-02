@@ -84,15 +84,7 @@ contains
     hbuffer=0.0d0
 
     nrec=0
-    nbuf=0 
-
-!----------------------------------------------------------------------
-! Write the remaining elements in the buffer to disk
-!----------------------------------------------------------------------
-    if (nbuf > 0) then
-       write(iscratch) hbuffer,ibuffer,nbuf
-       nrec=nrec+1
-    endif
+    nbuf=0
 
 !----------------------------------------------------------------------
 ! Compute the off-diagonal DFT/CIS Hamiltonian matrix elements

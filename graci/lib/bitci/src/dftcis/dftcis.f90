@@ -23,8 +23,11 @@ subroutine diag_dftcis(irrep,nroots,vecscr)
   use dftcis_param
   use dftcis_conf
   use dftcis_hbuild
+  use dftcis_guess
   use full_diag
+  use gendav
   use iomod
+  use conftype
   
   implicit none
 
@@ -54,20 +57,24 @@ subroutine diag_dftcis(irrep,nroots,vecscr)
 
   ! Dimension of the CSF basis past which full diagonalisation
   ! will not be used
-  integer(is), parameter   :: full_lim=2500
-
-  ! Subspace dimension to be used in the generation of the
-  ! guess vectors
-  integer(is)              :: subdim
+  integer(is), parameter   :: full_lim=750
 
   ! Guess vector scratch file number
   integer(is)              :: guessscr
+
+  ! Davidson variables
+  integer(is)              :: blocksize,maxvec,ipre,niter
+  real(dp)                 :: tol
   
   ! Everything else
   integer(is)              :: i
   integer(is)              :: iham
-  integer(is)              :: blocksize,maxvec
+  integer(is)              :: isigma(3)
 
+  ! Dummy MRCI configuration derived type: temporarily required
+  ! to be passed to the Davidson routines
+  type(mrcfg)              :: cfg
+  
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -134,11 +141,26 @@ subroutine diag_dftcis(irrep,nroots,vecscr)
      ! Temporary hard wiring of parameters
      blocksize=nroots*2
      maxvec=4*blocksize
-     subdim=1500
-     if (subdim > ncsf) subdim=int(ncsf*0.9d0)
+     niter=100
+     tol=5e-4_dp
 
-     print*,'The iterative DFT/CIS diagonalisation interface needs writing...'
-     stop
+     ! Guess vector generation
+     call dftcis_guess_unit(ncsf,hii,blocksize,guessscr)
+
+     ! Set the sigma-vector algorithm information: disk-based only
+     ! for now
+     isigma(1)=1
+     isigma(2)=hscr
+     isigma(3)=nrec
+
+     ! Set the preconditioner: DPR makes sense due to the small
+     ! no. CSFs in a DFT/CIS calculation
+     ipre=1
+     
+     ! Generalised Davidson diagonalisation
+     call generalised_davidson(irrep,isigma,cfg,ncsf,hii,guessscr,&
+          vecscr,'dftcisvec',nroots,blocksize,maxvec,tol,&
+          niter,ipre)
      
   endif
      

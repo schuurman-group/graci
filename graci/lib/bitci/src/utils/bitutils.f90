@@ -147,7 +147,7 @@ contains
     return
     
   end subroutine list_from_bitstring
-
+  
 !######################################################################
   
 end module bitutils

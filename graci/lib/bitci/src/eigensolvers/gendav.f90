@@ -112,12 +112,14 @@ contains
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
-    call gdavinit(matdim,blocksize,maxvec)
+    call gdavinit(matdim,blocksize,maxvec,ipre)
 
 !----------------------------------------------------------------------
-! Read the guess vectors from disk
+! Read the guess vectors and, optionally, the guess subspace
+! eigenvectors from disk (for use in the construction of the
+! generalised Davidson preconditioner)
 !----------------------------------------------------------------------
-    call load_guess_vectors(guessscr,matdim,blocksize)
+    call load_guess_vectors(guessscr,matdim,blocksize,ipre)
 
 !----------------------------------------------------------------------
 ! Fill in the indices of the CSFs that will *not* be coupled in the
@@ -164,7 +166,7 @@ contains
 ! gdavinit: Allocation and initialisation of the working arrays used
 !           in the generalised Davidson iterations
 !######################################################################
-  subroutine gdavinit(matdim,blocksize,maxvec)
+  subroutine gdavinit(matdim,blocksize,maxvec,ipre)
 
     use constants
     use iomod
@@ -174,6 +176,9 @@ contains
     ! Dimensions
     integer(is), intent(in) :: matdim,blocksize,maxvec
 
+    ! Preconditioner number
+    integer(is), intent(in) :: ipre
+    
 !----------------------------------------------------------------------
 ! Make sure that the maximum subspace dimension is an integer multiple
 ! of the block size
@@ -222,9 +227,11 @@ contains
     allocate(idiag(matdim))
     idiag=0
 
-    ! Working correction vector array
-    allocate(work(matdim))
-    work=0.0d0
+    ! Generalised Davidson correction vector work array
+    if (ipre == 2) then
+       allocate(work(matdim))
+       work=0.0d0
+    endif
     
     return
     
@@ -246,10 +253,10 @@ contains
     deallocate(rnorm)
     deallocate(iconv)
     deallocate(idiag)
-    deallocate(s2f)
-    deallocate(subeig)
-    deallocate(subvec)
-    deallocate(work)
+    if (allocated(s2f)) deallocate(s2f)
+    if (allocated(subeig)) deallocate(subeig)
+    if (allocated(subvec)) deallocate(subvec)
+    if (allocated(work)) deallocate(work)
     
     return
     
@@ -258,7 +265,7 @@ contains
 !######################################################################
 ! load_guess_vectors: Reads the guess vectors from disk
 !######################################################################
-  subroutine load_guess_vectors(guessscr,matdim,blocksize)
+  subroutine load_guess_vectors(guessscr,matdim,blocksize,ipre)
 
     use constants
     use bitglobal
@@ -272,6 +279,9 @@ contains
     ! Dimensions
     integer(is), intent(in) :: matdim,blocksize
 
+    ! Preconditioner number
+    integer(is), intent(in) :: ipre
+    
     ! Everything else
     integer(is)             :: iscratch,dim,nvec,i
     
@@ -315,13 +325,15 @@ contains
     ! Subspace eigenpairs and mappings: needed for the construction
     ! of the generalised Davidson preconditioner
     !
-    read(iscratch) subdim
-    allocate(s2f(subdim),subeig(subdim),subvec(subdim,subdim))
-    read(iscratch) s2f
-    read(iscratch) subeig
-    read(iscratch) subvec
-    subeig=subeig-enuc-escf
-        
+    if (ipre == 2) then
+       read(iscratch) subdim
+       allocate(s2f(subdim),subeig(subdim),subvec(subdim,subdim))
+       read(iscratch) s2f
+       read(iscratch) subeig
+       read(iscratch) subvec
+       subeig=subeig-enuc-escf
+    endif
+       
     !
     ! Close the scratch file
     !
