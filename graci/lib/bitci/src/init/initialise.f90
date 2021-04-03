@@ -6,6 +6,7 @@
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
      iham) bind(c,name="bitci_initialise")
+  use iso_c_binding, only: C_CHAR
 #else
 !> @brief Initialises the bitCI library
 !!
@@ -31,7 +32,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   use spin_coupling
   use precompute
   use hparam
-  
+
   implicit none
 
   integer(is), intent(in) :: imult1,nel1,nmo1,ipg1
@@ -40,6 +41,17 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   real(dp), intent(in)    :: moen1(nmo1)
   real(dp), intent(in)    :: enuc1
   real(dp)                :: s,smax
+!#ifdef CBINDING
+!  character(kind=C_CHAR),intent(in)  :: ham_name(*)
+!  character(len=255)                 :: hamiltonian
+!
+!  hamiltonian = c2fstr(ham_name)
+!#else
+!  character(len=*), intent(in)       :: ham_name
+!  character(len=255)                 :: hamiltonian
+!
+!  hamiltonian = adjustl(trim(ham_name)
+!#endif
 
 !----------------------------------------------------------------------
 ! Quick sanity check on the number of electrons and spin multiplicity

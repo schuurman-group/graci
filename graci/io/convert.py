@@ -23,8 +23,13 @@ def convert_ctypes(py_val, dtype=None):
         type_sym = 'd';i_size = 8; ctype_sym = ctypes.c_double
     elif dtype == 'logical':
         type_sym = 'i';i_size = 4; ctype_sym = ctypes.c_bool
+    elif dtype == 'string':
+        ctype_sym = ctypes.c_char_p
     else:
         sys.exit('convert_ctypes does not recognize dtype='+str(dtype))
+
+    if isinstance(py_val, str):
+        return ctype_sym(py_val.encode('utf-8'))
 
     if isinstance(py_val, (float, int)):
         return ctype_sym(py_val)

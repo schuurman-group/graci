@@ -18,6 +18,7 @@ def init_bitci(mol, scf, hamiltonian):
     if not os.path.isfile(bitci_path):
         raise FileNotFoundError('bitci library not found: '+bitci_path)
     lib_bitci = ctypes.cdll.LoadLibrary(bitci_path)
+    lib_bitci_test = ctypes.cdll.LoadLibrary(bitci_path)
 
     if hamiltonian not in params.hamiltonians:
         print("init_bitci called with unkown Hamiltonian: "
