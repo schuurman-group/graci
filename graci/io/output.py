@@ -138,16 +138,17 @@ def print_refdiag_summary(mol, ci):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
-        outfile.write(' -------------------------')
+        outfile.write('\n -------------------------')
     
         for i in range(len(ci.nstates)):
             if ci.nstates[i] > 0:
                 outfile.write('\n')
                 for n in range(ci.nstates[i]):
-                    outfile.write(' {:<3d} {:3} {:10.6f} {:10.6f}'
+                    outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
                           .format(n+1, mol.irreplbl[i],
                             ci.ref_conf.ener[n][i],
                             (ci.ref_conf.ener[n][i]-mine)*constants.au2ev))
+        outfile.write('\n')
         outfile.flush()
 
     return

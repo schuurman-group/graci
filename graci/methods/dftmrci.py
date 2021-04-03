@@ -33,9 +33,9 @@ class Dftmrci:
         self.name           = ''
 
         # class variables
-        self.asci_thresh    = {'tight'  : 1e-5,
-                               'normal' : 1e-4,
-                               'loose'  : 1e-3}
+        self.asci_thresh    = {'tight'  : 1e-4,
+                               'normal' : 1e-3,
+                               'loose'  : 3e-3}
         self.ref_conf       = None
         self.mrci_conf      = None
 
@@ -72,7 +72,7 @@ class Dftmrci:
             min_norm = mrci_refine.refine_ref_space(self, lib_bitci)
 
             # break if the reference space is converged
-            if min_norm > 0.95 and i > 0:
+            if min_norm > 0.9025 and i > 0:
                 print('\n * Reference Space Converged *', flush=True)
                 break
 

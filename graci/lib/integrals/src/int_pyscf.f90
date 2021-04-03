@@ -442,8 +442,8 @@ module int_pyscf
     endif
 
     return
-1000 format(' -- Storing all integrals in memory, reading in single batch --')
-1001 format(' -- Storing integrals in hash table, buffered read will use ',i4,' batches --')
+1000 format(/,' -- Storing all integrals in memory, reading in single batch --')
+1001 format(/,' -- Storing integrals in hash table, buffered read will use ',i4,' batches --')
   end subroutine set_int_buffer_sizes
 
   !
