@@ -183,8 +183,8 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
         isigma(3)=nrec
      endif
 
-     ! Generalised Davidson preconditioner: DPR is still
-     ! faster for small numbers of CSFs
+     ! Generalised Davidson preconditioner: DPR is generally faster
+     ! for small numbers of CSFs
      if (ialg == 1) then
         if (cfg%csfdim <= 60000) then
            ! Diagonal preconditiond residue

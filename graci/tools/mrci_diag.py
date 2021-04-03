@@ -103,15 +103,15 @@ def diag_vars(ci):
     vecscr1 = 0
     vecscr1 = ctypes.c_int32(vecscr1)
 
-    # Iteratice diagonalisation algorithm
-    if ci.diag_algorithm == 'gendav':
+    # Iterative diagonalisation algorithm
+    if ci.diag_method == 'gendav':
         ialg = convert.convert_ctypes(1, dtype='int32')
-    elif ci.diag_algorithm == 'blockdav':
+    elif ci.diag_method == 'blockdav':
         ialg = convert.convert_ctypes(2, dtype='int32')
     else:
         sys.exit(
             '\n Unrecognised iterative diagonalisation algorithm:'
-            +' '+ci.diag_algorithm)
+            +' '+ci.diag_method)
 
     # Maximum no. iterations
     niter = convert.convert_ctypes(ci.diag_iter,
@@ -134,7 +134,12 @@ def diag_vars(ci):
         print('\n Deflation is being used -> '+
                  'adjusting convergence threshold to 1e-6')
         ci.diag_tol = 1e-6
-    
-    tol = convert.convert_ctypes(ci.diag_tol, dtype='double')
-    
+
+    # If this is the first MRCI iteration, then use a loose
+    # convergence threshold
+    if ci.niter == 1 and not ci.diag_deflate:
+        tol = convert.convert_ctypes(1e-3, dtype='double')
+    else:
+        tol = convert.convert_ctypes(ci.diag_tol, dtype='double')
+
     return nirr, confscr, vecscr1, ialg, tol, niter, blocksize, deflate

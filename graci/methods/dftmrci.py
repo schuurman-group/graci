@@ -25,7 +25,7 @@ class Dftmrci:
         self.ciorder        = 2
         self.refiter        = 5
         self.asci           = 'off'
-        self.diag_algorithm = 'gendav'
+        self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001
         self.diag_iter      = 50
         self.diag_blocksize = []
@@ -36,6 +36,7 @@ class Dftmrci:
         self.asci_thresh    = {'tight'  : 1e-4,
                                'normal' : 1e-3,
                                'loose'  : 3e-3}
+        self.niter          = 0
         self.ref_conf       = None
         self.mrci_conf      = None
 
@@ -58,6 +59,9 @@ class Dftmrci:
         # Perform the MRCI iterations, refining the reference space
         # as we go
         for i in range(self.refiter):
+            # Update the MRCI iteration number
+            self.niter += 1
+            
             # reference space diagonalisation
             ref_diag.diag(mol, self, lib_bitci)
 

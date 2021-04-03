@@ -25,7 +25,7 @@ class Cvsdftmrci:
         self.ciorder        = 2
         self.refiter        = 5
         self.asci           = 'off'
-        self.diag_algorithm = 'gendav'
+        self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001
         self.diag_iter      = 50
         self.diag_blocksize = []
