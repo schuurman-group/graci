@@ -42,9 +42,6 @@ def init_bitci(mol, scf, hamiltonian):
     iham  = convert.convert_ctypes(
         hamiltonians.index(hamiltonian)+1, dtype='int32')
 
-    print("hams = "+str(hamiltonians.index(hamiltonian)+1))
-    print("iham="+str(iham))
-
     # call to bitci_initialise
     lib_bitci.bitci_initialise(ctypes.byref(imult),
                                ctypes.byref(nel),
@@ -55,7 +52,6 @@ def init_bitci(mol, scf, hamiltonian):
                                ctypes.byref(enuc),
                                ctypes.byref(iham))
 
-    print("bitci loaded")
     return lib_bitci
 
 #
