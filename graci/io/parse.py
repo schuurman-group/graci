@@ -3,8 +3,9 @@
 import sys
 import numpy as np 
 import graci.utils.timing as timing
-import graci.methods.params as params
-import graci.methods.molecule as molecule
+import graci.utils.constants as constants
+import graci.core.geometry as geometry
+import graci.core.params as params
 import graci.io.output as output
 from pyscf import gto
 
@@ -19,78 +20,33 @@ def parse_input():
         input_file = infile.readlines()
 
     run_list = []
-    for valid_section in params.valid_methods:
+    for obj_name in params.valid_objs:
 
         # parse all section keywords
-        run_list.extend(parse_section(valid_section, input_file)) 
+        run_list.extend(parse_section(obj_name, 
+                                      input_file)) 
 
     # check the input
     check_input(run_list)
 
-    # add the geometry to the molecule object
+    # create the pyscf molecule objects
     for run_obj in run_list:
-        if params.method_name(run_obj) == 'molecule':
-            parse_geometry(run_obj, input_file)
+        if run_obj.name() == 'molecule':
+ 
+            # loop over geom objects and link a geometry
+            # to a molecule object via the label
+            for obj in run_list:
 
-            # create a pyscf mole object using already set info
-            pymol = run_obj.pymol()
-            # the nuclear repulsion energy
-            run_obj.enuc     = pymol.energy_nuc()
-            # the number of electrons
-            run_obj.nel      = int(sum(pymol.nelec))
-            # full point group symmetry of the molecule
-            run_obj.full_sym = pymol.topgroup.lower()
-            # point group to be used for computation
-            run_obj.comp_sym = pymol.groupname.lower()
-            if pymol.symmetry:
-                run_obj.sym_indx = molecule.point_grps.index(run_obj.comp_sym)
-                run_obj.irreplbl = pymol.irrep_name
-            else:
-                run_obj.sym_indx = -1
-                run_obj.irreplbl = ['A']
+                if obj.name() == 'geometry':
+
+                    # generate the pymol object
+                    if obj.label == run_obj.label:
+                        run_obj.set_pymol(obj)
 
     return run_list
 
 #
-def parse_geometry(mol, input_file):
-    """extract molecular geometry"""
-
-    nlines = len(input_file)
-
-    # find the start of the section
-    for i in range(nlines):
-        if '$geometry' in input_file[i]:
-            break
-        elif i == nlines - 1:
-            raise IOError('geometry section not found in input file')
-    
-    iline = i+1
-    cart  = []
-    atoms = []
-    while iline < nlines:
-
-        if '$end' in input_file[iline]:
-            break
-        line = input_file[iline].split()
-        try:
-            atm_indx = [molecule.atom_name[i].upper() 
-              for i in range(len(molecule.atom_name))].index(line[0].upper())
-        except ValueError:
-            sys.exit('atom '+str(len[0])+' not found.')
-        atoms.append(molecule.atom_name[atm_indx])
-        try:
-            cart.append([float(line[i]) for i in range(1,4)])
-        except:
-            sys.exit('Cannot interpret input as a geometry')
-
-        iline += 1
-        
-    mol.set_geom(np.array(cart, dtype=float))
-    mol.set_atoms(atoms)
-    return
-
-#
-def parse_section(section, input_file):
+def parse_section(obj_name, input_file):
     """extract keywords from section"""
 
     nlines       = len(input_file)
@@ -99,42 +55,61 @@ def parse_section(section, input_file):
     # find the start of the section
     iline = 0
     while iline < nlines:
-        if '$'+str(section) in input_file[iline]:
+        if '$'+str(obj_name) in input_file[iline]:
             iline += 1
             
             # section exists, create class object
-            method = params.method_obj(section)
+            obj = params.name2obj(obj_name)
+
+            # if this is a geometry section, initialize cart and atoms
+            # arrays. This is a bit of a hack..
+            if obj_name == 'geometry':
+                cart = []
+                atom = []
 
             # first line is charge and multiplicity
             while iline < nlines:
                 if '$end' in input_file[iline] or iline == nlines-1:
                     # if we hit end of section, or end of file,
-                    # add object to return list and continue parsing the input
-                    section_objs.extend([method])
+                    # add object to return list and continue parsing 
+                    # the input
+
+                    # if this is geometry section and xyz file was 
+                    # specified, let's load this now:
+                    if obj_name == 'geometry':
+                        set_geometry(obj, cart, atom)
+
+                    section_objs.extend([obj])
                     break
 
-                (kword,value) = input_file[iline].split('=')
-                kword = kword.strip().lower()
+                elif '=' in input_file[iline]:
+                    (kword,value) = input_file[iline].split('=')
+                    kword = kword.strip().lower()
 
-                if kword in params.kwords[section].keys():
-                    val = parse_value(value)
+                    if kword in params.kwords[obj_name].keys():
+                        val      = parse_value(value)
+                        expected = params.kwords[obj_name][kword]
 
-                    correct_type = False
-                    if isinstance(val, np.ndarray):
-                        val_list = val.tolist()
-                        if all([isinstance(elem, 
-                                       params.kwords[section][kword])
-                                       for elem in val_list]):
-                            correct_type = True
-                    else:
-                        if isinstance(val, params.kwords[section][kword]):
-                            correct_type = True
+                        if correct_type(val, expected):
+                            setattr(obj, kword, val)
+                        else:
+                            print(kword+" is wrong type, expected: "
+                              +str(expected), flush=True)
 
-                    if correct_type:
-                        setattr(method, kword, val)
-                    else:
-                        print(kword+" value is wrong type, expecting "
-                          +str(params.kwords[section][kword]),flush=True)
+                # ...else, try to parse an a cartesian structure
+                elif obj_name == 'geometry' and \
+                        len(input_file[iline].strip()) > 0:
+
+                    line = input_file[iline].split()
+                    try:
+                        atm_indx = geometry.atom_name.index(line[0].upper())
+                        atom.append(geometry.atom_name[atm_indx])
+                    except ValueError:
+                        sys.exit('atom '+str(line[0])+' not found.')
+                    try:
+                        cart.append([float(line[i]) for i in range(1,4)])
+                    except:
+                        sys.exit('Cannot interpret input as a geometry')
 
                 # iterate section loop
                 iline += 1
@@ -142,10 +117,81 @@ def parse_section(section, input_file):
         # iterate line in section search
         iline += 1
 
-    if len(section_objs) == 0:
-        print(section+' section not found in input file')
-
     return section_objs
+
+#
+def set_geometry(gm_obj, cart, atm):
+    """parse xyz file, return the list of atoms and cartesian
+       coordinates as lists"""
+
+    atoms     = []
+    cartesian = []
+
+    if gm_obj.units == 'angstrom':
+        conv = constants.ang2bohr
+    else:
+        conv = 1.
+
+    # if no xyz_file is specified, use the contents of of th cart 
+    # and atm arrays. If those are empty, quit since no geometry
+    # is found
+    if gm_obj.xyz_file is None and len(cart)==0 and len(atm)==0:
+        output.print_message('No geometry file specified and no '+
+             'cartesian structure found in input file. Exiting..\n')
+        sys.exit()
+
+    # if no xyz file specified, use contents of cart/atm arguments
+    if gm_obj.xyz_file is None:
+        atoms = atm
+        cartesian = [[x * conv for x in at] for at in cart]
+
+    else:
+        # parse contents of xyz file
+        try:
+            with open(gm_obj.xyz_file, 'r') as xyzfile:
+                xyz_gm = xyzfile.readlines()
+        except:
+            output.print_message('xyz_file: '
+                  +str(gm_obj.xyz_file)+' not found.')
+            sys.exit()
+
+        # use the number of atoms rather than number of lines in file
+        natm = int(xyz_gm[0].strip())
+
+        for i in range(2, natm+2):
+            line = xyz_gm[i]
+            try:
+                atm_indx = geometry.atom_name.index(line[0].upper())
+                atoms.append(geometry.atom_name[atm_indx])
+            except ValueError:
+                sys.exit('atom '+str(line[0])+' not found.')
+            try:
+                cartesian.append([float(line[i] * conv) 
+                    for i in range(1,4)])
+            except:
+                sys.exit('Cannot interpret input as a geometry')
+
+    gm_obj.set_atoms(atoms)
+    gm_obj.set_geom(cartesian)
+
+    return
+
+#
+def correct_type(value, keyword_type):
+    """determine if 'value' is the correct type of value specified by
+       keyword_type. This function will return true if value is an array
+       and all elements are of 'keyword_type'"""
+
+    correct = False
+    if isinstance(value, np.ndarray):
+        val_list = value.tolist()
+        if all([isinstance(elem, keyword_type) for elem in val_list]):
+            correct = True
+    else:
+        if isinstance(value, keyword_type):
+            correct = True
+
+    return correct
 
 #
 def parse_value(valstr):
@@ -180,19 +226,18 @@ def check_input(run_list):
     # symmetry this will be a single integer, but it needs
     # to be a numpy array for use later on
     for obj in run_list:
-        sec_name = params.method_name(obj)
 
         # Make sure that nstates is an array - in the case of C1
         # symmetry this will be a single integer, but it needs
         # to be a numpy array for use later on
-        if 'nstates' in params.kwords[sec_name].keys():
+        if 'nstates' in params.kwords[obj.name()].keys():
             if isinstance(obj.nstates, int):
                 obj.nstates = np.array([obj.nstates], dtype=int)
 
         # Make sure that all the RAS entries are numpy arrays.
         ras_key = ['ras1','ras2','ras3']
         for key in ras_key:
-            if key in params.kwords[sec_name].keys():
+            if key in params.kwords[obj.name()].keys():
                 if isinstance(getattr(obj, key), int):
                     setattr(obj, key, 
                             np.array([getattr(obj, key)], dtype=int))

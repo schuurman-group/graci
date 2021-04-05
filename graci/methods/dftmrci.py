@@ -1,13 +1,21 @@
 """
 Module for computing DFT/MRCI energies
 """
-import graci.methods.scf as scf
-import graci.tools.init_libs as init_libs
-import graci.tools.ref_space as ref_space
-import graci.tools.ref_diag as ref_diag
-import graci.tools.mrci_space as mrci_space
-import graci.tools.mrci_diag as mrci_diag
-import graci.tools.mrci_refine as mrci_refine
+import graci.core.loadlibs as loadlibs
+import graci.citools.ref_space as ref_space
+import graci.citools.ref_diag as ref_diag
+import graci.citools.mrci_space as mrci_space
+import graci.citools.mrci_diag as mrci_diag
+import graci.citools.mrci_refine as mrci_refine
+
+# MRCI and DFT/MRCI Hamiltonian labels
+hamiltonians   = ['canonical',
+                  'grimme_standard',
+                  'grimme_short',
+                  'lyskov_standard',
+                  'lyskov_short',
+                  'heil17_standard',
+                  'heil18_short']
 
 class Dftmrci:
     """Class constructor for DFT/MRCI object"""
@@ -30,7 +38,7 @@ class Dftmrci:
         self.diag_iter      = 50
         self.diag_blocksize = []
         self.diag_deflate   = False
-        self.name           = ''
+        self.label          = ''
 
         # class variables
         self.asci_thresh    = {'tight'  : 1e-4,
@@ -40,6 +48,10 @@ class Dftmrci:
         self.ref_conf       = None
         self.mrci_conf      = None
 
+    def name(self):
+        """ return the name of the class object as a string"""
+        return 'dftmrci'
+
     def run(self, mol, scf):
         """ compute the DFT/MRCI energy for nroots """
 
@@ -47,10 +59,14 @@ class Dftmrci:
         scf.run(mol)
 
         # initialize int_pyscf
-        lib_intpyscf = init_libs.init_intpyscf(mol, scf)
+        lib_intpyscf = loadlibs.init_intpyscf(mol, scf)
+
+        print("0")
 
         # initialize bitci
-        lib_bitci = init_libs.init_bitci(mol, scf, self.hamiltonian)
+        lib_bitci = loadlibs.init_bitci(mol, scf, self.hamiltonian)
+
+        print("1")
 
         # generate the reference space configurations
         self.ref_conf = self.Wavefunction()

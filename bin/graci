@@ -5,7 +5,7 @@ The main graci driver.
 import os
 import sys as sys
 import graci.utils.timing as timing
-import graci.tools.job_build as job_build
+import graci.core.driver as driver
 import graci.io.parse as parse
 import graci.io.output as output
 
@@ -26,7 +26,8 @@ def main():
     output.print_header(job_array)
 
     # build and run computation 
-    job_build.run(job_array)
+    drive_obj = driver.Driver()
+    drive_obj.run(job_array)
 
     # cleanup
     output.print_cleanup()

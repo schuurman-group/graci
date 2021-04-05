@@ -4,14 +4,20 @@ for a given electronic state
 """
 
 
-class Moment
+class Moments:
     """Moment class for determing permanent and transition moments"""
     def __init__(self):
-        bra = None
-        ket = None
+        bra_states = None
+        ket_states = None
+        bra_wfn    = None
+        ket_wfn    = None
+
+    def name(self):
+        """ return the name of the class object as a string"""
+        return 'moments'
 
 
-    def dipole(self, method, states):
+    def dipole(self):
         """return the dipole moments for states in 'states'"""
 
 
@@ -19,7 +25,7 @@ class Moment
 
 
 
-    def tr_dipole(self, bra_method, bra_states, ket_method, ket_states):
+    def tr_dipole(self):
         """return the transition dipole moments between the bra and
            ket states"""
 
@@ -27,7 +33,7 @@ class Moment
         return
 
 
-    def quadrupole(self, method, states):
+    def quadrupole(self):
         """return second moments for states in 'states' array"""
 
 

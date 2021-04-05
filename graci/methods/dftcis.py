@@ -6,7 +6,11 @@ Module for computing DFT/MRCI energies
 class Dftcis:
     """Class constructor for SCF object"""
     def __init__(self):
-        self.name   = ''
+        self.label   = ''
+
+    def name(self):
+        """ return the name of the class object as a string"""
+        return 'dftcis'
 
     def run(mol):
         """runs a dftcis calculation"""

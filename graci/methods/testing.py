@@ -2,7 +2,7 @@
 Module for computing DFT/MRCI energies
 """
 import graci.methods.scf as scf
-import graci.methods.params as params
+import graci.io.params as params
 import graci.io.output as output
 
 

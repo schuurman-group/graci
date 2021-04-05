@@ -19,7 +19,7 @@ class Scf:
     def __init__(self):
         # user defined input paramaters
         self.xc        = 'hf'
-        self.name      = ''
+        self.label     = ''
 
         # computed quantities
         self.energy    = None
@@ -31,17 +31,19 @@ class Scf:
         self.nmo       = 0
         self.naux      = 0
 
+    def name(self):
+        """ return the name of the class object as a string"""
+        return 'scf'
+
     def run(self, mol):
         """compute the DFT energy and KS orbitals"""
     
         # construct the molecule object
         timing.start('scf.run')
+        pymol = mol.pymol()
 
         output.print_scf_header()
    
-        # create pyscf mole object 
-        pymol = mol.pymol()
-    
         # if var.d3_inp['xc']='hf', use canonical hf orbitals
         if self.xc == 'hf': 
             if mol.use_df:

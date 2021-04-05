@@ -6,8 +6,7 @@ import numpy as np
 from contextlib import contextmanager
 import graci.utils.constants as constants
 import graci.utils.timing as timing
-import graci.methods.params as params
-import graci.methods.molecule as molecule
+import graci.core.params as params
 
 #
 file_names = {'input_file'   : '',
@@ -26,6 +25,16 @@ def output_file(file_name, mode):
     else:
         with open(file_name, mode) as out_file:
             yield out_file
+
+#
+def print_message(message_str):
+    """Print a message string to the output file"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('ATTN: '+str(message_str)+'\n')
+
+    return
+
 
 def print_header(run_list):
     """print the output log file header"""
@@ -49,32 +58,42 @@ def print_header(run_list):
 
         for calc_obj in run_list:
 
-            calc_type = params.method_name(calc_obj)
+            calc_name = calc_obj.name() 
+            outfile.write('\n $'+calc_name+' section\n ------------\n')
 
-            # if molecule object, we need to pull out the 
+            # if geometry object, we need to pull out the 
             # geometry
-            if calc_type == 'molecule':
-                mol = calc_obj
-                outfile.write(' $geometry section\n -----------------\n')
-                for iatm in range(mol.n_atoms()):
-                    cstr = '   '.join(['{:10.4f}'.format(mol.geom[iatm,j])
-                           for j in range(3)])
-                    ostr = ' ' + str(mol.atoms[iatm]) + cstr
-                    outfile.write(ostr+'\n')
-            
-            # else just outfile.write the keyword input
-            outfile.write('\n $'+calc_type+' section\n ------------\n')
+            if calc_name == 'geometry':
+                gm  = calc_obj.geom()
+                atm = calc_obj.atoms()
+
+                outfile.write('\n coordinates in au\n')
+                for iatm in range(len(atm)):
+                    cstr = '   '.join(['{:10.4f}'.format(gm[iatm,j]) 
+                               for j in range(3)])
+                    ostr = ' ' + str(atm[iatm]) + cstr
+                    outfile.write(ostr+'\n\n')
+
+            # outfile.write the keyword input
             ostr = ''
-            for kword in params.kwords[calc_type].keys():
+            for kword in params.kwords[calc_name].keys():
                 ostr += ' '+kword.ljust(12,' ')+\
                         ' = '+str(getattr(calc_obj,kword))+'\n'
             outfile.write(ostr)
 
-        outfile.write('\n')
-        outfile.write(' Full symmetry:     '+str(mol.full_sym)+'\n')
-        outfile.write(' Abelian sub-group: '+str(mol.comp_sym)+'\n')
-        outfile.write('\n')
-        outfile.flush()
+        outfile.write('\n Symmetry Information ---------------\n')
+        for calc_obj in run_list:
+            # pull out the molecule objets and print symmetry
+            # information for each molecule
+            if calc_obj.name() == 'molecule':
+
+                outfile.write(' $molecule '+str(calc_obj.label)+'\n')
+                outfile.write(' Full symmetry:     '+
+                        str(calc_obj.full_sym)+'\n')
+                outfile.write(' Abelian sub-group: '+
+                        str(calc_obj.comp_sym)+'\n')
+                outfile.write('\n')
+                outfile.flush()
         
     return
 

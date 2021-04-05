@@ -1,25 +1,37 @@
 """Module for storing global parameters"""
 
-import graci.methods.molecule as molecule
+import graci.core.molecule as molecule
+import graci.core.geometry as geometry
+import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
-import graci.methods.dftcis as dftcis
 import graci.methods.dftmrci as dftmrci
 import graci.methods.cvsdftmrci as cvsdftmrci
+import graci.methods.dftcis as dftcis
+import graci.properties.moments as moments
+import graci.properties.spinorbit as spinorbit
+
+# geometry section, input keywords and data types
+geometry_kword =     {'xyz_file' : str,
+                      'units'    : str,
+                      'label'    : str}
 
 # molecule section input keywords and data types
-molecule_kword = {'units'   : str,
-                  'charge'   : int,
-                  'mult'     : int,
-                  'basis'    : str,
-                  'ri_basis' : str,
-                  'use_sym'  : bool,
-                  'use_df'   : bool,
-                  'name'     : str
-                  }
+molecule_kword =     {'charge'   : int,
+                      'mult'     : int,
+                      'basis'    : str,
+                      'ri_basis' : str,
+                      'use_sym'  : bool,
+                      'use_df'   : bool,
+                      'label'    : str
+                     }
+
+# used to parameterize new Hamiltonians
+parameterize_kword = {'algorithm' : str,
+                      'label'     : str}
 
 # DFT section input keywords and data types
 scf_kword      = {'xc'          : str,
-                  'name'        : str}
+                  'label'       : str}
 
 # MRCI section input keywords and data types
 dftmrci_kword  = {'nstates'        : int,
@@ -39,7 +51,7 @@ dftmrci_kword  = {'nstates'        : int,
                   'diag_iter'      : int,
                   'diag_blocksize' : int,
                   'diag_deflate'   : bool,
-                  'name'           : str
+                  'label'          : str
                  }
 
 cvsdftmrci_kword =  {'nstates'        : int,
@@ -59,20 +71,37 @@ cvsdftmrci_kword =  {'nstates'        : int,
                   'diag_iter'      : int,
                   'diag_blocksize' : int,
                   'diag_deflate'   : bool,
-                  'name'           : str
+                  'label'          : str
                  }
 
 dftcis_kword   = {'nstates'        : int,
                   'hamiltonian'    : str,
                   'de_select'      : float,
-                 }
+                  'label'          : str
+                }
+
+# geometry section, input keywords and data types
+moments_kword   = {'bra_states' : int,
+                   'ket_states' : int
+                  }
+
+# molecule section input keywords and data typess
+spinorbit_kword = {'bra_states' : int,
+                   'ket_states' : int
+                  }
+
+
 ######################################################################
 ## only the following are directly accessed from outside the module ##
 ######################################################################
 
-def method_obj(name):
-    if name == 'molecule':
+def name2obj(name):
+    if name == 'geometry':
+        return geometry.Geometry()
+    elif name == 'molecule':
         return molecule.Molecule()
+    elif name == 'parameterize':
+        return parameterize.Parameterize()
     elif name == 'scf':
         return scf.Scf()
     elif name == 'dftcis':
@@ -81,43 +110,28 @@ def method_obj(name):
         return dftmrci.Dftmrci()
     elif name == 'cvsdftmrci':
         return cvsdftmrci.Cvsdftmrci()
+    elif name == 'moments':
+        return moments.Moments()
+    elif name == 'spinorbit':
+        return spinorbit.Spinorbit()
     else:
-        print('method_obj: '+str(name)+' not recognized')
-        return None
-
-def method_name(obj):
-    if isinstance(obj, molecule.Molecule):
-        return 'molecule'
-    elif isinstance(obj, scf.Scf):
-        return 'scf'
-    elif isinstance(obj, dftcis.Dftcis):
-        return 'dftcis'
-    elif isinstance(obj, dftmrci.Dftmrci):
-        return 'dftmrci'
-    elif isinstance(obj, cvsdftmrci.Cvsdftmrci):
-        return 'cvsdrtmrci'
-    else:
-        print(str(obj)+' not recognized as a method object')
+        print('obj: '+str(name)+' not recognized')
         return None
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_methods = ['molecule', 'scf', 'dftmrci', 'cvsdftmrci', 'dftmrcis']
+valid_objs = ['geometry', 'molecule', 'parameterize', 'scf', 'dftmrci', 
+              'cvsdftmrci', 'dftmrcis', 'moments', 'spinorbit']
 
 ##############################################
-kwords = {'molecule'   : molecule_kword,
-          'scf'        : scf_kword,
-          'dftcis'     : dftcis_kword,
-          'dftmrci'    : dftmrci_kword,
-          'cvsdftmrci' : cvsdftmrci_kword,
+kwords = {'geometry'     : geometry_kword,
+          'molecule'     : molecule_kword,
+          'parameterize' : parameterize_kword,
+          'scf'          : scf_kword,
+          'dftcis'       : dftcis_kword,
+          'dftmrci'      : dftmrci_kword,
+          'cvsdftmrci'   : cvsdftmrci_kword,
+          'moments'      : moments_kword,
+          'spinorbit'    : spinorbit_kword
          }
-
-# MRCI and DFT/MRCI Hamiltonian labels
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil18_short']
 

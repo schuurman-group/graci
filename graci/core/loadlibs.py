@@ -4,8 +4,18 @@ import os
 import sys
 import numpy as np
 import ctypes as ctypes
-import graci.methods.params as params
 import graci.io.convert as convert
+
+# THIS IS TEMPORARY UNTIL WE PASS THE HAMILTONIAN NAME
+# DIRECTLY. THE METHOD CALLING init_bitci IS RESPONSIBLE 
+# FOR "HAMILTONIAN" BEING VALID
+hamiltonians   = ['canonical',
+                  'grimme_standard',
+                  'grimme_short',
+                  'lyskov_standard',
+                  'lyskov_short',
+                  'heil17_standard',
+                  'heil18_short']
 
 #
 def init_bitci(mol, scf, hamiltonian):
@@ -18,11 +28,6 @@ def init_bitci(mol, scf, hamiltonian):
     if not os.path.isfile(bitci_path):
         raise FileNotFoundError('bitci library not found: '+bitci_path)
     lib_bitci = ctypes.cdll.LoadLibrary(bitci_path)
-    lib_bitci_test = ctypes.cdll.LoadLibrary(bitci_path)
-
-    if hamiltonian not in params.hamiltonians:
-        print("init_bitci called with unkown Hamiltonian: "
-                +str(hamiltonian))
 
     # set all variable that have to be passed to bitci_initialise
     # (note that the pgrp and iham variables use Fortran indexing)
@@ -35,7 +40,10 @@ def init_bitci(mol, scf, hamiltonian):
     pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
     enuc  = convert.convert_ctypes(mol.enuc,               dtype='double')
     iham  = convert.convert_ctypes(
-        params.hamiltonians.index(hamiltonian)+1, dtype='int32')
+        hamiltonians.index(hamiltonian)+1, dtype='int32')
+
+    print("hams = "+str(hamiltonians.index(hamiltonian)+1))
+    print("iham="+str(iham))
 
     # call to bitci_initialise
     lib_bitci.bitci_initialise(ctypes.byref(imult),
@@ -47,6 +55,7 @@ def init_bitci(mol, scf, hamiltonian):
                                ctypes.byref(enuc),
                                ctypes.byref(iham))
 
+    print("bitci loaded")
     return lib_bitci
 
 #
@@ -68,7 +77,9 @@ def init_intpyscf(mol, scf):
     use_df  = convert.convert_ctypes(mol.use_df, dtype='logical')
     thresh  = convert.convert_ctypes(1e-14,      dtype='double')
     max_mem = convert.convert_ctypes(-1,         dtype='int32')   
- 
+
+    print("scf.nmo="+str(scf.nmo))
+    print("naux="+str(scf.naux))
     # call to load_mo_integrals
     lib_intpyscf.load_mo_integrals(ctypes.byref(nmo),
                                    ctypes.byref(naux),
