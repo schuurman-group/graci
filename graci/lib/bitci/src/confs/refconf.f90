@@ -30,11 +30,11 @@ contains
 !######################################################################
 #ifdef CBINDING
   subroutine generate_ref_confs(iras1,iras2,iras3,nras1,mras1,nras2,&
-       mras2,nras3,mras3,nconf,scrnum) &
+       mras2,nras3,mras3,icvs,nconf,scrnum) &
        bind(c,name="generate_ref_confs")
 #else
   subroutine generate_ref_confs(iras1,iras2,iras3,nras1,mras1,nras2,&
-       mras2,nras3,mras3,nconf,scrnum)
+       mras2,nras3,mras3,icvs,nconf,scrnum)
 #endif
 
     use constants
@@ -50,7 +50,11 @@ contains
     integer(is), intent(out)   :: nconf(0:nirrep-1)
     integer(is), intent(out)   :: scrnum(0:nirrep-1)
     integer(is)                :: ndet,detscr
-  
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    integer(is)                :: ncvs
+    
     ! SOP hash table
     type(dhtbl)                :: h
     
@@ -77,7 +81,13 @@ contains
 ! Start timing
 !----------------------------------------------------------------------
     call get_times(twall_start,tcpu_start)
-  
+
+!----------------------------------------------------------------------
+! CVS-MRCI: determine the dimension of the core MO space in which
+! a single hole will be enforced
+!----------------------------------------------------------------------
+    ncvs=sum(icvs)
+    
 !----------------------------------------------------------------------
 ! Generate the RAS determinants
 !----------------------------------------------------------------------
@@ -87,7 +97,7 @@ contains
 !----------------------------------------------------------------------
 ! Determine the unique reference space SOPs
 !----------------------------------------------------------------------
-    call get_ref_sops(ndet,detscr,h)
+    call get_ref_sops(ndet,detscr,h,ncvs,icvs)
 
 !----------------------------------------------------------------------
 ! Allocate the reference space configuration and SOP arrays
@@ -178,7 +188,7 @@ contains
 ! get_ref_sops: Determines the set of unique reference space SOPs
 !               from the set of reference space determinants
 !######################################################################
-  subroutine get_ref_sops(ndet,detscr,h)
+  subroutine get_ref_sops(ndet,detscr,h,ncvs,icvs)
 
     use constants
     use bitglobal
@@ -193,6 +203,10 @@ contains
     ! Number of ref determinants and the ref determinant scratch
     ! file number
     integer(is), intent(in)  :: ndet,detscr
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    integer(is), intent(in)    :: ncvs
     
     ! Determinant arrays
     integer(is)              :: ndet1,offdima,offdimb
@@ -212,7 +226,7 @@ contains
     integer(is)              :: nopen
   
     ! Everything else
-    integer(is)              :: i,nexci
+    integer(is)              :: i,nexci,n
   
 !----------------------------------------------------------------------
 ! Read the ref determinants from disk
@@ -243,7 +257,13 @@ contains
        ! determinant is greater than nexmax
        nexci=exc_degree_det(da(:,:,i),det0)
        if (nexci > nexmax) cycle
-       
+
+       ! If this is a CVS-MRCI calculation, then cycle if the no. holes
+       ! in the selected core MO space is not equal to 1
+       if (ncvs > 0) then
+          n=nhole_cvs(key,icvs)
+       endif
+              
        ! Insert the SOP into the hash table
        call h%insert_key(key)
        
@@ -260,6 +280,32 @@ contains
   
   end subroutine get_ref_sops
 
+!######################################################################
+! nhole_cvs: Given an SOP and a list of CVS core-level MOs, returns
+!            the no. holes in the CVS core level space
+!######################################################################
+  function nhole_cvs(sop,icvs) result(nhole)
+
+    use constants
+    use bitglobal
+    
+    implicit none
+
+    ! Function result
+    integer(is)             :: nhole
+
+    ! SOP
+    integer(ib), intent(in) :: sop(n_int,2)
+
+    ! CVS core-level MOs
+    integer(is), intent(in) :: icvs
+
+    ! 
+    
+    return
+
+  end function nhole_cvs
+  
 !######################################################################
 ! get_ref_confs: Generates the reference space confs from the
 !                corresponding SOPs

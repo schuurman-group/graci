@@ -245,6 +245,11 @@ def check_input(run_list):
                     setattr(obj, key,
                             np.array(getattr(obj, key), dtype=int))
 
+        # Make sure that the icvs entry is a numpy array
+        if 'icvs' in params.kwords[obj.name()].keys():
+            if isinstance(obj.icvs, int):
+                obj.icvs = np.array([obj.icvs], dtype=int)
+
     return
     
 #
