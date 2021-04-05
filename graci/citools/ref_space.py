@@ -23,7 +23,7 @@ def generate(scf, ci, lib_bitci):
 
 def genconf(scf, ci, lib_bitci):
     """generate the reference space configurations"""
-       
+    
     # number of irreps
     nirr = len(ci.nstates)
 
@@ -48,7 +48,7 @@ def genconf(scf, ci, lib_bitci):
     iras1 = np.zeros(scf.nmo, dtype=int)
     k = -1
     for i in ci.ras1:
-        k +=1
+        k += 1
         iras1[k] = i
     iras1 = convert.convert_ctypes(iras1, dtype='int32')
     
@@ -56,7 +56,7 @@ def genconf(scf, ci, lib_bitci):
     iras2 = np.zeros(scf.nmo, dtype=int)
     k = -1
     for i in ci.ras2:
-        k +=1
+        k += 1
         iras2[k] = i
     iras2 = convert.convert_ctypes(iras2, dtype='int32')
     
@@ -68,6 +68,12 @@ def genconf(scf, ci, lib_bitci):
         iras3[k] = i
     iras3 = convert.convert_ctypes(iras3, dtype='int32')
 
+    # CVS core MO indices
+    icvs = np.zeros(scf.nmo, dtype=int)
+    for i in ci.icvs:
+        icvs[i-1] = 1
+    icvs = convert.convert_ctypes(icvs, dtype='int32')
+    
     # Number of reference space configurations per irrep
     nconf0 = np.zeros(nirr, dtype=int)
     nconf0 = convert.convert_ctypes(nconf0, dtype='int32')
@@ -86,6 +92,7 @@ def genconf(scf, ci, lib_bitci):
                                 ctypes.byref(m2),
                                 ctypes.byref(ne3),
                                 ctypes.byref(m3),
+                                icvs,
                                 nconf0,
                                 confscr)
     
