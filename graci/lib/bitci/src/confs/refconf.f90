@@ -298,7 +298,7 @@ contains
     integer(ib), intent(in) :: sop(n_int,2)
 
     ! CVS core-level MOs
-    integer(is), intent(in) :: icvs
+    integer(is), intent(in) :: icvs(nmo)
 
     ! 
     
