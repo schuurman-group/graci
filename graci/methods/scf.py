@@ -19,7 +19,7 @@ class Scf:
     def __init__(self):
         # user defined input paramaters
         self.xc        = 'hf'
-        self.label     = ''
+        self.label     = 'default'
 
         # computed quantities
         self.energy    = None

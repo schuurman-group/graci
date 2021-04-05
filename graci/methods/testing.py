@@ -9,7 +9,7 @@ import graci.io.output as output
 class Testing:
     """Class constructor for SCF object"""
     def __init__(self):
-        self.name = ''
+        self.name = 'default'
 
     def run(mol):
         """ Run the test calculation  """

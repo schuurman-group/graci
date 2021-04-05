@@ -8,7 +8,7 @@ class Driver:
     def __init__(self):
         """constructor for Driver object. Not sure what parameters
            will be needed to be passed to the driver at the moment"""
-        self.label = ''
+        self.label = 'default'
 
     def name(self):
         """ return the name of the class object as a string"""

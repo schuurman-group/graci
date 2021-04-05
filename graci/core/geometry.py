@@ -22,7 +22,7 @@ class Geometry:
         # in params module
         self.xyz_file  = None
         self.units     = 'bohr'
-        self.label     = ''
+        self.label     = 'default'
 
         # the following are determined from a combination
         # of user input

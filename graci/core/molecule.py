@@ -21,7 +21,7 @@ class Molecule:
         self.basis    = ''
         self.ri_basis = ''
         self.use_df   = False
-        self.label    = ''
+        self.label    = 'default'
 
         # the following are determined based on user
         # input

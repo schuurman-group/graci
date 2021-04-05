@@ -38,7 +38,7 @@ class Dftmrci:
         self.diag_iter      = 50
         self.diag_blocksize = []
         self.diag_deflate   = False
-        self.label          = ''
+        self.label          = 'default'
 
         # class variables
         self.asci_thresh    = {'tight'  : 1e-4,

@@ -74,8 +74,6 @@ def init_intpyscf(mol, scf):
     thresh  = convert.convert_ctypes(1e-14,      dtype='double')
     max_mem = convert.convert_ctypes(-1,         dtype='int32')   
 
-    print("scf.nmo="+str(scf.nmo))
-    print("naux="+str(scf.naux))
     # call to load_mo_integrals
     lib_intpyscf.load_mo_integrals(ctypes.byref(nmo),
                                    ctypes.byref(naux),
