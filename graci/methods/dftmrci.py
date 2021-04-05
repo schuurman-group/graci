@@ -30,6 +30,7 @@ class Dftmrci:
         self.nhole1         = 0
         self.nelec3         = 0
         self.autoras        = False
+        self.icvs           = []
         self.ciorder        = 2
         self.refiter        = 5
         self.asci           = 'off'
@@ -67,7 +68,7 @@ class Dftmrci:
         # generate the reference space configurations
         self.ref_conf = self.Wavefunction()
         ref_space.generate(scf, self, lib_bitci)
-
+        
         # Perform the MRCI iterations, refining the reference space
         # as we go
         for i in range(self.refiter):

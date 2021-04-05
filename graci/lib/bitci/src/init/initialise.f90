@@ -53,7 +53,6 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 !  hamiltonian = adjustl(trim(ham_name)
 !#endif
 
-  print *,'ping'
 !----------------------------------------------------------------------
 ! Quick sanity check on the number of electrons and spin multiplicity
 !----------------------------------------------------------------------
