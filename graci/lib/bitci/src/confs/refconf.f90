@@ -226,7 +226,7 @@ contains
     integer(is)              :: nopen
   
     ! Everything else
-    integer(is)              :: i,nexci,n
+    integer(is)              :: i,nexci
   
 !----------------------------------------------------------------------
 ! Read the ref determinants from disk
@@ -260,10 +260,8 @@ contains
 
        ! If this is a CVS-MRCI calculation, then cycle if the no. holes
        ! in the selected core MO space is not equal to 1
-       if (ncvs > 0) then
-          n=nhole_cvs(key,icvs)
-       endif
-              
+       if (ncvs > 0 .and. nhole_cvs(key,icvs) /= 1) cycle
+       
        ! Insert the SOP into the hash table
        call h%insert_key(key)
        
@@ -300,7 +298,35 @@ contains
     ! CVS core-level MOs
     integer(is), intent(in) :: icvs(nmo)
 
-    ! 
+    ! Everything else
+    integer(is)             :: i,k,imo
+
+    ! Initialisation
+    nhole=0
+
+    ! Loop over MOs in the CVS core-level space
+    do imo=1,nmo
+       if (icvs(imo) == 1) then
+
+          ! Block index
+          k=(imo-1)/64+1
+          
+          ! Orbital index in the bit string
+          i=imo-(k-1)*64-1
+
+          if (btest(sop(k,2),i)) then
+             ! Doubly-occupied MO
+             cycle
+          else if (btest(sop(k,1),i)) then
+             ! Singly-occupied MO
+             nhole=nhole+1
+          else
+             ! Unoccupied MO
+             nhole=nhole+2
+          endif
+          
+       endif
+    enddo
     
     return
 
