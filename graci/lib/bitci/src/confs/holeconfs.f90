@@ -12,7 +12,7 @@ contains
 !                       from a given set of reference space
 !                       configurations
 !######################################################################
-  subroutine generate_1hole_confs(cfgM)
+  subroutine generate_1hole_confs(cfgM,icvs)
     
     use constants
     use bitglobal
@@ -23,14 +23,27 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
 
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical                    :: lcvs
+    
     ! Everything else
     integer(is)                :: modus
-
+    
+!----------------------------------------------------------------------
+! Is this a CVS-MRCI calculation
+!----------------------------------------------------------------------
+    if (sum(icvs) > 0) then
+       lcvs=.true.
+    else
+       lcvs=.false.
+    endif
+    
 !----------------------------------------------------------------------
 ! First pass: determine the no. 1-hole configurations
 !----------------------------------------------------------------------
     modus=0
-    call builder_1hole(modus,cfgM)
+    call builder_1hole(modus,cfgM,icvs,lcvs)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -45,7 +58,7 @@ contains
 ! Second pass: fill in the 1-hole configuration and offset arrays
 !----------------------------------------------------------------------
     modus=1
-    call builder_1hole(modus,cfgM)
+    call builder_1hole(modus,cfgM,icvs,lcvs)
     
     return
     
@@ -55,7 +68,7 @@ contains
 ! builder_1hole: performs all the heavy lifting involved in the
 !                generation of the 1-hole configurations
 !######################################################################
-  subroutine builder_1hole(modus,cfgM)
+  subroutine builder_1hole(modus,cfgM,icvs,lcvs)
 
     use constants
     use bitglobal
@@ -74,6 +87,10 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
 
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical, intent(in)        :: lcvs
+    
     ! Orbital classes
     integer(is)                :: socc(nmo),docc(nmo),unocc(nmo)
     integer(is)                :: nopen,nsocc,ndocc,nunocc
@@ -129,6 +146,10 @@ contains
           
           ! MO index
           i1=socc(imo)
+
+          ! Cycle if this is a CVS-MRCI calculation and we are creating
+          ! a hole in a flagged core MO
+          if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
           
           ! Annihilate an electron in imo'th singly-occupied MO
           keyI=annihilate_electron(cfgM%confR(:,:,n),n_int_I,i1)
@@ -153,6 +174,10 @@ contains
           
           ! MO index
           i1=docc(imo)
+
+          ! Cycle if this is a CVS-MRCI calculation and we are creating
+          ! a hole in a flagged core MO
+          if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
           
           ! Annihilate an electron in imo'th singly-occupied MO
           keyI=annihilate_electron(cfgM%confR(:,:,n),n_int_I,i1)
@@ -209,7 +234,7 @@ contains
 ! generate_2hole_confs: generates all possible 2-hole configurations
 !                       from a given set of 1-hole configurations
 !######################################################################
-  subroutine generate_2hole_confs(cfgM)
+  subroutine generate_2hole_confs(cfgM,icvs)
 
     use constants
     use bitglobal
@@ -220,14 +245,27 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
 
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical                    :: lcvs
+    
     ! Everything else
     integer(is)                :: modus
+
+!----------------------------------------------------------------------
+! Is this a CVS-MRCI calculation
+!----------------------------------------------------------------------
+    if (sum(icvs) > 0) then
+       lcvs=.true.
+    else
+       lcvs=.false.
+    endif
     
 !----------------------------------------------------------------------
 ! First pass: determine the no. 2-hole configurations
 !----------------------------------------------------------------------
     modus=0
-    call builder_2hole(modus,cfgM)
+    call builder_2hole(modus,cfgM,icvs,lcvs)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -242,7 +280,7 @@ contains
 ! Second pass: fill in the 2-hole configuration and offset arrays
 !----------------------------------------------------------------------
     modus=1
-    call builder_2hole(modus,cfgM)
+    call builder_2hole(modus,cfgM,icvs,lcvs)
 
     return
     
@@ -252,9 +290,9 @@ contains
 ! builder_2hole: performs all the heavy lifting involved in the
 !                generation of the 2-hole configurations
 !######################################################################
-  subroutine builder_2hole(modus,cfgM)
+  subroutine builder_2hole(modus,cfgM,icvs,lcvs)
 
-     use constants
+    use constants
     use bitglobal
     use conftype
     use mrciutils
@@ -271,6 +309,10 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
 
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical, intent(in)        :: lcvs
+    
     ! 1-hole SOPs
     integer(ib), allocatable   :: sop1h(:,:,:)
 
@@ -357,6 +399,10 @@ contains
           
              ! MO index
              i1=socc(imo)
+
+             ! Cycle if this is a CVS-MRCI calculation and we are
+             ! creating a hole in a flagged core MO
+             if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
              
              ! Annihilate an electron in imo'th singly-occupied MO
              keyI=annihilate_electron(cfgM%conf1h(:,:,i),n_int_I,i1)
@@ -381,6 +427,10 @@ contains
              
              ! MO index
              i1=docc(imo)
+
+             ! Cycle if this is a CVS-MRCI calculation and we are creating
+             ! a hole in a flagged core MO
+             if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
              
              ! Annihilate an electron in imo'th singly-occupied MO
              keyI=annihilate_electron(cfgM%conf1h(:,:,i),n_int_I,i1)
@@ -441,7 +491,7 @@ contains
 !                          application of internal creation
 !                          operators
 !######################################################################
-  subroutine generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM)
+  subroutine generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -459,6 +509,10 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical                    :: lcvs
     
     ! Orbital classes
     integer(is), allocatable   :: socc(:),docc(:),unocc(:)
@@ -480,6 +534,15 @@ contains
     ! Everything else
     integer(is)                :: i,k,n,imo,i1
     integer(is)                :: n_int_I,nmoI,n1h,n2h
+
+!----------------------------------------------------------------------
+! Is this a CVS-MRCI calculation
+!----------------------------------------------------------------------
+    if (sum(icvs) > 0) then
+       lcvs=.true.
+    else
+       lcvs=.false.
+    endif
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -544,7 +607,11 @@ contains
        ! 1H1I configurations generated from the current
        ! 2-hole configuration
        do imo=1,nmoI
-       
+
+          ! Cycle if this is a CVS-MRCI calculation and we are creating
+          ! an electron in a flagged core MO
+          if (lcvs .and. icvs(cfgM%m2c(imo)) == 1) cycle
+          
           ! Block index
           k=(imo-1)/64+1
           

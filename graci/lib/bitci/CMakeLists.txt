@@ -31,7 +31,7 @@ endif()
 # Compiler-specific flags
 #
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  set(dialect "-g -O2 -ffast-math -fbacktrace -cpp -ffree-form -fimplicit-none \
+  set(dialect "-g -O0 -fcheck=all -fbacktrace -cpp -ffree-form -fimplicit-none \
         -mavx -lblas -llapack")
   set(bounds "-fbounds-check")
 endif()
