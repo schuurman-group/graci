@@ -21,7 +21,7 @@ class Geometry:
         # (or subject to user input) -- these are keywords
         # in params module
         self.xyz_file  = None
-        self.units     = 'bohr'
+        self.units     = 'angstrom'
         self.label     = 'default'
 
         # the following are determined from a combination
