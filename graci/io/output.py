@@ -67,7 +67,6 @@ def print_header(run_list):
                 gm  = calc_obj.geom()
                 atm = calc_obj.atoms()
 
-                outfile.write('\n coordinates in au\n')
                 for iatm in range(len(atm)):
                     cstr = '   '.join(['{:10.4f}'.format(gm[iatm,j]) 
                                for j in range(3)])

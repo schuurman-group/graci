@@ -127,10 +127,10 @@ def set_geometry(gm_obj, cart, atm):
     atoms     = []
     cartesian = []
 
-    if gm_obj.units == 'angstrom':
-        conv = constants.ang2bohr
-    else:
-        conv = 1.
+    #if gm_obj.units == 'angstrom':
+    #    conv = constants.ang2bohr
+    #else:
+    #    conv = 1.
 
     # if no xyz_file is specified, use the contents of of th cart 
     # and atm arrays. If those are empty, quit since no geometry
@@ -142,8 +142,8 @@ def set_geometry(gm_obj, cart, atm):
 
     # if no xyz file specified, use contents of cart/atm arguments
     if gm_obj.xyz_file is None:
-        atoms = atm
-        cartesian = [[x * conv for x in at] for at in cart]
+        atoms     = atm
+        cartesian = cart
 
     else:
         # parse contents of xyz file
