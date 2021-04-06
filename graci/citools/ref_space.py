@@ -68,11 +68,11 @@ def genconf(scf, ci, lib_bitci):
         iras3[k] = i
     iras3 = convert.convert_ctypes(iras3, dtype='int32')
 
-    # CVS core MO indices
-    icvs = np.zeros(scf.nmo, dtype=int)
+    # CVS core MO flags
+    cvsflag = np.zeros(scf.nmo, dtype=int)
     for i in ci.icvs:
-        icvs[i-1] = 1
-    icvs = convert.convert_ctypes(icvs, dtype='int32')
+        cvsflag[i-1] = 1
+    cvsflag = convert.convert_ctypes(cvsflag, dtype='int32')
     
     # Number of reference space configurations per irrep
     nconf0 = np.zeros(nirr, dtype=int)
@@ -92,7 +92,7 @@ def genconf(scf, ci, lib_bitci):
                                 ctypes.byref(m2),
                                 ctypes.byref(ne3),
                                 ctypes.byref(m3),
-                                icvs,
+                                cvsflag,
                                 nconf0,
                                 confscr)
     

@@ -484,7 +484,7 @@ contains
 !                    allowable configurations with one internal hole
 !                    and one internal electron
 !######################################################################
-  subroutine generate_1I_confs(irrep,E0max,cfgM)
+  subroutine generate_1I_confs(irrep,E0max,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -500,17 +500,30 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical                    :: lcvs
     
     ! Everything else
     integer(is)                :: modus
 
 !----------------------------------------------------------------------
+! Is this a CVS-MRCI calculation
+!----------------------------------------------------------------------
+    if (sum(icvs) > 0) then
+       lcvs=.true.
+    else
+       lcvs=.false.
+    endif
+    
+!----------------------------------------------------------------------
 ! First, determine the number of allowable configurations of the
 ! correct symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1I(modus,irrep,E0max,cfgM)
-
+    call builder_1I(modus,irrep,E0max,cfgM,icvs,lcvs)
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -532,18 +545,18 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1I(modus,irrep,E0max,cfgM)
+    call builder_1I(modus,irrep,E0max,cfgM,icvs,lcvs)
     
     return
     
   end subroutine generate_1I_confs
 
 !######################################################################
-! 1I_builder: performs all the heavy lifting involved in the
+! builder_1I: performs all the heavy lifting involved in the
 !             generation of the configurations with one internal hole
 !             and one internal electron
 !######################################################################
-  subroutine builder_1I(modus,irrep,E0max,cfgM)
+  subroutine builder_1I(modus,irrep,E0max,cfgM,icvs,lcvs)
 
     use constants
     use bitglobal
@@ -568,6 +581,10 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
 
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical, intent(in)        :: lcvs
+    
     ! Full configurations and SOPs
     integer(ib)                :: conf_full(n_int,2)
     integer(ib)                :: sop_full(n_int,2)
@@ -628,17 +645,21 @@ contains
 
        ! Loop over internal MOs
        do iint=1,nmoI
+          
+          ! Cycle if this is a CVS-MRCI calculation and we are creating
+          ! an electron in a flagged core MO
+          if (lcvs .and. icvs(cfgM%m2c(iint)) == 1) cycle
 
           ! Block index
           k=(iint-1)/64+1
 
           ! Postion of the internal MO within the kth block
           i=iint-(k-1)*64-1
-
+          
           ! Cycle if this MO is doubly-occupied in the
           ! 1-hole configuration
           if (btest(cfgM%conf1h(k,2,n),i)) cycle
-          
+
           ! Full configuration
           conf_full=0_ib
           conf_full(1:n_int_I,:)=cfgM%conf1h(:,:,n)
@@ -985,7 +1006,7 @@ contains
 !                    internal electrons
 !######################################################################
   subroutine generate_2I_confs(irrep,E0max,conf1h1I,indx1h1I,&
-       n_int_I,n1h1I,cfgM)
+       n_int_I,n1h1I,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -1007,8 +1028,21 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
 
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical                    :: lcvs
+    
     ! Everything else
     integer(is)                :: modus
+
+!----------------------------------------------------------------------
+! Is this a CVS-MRCI calculation
+!----------------------------------------------------------------------
+    if (sum(icvs) > 0) then
+       lcvs=.true.
+    else
+       lcvs=.false.
+    endif
     
 !----------------------------------------------------------------------
 ! Determine the number of allowable configurations of the correct
@@ -1016,7 +1050,7 @@ contains
 !----------------------------------------------------------------------
     modus=0
     call builder_2I(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
-         n1h1I,cfgM)
+         n1h1I,cfgM,icvs,lcvs)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1040,7 +1074,7 @@ contains
 !----------------------------------------------------------------------
     modus=1
     call builder_2I(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
-         n1h1I,cfgM)
+         n1h1I,cfgM,icvs,lcvs)
     
     return
     
@@ -1052,7 +1086,7 @@ contains
 !             internal holes, two internal electrons
 !######################################################################  
   subroutine builder_2I(modus,irrep,E0max,conf1h1I,indx1h1I,&
-       n_int_I,n1h1I,cfgM)
+       n_int_I,n1h1I,cfgM,icvs,lcvs)
     
     use constants
     use bitglobal
@@ -1080,6 +1114,10 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical, intent(in)        :: lcvs
     
     ! Configurations and SOPs
     integer(ib)                :: conf_full(n_int,2)
@@ -1230,6 +1268,10 @@ contains
        ! Loop over internal MOs
        do iint=1,nmoI
 
+          ! Cycle if this is a CVS-MRCI calculation and we are creating
+          ! an electron in a flagged core MO
+          if (lcvs .and. icvs(cfgM%m2c(iint)) == 1) cycle
+          
           ! Block index
           k=(iint-1)/64+1
 
@@ -1387,7 +1429,7 @@ contains
 ! Initialisation
 !----------------------------------------------------------------------
     allowable=.true.
-    
+
 !----------------------------------------------------------------------
 ! Symmetry
 !----------------------------------------------------------------------
@@ -1421,7 +1463,7 @@ contains
        allowable=.false.
        return
     endif
-
+    
 !----------------------------------------------------------------------
 ! DFT/MRCI energy selection criterion
 !----------------------------------------------------------------------
@@ -1445,7 +1487,7 @@ contains
           sum=sum+moen(i1)*Dwi
           
        enddo
-
+       
        ! Does this configuration satisfy the energy selection
        ! criterion?
        if (sum > E0max + desel) then

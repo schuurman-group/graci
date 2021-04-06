@@ -8,10 +8,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
-     E0max) bind(c,name="generate_mrci_confs")
+     E0max1,icvs) bind(c,name="generate_mrci_confs")
 #else
 subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
-       E0max)
+     E0max1,icvs)
 #endif
 
   use constants
@@ -38,7 +38,11 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   integer(is), intent(inout) :: nconf(0:nirrep-1)
   
   ! Energy of the highest-lying reference space state of interest
-  real(dp), intent(in)       :: E0max
+  real(dp), intent(in)       :: E0max1
+  real(dp)                   :: E0max
+
+  ! CVS-MRCI: core MOs
+  integer(is), intent(in)    :: icvs(nmo)
   
   ! Number of reference space configurations for each irrep
   integer(is)                :: nconf0(0:nirrep-1)
@@ -85,6 +89,12 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
        trim(irreplbl(irrep,ipg)),'subspace'
   write(6,'(72a)') ('-',i=1,52)
 
+!----------------------------------------------------------------------
+! Subtract E_SCF and E_nuc from the highest reference space energy
+! to obtain the true DFT/MRCI Hamiltonian eigenvalue
+!----------------------------------------------------------------------
+  E0max=E0max1-Escf-Enuc
+  
 !----------------------------------------------------------------------
 ! Read the reference configurations for all irreps from disk
 !----------------------------------------------------------------------
@@ -138,13 +148,13 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole configurations
 !----------------------------------------------------------------------
-  call generate_1hole_confs(cfgM)
+  call generate_1hole_confs(cfgM,icvs)
 
 !----------------------------------------------------------------------
 ! Generate the 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_2hole_confs(cfgM)
-
+  call generate_2hole_confs(cfgM,icvs)
+  
 !----------------------------------------------------------------------
 ! Apply the internal creation operators to the 2-hole configurations,
 ! filtering out any 1-hole configurations that have already been
@@ -152,8 +162,8 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! 1H1I configurations, from which the 2I and 1I1E configurations
 ! will be generated
 !----------------------------------------------------------------------
-  call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM)
-
+  call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+  
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
 ! electron
@@ -170,8 +180,8 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! Generate the configurations with one internal hole and one internal
 ! electron
 !----------------------------------------------------------------------
-  call generate_1I_confs(irrep,E0max,cfgM)
-  
+  call generate_1I_confs(irrep,E0max,cfgM,icvs)
+
 !----------------------------------------------------------------------
 ! Generate the configurations with two internal holes, one internal
 ! electron and one external electron
@@ -184,8 +194,8 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! electrons
 !----------------------------------------------------------------------
   call generate_2I_confs(irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
-       n1h1I,cfgM)
-
+       n1h1I,cfgM,icvs)
+  
 !----------------------------------------------------------------------
 ! Filter out any hole configurations which do not generate any
 ! full configurations

@@ -80,7 +80,7 @@ class Dftmrci:
 
             # generate the MRCI configurations
             self.mrci_conf = self.Wavefunction()
-            mrci_space.generate(self, lib_bitci)
+            mrci_space.generate(scf, self, lib_bitci)
 
             # MRCI diagonalisation
             mrci_diag.diag(self, lib_bitci)

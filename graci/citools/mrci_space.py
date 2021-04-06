@@ -10,7 +10,7 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
-def generate(ci, lib_bitci):
+def generate(scf, ci, lib_bitci):
     """generate the MRCI configurations"""
 
     # Construct the molecule object
@@ -34,12 +34,19 @@ def generate(ci, lib_bitci):
     nconf = convert.convert_ctypes(np.zeros(nirr, dtype=int),
                                dtype='int32')
     
-    # Energy of the highest-lying reference space
-    # state of interest relative to the ground state
-    emax = convert.convert_ctypes(ci.ref_conf.ener.max() - 
-                                  ci.ref_conf.ener.min(), 
+    # Energy of the highest-lying reference space state
+    #emax = convert.convert_ctypes(ci.ref_conf.ener.max() - 
+    #                              ci.ref_conf.ener.min(), 
+    #                              dtype='double')
+    emax = convert.convert_ctypes(ci.ref_conf.ener.max(),
                                   dtype='double')
-        
+    
+    # CVS core MO flags
+    cvsflag = np.zeros(scf.nmo, dtype=int)
+    for i in ci.icvs:
+        cvsflag[i-1] = 1
+    cvsflag = convert.convert_ctypes(cvsflag, dtype='int32')
+    
     # Number of roots for each irrep
     nroots = convert.convert_ctypes(np.array(ci.nstates, 
                                dtype=int),dtype='int32')
@@ -60,7 +67,8 @@ def generate(ci, lib_bitci):
                                       conf0scr,
                                       confMscr,
                                       nconf,
-                                      ctypes.byref(emax))
+                                      ctypes.byref(emax),
+                                      cvsflag)
 
         # Optional filtering based on the ASCI selection
         # criterion
