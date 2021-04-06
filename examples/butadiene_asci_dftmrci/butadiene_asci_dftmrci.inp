@@ -12,7 +12,6 @@
  $end
 
  $molecule section
- units        = angstrom
  charge       = 0
  mult         = 1
  basis        = aug-cc-pvdz
