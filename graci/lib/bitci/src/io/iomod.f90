@@ -10,31 +10,57 @@ module iomod
 contains
 
 !#######################################################################
+! 
+!#######################################################################
+  function cstrlen(cstring)
+
+    use constants
+    use iso_c_binding, only: C_CHAR, C_NULL_CHAR
+    
+    implicit none
+
+    integer(is)                        :: cstrlen
+    character(kind=C_CHAR), intent(in) :: cstring(*)
+    
+    cstrlen=0
+    do
+       cstrlen=cstrlen+1
+       if (cstring(cstrlen) == C_NULL_CHAR) exit
+    enddo
+
+    return
+    
+  end function cstrlen
+    
+!#######################################################################
 ! c2fstr: converts a C character array to a fortran fixed-length string
 !#######################################################################
-  function c2fstr(carr)
-  
+  subroutine c2fstr(cstring,fstring,length)
+
     use constants 
     use iso_c_binding, only: C_CHAR, C_NULL_CHAR
 
     implicit none
-    
-    character(kind=C_CHAR), intent(in) :: carr(*)
+
+
+    character(kind=C_CHAR), intent(in) :: cstring(length)
+    character(len=255), intent(out)    :: fstring
+    integer(is), intent(in)            :: length
     integer(is)                        :: i
-    character(len=255)                 :: c2fstr
 
-    c2fstr = ''
+    fstring=''
+
     do i = 1,255
-       if (carr(i) == C_NULL_CHAR) exit
-       c2fstr(i:i) = carr(i) 
+       if (cstring(i) == C_NULL_CHAR) exit
+       fstring(i:i) = cstring(i) 
     enddo
-
-    c2fstr = adjustl(c2fstr)
+  
+    fstring = adjustl(fstring)
     
     return
-
-  end function c2fstr
-
+    
+  end subroutine c2fstr
+  
 !#######################################################################
 ! f2Cstr: converts a fortran fixed-length string to a C character array
 !#######################################################################
@@ -46,9 +72,9 @@ contains
     implicit none
 
     character(len=255), intent(in)      :: fstring
+    character(kind=C_CHAR), intent(out) :: cstring(length)
     integer(is), intent(in)             :: length
     integer(is)                         :: i
-    character(kind=C_CHAR), intent(out) :: cstring(length)
     
     do i=1,len_trim(fstring)
        cstring(i)=fstring(i:i)

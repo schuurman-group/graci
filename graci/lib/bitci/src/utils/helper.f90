@@ -189,7 +189,6 @@ end subroutine retrieve_energies
 #ifdef CBINDING
 subroutine retrieve_filename(scrnum,filename1) &
      bind(c,name="retrieve_filename")
-  use iso_c_binding, only: C_CHAR, C_NULL_CHAR
 #else
 subroutine retrieve_filename(scrnum,filename1)
 #endif
@@ -197,6 +196,7 @@ subroutine retrieve_filename(scrnum,filename1)
   use constants
   use bitglobal
   use iomod
+  use iso_c_binding, only: C_CHAR, C_NULL_CHAR
   
   implicit none
 
@@ -223,15 +223,10 @@ subroutine retrieve_filename(scrnum,filename1)
   !
 #ifdef CBINDING
   ! Length of the C char array
-  length=0
-  do
-     length=length+1
-     if (filename1(length) == C_NULL_CHAR) exit
-  enddo
+  length=cstrlen(filename1)
 
   ! Convert to a fortran fixed-length string
   call f2cstr(filename,filename1,length)
-  
 #else
   filename1=filename
 #endif

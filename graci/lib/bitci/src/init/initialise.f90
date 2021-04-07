@@ -6,7 +6,6 @@
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
      iham,label1) bind(c,name="bitci_initialise")
-  use iso_c_binding, only: C_CHAR
 #else
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
      iham,label1)
@@ -21,7 +20,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   use spin_coupling
   use precompute
   use hparam
-
+  use iso_c_binding, only: C_CHAR
+  
   implicit none
 
   integer(is), intent(in)            :: imult1,nel1,nmo1,ipg1
@@ -34,6 +34,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: label1(*)
   character(len=255)                 :: label
+  integer(is)                        :: length
 #else
   character(len=*), intent(in)       :: label1
   character(len=255)                 :: label
@@ -44,7 +45,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 ! C char type to the Fortran character type
 !----------------------------------------------------------------------
 #ifdef CBINDING
-  label=c2fstr(label1)
+  length=cstrlen(label1)
+  call c2fstr(label1,label,length)
 #else
   label=adjustl(trim(label1))
 #endif
