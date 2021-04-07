@@ -9,7 +9,7 @@ module bitglobal
   !
   ! Name of the scratch directory
   !
-  character(len=15) :: scratchdir
+  character(len=255) :: scratchdir
   
   !
   ! Dimensions
@@ -50,7 +50,7 @@ module bitglobal
                                                 ! units
   integer(is)                     :: nscratch   ! Number of scratch units in use
   integer(is), allocatable        :: scrunit(:) ! Values of the scratch units
-  character(len=200), allocatable :: scrname(:) ! Names of the scratch units
+  character(len=255), allocatable :: scrname(:) ! Names of the scratch units
 
   !
   ! Spin multiplicity

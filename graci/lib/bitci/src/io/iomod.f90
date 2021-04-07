@@ -17,21 +17,23 @@ contains
     use constants 
     use iso_c_binding, only: C_CHAR, C_NULL_CHAR
 
+    implicit none
+    
     character(kind=C_CHAR), intent(in) :: carr(*)
     integer(is)                        :: i
     character(len=255)                 :: c2fstr
 
     c2fstr = ''
     do i = 1,255
-      if (carr(i) == C_NULL_CHAR) exit
-      c2fstr(i:i) = carr(i) 
+       if (carr(i) == C_NULL_CHAR) exit
+       c2fstr(i:i) = carr(i) 
     enddo
 
     c2fstr = adjustl(c2fstr)
-
+    
     return
-  end function c2fstr
 
+  end function c2fstr
 
 !#######################################################################
 ! freeunit: determines the first free unit number
@@ -114,7 +116,7 @@ contains
 
     integer(is)                     :: olddim
     integer(is), allocatable        :: iswap(:)
-    character(len=200), allocatable :: aswap(:)
+    character(len=255), allocatable :: aswap(:)
     
     !
     ! Increment the number of scratch files in use
