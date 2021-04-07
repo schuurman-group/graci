@@ -73,7 +73,17 @@ def diag(ci, lib_bitci):
 
     # Save the list of bitci eigenvector scratch numbers
     ci.mrci_conf.set_vecscr(vecscr)
-    
+
+    # Retrieve the MRCI eigenvector scratch file names
+    name    = convert.convert_ctypes(' '*255, dtype='string')
+    vecname = []
+    for i in range(nirr):
+        scrnum = convert.convert_ctypes(ci.mrci_conf.vecscr[i],
+                                        dtype='int32')
+        lib_bitci.retrieve_filename(ctypes.byref(scrnum), name)
+        vecname.append(bytes.decode(name.value))
+    ci.mrci_conf.set_vecname(vecname)
+
     # Save the MRCI state energies
     ci.mrci_conf.set_ener(np.transpose(ener))
 

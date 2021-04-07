@@ -96,22 +96,6 @@ class Dftmrci:
             if min_norm > 0.9025 and i > 0:
                 print('\n * Reference Space Converged *', flush=True)
                 break
-
-
-        
-        # TEST: Retrieve the configuration scratch file names
-        nirrep = len(self.nstates)
-        name   = convert.convert_ctypes(' '*255, dtype='string')
-        confname1 = []
-        for i in range(nirrep):
-            scrnum = convert.convert_ctypes(self.mrci_conf.confscr[i],
-                                            dtype='int32')
-            lib_bitci.retrieve_filename(ctypes.byref(scrnum), name)
-            confname1.append(bytes.decode(name.value))
-
-        self.mrci_conf.set_confname(confname1)
-        # TEST: Retrieve the configuration scratch file names
-        
         
         return 
 
@@ -176,7 +160,7 @@ class Dftmrci:
             return
 
         #
-        def set_vecname(self, vecscr):
+        def set_vecname(self, vecname):
             """Adds the list of bitci eigenvector scratch file names"""
             self.vecname = vecname
             return

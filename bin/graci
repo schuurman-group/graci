@@ -25,7 +25,7 @@ def main():
     # print output file header
     output.print_header(job_array)
 
-    # build and run computation 
+    # build and run computation
     drive_obj = driver.Driver()
     drive_obj.run(job_array)
 
