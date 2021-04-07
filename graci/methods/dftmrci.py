@@ -1,6 +1,10 @@
 """
 Module for computing DFT/MRCI energies
 """
+import sys as sys
+import graci.io.convert as convert
+import ctypes as ctypes
+
 import graci.core.loadlibs as loadlibs
 import graci.citools.ref_space as ref_space
 import graci.citools.ref_diag as ref_diag
@@ -93,6 +97,22 @@ class Dftmrci:
                 print('\n * Reference Space Converged *', flush=True)
                 break
 
+
+        
+        # TEST: Retrieve the configuration scratch file names
+        nirrep = len(self.nstates)
+        name   = convert.convert_ctypes(' '*255, dtype='string')
+        confname1 = []
+        for i in range(nirrep):
+            scrnum = convert.convert_ctypes(self.mrci_conf.confscr[i],
+                                            dtype='int32')
+            lib_bitci.retrieve_filename(ctypes.byref(scrnum), name)
+            confname1.append(bytes.decode(name.value))
+
+        self.mrci_conf.set_confname(confname1)
+        # TEST: Retrieve the configuration scratch file names
+        
+        
         return 
 
     def density(self, state):
@@ -121,10 +141,15 @@ class Dftmrci:
             self.confscr     = 0
             # List of bitci eigenvector scratch file numbers (one per irrep)
             self.vecscr      = None
+            # bitci configuration scratch file names
+            self.confname    = 0
+            # List of bitci eigenvector scratch file names (one per irrep)
+            self.vecname     = None
             # State energies
             self.ener        = None
             # Hamiltonian integer label
             self.hamiltonian = None
+        
 
         #
         def set_nconf(self, nconf):
@@ -144,6 +169,18 @@ class Dftmrci:
             self.vecscr = vecscr
             return
 
+        #
+        def set_confname(self, confname):
+            """Sets the bitci configuration scratch file names"""
+            self.confname = confname
+            return
+
+        #
+        def set_vecname(self, vecscr):
+            """Adds the list of bitci eigenvector scratch file names"""
+            self.vecname = vecname
+            return
+        
         #
         def set_ener(self, ener):
             """Adds the array of state energies"""

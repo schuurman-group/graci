@@ -182,57 +182,60 @@ subroutine retrieve_energies(scrnum,nroots,ener)
   
 end subroutine retrieve_energies  
 
-!!######################################################################
-!! spatial_occ: for a determinant d, returns the occupations of the
-!!              spatial orbitals in the array occ
-!!######################################################################
-!#ifdef CBINDING
-!subroutine spatial_occ(d,occ) bind(c,name="spatial_occ")
-!#else
-!subroutine spatial_occ(d,occ)
-!#endif
-!  
-!  use constants
-!  use bitglobal
-!  use bitutils
-!  
-!  implicit none
-!
-!  integer(ib), intent(in)  :: d(n_int,2)
-!  integer(is), intent(out) :: occ(nmo)
-!  integer(ib)              :: sop(n_int,2)
-!  integer(is)              :: i1,i,k
-!  
-!  !
-!  ! Get the spatial occupation pattern for the determinant
-!  !
-!  call get_sop(d,sop)
-!
-!  !
-!  ! Fill in the spatial orbital occupancies
-!  !
-!  occ=0
-!  ! Loop over orbitals
-!  do i1=1,nmo
-!
-!     ! Block index
-!     k=(i1-1)/64+1
-!
-!     ! Index of the orbital in the kth block
-!     i=i1-(k-1)*64-1
-!
-!     ! Set the occupancy of the i1'th spatial orbital
-!     if (btest(sop(k,1),i)) then
-!        if (btest(d(k,1),i)) then
-!           occ(i1)=+1
-!        else
-!           occ(i1)=-1
-!        endif
-!     endif
-!     if (btest(sop(k,2),i)) occ(i1)=2
-!     
-!  enddo
-!  
-!  return
-!  
-!end subroutine spatial_occ
+!######################################################################
+! retrieve_filename: given a scratch file number, returns the
+!                    associated filename
+!######################################################################
+#ifdef CBINDING
+subroutine retrieve_filename(scrnum,filename1) &
+     bind(c,name="retrieve_filename")
+  use iso_c_binding, only: C_CHAR, C_NULL_CHAR
+#else
+subroutine retrieve_filename(scrnum,filename1)
+#endif
+
+  use constants
+  use bitglobal
+  use iomod
+  
+  implicit none
+
+  ! Scratch file number
+  integer(is), intent(in)             :: scrnum
+
+  ! Filename
+#ifdef CBINDING
+  character(kind=C_CHAR), intent(out) :: filename1(*)
+  character(len=255)                  :: filename
+  integer(is)                         :: length
+#else
+  character(len=*), intent(out)       :: filename1
+  character(len=255)                  :: filename
+#endif
+  
+  !
+  ! Filename
+  !
+  filename=scrname(scrnum)
+  
+  !
+  ! If C bindings are on, then convert to the C char type
+  !
+#ifdef CBINDING
+  ! Length of the C char array
+  length=0
+  do
+     length=length+1
+     if (filename1(length) == C_NULL_CHAR) exit
+  enddo
+
+  ! Convert to a fortran fixed-length string
+  call f2cstr(filename,filename1,length)
+  
+#else
+  filename1=filename
+#endif
+  
+  return
+  
+end subroutine retrieve_filename

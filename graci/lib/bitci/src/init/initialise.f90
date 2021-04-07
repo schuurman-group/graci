@@ -8,8 +8,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
      iham,label1) bind(c,name="bitci_initialise")
   use iso_c_binding, only: C_CHAR
 #else
-  subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
-       iham,label1)
+subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
+     iham,label1)
 #endif
 
   use constants
@@ -32,7 +32,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   real(dp)                           :: s,smax
 
 #ifdef CBINDING
-  character(kind=C_CHAR),intent(in)  :: label1(*)
+  character(kind=C_CHAR), intent(in) :: label1(*)
   character(len=255)                 :: label
 #else
   character(len=*), intent(in)       :: label1

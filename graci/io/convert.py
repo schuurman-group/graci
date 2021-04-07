@@ -2,7 +2,7 @@
 Module for facilitating passing of strings between
 Python and compiled dlls
 """
-
+import sys as sys
 import ctypes as ctypes
 
 def convert_ctypes(py_val, dtype=None):

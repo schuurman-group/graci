@@ -36,6 +36,32 @@ contains
   end function c2fstr
 
 !#######################################################################
+! f2Cstr: converts a fortran fixed-length string to a C character array
+!#######################################################################
+  subroutine f2cstr(fstring,cstring,length)
+
+    use constants 
+    use iso_c_binding, only: C_CHAR, C_NULL_CHAR
+
+    implicit none
+
+    character(len=255), intent(in)      :: fstring
+    integer(is), intent(in)             :: length
+    integer(is)                         :: i
+    character(kind=C_CHAR), intent(out) :: cstring(length)
+    
+    do i=1,len_trim(fstring)
+       cstring(i)=fstring(i:i)
+    enddo
+
+    i=len_trim(fstring)+1
+    cstring(i)=C_NULL_CHAR
+    
+    return
+    
+  end subroutine f2cstr
+    
+!#######################################################################
 ! freeunit: determines the first free unit number
 !#######################################################################
   subroutine freeunit(unit)

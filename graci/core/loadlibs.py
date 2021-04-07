@@ -42,7 +42,7 @@ def init_bitci(mol, scf, ci):
     iham  = convert.convert_ctypes(hamiltonians.index(ci.hamiltonian)+1,
                                    dtype='int32')
     label = convert.convert_ctypes(ci.label, dtype='string')
-
+    
     # call to bitci_initialise
     lib_bitci.bitci_initialise(ctypes.byref(imult),
                                ctypes.byref(nel),
