@@ -63,7 +63,7 @@ class Dftmrci:
         lib_intpyscf = loadlibs.init_intpyscf(mol, scf)
 
         # initialize bitci
-        lib_bitci = loadlibs.init_bitci(mol, scf, self.hamiltonian)
+        lib_bitci = loadlibs.init_bitci(mol, scf, self)
 
         # generate the reference space configurations
         self.ref_conf = self.Wavefunction()

@@ -5,22 +5,11 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
-     iham) bind(c,name="bitci_initialise")
+     iham,label1) bind(c,name="bitci_initialise")
   use iso_c_binding, only: C_CHAR
 #else
-!> @brief Initialises the bitCI library
-!!
-!! The system is defined by the spin multiplicity, number of
-!! electrons, MO and symmetry information.
-!!
-!! @param[in] imult  4-byte integer. The spin multiplicity.
-!! @param[in] nel    4-byte integer. The number of electrons.
-!! @param[in] nmo    4-byte integer. The number of MOs.
-!! @param[in] mosym  8-byte integer array, dimension(nmo). The symmetries of the MOs.
-!! @param[in] moen   8-byte real array, dimension(nmo). The MO energies.
-!! @param[in] pgroup Character string. The point group of the molecule.
   subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
-       iham)
+       iham,label1)
 #endif
 
   use constants
@@ -35,29 +24,36 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 
   implicit none
 
-  integer(is), intent(in) :: imult1,nel1,nmo1,ipg1
-  integer(ib), intent(in) :: mosym1(nmo1)
-  integer(is), intent(in) :: iham
-  real(dp), intent(in)    :: moen1(nmo1)
-  real(dp), intent(in)    :: enuc1
-  real(dp)                :: s,smax
-!#ifdef CBINDING
-!  character(kind=C_CHAR),intent(in)  :: ham_name(*)
-!  character(len=255)                 :: hamiltonian
-!
-!  hamiltonian = c2fstr(ham_name)
-!#else
-!  character(len=*), intent(in)       :: ham_name
-!  character(len=255)                 :: hamiltonian
-!
-!  hamiltonian = adjustl(trim(ham_name)
-!#endif
+  integer(is), intent(in)            :: imult1,nel1,nmo1,ipg1
+  integer(ib), intent(in)            :: mosym1(nmo1)
+  integer(is), intent(in)            :: iham
+  real(dp), intent(in)               :: moen1(nmo1)
+  real(dp), intent(in)               :: enuc1
+  real(dp)                           :: s,smax
+
+#ifdef CBINDING
+  character(kind=C_CHAR),intent(in)  :: label1(*)
+  character(len=255)                 :: label
+#else
+  character(len=*), intent(in)       :: label1
+  character(len=255)                 :: label
+#endif
+
+!----------------------------------------------------------------------
+! If C bindings are on, then convert the calculation label from the
+! C char type to the Fortran character type
+!----------------------------------------------------------------------
+#ifdef CBINDING
+  label=c2fstr(label1)
+#else
+  label=adjustl(trim(label1))
+#endif
 
 !----------------------------------------------------------------------
 ! Quick sanity check on the number of electrons and spin multiplicity
 !----------------------------------------------------------------------
-  if (mod(imult1,2).eq.0.and.mod(nel1,2).eq.0 &
-       .or.mod(imult1,2).ne.0.and.mod(nel1,2).ne.0) then
+  if (mod(imult1,2) == 0 .and. mod(nel1,2) == 0 &
+       .or. mod(imult1,2) /= 0.and. mod(nel1,2) /= 0) then
      write(errmsg,'(a,1x,i0,a,i0)') 'Nonsensical Nel/multiplicity:',&
           nel1,'/',imult1
      call error_control
@@ -171,9 +167,14 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 !----------------------------------------------------------------------
 ! Create the scratch directory
 !----------------------------------------------------------------------
+  ! Top level scratch directory
   scratchdir='bitscratch'
   call system('mkdir -p '//trim(scratchdir))
 
+  ! Calculation specific scratch sub-directory
+  scratchdir=trim(scratchdir)//'/'//trim(label)
+  call system('mkdir -p '//trim(scratchdir))
+  
 !----------------------------------------------------------------------
 ! Initialise the scratch unit counter and allocate the scratch unit
 ! arrays

@@ -18,7 +18,7 @@ hamiltonians   = ['canonical',
                   'heil18_short']
 
 #
-def init_bitci(mol, scf, hamiltonian):
+def init_bitci(mol, scf, ci):
     """Initialize the bitci library"""
     
     # load the appropriate library
@@ -39,8 +39,9 @@ def init_bitci(mol, scf, hamiltonian):
     isym  = mol.sym_indx + 1 if mol.sym_indx > 0 else 1
     pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
     enuc  = convert.convert_ctypes(mol.enuc,               dtype='double')
-    iham  = convert.convert_ctypes(
-        hamiltonians.index(hamiltonian)+1, dtype='int32')
+    iham  = convert.convert_ctypes(hamiltonians.index(ci.hamiltonian)+1,
+                                   dtype='int32')
+    label = convert.convert_ctypes(ci.label, dtype='string')
 
     # call to bitci_initialise
     lib_bitci.bitci_initialise(ctypes.byref(imult),
@@ -50,7 +51,8 @@ def init_bitci(mol, scf, hamiltonian):
                                moen,
                                ctypes.byref(pgrp),
                                ctypes.byref(enuc),
-                               ctypes.byref(iham))
+                               ctypes.byref(iham),
+                               label)
 
     return lib_bitci
 
