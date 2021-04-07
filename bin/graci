@@ -21,7 +21,7 @@ def main():
 
     # parse input
     job_array = parse.parse_input()
-
+    
     # print output file header
     output.print_header(job_array)
 

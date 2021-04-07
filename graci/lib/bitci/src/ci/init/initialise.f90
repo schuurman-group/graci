@@ -1,7 +1,7 @@
 !######################################################################
-! bitci_initialise: interface to the bitci library. Sets all globally
+! bitci_initialise: Interface to the bitci library. Sets all globally
 !                   accessible variables that are needed to perform
-!                   a CI calculation
+!                   a CI calculation.
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
