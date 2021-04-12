@@ -297,7 +297,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 !----------------------------------------------------------------------
 ! Debugging: check for duplicate configurations
 !----------------------------------------------------------------------
-  call check_confs(ntotal,n_int_I,nmoI,cfgM)
+  !call check_confs(ntotal,n_int_I,nmoI,cfgM)
 
 !----------------------------------------------------------------------
 ! Stop timing and print report
