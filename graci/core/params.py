@@ -5,7 +5,6 @@ import graci.core.geometry as geometry
 import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
-import graci.methods.cvsdftmrci as cvsdftmrci
 import graci.methods.dftcis as dftcis
 import graci.properties.moments as moments
 import graci.properties.spinorbit as spinorbit
@@ -55,26 +54,6 @@ dftmrci_kword  = {'nstates'        : int,
                   'label'          : str
                  }
 
-cvsdftmrci_kword =  {'nstates'        : int,
-                  'hamiltonian'    : str,
-                  'de_select'      : float,
-                  'ras1'           : int,
-                  'ras2'           : int,
-                  'ras3'           : int,
-                  'nhole1'         : int,
-                  'nelec3'         : int,
-                  'autoras'        : bool,
-                  'ciorder'        : int,
-                  'refiter'        : int,
-                  'asci'           : str,
-                  'diag_method'    : str,
-                  'diag_tol'       : float,
-                  'diag_iter'      : int,
-                  'diag_blocksize' : int,
-                  'diag_deflate'   : bool,
-                  'label'          : str
-                 }
-
 dftcis_kword   = {'nstates'        : int,
                   'hamiltonian'    : str,
                   'de_select'      : float,
@@ -109,8 +88,6 @@ def name2obj(name):
         return dftcis.Dftcis()
     elif name == 'dftmrci':
         return dftmrci.Dftmrci()
-    elif name == 'cvsdftmrci':
-        return cvsdftmrci.Cvsdftmrci()
     elif name == 'moments':
         return moments.Moments()
     elif name == 'spinorbit':
@@ -122,7 +99,7 @@ def name2obj(name):
 # these are the valid computation classes. This is somewhat
 # inartful.
 valid_objs = ['geometry', 'molecule', 'parameterize', 'scf', 'dftmrci', 
-              'cvsdftmrci', 'dftmrcis', 'moments', 'spinorbit']
+              'dftmrcis', 'moments', 'spinorbit']
 
 ##############################################
 kwords = {'geometry'     : geometry_kword,
@@ -131,7 +108,6 @@ kwords = {'geometry'     : geometry_kword,
           'scf'          : scf_kword,
           'dftcis'       : dftcis_kword,
           'dftmrci'      : dftmrci_kword,
-          'cvsdftmrci'   : cvsdftmrci_kword,
           'moments'      : moments_kword,
           'spinorbit'    : spinorbit_kword
          }
