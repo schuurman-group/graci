@@ -1,6 +1,10 @@
 """
 Module for computing DFT/MRCI energies
 """
+import sys as sys
+import graci.io.convert as convert
+import ctypes as ctypes
+
 import graci.core.loadlibs as loadlibs
 import graci.citools.ref_space as ref_space
 import graci.citools.ref_diag as ref_diag
@@ -92,7 +96,7 @@ class Dftmrci:
             if min_norm > 0.9025 and i > 0:
                 print('\n * Reference Space Converged *', flush=True)
                 break
-
+        
         return 
 
     def density(self, state):
@@ -121,10 +125,15 @@ class Dftmrci:
             self.confscr     = 0
             # List of bitci eigenvector scratch file numbers (one per irrep)
             self.vecscr      = None
+            # bitci configuration scratch file names
+            self.confname    = 0
+            # List of bitci eigenvector scratch file names (one per irrep)
+            self.vecname     = None
             # State energies
             self.ener        = None
             # Hamiltonian integer label
             self.hamiltonian = None
+        
 
         #
         def set_nconf(self, nconf):
@@ -144,6 +153,18 @@ class Dftmrci:
             self.vecscr = vecscr
             return
 
+        #
+        def set_confname(self, confname):
+            """Sets the bitci configuration scratch file names"""
+            self.confname = confname
+            return
+
+        #
+        def set_vecname(self, vecname):
+            """Adds the list of bitci eigenvector scratch file names"""
+            self.vecname = vecname
+            return
+        
         #
         def set_ener(self, ener):
             """Adds the array of state energies"""

@@ -253,7 +253,7 @@ contains
 !######################################################################
 ! phase_slow: Simple, naive calculation of phase factors based on the
 !             sequential application of creation and annihilation
-!             operators on the occupation number vectors corresponding
+!             operators on the occupation number vector corresponding
 !             to the determinant dI and the accumulation of the
 !             associated phase factors.
 !             This is only intended to be used as a check on the more

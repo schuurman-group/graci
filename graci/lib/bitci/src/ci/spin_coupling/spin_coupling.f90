@@ -368,7 +368,7 @@ contains
        enddo
           
     enddo
-
+    
 !----------------------------------------------------------------------
 ! So far, we have generated the Case 1a spin-coupling coefficients
 ! < w' omega' | E_i^j | w omega > for i>j. To enable faster retrieval
@@ -597,16 +597,17 @@ contains
           ip=plist(1,ispin)
           ih=hlist(1,ispin)
           if (ip /= ic .or. ih /= ia) cycle
-
+          
           ! Phase factor
+          !phase=phase_slow(d1(:,iket),hlist,plist,maxex,nexci)
           phase=phase_pure_exc(phase_mask(ispin),hlist(:,ispin),&
                 plist(:,ispin),maxex,nexci)
           phasemat(iket,ibra)=dble(phase)
-          
+
        enddo
 
     enddo
-
+    
 !----------------------------------------------------------------------
 ! Compute the matrix of spin coupling coefficients for the current
 ! pattern index
@@ -1055,6 +1056,7 @@ contains
           if (ip /= ic .or. ih /= ia) cycle
           
           ! Phase factor
+          !phase=phase_slow(d1(:,iket),hlist,plist,maxex,nexci)
           phase=phase_pure_exc(phase_mask(ispin),hlist(:,ispin),&
                 plist(:,ispin),maxex,nexci)
           phasemat(iket,ibra)=dble(phase)

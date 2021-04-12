@@ -91,9 +91,19 @@ def generate(scf, ci, lib_bitci):
     # Set the number of MRCI configurations
     ci.mrci_conf.set_nconf(nconf)
     
-    # Set the reference space determinants scratch file number
+    # Set the MRCI configuration scratch file number
     ci.mrci_conf.set_confscr(confMscr)
 
+    # Retrieve the MRCI configuration scratch file names
+    name     = convert.convert_ctypes(' '*255, dtype='string')
+    confname = []
+    for i in range(nirr):
+        scrnum = convert.convert_ctypes(ci.mrci_conf.confscr[i],
+                                        dtype='int32')
+        lib_bitci.retrieve_filename(ctypes.byref(scrnum), name)
+        confname.append(bytes.decode(name.value))
+    ci.mrci_conf.set_confname(confname)
+    
     # Stop timing
     timing.stop('mrci_space')
     

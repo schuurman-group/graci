@@ -53,10 +53,15 @@ set(INT_PYSCF_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/lib)
 link_directories(${INT_PYSCF_LIB_DIR})
 
 #
-# Add the library target 
+# Add the library targets
 #
-file(GLOB_RECURSE sources src/*)
-add_library(bitci SHARED ${sources})
+# bitCI
+file(GLOB_RECURSE CIsources src/ci/* src/include/*)
+add_library(bitci SHARED ${CIsources})
+# bitSI
+file(GLOB_RECURSE SIsources src/si/* src/include/*)
+add_library(bitsi SHARED ${SIsources})
+
 
 # Link to int_pyscf
 target_link_libraries(bitci -lint_pyscf)
@@ -64,4 +69,7 @@ target_link_libraries(bitci -lint_pyscf)
 #
 # Install
 #
+# bitCI
 install(TARGETS bitci DESTINATION lib)
+# bitSI
+install(TARGETS bitsi DESTINATION lib)
