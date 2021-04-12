@@ -56,10 +56,10 @@ link_directories(${INT_PYSCF_LIB_DIR})
 # Add the library targets
 #
 # bitCI
-file(GLOB_RECURSE CIsources src/ci/* src/include/*)
+file(GLOB_RECURSE CIsources src/ci/* src/include/* src/io/*)
 add_library(bitci SHARED ${CIsources})
 # bitSI
-file(GLOB_RECURSE SIsources src/si/* src/include/*)
+file(GLOB_RECURSE SIsources src/si/* src/include/* src/io/*)
 add_library(bitsi SHARED ${SIsources})
 
 

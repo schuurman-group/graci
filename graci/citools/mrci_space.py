@@ -3,7 +3,7 @@ Module for generating the MRCI configurations from single
 and double excitations out of an arbitrary reference space
 """
 
-import sys
+import sys as sys
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing

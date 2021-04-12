@@ -10,7 +10,7 @@ module iomod
 contains
 
 !#######################################################################
-! 
+! cstrlen: returns the length of a C character array
 !#######################################################################
   function cstrlen(cstring)
 

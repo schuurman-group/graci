@@ -57,6 +57,32 @@ def init_bitci(mol, scf, ci):
     return lib_bitci
 
 #
+def init_bitsi(molBra, molKet, ciBra, ciKet):
+    """Initialize the bitsi library"""
+
+    # load the appropriate library
+    bitsi_path = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitsi.{}'.format(
+        'so' if sys.platform != 'darwin' else 'dylib')
+    
+    if not os.path.isfile(bitsi_path):
+        raise FileNotFoundError('bitsi library not found: '+bitsi_path)
+    lib_bitsi = ctypes.cdll.LoadLibrary(bitsi_path)
+
+    # set all variables that have to be passed to bitsi_initialise
+    imultBra = convert.convert_ctypes(molBra.mult, dtype='int32')
+    imultKet = convert.convert_ctypes(molKet.mult, dtype='int32')
+    nelBra   = convert.convert_ctypes(molBra.nel,  dtype='int32')
+    nelKet   = convert.convert_ctypes(molKet.nel,  dtype='int32')
+
+    # call to bitsi_initialise
+    lib_bitsi.bitsi_initialise(ctypes.byref(imultBra),
+                               ctypes.byref(imultKet),
+                               ctypes.byref(nelBra),
+                               ctypes.byref(nelKet))
+    
+    return lib_bitsi
+
+#
 def init_intpyscf(mol, scf):
     """Initialize the int_pyscf library"""
 

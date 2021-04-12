@@ -96,13 +96,24 @@ class Dftmrci:
             if min_norm > 0.9025 and i > 0:
                 print('\n * Reference Space Converged *', flush=True)
                 break
+
+        # 1-RDMs
+        state = [ [1]*max(self.nstates) ]*len(self.nstates)
+        self.density(mol, state)
         
         return 
 
-    def density(self, state):
+    def density(self, mol, state):
         """ computes the density matrices for the states in 
         the array 'states'"""
 
+        # Initialise the bitSI library for the calculation
+        # of 1-RDMs
+        lib_bitsi = loadlibs.init_bitsi(mol, mol, self, self)
+
+        # Compute the 1-RDMs
+        
+        
         return
 
     def slater_dets(self, state):

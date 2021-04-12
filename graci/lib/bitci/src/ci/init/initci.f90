@@ -62,6 +62,18 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   endif
 
 !----------------------------------------------------------------------
+! Exit if the requested spin multiplicity is not supported by the
+! maximum number of openshells
+!----------------------------------------------------------------------
+  smax=dble(nomax)/2.0d0
+  s=dble(imult1-1)/2.0
+  if (s > smax) then
+     write(errmsg,'(a)') 'The requested multiplicity is incompatible'&
+          //' with the current value of nomax.'
+     call error_control
+  endif
+  
+!----------------------------------------------------------------------
 ! Exit if the given point group is not recognised
 !----------------------------------------------------------------------
   if (ipg1.lt.1.or.ipg1.gt.8) then
@@ -73,18 +85,6 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 ! Set the spin multiplicity
 !----------------------------------------------------------------------
   imult=imult1
-
-!----------------------------------------------------------------------
-! Exit if the requested spin multiplicity is not supported by the
-! maximum number of openshells
-!----------------------------------------------------------------------
-  smax=dble(nomax)/2.0d0
-  s=dble(imult-1)/2.0
-  if (s > smax) then
-     write(errmsg,'(a)') 'The requested multiplicity is incompatible'&
-          //' with the current value of nomax.'
-     call error_control
-  endif
   
 !----------------------------------------------------------------------
 ! Set the number of electrons
