@@ -89,8 +89,7 @@ class Scf:
         if not mf.converged:
             sys.exit('Reference SCF computation did not converge.')
         
-        # orb_sym are the symmetry labels
-    
+        # orb_sym are the symmetry labels 
         if pymol.symmetry: 
             orb_sym = symm.label_orb_symm(pymol, pymol.irrep_name, 
                                    pymol.symm_orb, mf.mo_coeff)
@@ -151,6 +150,15 @@ class Scf:
 
 
         return
+
+    def energy(self, state=0):
+        """return the energy of state 'state'"""
+
+        if state != 0:
+            output.print_message('Calling scf.energy() for state != 0')
+
+        return self.energy
+
 
     def slater_dets(self, state):
         """return the slater determinant list for state 'state'"""
