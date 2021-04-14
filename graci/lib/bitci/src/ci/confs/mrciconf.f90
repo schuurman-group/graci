@@ -75,7 +75,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 
   ! Everything else
   integer(is)                :: i,n,ntotal,counter
-  
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------

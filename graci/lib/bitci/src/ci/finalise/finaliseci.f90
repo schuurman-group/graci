@@ -4,9 +4,9 @@
 !                 arrays and re-initialises all other global variables
 !######################################################################
 #ifdef CBINDING
-subroutine bitci_finalise bind(c,name="bitci_finalise")
+subroutine bitci_finalise() bind(c,name="bitci_finalise")
 #else
-subroutine bitci_finalise
+subroutine bitci_finalise()
 #endif
 
   use constants
