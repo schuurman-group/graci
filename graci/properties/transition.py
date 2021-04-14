@@ -64,8 +64,8 @@ class Transition:
     def trans_dipole(self, bra, ket):
         """return transition dipole matrix element"""
 
-         # find the state pair in the transition list
-         ind = self.tran_list.index([bra, ket])
+        # find the state pair in the transition list
+        ind = self.tran_list.index([bra, ket])
 
         return self.trans_mom[ind]
 

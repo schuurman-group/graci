@@ -25,7 +25,6 @@ contains
   subroutine generate_coupling_coefficients
 
     use constants
-    use bitglobal
     use timing
     
     implicit none
