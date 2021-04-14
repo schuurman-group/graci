@@ -94,7 +94,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! to obtain the true DFT/MRCI Hamiltonian eigenvalue
 !----------------------------------------------------------------------
   E0max=E0max1-Escf-Enuc
-  
+
 !----------------------------------------------------------------------
 ! Read the reference configurations for all irreps from disk
 !----------------------------------------------------------------------

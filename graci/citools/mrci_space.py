@@ -35,12 +35,9 @@ def generate(scf, ci, lib_bitci):
                                dtype='int32')
     
     # Energy of the highest-lying reference space state
-    #emax = convert.convert_ctypes(ci.ref_conf.ener.max() - 
-    #                              ci.ref_conf.ener.min(), 
-    #                              dtype='double')
-    emax = convert.convert_ctypes(ci.ref_conf.ener.max(),
-                                  dtype='double')
-    
+    nonzero = ci.ref_conf.ener[ci.ref_conf.ener != 0]
+    emax = convert.convert_ctypes(nonzero.max(), dtype='double')
+
     # CVS core MO flags
     cvsflag = np.zeros(scf.nmo, dtype=int)
     for i in ci.icvs:
