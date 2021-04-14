@@ -5,9 +5,9 @@ import graci.core.geometry as geometry
 import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
-import graci.methods.cvsdftmrci as cvsdftmrci
 import graci.methods.dftcis as dftcis
 import graci.properties.moments as moments
+import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit
 
 # geometry section, input keywords and data types
@@ -55,36 +55,21 @@ dftmrci_kword  = {'nstates'        : int,
                   'label'          : str
                  }
 
-cvsdftmrci_kword =  {'nstates'        : int,
-                  'hamiltonian'    : str,
-                  'de_select'      : float,
-                  'ras1'           : int,
-                  'ras2'           : int,
-                  'ras3'           : int,
-                  'nhole1'         : int,
-                  'nelec3'         : int,
-                  'autoras'        : bool,
-                  'ciorder'        : int,
-                  'refiter'        : int,
-                  'asci'           : str,
-                  'diag_method'    : str,
-                  'diag_tol'       : float,
-                  'diag_iter'      : int,
-                  'diag_blocksize' : int,
-                  'diag_deflate'   : bool,
-                  'label'          : str
-                 }
-
+# DFT/CIS section input keywords and data types
 dftcis_kword   = {'nstates'        : int,
                   'hamiltonian'    : str,
                   'de_select'      : float,
                   'label'          : str
                 }
 
-# geometry section, input keywords and data types
-moments_kword   = {'bra_states' : int,
-                   'ket_states' : int
+# moments section, input keywords and data types
+moments_kword   = {'states'        : int
                   }
+
+# transition moments input keywords and data types
+transition_kword = {'init'         : int,
+                    'final'        : int
+                   }
 
 # molecule section input keywords and data typess
 spinorbit_kword = {'bra_states' : int,
@@ -109,10 +94,10 @@ def name2obj(name):
         return dftcis.Dftcis()
     elif name == 'dftmrci':
         return dftmrci.Dftmrci()
-    elif name == 'cvsdftmrci':
-        return cvsdftmrci.Cvsdftmrci()
     elif name == 'moments':
         return moments.Moments()
+    elif name == 'transition':
+        return transition.Transition()
     elif name == 'spinorbit':
         return spinorbit.Spinorbit()
     else:
@@ -121,8 +106,9 @@ def name2obj(name):
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_objs = ['geometry', 'molecule', 'parameterize', 'scf', 'dftmrci', 
-              'cvsdftmrci', 'dftmrcis', 'moments', 'spinorbit']
+valid_objs = ['geometry', 'molecule', 'parameterize', 
+              'scf', 'dftmrci', 'dftmrcis', 
+              'moments', 'transition', 'spinorbit']
 
 ##############################################
 kwords = {'geometry'     : geometry_kword,
@@ -131,8 +117,8 @@ kwords = {'geometry'     : geometry_kword,
           'scf'          : scf_kword,
           'dftcis'       : dftcis_kword,
           'dftmrci'      : dftmrci_kword,
-          'cvsdftmrci'   : cvsdftmrci_kword,
           'moments'      : moments_kword,
+          'transition'   : transition_kword,
           'spinorbit'    : spinorbit_kword
          }
 
