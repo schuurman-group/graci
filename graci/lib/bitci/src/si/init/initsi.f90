@@ -12,6 +12,8 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
 
   use constants
   use bitglobal
+  use csf
+  use spin_coupling
   use iomod
   
   implicit none
@@ -19,9 +21,12 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
   ! Bra and Ket spin multiplicities and numbers of electrons
   integer(is), intent(in) :: imultB1,imultK1,nelB1,nelK1
 
+  ! Calculation type
+  logical                 :: samemult,soc,rdm,dyson
+  
   ! Everything else
   real(dp)                :: s,smax
-  logical                 :: lsoc
+
   
 !----------------------------------------------------------------------
 ! Quick sanity check on the numbers of electrons and spin
@@ -92,40 +97,82 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
 !----------------------------------------------------------------------
 ! Is this a spin-orbit coupling calculation?
 !----------------------------------------------------------------------
+  soc=.false.
+  rdm=.false.
+  dyson=.false.
+  
   if (abs(imultB-imultK) == 2) then
+
      ! SOC calculation
-     lsoc=.true.
+     soc=.true.
+     samemult=.false.
+
+  else if (abs(imultB-imultK) == 1) then
+
+     ! Dyson orbital calculation
+     dyson=.true.
+     samemult=.false.
+     
   else if (imultB == imultK) then
+
      ! 1-RDM or 1-TDM calculation
-     lsoc=.false.
+     rdm=.true.
+     samemult=.true.
+
   else
+
      ! Non-sensical combination of bra and ket spin multiplicities
      write(errmsg,'(a,1x,i0,a,i0)') &
           'Non-sensical combination of bra/ket spin multiplicities:',&
           imultB,'/',imultK
      call error_control
+
   endif
 
 !----------------------------------------------------------------------
 ! Generate the bra and ket CSFs
 !----------------------------------------------------------------------
-  ! Bra CSFs
+  ! 1-RDM or 1-TDM calculation: equal bra and ket spin multiplicities
+  if (rdm) call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,&
+       maxdet,csfcoe,detvec)
 
+  ! SOC calculation: non-equal bra and ket spin multiplicities, equal
+  ! numbers of electrons
+  if (soc) then
+     errmsg='SOC calculations not yet supported in bitSI'
+     call error_control
+  endif
 
-  ! Ket CSFs
+  ! Dyson orbital calculation: non-equal bra and ket spin
+  ! multiplicities and non-equal numbers of electrons
+  if (dyson) then
+     errmsg='Dyson orbital calculations not yet supported in bitSI'
+     call error_control
+  endif
   
 !----------------------------------------------------------------------
 ! Compute the spin-coupling coefficients
 !----------------------------------------------------------------------
-  if (lsoc) then
-     ! Spin-coupling coefficients over spin operators
-     errmsg='SOC calculations are not yet supported'
+  ! 1-RDM or 1-TDM calculation: equal bra and ket spin multiplicities
+  if (rdm) call generate_coupling_coefficients(imultB,nocase1,nocase2,&
+       maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,npattern2,&
+       maxpattern,patternmap1,patternmap2,nspincp,spincp1,spincp2,N1s)
+
+  ! SOC calculation: non-equal bra and ket spin multiplicities, equal
+  ! numbers of electrons
+  if (soc) then
+     errmsg='SOC calculations not yet supported in bitSI'
      call error_control
-  else
-     ! Spin-coupling coefficients over singlet excitation operators
-     print*,'HERE'
-     stop
   endif
+
+  ! Dyson orbital calculation: non-equal bra and ket spin
+  ! multiplicities and non-equal numbers of electrons
+  if (dyson) then
+     errmsg='Dyson orbital calculations not yet supported in bitSI'
+     call error_control
+  endif
+
+  
   
   return
   

@@ -916,7 +916,8 @@ contains
 
     use constants
     use bitutils
-    use slater_condon
+    use slater_condon, only: exc_degree_det,exc,s2ii,s2ij,&
+         phasemask,phase_pure_exc
         
     implicit none
 

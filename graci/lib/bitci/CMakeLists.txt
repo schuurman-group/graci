@@ -56,14 +56,16 @@ link_directories(${INT_PYSCF_LIB_DIR})
 # Add bitCI library target
 #
 file(GLOB_RECURSE CIsources
-  src/ci/* src/include/* src/io/* src/spin_coupling/*)
+  src/ci/* src/include/* src/io/* src/utils/* src/spin_coupling/*
+  src/slater_condon/*)
 add_library(bitci SHARED ${CIsources})
 
 #
 # Add bitSI library target
 #
 file(GLOB_RECURSE SIsources
-  src/si/* src/include/* src/io/*)
+  src/si/* src/include/* src/io/* src/utils/* src/spin_coupling/*
+  src/slater_condon/*)
 add_library(bitsi SHARED ${SIsources})
 
 
