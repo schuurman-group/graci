@@ -154,8 +154,10 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 ! Generate the spin coupling coefficients for the given spin
 ! multiplicity
 !----------------------------------------------------------------------
-  call generate_coupling_coefficients
-  
+  call generate_coupling_coefficients(imult1,nocase1,nocase2,maxcsf,&
+       maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,npattern2,&
+       maxpattern,patternmap1,patternmap2,nspincp,spincp1,spincp2,N1s)
+
 !----------------------------------------------------------------------
 ! Generate the base determinant and base configuration
 !----------------------------------------------------------------------
