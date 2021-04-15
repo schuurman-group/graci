@@ -312,7 +312,6 @@ contains
           
           ! Compute the off-diagonal matrix element
           select case(nexci)
-             
           case(1) ! Bra and ket configurations linked by a single
                   ! excitation
              harr(bomega,komega)=hij_single_mrci(&

@@ -18,6 +18,19 @@ if (CBINDING)
 endif()
 
 #
+# Profile-guided optimisation (ifort only)
+#
+option(PGOGEN "Profile-guided optimisation generation" OFF)
+option(PGOUSE "Profile-guided optimisation use" OFF)
+if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+  if (PGOGEN)
+    add_definitions(-prof-gen -prof-dir=../)
+  elseif (PGOUSE)
+    add_definitions(-prof-use -prof-dir=../)
+  endif()
+endif()
+  
+#
 # HDF5 include and lib directories
 #
 if (HDF5_INC_DIR)
@@ -35,9 +48,9 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
         -mavx -lblas -llapack")
   set(bounds "-fbounds-check")
 endif()
-if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(dialect "-g -O3 -cpp -free -implicitnone -traceback \
-        -xCORE-AVX2 -mkl -diag-disable 7423 -qopenmp")
+if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")  
+  set(dialect "-g -O3 -auto -ipo -cpp -free -implicitnone -traceback \
+        -march=native -mkl -w -qopenmp")
   set(bounds "-check bounds")
 endif()
 
