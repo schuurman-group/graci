@@ -36,7 +36,7 @@ class Dftmrci:
         self.autoras        = False
         self.icvs           = []
         self.ciorder        = 2
-        self.refiter        = 5
+        self.refiter        = 3
         self.asci           = 'off'
         self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001

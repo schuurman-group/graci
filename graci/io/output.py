@@ -80,7 +80,7 @@ def print_header(run_list):
                         ' = '+str(getattr(calc_obj,kword))+'\n'
             outfile.write(ostr)
 
-        outfile.write('\n Symmetry Information ---------------\n')
+        outfile.write('\n Symmetry Information\n ---------------\n')
         for calc_obj in run_list:
             # pull out the molecule objets and print symmetry
             # information for each molecule

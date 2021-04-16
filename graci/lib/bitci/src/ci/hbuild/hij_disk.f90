@@ -154,7 +154,7 @@ contains
     call get_times(twall_end,tcpu_end)
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'save_hij')
-    
+
     return
     
   end subroutine save_hij
@@ -1396,8 +1396,8 @@ contains
           ! Ket: 2E
           ! Bra: 2E and 1I1E
           !
-          if (cfg%n2E > 0) then
-          
+          if (cfg%n2E > 0 .and. nac1 <= 5) then
+
              ! Loop over ket 2E configurations
              do ioff=cfg%off2E(kn),cfg%off2E(kn+1)-1
           
@@ -1430,11 +1430,13 @@ contains
           
                 ! 2E - 2E matrix elements
                 if (cfg%off2E(bn) /= cfg%off2E(bn+1)) then
-                   call save_hij_2E_2E(nac1,hlist,plist,maxexci,&
-                        bn,ioff,kconf_full,ksop_full,kconf_int,&
-                        ksop_int,n_int_I,ndiff,Dw,nbefore,socc,&
-                        nsocc,knopen,knsp,averageii,confdim,iscratch,&
-                        hbuffer,ibuffer,nbuf,nrec,cfg)
+                   if (nac1 <= 4) then
+                      call save_hij_2E_2E(nac1,hlist,plist,maxexci,&
+                           bn,ioff,kconf_full,ksop_full,kconf_int,&
+                           ksop_int,n_int_I,ndiff,Dw,nbefore,socc,&
+                           nsocc,knopen,knsp,averageii,confdim,iscratch,&
+                           hbuffer,ibuffer,nbuf,nrec,cfg)
+                   endif
                 endif
           
                 ! 2E - 1I1E matrix elements
