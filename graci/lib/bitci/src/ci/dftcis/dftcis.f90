@@ -12,10 +12,10 @@
 !              for a given symmetry subspace
 !######################################################################
 #ifdef CBINDING
-subroutine diag_dftcis(irrep,nroots,vecscr) &
+subroutine diag_dftcis(irrep,nroots,icvs,vecscr) &
      bind(c,name='diag_dftcis')
 #else
-subroutine diag_dftcis(irrep,nroots,vecscr)
+subroutine diag_dftcis(irrep,nroots,icvs,vecscr)
 #endif
 
   use constants
@@ -37,6 +37,9 @@ subroutine diag_dftcis(irrep,nroots,vecscr)
   ! No. roots
   integer(is), intent(in)  :: nroots
 
+  ! CVS-MRCI: core MOs
+  integer(is), intent(in)    :: icvs(nmo)
+  
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
   
@@ -74,7 +77,7 @@ subroutine diag_dftcis(irrep,nroots,vecscr)
   ! Dummy MRCI configuration derived type: temporarily required
   ! to be passed to the Davidson routines
   type(mrcfg)              :: cfg
-  
+
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -105,7 +108,7 @@ subroutine diag_dftcis(irrep,nroots,vecscr)
 !----------------------------------------------------------------------
 ! Generate the CIS configuration information
 !----------------------------------------------------------------------
-  call generate_cis_confs(irrep,ncsf,iph)
+  call generate_cis_confs(irrep,ncsf,icvs,iph)
   
   write(6,'(/,x,a,x,i0)') 'N_CSF:',ncsf
   
@@ -182,10 +185,10 @@ end subroutine diag_dftcis
 !                   eigenfunctions
 !######################################################################
 #ifdef CBINDING
-subroutine ras_guess_dftcis(irrep,nroots,vecscr,domph) &
+subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph) &
      bind(c,name='ras_guess_dftcis')
 #else
-subroutine ras_guess_dftcis(irrep,nroots,vecscr,domph)
+subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
 #endif
 
   use constants
@@ -202,6 +205,9 @@ subroutine ras_guess_dftcis(irrep,nroots,vecscr,domph)
   ! No. roots
   integer(is), intent(in)  :: nroots
 
+  ! CVS-MRCI: core MOs
+  integer(is), intent(in)    :: icvs(nmo)
+  
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
 
@@ -228,7 +234,7 @@ subroutine ras_guess_dftcis(irrep,nroots,vecscr,domph)
 !----------------------------------------------------------------------
 ! Generate the CIS configuration information
 !----------------------------------------------------------------------
-  call generate_cis_confs(irrep,ncsf,iph)
+  call generate_cis_confs(irrep,ncsf,icvs,iph)
 
 !----------------------------------------------------------------------
 ! Allocate arrays

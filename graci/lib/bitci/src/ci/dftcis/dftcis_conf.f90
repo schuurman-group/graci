@@ -10,7 +10,7 @@ contains
 !######################################################################
 ! generate_cis_confs: Fills in the array of particle/hole indices
 !######################################################################
-  subroutine generate_cis_confs(irrep,ncsf,iph)
+  subroutine generate_cis_confs(irrep,ncsf,icvs,iph)
 
     use constants
     use bitglobal
@@ -22,6 +22,9 @@ contains
     
     ! No. CIS CSFs
     integer(is), intent(out) :: ncsf
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
     
     ! CIS particle/hole indices
     integer(is), allocatable :: iph(:,:)
@@ -33,7 +36,7 @@ contains
 ! Determine the no. CIS CSFs and allocate arrays
 !----------------------------------------------------------------------
     modus=0
-    call particle_hole_indices(modus,irrep,ncsf,iph)
+    call particle_hole_indices(modus,irrep,ncsf,icvs,iph)
 
     allocate(iph(2,ncsf))
     iph=0
@@ -42,7 +45,7 @@ contains
 ! Fill in the particle/hole indices
 !----------------------------------------------------------------------
     modus=1
-    call particle_hole_indices(modus,irrep,ncsf,iph)
+    call particle_hole_indices(modus,irrep,ncsf,icvs,iph)
     
     return
     
@@ -52,7 +55,7 @@ contains
 ! particle_hole_indices: determines the particle/hole indices of the
 !                        allowable CIS CSFs
 !######################################################################
-  subroutine particle_hole_indices(modus,irrep,ncsf,iph)
+  subroutine particle_hole_indices(modus,irrep,ncsf,icvs,iph)
 
     use constants
     use bitglobal
@@ -72,6 +75,10 @@ contains
     ! No. CSFs
     integer(is), intent(inout) :: ncsf
 
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical                    :: lcvs
+    
     ! Particle/hole indices
     integer(is), allocatable   :: iph(:,:)
 
@@ -96,6 +103,13 @@ contains
     do i=1,nmo
        map(i)=i
     enddo
+
+    ! Is this a CVS-DFT/CIS calculation?
+    if (sum(icvs) > 0) then
+       lcvs=.true.
+    else
+       lcvs=.false.
+    endif
     
 !----------------------------------------------------------------------
 ! Determine the allowable CSFs
@@ -106,6 +120,10 @@ contains
     ! Loop over occupied MOs
     do i=1,nocc
 
+       ! If this is a CVS-DFT/CIS calculation, then cycle if we
+       ! are at a non-flagged core MO
+       if (lcvs .and. icvs(i) == 0) cycle
+       
        ! Loop over unoccupied MOs
        do a=nocc+1,nmo
 

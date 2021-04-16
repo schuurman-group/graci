@@ -117,6 +117,11 @@ def autoras(scf, ci):
     vecscr1 = 0
     vecscr  = []
 
+    # CVS core MO flags
+    cvsflag = np.zeros(scf.nmo, dtype=int)
+    for i in ci.icvs:
+        cvsflag[i-1] = 1
+    
     # Loop over irreps
     for irrep in range(nirr):
 
@@ -124,8 +129,8 @@ def autoras(scf, ci):
         nroots = ci.n_states(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
-        args = (irrep, nroots, vecscr1)
-        (irrep, nroots, vecscr1) = libs.lib_func('diag_dftcis', args)
+        args = (irrep, nroots, cvsflag, vecscr1)
+        (irrep, nroots, cvsflag, vecscr1) = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number
         vecscr.append(vecscr1)
@@ -147,8 +152,8 @@ def autoras(scf, ci):
 
         # Get the particle/hole MOs corresponding to the
         # dominant DFT/CIS CSFs
-        args = (irrep,nroots,vecscr1,iph1)
-        (irrep,nroots,vecscr1,iph1) = libs.lib_func('ras_guess_dftcis', args)
+        args = (irrep,nroots,cvsflag,vecscr1,iph1)
+        (irrep,nroots,cvsflag,vecscr1,iph1) = libs.lib_func('ras_guess_dftcis', args)
 
         # Update the array of dominant particle/hole indices
         iph = np.maximum(iph, np.array(iph1[:], dtype=int))
@@ -172,4 +177,12 @@ def autoras(scf, ci):
     print('\n RAS1',[n for n in ci.ras1], flush=True)
     print(' RAS3',[n for n in ci.ras3], flush=True)
 
+    # Force nhole1 = nelec3 = 2
+    if ci.nhole1 != 2:
+        print('\n Setting nhole1 = 2', flush=True) 
+        ci.nhole1 = 2
+    if ci.nelec3 != 2:
+        print('\n Setting nelec3 = 2', flush=True) 
+        ci.nelec3 = 2
+    
     return

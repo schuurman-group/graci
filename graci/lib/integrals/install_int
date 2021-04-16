@@ -10,9 +10,9 @@ done
 
 #args+=" -DHDF5_INC_DIR=~/software/hdf5/include -DHDF5_LIB_DIR=~/software/hdf5/lib"
 
-#args+=" -DHDF5_INC_DIR=/usr/include/hdf5/serial -DHDF5_LIB_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial"
+args+=" -DHDF5_INC_DIR=/usr/include/hdf5/serial -DHDF5_LIB_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial"
 
-args+=" -DHDF5_INC_DIR=/home/simon/software/hdf5-1.12.0/hdf5/include -DHDF5_LIB_DIR=/home/simon/software/hdf5-1.12.0/hdf5/lib"
+#args+=" -DHDF5_INC_DIR=/home/simon/software/hdf5-1.12.0/hdf5/include -DHDF5_LIB_DIR=/home/simon/software/hdf5-1.12.0/hdf5/lib"
 
 #
 # Make the build directory

@@ -77,9 +77,9 @@ def diag(ci):
 
     # Save the MRCI state energies
     ci.mrci_conf.set_ener(np.transpose(ener))
-
     vscr    = np.array(ci.mrci_conf.vecscr, dtype=int)
     nstates = ci.nstates
+    
     # Print the report of the MRCI states
     args = (confscr, vscr, nstates)
     (confscr, vscr, nstates) = \
