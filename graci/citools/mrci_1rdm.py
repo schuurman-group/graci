@@ -10,7 +10,7 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
-def 1rdm(ci, lib_bitsi):
+def 1rdm(ci):
     """Calculation of the MRCI 1-RDMs"""
 
 

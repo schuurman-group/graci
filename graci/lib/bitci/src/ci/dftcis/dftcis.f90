@@ -224,7 +224,7 @@ subroutine ras_guess_dftcis(irrep,nroots,vecscr,domph)
   integer(is)              :: k,n
   integer(is), allocatable :: indx(:)
   real(dp), allocatable    :: abscoe(:)
-  
+
 !----------------------------------------------------------------------
 ! Generate the CIS configuration information
 !----------------------------------------------------------------------

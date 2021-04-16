@@ -3,6 +3,7 @@ Module for facilitating passing of strings between
 Python and compiled dlls
 """
 import sys as sys
+import numpy as np
 import ctypes as ctypes
 
 def convert_ctypes(py_val, dtype=None):
@@ -31,14 +32,18 @@ def convert_ctypes(py_val, dtype=None):
     if isinstance(py_val, str):
         return ctype_sym(py_val.encode('utf-8'))
 
-    if isinstance(py_val, (float, int)):
+    if isinstance(py_val, (float, int, np.int32, np.int64)):
         return ctype_sym(py_val)
 
-    if py_val.size == 1:
-        c_arr = (ctype_sym * py_val.size)(py_val)
-    else:
-        c_arr = (ctype_sym * py_val.size)(*py_val)
+    if isinstance(py_val, list):
+        return (ctype_sym * len(py_val))(py_val)
 
-    return c_arr
+    if isinstance(py_val, np.ndarray):
+        if py_val.size == 1:
+            return (ctype_sym * py_val.size)(py_val) 
+        else:
+            return (ctype_sym * py_val.size)(*py_val)
+
+    return 
 
 
