@@ -21,13 +21,13 @@ contains
 
     integer(is)                        :: cstrlen
     character(kind=C_CHAR), intent(in) :: cstring(*)
-    
+
     cstrlen=0
     do
        cstrlen=cstrlen+1
        if (cstring(cstrlen) == C_NULL_CHAR) exit
     enddo
-
+    
     return
     
   end function cstrlen

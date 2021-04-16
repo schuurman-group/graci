@@ -66,7 +66,7 @@ def generate(scf, ci):
 
     # Retrieve the MRCI configuration scratch file names
     confname = []
-    name     = ''
+    name     = ' '*255
     for i in range(nirr):
         args = (ci.mrci_conf.confscr[irrep], name)
         (ci.mrci_conf.confscr[irrep], name) = \

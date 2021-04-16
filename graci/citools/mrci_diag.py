@@ -64,7 +64,7 @@ def diag(ci):
 
     # Retrieve the MRCI eigenvector scratch file names
     vecname = []
-    name    = ''
+    name    = ' '*255
     for irrep in range(nirr):
         #scrnum = convert.convert_ctypes(ci.mrci_conf.vecscr[i],
         #                                dtype='int32')

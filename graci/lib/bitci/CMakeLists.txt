@@ -58,19 +58,11 @@ list(APPEND CMAKE_Fortran_FLAGS_DEBUG ${bounds})
 list(APPEND CMAKE_Fortran_FLAGS ${dialect})
 
 #
-# int_pyscf include and lib directories
-#
-set(INT_PYSCF_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/modules)
-include_directories(${INT_PYSCF_INC_DIR})
-set(INT_PYSCF_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/lib)
-link_directories(${INT_PYSCF_LIB_DIR})
-
-#
 # Add bitCI library target
 #
 file(GLOB_RECURSE CIsources
   src/ci/* src/include/* src/io/* src/utils/* src/spin_coupling/*
-  src/slater_condon/*)
+  src/slater_condon/* ../integrals/src/*)
 add_library(bitci SHARED ${CIsources})
 
 #
@@ -78,12 +70,11 @@ add_library(bitci SHARED ${CIsources})
 #
 file(GLOB_RECURSE SIsources
   src/si/* src/include/* src/io/* src/utils/* src/spin_coupling/*
-  src/slater_condon/*)
+  src/slater_condon/* ../integrals/src/*)
 add_library(bitsi SHARED ${SIsources})
 
-
-# Link to int_pyscf
-target_link_libraries(bitci -lint_pyscf)
+# Link the target to the HDF5 Fortran library
+target_link_libraries(bitci -lhdf5_fortran)
 
 #
 # Install

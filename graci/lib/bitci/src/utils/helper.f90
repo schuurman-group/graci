@@ -217,14 +217,14 @@ subroutine retrieve_filename(scrnum,filename1)
   ! Filename
   !
   filename=scrname(scrnum)
-  
+
   !
   ! If C bindings are on, then convert to the C char type
   !
 #ifdef CBINDING
   ! Length of the C char array
   length=cstrlen(filename1)
-
+  
   ! Convert to a fortran fixed-length string
   call f2cstr(filename,filename1,length)
 #else

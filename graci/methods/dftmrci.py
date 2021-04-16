@@ -64,9 +64,6 @@ class Dftmrci:
         # run the KS-DFT computation 
         scf.run(mol)
 
-        # initialize int_pyscf
-        libs.init_intpyscf(mol, scf)
-
         # initialize bitci
         libs.init_bitci(mol, scf, self)
 
