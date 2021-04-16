@@ -154,7 +154,7 @@ contains
     call get_times(twall_end,tcpu_end)
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'save_hij')
-
+    
     return
     
   end subroutine save_hij
@@ -1291,7 +1291,7 @@ contains
 ! Off-diagonal elements in the 2I-2I, 2I-2E, 2I-1I1E, 2E-2E,
 ! 2I-1I1E, and 1I1E-1I1E classes
 !----------------------------------------------------------------------
-     ! Loop over ket 2-hole configurations
+    ! Loop over ket 2-hole configurations
     do kn=1,cfg%n2h
     
        ! Loop over bra 2-hole configurations

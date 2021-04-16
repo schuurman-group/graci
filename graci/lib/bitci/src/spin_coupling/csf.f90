@@ -24,15 +24,39 @@ contains
 !                multiplicity (imult) up to the maximum number of open
 !                shells + 2 (nocase2=nomax+2).
 !######################################################################
-  subroutine generate_csfs
+  subroutine generate_csfs(imult,nocase2,ncsfs,ndets,maxcsf,maxdet,&
+       csfcoe,detvec)
 
     use constants
-    use bitglobal
     use timing
     
     implicit none
 
+    ! Spin multiplicity
+    integer(is), intent(in)  :: imult
+
+    ! Maximum number open shells for which CSFs will be generated
+    integer(is), intent(in)  :: nocase2
+
+    ! Numbers of CSFs and determinants as a function of the number
+    ! of open shells
+    integer(is), intent(out) :: ncsfs(0:nocase2),ndets(0:nocase2)
+
+    ! Maximum number of CSFs/determinants across all numbers of
+    ! open shells
+    integer(is), intent(out) :: maxcsf,maxdet
+
+    ! CSF expansion coefficients
+    real(dp), allocatable    :: csfcoe(:,:,:)
+
+    ! Bit string encoding of the determinants contributing to the
+    ! CSFs
+    integer(ib), allocatable :: detvec(:,:)
+    
+    ! Bit string encoding of the CSFs
     integer(ib), allocatable :: csfvec(:,:)
+
+    ! Everything else
     integer(is)              :: i
     real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
@@ -47,23 +71,24 @@ contains
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
-  call get_times(twall_start,tcpu_start)
+    call get_times(twall_start,tcpu_start)
   
 !----------------------------------------------------------------------
 ! Initialise and allocate arrays
 !----------------------------------------------------------------------
-    call init_csfs
+    call init_csfs(imult,nocase2,ncsfs,ndets,maxcsf,maxdet,csfcoe,&
+         detvec)
 
 !----------------------------------------------------------------------
 ! Output the dimensions of the CSF and deteminant bases
 !----------------------------------------------------------------------
-    call write_csf_info
+    call write_csf_info(imult,nocase2,ncsfs,ndets)
     
 !----------------------------------------------------------------------
 ! Generate the determinant bit string encodings for all numbers of open
 ! shells
 !----------------------------------------------------------------------
-    call get_det_bit_strings
+    call get_det_bit_strings(imult,nocase2,maxdet,ncsfs,ndets,detvec)
 
 !----------------------------------------------------------------------
 ! Generate the CSF bit string encodings for all numbers of open
@@ -74,12 +99,13 @@ contains
     csfvec=0_ib
 
     ! Generate the CSF encodings
-    call get_csf_bit_strings(csfvec)
+    call get_csf_bit_strings(csfvec,imult,nocase2,maxcsf,ncsfs)
 
 !----------------------------------------------------------------------
 ! Compute the CSF expansion coefficients in the determinant basis
 !----------------------------------------------------------------------
-    call get_csf_coeffs(csfvec)
+    call get_csf_coeffs(nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
+         csfvec,detvec)
 
 !----------------------------------------------------------------------
 ! At this point, the CSF expansion coefficients correspond to
@@ -89,13 +115,21 @@ contains
 ! beta-string order. So, we will now multiply the CSF expansion
 ! coefficients by the phase factors associated with this reordering.
 !----------------------------------------------------------------------
-    call rephase_csf_coeffs
+    call rephase_csf_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,&
+         csfcoe,detvec)
     
 !----------------------------------------------------------------------
-! Check that the CSFs are eigenfunctions of the total spin operator,
-! S^2
+! Debugging: check that the CSFs are eigenfunctions of the total spin
+! operator, S^2.
 !----------------------------------------------------------------------
-    call check_csfs(csfvec)
+! This should be uncommented back in if the max. no. open shells
+! is increased. Although this module seems to work fine, working
+! in finite arithmetic does result in an accumulation of errors.
+! This could become problematic if very large numbers of open shells
+! are considered.
+!----------------------------------------------------------------------
+!    call check_csfs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
+!         csfvec,detvec)
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -117,16 +151,23 @@ contains
 ! init_csfs: Allocation and initialisation of the arrays that will
 !            hold the CSF information.
 !######################################################################
-  subroutine init_csfs
+  subroutine init_csfs(imult,nocase2,ncsfs,ndets,maxcsf,maxdet,&
+       csfcoe,detvec)
 
     use constants
-    use bitglobal
     use math
     
     implicit none
 
-    integer  :: nopen,na,nb
-    real(dp) :: S,Shigh
+    integer(is), intent(in)  :: imult
+    integer(is), intent(in)  :: nocase2
+    integer(is), intent(out) :: ncsfs(0:nocase2),ndets(0:nocase2)
+    integer(is), intent(out) :: maxcsf,maxdet
+    real(dp), allocatable    :: csfcoe(:,:,:)
+    integer(ib), allocatable :: detvec(:,:)
+   
+    integer                  :: nopen,na,nb
+    real(dp)                 :: S,Shigh
     
 !----------------------------------------------------------------------
 ! Number of CSFs and determinants as a function of the number of
@@ -195,15 +236,18 @@ contains
 ! write_csf_info: outputs the dimensions of the CSF and determinant
 !                 bases  
 !######################################################################
-  subroutine write_csf_info
+  subroutine write_csf_info(imult,nocase2,ncsfs,ndets)
 
     use constants
-    use bitglobal
     use math
     
     implicit none
 
-    integer(is) :: n,i
+    integer(is), intent(in)  :: imult
+    integer(is), intent(in)  :: nocase2
+    integer(is), intent(in) :: ncsfs(0:nocase2),ndets(0:nocase2)
+    
+    integer(is)              :: n,i
     
 !----------------------------------------------------------------------
 ! Spin multiplicity
@@ -218,7 +262,8 @@ contains
     write(6,'(x,21a)') ('-',i=1,21)
     do n=1,nocase2
        if (ncsfs(n) /= 0) then
-          write(6,'(2x,i2,4x,a,x,i4,x,a,x,i4)') n,'|',ncsfs(n),'|',ndets(n)
+          write(6,'(2x,i2,4x,a,x,i4,x,a,x,i4)') &
+               n,'|',ncsfs(n),'|',ndets(n)
        endif
     enddo
     write(6,'(x,21a)') ('-',i=1,21)
@@ -231,16 +276,21 @@ contains
 ! get_det_bit_strings: Generates the bit strings encoding the
 !                      determinants in the expansions of the CSFs
 !######################################################################
-  subroutine get_det_bit_strings
+  subroutine get_det_bit_strings(imult,nocase2,maxdet,ncsfs,ndets,detvec)
 
     use constants
-    use bitglobal
     use bitutils
     
     implicit none
 
-    integer(is) :: nopen,na,nb
-    real(dp)    :: S
+    integer(is), intent(in)  :: imult
+    integer(is), intent(in)  :: nocase2
+    integer(is), intent(in)  :: maxdet
+    integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
+    integer(ib), intent(out) :: detvec(maxdet,nocase2)
+    
+    integer(is)              :: nopen,na,nb
+    real(dp)                 :: S
 
 !----------------------------------------------------------------------
 ! Generate the bit strings encoding the determinants entering into
@@ -278,17 +328,21 @@ contains
 !######################################################################
 ! get_csf_bit_strings: Generates the bit strings encoding the CSFs
 !######################################################################
-  subroutine get_csf_bit_strings(csfvec)
+  subroutine get_csf_bit_strings(csfvec,imult,nocase2,maxcsf,ncsfs)
 
     use constants
-    use bitglobal
     use bitutils
     use math
     use iomod
     
     implicit none
 
+    integer(is), intent(in)  :: imult
+    integer(is), intent(in)  :: nocase2
+    integer(is), intent(in)  :: maxcsf
+    integer(is), intent(in)  :: ncsfs(0:nocase2)
     integer(ib), intent(out) :: csfvec(maxcsf,nocase2)
+
     integer(is)              :: nopen,na,nb,i
     integer(is)              :: stringdim
     integer(ib), allocatable :: bitstring(:)
@@ -421,14 +475,19 @@ contains
 ! get_csf_coeffs: Computes the coefficients of the CSFs expanded in
 !                 the determinant basis
 !######################################################################
-  subroutine get_csf_coeffs(csfvec)
+  subroutine get_csf_coeffs(nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
+       csfvec,detvec)
 
     use constants
-    use bitglobal
     
     implicit none
 
+    integer(is), intent(in) :: nocase2,maxcsf,maxdet
+    integer(is), intent(in) :: ncsfs(0:nocase2),ndets(0:nocase2)
+    real(dp), intent(out)   :: csfcoe(maxcsf,maxdet,nocase2)
     integer(ib), intent(in) :: csfvec(maxcsf,nocase2)
+    integer(ib), intent(in) :: detvec(maxdet,nocase2)
+    
     integer(is)             :: nopen,icsf,idet,n
     real(dp)                :: S,M,dS,dM
     
@@ -538,13 +597,18 @@ contains
 !                     the determinants into alpha-string, beta-string
 !                     order.
 !######################################################################
-  subroutine rephase_csf_coeffs
+  subroutine rephase_csf_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,&
+       ndets,csfcoe,detvec)
 
     use constants
-    use bitglobal
     
     implicit none
 
+    integer(is), intent(in)  :: imult,nocase2,maxcsf,maxdet
+    integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
+    real(dp), intent(inout)  :: csfcoe(maxcsf,maxdet,nocase2)
+    integer(ib), intent(in)  :: detvec(maxdet,nocase2)
+    
     integer(is), allocatable :: abfac(:,:)
     integer(is)              :: nopen,icsf,idet
     
@@ -559,7 +623,7 @@ contains
 ! to be done because the Slater-Condon rule routines assume this
 ! ordering.
 !----------------------------------------------------------------------
-    call get_phases(abfac)
+    call get_phases(imult,nocase2,maxdet,ndets,detvec,abfac)
     
 !----------------------------------------------------------------------
 ! Multiply the CSF expansion coefficients by the phase factors
@@ -600,21 +664,26 @@ contains
 !             normalised, and are eigenfunctions of the total and
 !             projected spin operators.
 !######################################################################
-  subroutine check_csfs(csfvec)
+  subroutine check_csfs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,&
+       csfcoe,csfvec,detvec)
 
     use constants
-    use bitglobal
     use utils
     use iomod
     
     implicit none
 
-    integer(ib), intent(in)  :: csfvec(maxcsf,nocase2)
-    integer(is)              :: nopen,icsf,idet,jdet,n
-    real(dp)                 :: norm
-    real(dp), parameter      :: tiny=5e-12_dp
-    real(dp), allocatable    :: s2mat(:,:)
-    real(dp)                 :: S,S2,expec
+    integer(is), intent(in) :: imult,nocase2,maxcsf,maxdet
+    integer(is), intent(in) :: ncsfs(0:nocase2),ndets(0:nocase2)
+    real(dp), intent(in)    :: csfcoe(maxcsf,maxdet,nocase2)
+    integer(ib), intent(in) :: csfvec(maxcsf,nocase2)
+    integer(ib), intent(in) :: detvec(maxdet,nocase2)
+    
+    integer(is)             :: nopen,icsf,idet,jdet,n
+    real(dp)                :: norm
+    real(dp), parameter     :: tiny=5e-12_dp
+    real(dp), allocatable   :: s2mat(:,:)
+    real(dp)                :: S,S2,expec
 
 !----------------------------------------------------------------------    
 ! Target S^2 expectation value
@@ -662,7 +731,7 @@ contains
        allocate(s2mat(ndets(nopen),ndets(nopen)))
        
        ! Compute the determinant representation of and S^2
-       call determinant_s2mat(s2mat,nopen)
+       call determinant_s2mat(nocase2,maxdet,ndets,detvec,s2mat,nopen)
 
        ! Loop over CSFs for the current number of open shells
        do icsf=1,ncsfs(nopen)
@@ -698,15 +767,17 @@ contains
 ! get_phases: Computes the phase factors corresponding to putting the
 !             determinants into alpha-string, beta-string order.
 !######################################################################
-  subroutine get_phases(abfac)
+  subroutine get_phases(imult,nocase2,maxdet,ndets,detvec,abfac)
   
     use constants
-    use bitglobal
-    use slater_condon
     
     implicit none
 
+    integer(is), intent(in)  :: imult,nocase2,maxdet
+    integer(is), intent(in)  :: ndets(0:nocase2)
+    integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     integer(is), intent(out) :: abfac(maxdet,nocase2)
+
     integer(is)              :: nopen,idet,i
     integer(is)              :: na
     real(dp)                 :: S
@@ -726,7 +797,7 @@ contains
           ! Sign change incurred by the spin-orbital permutations
           ! required to put the determinant into alpha-string,
           ! beta-string order
-          abfac(idet,nopen)=ab_phase(detvec(idet,nopen))
+          abfac(idet,nopen)=ab_phase(nocase2,detvec(idet,nopen))
           
        enddo
        
@@ -742,15 +813,17 @@ contains
 !           beta-string order.
 !           Here, vec is the bit string encoding of the determinant.
 !######################################################################
-  function ab_phase(vec)
+  function ab_phase(nocase2,vec)
 
     use constants
-    use bitglobal
     
     implicit none
 
     integer(is)             :: ab_phase
+
+    integer(is), intent(in) :: nocase2
     integer(ib), intent(in) :: vec
+    
     integer(is)             :: i,nperm,na
     integer(ib)             :: mask,abpos,apos,bpos
     integer(is)             :: ma(nocase2),mb(nocase2)
@@ -839,15 +912,18 @@ contains
 !                    Note that here it is assumed that the determinants
 !                    are in alpha-string, beta-string order.
 !###################################################################### 
-  subroutine determinant_s2mat(s2mat,nopen)
+  subroutine determinant_s2mat(nocase2,maxdet,ndets,detvec,s2mat,nopen)
 
     use constants
-    use bitglobal
     use bitutils
-    use slater_condon
+    use slater_condon, only: exc_degree_det,exc,s2ii,s2ij,&
+         phasemask,phase_pure_exc
         
     implicit none
 
+    integer(is), intent(in) :: nocase2,maxdet
+    integer(is), intent(in) :: ndets(0:nocase2)
+    integer(ib), intent(in) :: detvec(maxdet,nocase2)
     integer(is), intent(in) :: nopen
     real(dp), intent(out)   :: s2mat(ndets(nopen),ndets(nopen))
 

@@ -18,6 +18,19 @@ if (CBINDING)
 endif()
 
 #
+# Profile-guided optimisation (ifort only)
+#
+option(PGOGEN "Profile-guided optimisation generation" OFF)
+option(PGOUSE "Profile-guided optimisation use" OFF)
+if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+  if (PGOGEN)
+    add_definitions(-prof-gen -prof-dir=../)
+  elseif (PGOUSE)
+    add_definitions(-prof-use -prof-dir=../)
+  endif()
+endif()
+  
+#
 # HDF5 include and lib directories
 #
 if (HDF5_INC_DIR)
@@ -35,9 +48,9 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
         -mavx -lblas -llapack")
   set(bounds "-fbounds-check")
 endif()
-if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(dialect "-g -O3 -cpp -free -implicitnone -traceback \
-        -xCORE-AVX2 -mkl -diag-disable 7423 -qopenmp")
+if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")  
+  set(dialect "-w -g -O3 -cpp -free -implicitnone -traceback -mkl -qopenmp \
+    -march=native -auto -ipo -qopt-prefetch")
   set(bounds "-check bounds")
 endif()
 
@@ -53,13 +66,19 @@ set(INT_PYSCF_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/lib)
 link_directories(${INT_PYSCF_LIB_DIR})
 
 #
-# Add the library targets
+# Add bitCI library target
 #
-# bitCI
-file(GLOB_RECURSE CIsources src/ci/* src/include/* src/io/*)
+file(GLOB_RECURSE CIsources
+  src/ci/* src/include/* src/io/* src/utils/* src/spin_coupling/*
+  src/slater_condon/*)
 add_library(bitci SHARED ${CIsources})
-# bitSI
-file(GLOB_RECURSE SIsources src/si/* src/include/* src/io/*)
+
+#
+# Add bitSI library target
+#
+file(GLOB_RECURSE SIsources
+  src/si/* src/include/* src/io/* src/utils/* src/spin_coupling/*
+  src/slater_condon/*)
 add_library(bitsi SHARED ${SIsources})
 
 
@@ -69,7 +88,4 @@ target_link_libraries(bitci -lint_pyscf)
 #
 # Install
 #
-# bitCI
-install(TARGETS bitci DESTINATION lib)
-# bitSI
-install(TARGETS bitsi DESTINATION lib)
+install(TARGETS bitci bitsi DESTINATION lib)

@@ -152,7 +152,7 @@ contains
     return
     
   end subroutine package_integrals_nexci2
-    
+  
 !######################################################################
 ! Packaging of the two-electron integrals and spin-coupling
 ! coefficient information needed to evaluate a Hamiltonian matrix

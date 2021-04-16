@@ -33,7 +33,7 @@ def generate(scf, ci):
     nconf = np.zeros(nirr, dtype=int)
 
     # Energy of the highest-lying reference space state
-    emax = ci.ref_conf.ener.max()
+    emax = ci.ref_conf.ener[ci.ref_conf.ener != 0].max()
 
     # CVS core MO flags
     cvsflag = np.zeros(scf.nmo, dtype=int)
