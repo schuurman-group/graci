@@ -14,7 +14,7 @@ module int_pyscf
   use map_module
   implicit none
 
-  public load_mo_integrals
+  public intpyscf_initialise 
 
   interface mo_integral
     module procedure mo_integral_ijkl
@@ -68,10 +68,10 @@ module int_pyscf
   !              False
   !
 #ifdef CBINDING
-    subroutine load_mo_integrals(n_mo, n_aux, use_ri, thresh, max_memory) &
-         bind(c,name="load_mo_integrals")
+    subroutine intpyscf_initialise(n_mo, n_aux, use_ri, thresh, max_memory) &
+         bind(c,name="intpyscf_initialise")
 #else
-      subroutine load_mo_integrals(n_mo, n_aux, use_ri, thresh, max_memory)
+      subroutine intpyscf_initialise(n_mo, n_aux, use_ri, thresh, max_memory)
 #endif
     integer(ik), intent(in)                   :: n_mo            ! number of MOs
     integer(ik), intent(in)                   :: n_aux           ! number of auxility basis functions, if using DF, else
@@ -247,7 +247,7 @@ module int_pyscf
 
 
     return
-  end subroutine load_mo_integrals
+  end subroutine intpyscf_initialise 
 
   !
   ! deallocates all the memory structures associated with integral

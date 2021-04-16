@@ -5,7 +5,8 @@ import sys as sys
 import graci.io.convert as convert
 import ctypes as ctypes
 
-import graci.core.loadlibs as loadlibs
+import graci.core.libs as libs
+#import graci.core.loadlibs as loadlibs
 import graci.citools.ref_space as ref_space
 import graci.citools.ref_diag as ref_diag
 import graci.citools.mrci_space as mrci_space
@@ -64,15 +65,15 @@ class Dftmrci:
         scf.run(mol)
 
         # initialize int_pyscf
-        lib_intpyscf = loadlibs.init_intpyscf(mol, scf)
+        libs.init_intpyscf(mol, scf)
 
         # initialize bitci
-        lib_bitci = loadlibs.init_bitci(mol, scf, self)
+        libs.init_bitci(mol, scf, self)
 
         # generate the reference space configurations
         self.ref_conf = self.Wavefunction()
-        ref_space.generate(scf, self, lib_bitci)
-        
+        ref_space.generate(scf, self)
+
         # Perform the MRCI iterations, refining the reference space
         # as we go
         for i in range(self.refiter):
@@ -80,17 +81,17 @@ class Dftmrci:
             self.niter += 1
             
             # reference space diagonalisation
-            ref_diag.diag(mol, self, lib_bitci)
+            ref_diag.diag(mol, self)
 
             # generate the MRCI configurations
             self.mrci_conf = self.Wavefunction()
-            mrci_space.generate(scf, self, lib_bitci)
+            mrci_space.generate(scf, self)
 
             # MRCI diagonalisation
-            mrci_diag.diag(self, lib_bitci)
+            mrci_diag.diag(self)
 
             # refine the reference space
-            min_norm = mrci_refine.refine_ref_space(self, lib_bitci)
+            min_norm = mrci_refine.refine_ref_space(self)
 
             # break if the reference space is converged
             if min_norm > 0.9025 and i > 0:
@@ -99,10 +100,14 @@ class Dftmrci:
         
         return 
 
-    def nstates(self):
+    def n_states(self, irrep):
         """number of states to compute"""
 
-        return self.nstates
+        if irrep < len(self.nstates):
+            return self.nstates[irrep]
+        else:
+            print("irrep > nirrep, irrep = "+str(irrep))
+            sys.exit()
 
     def energy(self, state):
         """return the energy of state 'state'"""
