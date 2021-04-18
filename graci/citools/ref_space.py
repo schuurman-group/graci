@@ -71,28 +71,21 @@ def genconf(scf, ci):
         cvsflag[i-1] = 1
     
     # Number of reference space configurations per irrep
-    nconf0 = np.zeros(nirr, dtype=int)
+    ref_nconf = np.zeros(nirr, dtype=int)
 
     # Reference space configurations scratch file number
-    confscr = np.zeros(nirr, dtype=int)
+    confunits = np.zeros(nirr, dtype=int)
     
     # Construct the reference space configurations
     args = (iras1, iras2, iras3, nh1, m1, n2, m2, ne3, m3,
-            cvsflag, nconf0, confscr)
-    (iras1, iras2, iras3, nh1, m1, n2, m2, ne3, m3, cvsflag, 
-            nconf0, confscr) = libs.lib_func('generate_ref_confs', args)
-
-    # Convert the nconf0 and confscr ctypes array to lists
-    # (note that slicing a ctypes array will automatically
-    # produce a list)
-    #nconf0=nconf0[:]
-    #confscr=confscr[:]
+            cvsflag, ref_nconf, confunits)
+    (ref_nconf, confunits) = libs.lib_func('generate_ref_confs', args)
 
     # Set the number of reference space configurations
-    ci.ref_conf.set_nconf(nconf0)
+    ci.ref_wfn.set_nconf(ref_nconf)
     
     # Set the reference space configuration scratch file number
-    ci.ref_conf.set_confscr(confscr)
+    ci.ref_wfn.set_confunits(confunits)
     
     return
 
@@ -114,8 +107,8 @@ def autoras(scf, ci):
     # Diagonalisation of the DFT/CIS Hamiltonian
     #
     # Bitci eigenvector scratch file numbers
-    vecscr1 = 0
-    vecscr  = []
+    dftcis_vec  = 0
+    dftcis_unit = []
 
     # CVS core MO flags
     cvsflag = np.zeros(scf.nmo, dtype=int)
@@ -129,11 +122,11 @@ def autoras(scf, ci):
         nroots = ci.n_states(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
-        args = (irrep, nroots, cvsflag, vecscr1)
-        (irrep, nroots, cvsflag, vecscr1) = libs.lib_func('diag_dftcis', args)
+        args = (irrep, nroots, cvsflag, dftcis_vec)
+        dftcis_vec = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number
-        vecscr.append(vecscr1)
+        dftcis_unit.append(dftcis_vec)
 
     #
     # RAS1 and RAS3 guess
@@ -141,6 +134,7 @@ def autoras(scf, ci):
     # Dominant particle/hole indices
     iph  = np.zeros(scf.nmo, dtype=int)
     iph1 = np.zeros(scf.nmo, dtype=int)
+
     # Loop over irreps
     for irrep in range(nirr):
 
@@ -148,12 +142,12 @@ def autoras(scf, ci):
         nroots = ci.n_states(irrep) + n_extra
 
         # Eigenpair scratch file number
-        vecscr1 = vecscr[irrep]
+        dftcis_vec = dftcis_unit[irrep]
 
         # Get the particle/hole MOs corresponding to the
         # dominant DFT/CIS CSFs
-        args = (irrep,nroots,cvsflag,vecscr1,iph1)
-        (irrep,nroots,cvsflag,vecscr1,iph1) = libs.lib_func('ras_guess_dftcis', args)
+        args = (irrep, nroots, cvsflag, dftcis_vec, iph1)
+        (dftcis_vec, iph1) = libs.lib_func('ras_guess_dftcis', args)
 
         # Update the array of dominant particle/hole indices
         iph = np.maximum(iph, np.array(iph1[:], dtype=int))

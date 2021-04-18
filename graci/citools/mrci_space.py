@@ -24,59 +24,57 @@ def generate(scf, ci):
     output.print_mrcispace_header()
     
     # Bitci reference configuration scratch file numbers
-    conf0scr = np.array(ci.ref_conf.confscr, dtype=int)
+    ref_confunits = np.array(ci.ref_wfn.conf_units, dtype=int)
 
     # Bitci MRCI configuration scratch file numbers
-    confMscr = np.zeros(nirr, dtype=int)
+    ci_confunits = np.zeros(nirr, dtype=int)
 
     # Number of MRCI configurations per irrep
     nconf = np.zeros(nirr, dtype=int)
 
     # Energy of the highest-lying reference space state
-    emax = ci.ref_conf.ener[ci.ref_conf.ener != 0].max()
+    emax = ci.ref_wfn.ener[ci.ref_wfn.ener != 0].max()
 
     # CVS core MO flags
     cvsflag = np.zeros(scf.nmo, dtype=int)
     for i in ci.icvs:
         cvsflag[i-1] = 1
     
-    vec0scr = np.array(ci.ref_conf.vecscr, dtype=int)
-    nroots  = ci.nstates
+    ref_ciunits = np.array(ci.ref_wfn.ci_units, dtype=int)
+    nroots      = ci.nstates
 
     # Loop over irreps
     for irrep in range(nirr):
 
-        args = (irrep, nroots, conf0scr, confMscr, nconf, emax, cvsflag)
-        (irrep, nroots, conf0scr, confMscr, nconf, emax, cvsflag) = \
-                libs.lib_func('generate_mrci_confs',args)
+        args = (irrep, nroots, ref_confunits, ci_confunits, \
+                nconf, emax, cvsflag)
+        (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
         
         # Optional filtering based on the ASCI selection
         # criterion
         if ci.asci != 'off':
             thrsh = ci.asci_thresh[ci.asci]
-            args = (thrsh, irrep, nroots, confMscr, vec0scr, nconf)
-            (thrsh, irrep, nroots, confMscr, vec0scr, nconf) = \
-                libs.lib_func('filter_asci', args)
+            args = (thrsh, irrep, nroots, ci_confunits, ref_ciunits, nconf)
+            nconf = libs.lib_func('filter_asci', args)
 
     # Set the number of MRCI configurations
-    ci.mrci_conf.set_nconf(nconf)
+    ci.mrci_wfn.set_nconf(nconf)
     
     # Set the MRCI configuration scratch file number
-    ci.mrci_conf.set_confscr(confMscr)
+    ci.mrci_wfn.set_confunits(ci_confunits)
 
     # Retrieve the MRCI configuration scratch file names
     confname = []
-    name     = ' '*255
+    name     = ' '
     for i in range(nirr):
-        args = (ci.mrci_conf.confscr[irrep], name)
-        (ci.mrci_conf.confscr[irrep], name) = \
-                libs.lib_func('retrieve_filename', args)
+        args = (ci.mrci_wfn.conf_units[irrep], name)
+        name = libs.lib_func('retrieve_filename', args)
         confname.append(name)
-    ci.mrci_conf.set_confname(confname)
+    ci.mrci_wfn.set_confname(confname)
     
     # Stop timing
     timing.stop('mrci_space')
     
     return
 
-
+ 

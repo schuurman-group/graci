@@ -17,12 +17,18 @@ def diag(ci):
 
     # Get the information needed to run the MRCI diagonalisation
     # calculation
-    nirr, confscr, vecscr1, ialg, tol, niter, blocksize, deflate = \
-            diag_vars(ci)
+    ialg, tol, niter, blocksize, deflate = diag_vars(ci)
+
+    # nirr is given by the length of the nstates vector in ci obj
+    nirr = len(ci.nstates)
+
+    # Bitci MRCI configuration scratch file numbers
+    ci_confunits = np.array(ci.mrci_wfn.conf_units, dtype=int)
 
     # Initialise the list to hold the eigenvector scratch file
     # numbers
-    vecscr  = []
+    ciunit  = 0
+    ciunits = []
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -33,13 +39,12 @@ def diag(ci):
         # Block size for the current irrep
         nblock = blocksize[irrep]
         
-        args = (irrep, nroots, confscr, vecscr1, ialg, tol, niter, 
+        args = (irrep, nroots, ci_confunits, ciunit, ialg, tol, niter, 
                 blocksize, deflate)
-        (irrep, nroots, confscr, vecscr1, ialg, tol, niter,
-                blocksize, deflate) = libs.lib_func('diag_mrci', args)
+        ciunit = libs.lib_func('diag_mrci', args)
 
         # Bitci eigenvector scratch number
-        vecscr.append(vecscr1)
+        ciunits.append(ciunit)
 
     # Retrieve the MRCI energies
     maxroots = max(ci.nstates)
@@ -50,40 +55,31 @@ def diag(ci):
             # Number of roots for the current irrep
             nroots = ci.n_states(irrep)
 
-            # Retrieve the energies
-            ener1   = np.zeros(nroots, dtype=float)
-            vecscr1 = vecscr[irrep]
-
-            args = (vecscr1, nroots, ener1)
-            (vecscr1, nroots, ener1) = \
+            args = (ciunits[irrep], nroots, ener[irrep,:nroots])
+            (ener[irrep,:nroots]) = \
                     libs.lib_func('retrieve_energies', args)
-            ener[irrep,:nroots] = ener1
 
     # Save the list of bitci eigenvector scratch numbers
-    ci.mrci_conf.set_vecscr(vecscr)
+    ci.mrci_wfn.set_ciunits(ciunits)
 
     # Retrieve the MRCI eigenvector scratch file names
-    vecname = []
-    name    = ' '*255
+    ciname = []
+    name    = ''
     for irrep in range(nirr):
-        #scrnum = convert.convert_ctypes(ci.mrci_conf.vecscr[i],
-        #                                dtype='int32')
-        vecscr1 = ci.mrci_conf.vecscr[irrep]
-        args = (vecscr1, name)
-        (vecscr1, name) = libs.lib_func('retrieve_filename', args)
-        vecname.append(name)
+        args = (ci.mrci_wfn.ci_units[irrep], name)
+        name = libs.lib_func('retrieve_filename', args)
+        ciname.append(name)
 
-    ci.mrci_conf.set_vecname(vecname)
+    ci.mrci_wfn.set_ciname(ciname)
 
     # Save the MRCI state energies
-    ci.mrci_conf.set_ener(np.transpose(ener))
-    vscr    = np.array(ci.mrci_conf.vecscr, dtype=int)
+    ci.mrci_wfn.set_ener(np.transpose(ener))
+    ciunits = np.array(ci.mrci_wfn.ci_units, dtype=int)
     nstates = ci.nstates
     
     # Print the report of the MRCI states
-    args = (confscr, vscr, nstates)
-    (confscr, vscr, nstates) = \
-            libs.lib_func('print_mrci_states', args)
+    args = (ci_confunits, ciunits, nstates)
+    libs.lib_func('print_mrci_states', args)
 
     # Stop timing
     timing.stop('mrci_diag')
@@ -92,15 +88,6 @@ def diag(ci):
 
 def diag_vars(ci):
     """ Returns the variables needed for the MRCI diagonalisation"""
-
-    # nirr is given by the length of the nstates vector in ci obj
-    nirr = len(ci.nstates)
-
-    # Bitci MRCI configuration scratch file numbers
-    confscr = np.array(ci.mrci_conf.confscr, dtype=int)
-
-    # Bitci eigenvector scratch file numbers
-    vecscr1 = 0
 
     # Iterative diagonalisation algorithm
     if ci.diag_method == 'gendav':
@@ -140,5 +127,5 @@ def diag_vars(ci):
     else:
         tol = ci.diag_tol
 
-    return nirr, confscr, vecscr1, ialg, tol, niter, blocksize, deflate
+    return ialg, tol, niter, blocksize, deflate
 

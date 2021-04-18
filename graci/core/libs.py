@@ -3,6 +3,7 @@
 import os
 import sys
 import numpy as np
+import copy as copy
 import ctypes as ctypes
 import graci.io.convert as convert
 
@@ -41,8 +42,29 @@ bitci_registry = {
                                  'double','double','int32']
         }
 
+bitci_intent = {
+        'generate_ref_confs'  : ['in','in','in','in','in','in','in',
+                                 'in','in','in','out','out'],
+        'diag_dftcis'         : ['in','in','in','out'],
+        'ras_guess_dftcis'    : ['in','in','in','out','out'],
+        'ref_diag_mrci'       : ['in','out','in','in','out'],
+        'retrieve_energies'   : ['in','in','out'],
+        'generate_mrci_confs' : ['in','in','in','out','out','in','in'],
+        'filter_asci'         : ['in','in','in','in','in','out'],
+        'retrieve_filename'   : ['in','out'],
+        'diag_mrci'           : ['in','in','in','out','in','in','in',
+                                 'in','in'],
+        'print_mrci_states'   : ['in','in','in'],
+        'refine_ref_space'    : ['in','out','in','in','in','out','out']
+        }
+
+
 # registry of bitsi functions
 bitsi_registry = {
+        ''                   : []
+        }
+
+bitsi_intent   = {
         ''                   : []
         }
 
@@ -52,47 +74,50 @@ lib_objs = {}
 
 def lib_func(name, args):
     """call a function from a fortran library"""
-    global bitci_registry, bitsi_registry, lib_objs
+    global bitci_registry, bitci_intent
+    global bitsi_registry, bitsi_intent, lib_objs
 
-    arg_list  = bitci_registry[name]
+    arg_list   = bitci_registry[name]
+    arg_intent = bitci_intent[name]
+
     arg_ctype = []
-    arg_pass  = []
+    arg_ptr   = []
     for i in range(len(args)):
-        arg_ctype.append(convert.convert_ctypes(args[i],
-            dtype=arg_list[i]))
-
-    for i in range(len(args)):
-        if isinstance(args[i], (list, np.ndarray, str)):
-            arg_pass.append(arg_ctype[i])
+        
+        # if argument is a string, pad to a length of 255 characters
+        if isinstance(args[i], str):
+            arg = args[i].ljust(255)
         else:
-            arg_pass.append(ctypes.byref(arg_ctype[i]))
+            arg = args[i]
+        c_arg = convert.convert_ctypes(arg, dtype=arg_list[i])
 
-    #for i in range(len(args)):
-    #    print('\n'+str(name)+" BEFORE CALL: "+str(args[i])+" "+str(arg_ctype[i]),flush=True)
+        arg_ctype.append(c_arg)
+
+        if isinstance(arg, (list, np.ndarray, str)):
+            arg_ptr.append(c_arg)
+        else:
+            arg_ptr.append(ctypes.byref(c_arg))
     
-    getattr(lib_objs['bitci'], name)(*arg_pass)
+    getattr(lib_objs['bitci'], name)(*arg_ptr)
 
-    # this is a bit of a hack: since we don't know intent of the arguments
-    # at the moment, we don't know which values have been changed. So:
-    # we'll set each original python variable to the current value
-    # of the ctype argument
     args_out = ()
     for i in range(len(args)):
-        if isinstance(args[i], list):
-            args_out += (np.ndarray((len(args[i]),), 
+        if arg_intent[i] == 'out':
+            if isinstance(args[i], list):
+                args_out += (np.ndarray((len(args[i]),), 
                           buffer=arg_ctype[i], dtype=arg_list[i]),)
-        elif isinstance(args[i], np.ndarray):
-            args_out += (np.ndarray((args[i].size,),
+            elif isinstance(args[i], np.ndarray):
+                args_out += (np.ndarray((args[i].size,),
                           buffer=arg_ctype[i], dtype=arg_list[i]),)
-        elif isinstance(args[i], str):
-            args_out += (bytes.decode(arg_ctype[i].value),)
-        else:
-            args_out += (arg_ctype[i].value,)
-
-    #for arg in args_out:
-    #    print('\n'+str(name)+" AFTER CALL: "+str(arg), flush=True)
-
-    return args_out
+            elif isinstance(args[i], str):
+                args_out += (bytes.decode(arg_ctype[i].value),)
+            else:
+                args_out += (arg_ctype[i].value,)
+    
+    if len(args_out) == 1:
+        return args_out[0]
+    else:
+        return args_out
 
 #
 def init_bitci(mol, scf, ci):

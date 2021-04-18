@@ -23,14 +23,14 @@ def diag(mol, ci):
     output.print_refdiag_header()
     
     # Bitci reference configuration scratch file numbers
-    confscr = np.array(ci.ref_conf.confscr, dtype=int)
+    confunits = np.array(ci.ref_wfn.conf_units, dtype=int)
 
     # Numbers of configurations
-    nconf = np.array(ci.ref_conf.nconf, dtype=int)
+    nconf = np.array(ci.ref_wfn.nconf, dtype=int)
 
     # Bitci eigenvector scratch file numbers
-    vecscr1 = 0
-    vecscr  = []
+    ciunit   = 0
+    ciunits = []
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -39,12 +39,11 @@ def diag(mol, ci):
         nroots = ci.n_states(irrep)
 
         # Call to the bitci reference space diagonalisation routine
-        args = (irrep, nroots, confscr, nconf, vecscr1)
-        (irrep, nroots, confscr, nconf, vecscr1) = \
-                libs.lib_func('ref_diag_mrci',args)
+        args = (irrep, nroots, confunits, nconf, ciunit)
+        (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
 
         # Bitci eigenvector scratch number
-        vecscr.append(vecscr1)
+        ciunits.append(ciunit)
     
         # If the number of reference space configurations for the
         # current irrep is less than the requested number of roots
@@ -63,17 +62,15 @@ def diag(mol, ci):
             nroots = ci.n_states(irrep)
 
             # Retrieve the energies
-            ener1 = np.zeros(nroots, dtype=float)
-            args = (vecscr[irrep], nroots, ener1)
-            (vecscr[irrep], nroots, ener1) = \
+            args = (ciunits[irrep], nroots, ener[irrep, :nroots])
+            (ener[irrep, :nroots]) = \
                     libs.lib_func('retrieve_energies', args)
-            ener[irrep, :nroots] = ener1
         
     # Save the list of bitci eigenvector scratch numbers
-    ci.ref_conf.set_vecscr(vecscr)
+    ci.ref_wfn.set_ciunits(ciunits)
     
     # Save the reference space state energies
-    ci.ref_conf.set_ener(np.transpose(ener))
+    ci.ref_wfn.set_ener(np.transpose(ener))
     
     # Print the section header
     output.print_refdiag_summary(mol, ci)

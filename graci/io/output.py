@@ -152,7 +152,7 @@ def print_refdiag_summary(mol, ci):
     """print the summary of the reference space diagonalisation"""
     global file_names
 
-    mine = np.amin(ci.ref_conf.ener)
+    mine = np.amin(ci.ref_wfn.ener)
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
@@ -164,8 +164,8 @@ def print_refdiag_summary(mol, ci):
                 for n in range(ci.nstates[i]):
                     outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
                           .format(n+1, mol.irreplbl[i],
-                            ci.ref_conf.ener[n][i],
-                            (ci.ref_conf.ener[n][i]-mine)*constants.au2ev))
+                            ci.ref_wfn.ener[n][i],
+                            (ci.ref_wfn.ener[n][i]-mine)*constants.au2ev))
         outfile.write('\n')
         outfile.flush()
 

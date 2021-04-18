@@ -4,9 +4,7 @@ Module for computing DFT/MRCI energies
 import sys as sys
 import graci.io.convert as convert
 import ctypes as ctypes
-
 import graci.core.libs as libs
-#import graci.core.loadlibs as loadlibs
 import graci.citools.ref_space as ref_space
 import graci.citools.ref_diag as ref_diag
 import graci.citools.mrci_space as mrci_space
@@ -44,15 +42,15 @@ class Dftmrci:
         self.diag_iter      = 50
         self.diag_blocksize = []
         self.diag_deflate   = False
-        self.label          = 'default'
+        self.label          = 'dftmrci'
 
         # class variables
         self.asci_thresh    = {'tight'  : 1e-4,
                                'normal' : 1e-3,
                                'loose'  : 3e-3}
         self.niter          = 0
-        self.ref_conf       = None
-        self.mrci_conf      = None
+        self.ref_wfn        = None
+        self.mrci_wfn       = None
 
     def name(self):
         """ return the name of the class object as a string"""
@@ -68,7 +66,7 @@ class Dftmrci:
         libs.init_bitci(mol, scf, self)
 
         # generate the reference space configurations
-        self.ref_conf = self.Wavefunction()
+        self.ref_wfn = self.Wavefunction()
         ref_space.generate(scf, self)
 
         # Perform the MRCI iterations, refining the reference space
@@ -81,7 +79,7 @@ class Dftmrci:
             ref_diag.diag(mol, self)
 
             # generate the MRCI configurations
-            self.mrci_conf = self.Wavefunction()
+            self.mrci_wfn = self.Wavefunction()
             mrci_space.generate(scf, self)
 
             # MRCI diagonalisation
@@ -96,7 +94,8 @@ class Dftmrci:
                 break
         
         return 
-
+    
+    #
     def n_states(self, irrep):
         """number of states to compute"""
 
@@ -106,22 +105,26 @@ class Dftmrci:
             print("irrep > nirrep, irrep = "+str(irrep))
             sys.exit()
 
+    #
     def energy(self, state):
         """return the energy of state 'state'"""
 
-        return self.mrci_conf.ener[state]
+        return self.mrci_wfn.ener[state]
 
+    #
     def density(self, state):
         """ computes the density matrices for the states in 
         the array 'states'"""
 
         return
 
+    #
     def slater_dets(self, state):
         """ return the slater determinant list for state 'state'"""
 
         return
 
+    #
     def csfs(self, state):
         """ return the CSF list for state 'state'"""
 
@@ -133,20 +136,19 @@ class Dftmrci:
         def __init__(self):
             # List of numbers of configurations per irrep
             self.nconf       = None
-            # bitci configuration scratch file numbers
-            self.confscr     = 0
-            # List of bitci eigenvector scratch file numbers (one per irrep)
-            self.vecscr      = None
             # bitci configuration scratch file names
-            self.confname    = 0
+            self.conf_name   = None
+            # bitci configuration scratch file numbers
+            self.conf_units  = None
             # List of bitci eigenvector scratch file names (one per irrep)
-            self.vecname     = None
+            self.ci_name     = None
+            # List of bitci eigenvector scratch file numbers (one per irrep)
+            self.ci_units    = None
             # State energies
             self.ener        = None
             # Hamiltonian integer label
             self.hamiltonian = None
         
-
         #
         def set_nconf(self, nconf):
             """Sets the numbers of configurations"""
@@ -154,27 +156,27 @@ class Dftmrci:
             return
 
         #
-        def set_confscr(self, confscr):
+        def set_confunits(self, confunits):
             """Sets the bitci configuration scratch file numbers"""
-            self.confscr = confscr
+            self.conf_units = confunits
             return
 
         #
-        def set_vecscr(self, vecscr):
+        def set_ciunits(self, ciunits):
             """Adds the list of bitci eigenvector scratch file numbers"""
-            self.vecscr = vecscr
+            self.ci_units = ciunits
             return
 
         #
         def set_confname(self, confname):
             """Sets the bitci configuration scratch file names"""
-            self.confname = confname
+            self.conf_name = confname
             return
 
         #
-        def set_vecname(self, vecname):
+        def set_ciname(self, ciname):
             """Adds the list of bitci eigenvector scratch file names"""
-            self.vecname = vecname
+            self.ci_name = ciname
             return
         
         #

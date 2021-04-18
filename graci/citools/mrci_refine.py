@@ -19,10 +19,10 @@ def refine_ref_space(ci):
     nirr = len(ci.nstates)
 
     # Bitci MRCI configuration scratch file numbers
-    confscrM = np.array(ci.mrci_conf.confscr, dtype=int)
+    ci_confunits = np.array(ci.mrci_wfn.conf_units, dtype=int)
 
     # Bitci eigenvector scratch file numbers
-    vecscr = np.array(ci.mrci_conf.vecscr, dtype=int)
+    ci_ciunits = np.array(ci.mrci_wfn.ci_units, dtype=int)
 
     # No. roots per irrep
     nstates = ci.nstates
@@ -35,22 +35,22 @@ def refine_ref_space(ci):
     min_norm = 0.
 
     # Scratch file numbers for the updated reference configurations
-    confscrR = np.array(ci.ref_conf.confscr, dtype=int)
+    ref_confunits = np.array(ci.ref_wfn.conf_units, dtype=int)
 
     # New number of reference space configurations per irrep
-    nconf0 = np.zeros(nirr, dtype=int)
+    ref_nconf = np.zeros(nirr, dtype=int)
     
     # Refine the reference space
-    args = (confscrM, confscrR, vecscr, nstates, cthrsh, 
-            min_norm, nconf0)
-    (confscrM, confscrR, vecscr, nstates, cthrsh, min_norm, nconf0) = \
+    args = (ci_confunits, ref_confunits, ci_ciunits, nstates, cthrsh, 
+            min_norm, ref_nconf)
+    (confunits_ref, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space', args)
 
     # Set the number of reference space configurations
-    ci.ref_conf.set_nconf(nconf0)
+    ci.ref_wfn.set_nconf(ref_nconf)
     
     # Set the reference space configurations scratch file number
-    ci.ref_conf.set_confscr(confscrR)
+    ci.ref_wfn.set_confunits(ref_confunits)
         
     # Stop timing
     timing.stop('mrci_refine')
