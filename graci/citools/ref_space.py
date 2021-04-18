@@ -163,9 +163,36 @@ def autoras(scf, ci):
             else:
                 # RAS1 MO
                 ras1.append(n+1)
+
+    # If this is a CVS calculation, then
+    # include the HOMO and HOMO-1 in the
+    # RAS1 space
+    if sum(cvsflag) > 0:
+        # HOMO
+        iend = np.nonzero(scf.orb_occ)[0][-1]
+        e = scf.orb_ener[iend]
+        j = iend
+        while(True):
+            j -= 1
+            if (abs(scf.orb_ener[j] - e) > 1e-4):
+                istart = j+1
+                break
+        # HOMO-1
+        istart = istart - 1
+        e = scf.orb_ener[istart]
+        j = istart
+        while(True):
+            j -= 1
+            if (abs(scf.orb_ener[j] - e) > 1e-4):
+                istart = j+1
+                break
+        # Update the RAS1 space
+        ras1 = ras1 + [n+1 for n in range(istart, iend+1)]
+
+    # Fill in the RAS arrays
     ci.ras1 = np.array(ras1, dtype=int)
     ci.ras3 = np.array(ras3, dtype=int)
-
+    
     # Output the selected RAS1 & RAS3 spaces
     print('\n Selected RAS MOs:', flush=True)
     print('\n RAS1',[n for n in ci.ras1], flush=True)
