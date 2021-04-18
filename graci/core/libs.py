@@ -107,7 +107,6 @@ def init_bitci(mol, scf, ci):
         raise FileNotFoundError('bitci library not found: '+bitci_path)
     lib_bitci = ctypes.cdll.LoadLibrary(bitci_path)
 
-    
     # set the variables that have to be passed to intpyscf_initialise
     nmo     = convert.convert_ctypes(scf.nmo,    dtype='int32')
     naux    = convert.convert_ctypes(scf.naux,   dtype='int32')
@@ -122,7 +121,6 @@ def init_bitci(mol, scf, ci):
                                   ctypes.byref(thresh),
                                   ctypes.byref(max_mem))
     
-      
     # set all variable that have to be passed to bitci_initialise
     # (note that the pgrp and iham variables use Fortran indexing)
     imult = convert.convert_ctypes(mol.mult,               dtype='int32')
