@@ -30,7 +30,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   real(dp), intent(in)               :: moen1(nmo1)
   real(dp), intent(in)               :: enuc1
   real(dp)                           :: s,smax
-
+  logical                            :: verbose
+  
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: label1(*)
   character(len=255)                 :: label
@@ -147,16 +148,19 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 ! Generate the CSFs for the given spin multiplicity up to the maximum
 ! number of open shells
 !----------------------------------------------------------------------
+  verbose=.true.
   call generate_csfs(imult,nocase2,ncsfs,ndets,maxcsf,maxdet,&
-       csfcoe,detvec)
+       csfcoe,detvec,verbose)
 
 !----------------------------------------------------------------------
 ! Generate the spin coupling coefficients for the given spin
 ! multiplicity
 !----------------------------------------------------------------------
+  verbose=.true.
   call generate_coupling_coefficients(imult1,nocase1,nocase2,maxcsf,&
        maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,npattern2,&
-       maxpattern,patternmap1,patternmap2,nspincp,spincp1,spincp2,N1s)
+       maxpattern,patternmap1,patternmap2,nspincp,spincp1,spincp2,&
+       N1s,verbose)
 
 !----------------------------------------------------------------------
 ! Generate the base determinant and base configuration

@@ -67,11 +67,11 @@ def generate(scf, ci):
     confname = []
     name     = ' '
     for i in range(nirr):
-        args = (ci.mrci_wfn.conf_units[irrep], name)
+        args = (ci.mrci_wfn.conf_units[i], name)
         name = libs.lib_func('retrieve_filename', args)
         confname.append(name)
     ci.mrci_wfn.set_confname(confname)
-    
+
     # Stop timing
     timing.stop('mrci_space')
     

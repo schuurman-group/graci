@@ -10,6 +10,7 @@ import graci.citools.ref_diag as ref_diag
 import graci.citools.mrci_space as mrci_space
 import graci.citools.mrci_diag as mrci_diag
 import graci.citools.mrci_refine as mrci_refine
+import graci.citools.mrci_1rdm as mrci_1rdm
 
 # MRCI and DFT/MRCI Hamiltonian labels
 hamiltonians   = ['canonical',
@@ -57,18 +58,18 @@ class Dftmrci:
         return 'dftmrci'
 
     def run(self, mol, scf):
-        """ compute the DFT/MRCI energy for nroots """
+        """ compute the DFT/MRCI eigenpairs for all irreps """
 
         # run the KS-DFT computation 
         scf.run(mol)
 
         # initialize bitci
         libs.init_bitci(mol, scf, self)
-
+        
         # generate the reference space configurations
         self.ref_wfn = self.Wavefunction()
         ref_space.generate(scf, self)
-
+        
         # Perform the MRCI iterations, refining the reference space
         # as we go
         for i in range(self.refiter):
@@ -77,22 +78,36 @@ class Dftmrci:
             
             # reference space diagonalisation
             ref_diag.diag(mol, self)
-
+        
             # generate the MRCI configurations
             self.mrci_wfn = self.Wavefunction()
             mrci_space.generate(scf, self)
-
+        
             # MRCI diagonalisation
             mrci_diag.diag(self)
-
+        
             # refine the reference space
             min_norm = mrci_refine.refine_ref_space(self)
-
+        
             # break if the reference space is converged
             if min_norm > 0.9025 and i > 0:
                 print('\n * Reference Space Converged *', flush=True)
                 break
         
+        # Finalise the bitCI library
+        libs.finalise_bitci()
+
+        # Initialise the bitSI library
+        libs.init_bitsi(mol, mol, self, self, scf)
+        
+        # Compute the 1-RDMs for all states
+        for irr in range(len(self.nstates)):
+            states = [n for n in range(self.nstates[irr])]
+            self.density(states, irr, mol, scf)
+
+        # Finalise the bitSI library
+        libs.finalise_bitsi()
+            
         return 
     
     #
@@ -112,10 +127,12 @@ class Dftmrci:
         return self.mrci_wfn.ener[state]
 
     #
-    def density(self, state):
+    def density(self, states, irr, mol, scf):
         """ computes the density matrices for the states in 
-        the array 'states'"""
-
+        the array 'states' for the irrep 'irr'"""
+        
+        mrci_1rdm.rdm(self, states, irr, scf)
+        
         return
 
     #

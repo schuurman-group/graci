@@ -25,7 +25,7 @@ contains
   subroutine generate_coupling_coefficients(imult,nocase1,nocase2,&
        maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
        npattern2,maxpattern,patternmap1,patternmap2,nspincp,&
-       spincp1,spincp2,N1s)
+       spincp1,spincp2,N1s,verbose)
 
     use constants
     use timing
@@ -70,6 +70,9 @@ contains
     
     ! Bit strings comprised of N 1's
     integer(ib), allocatable :: N1s(:)
+
+    ! Verbose output
+    logical, intent(in)      :: verbose
     
     ! Everything else
     integer(is) :: i
@@ -83,10 +86,12 @@ contains
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-    write(6,'(/,52a)') ('-',i=1,52)
-    write(6,'(x,a)') 'Spin-coupling coefficient generation'
-    write(6,'(52a)') ('-',i=1,52)
-    
+    if (verbose) then
+       write(6,'(/,52a)') ('-',i=1,52)
+       write(6,'(x,a)') 'Spin-coupling coefficient generation'
+       write(6,'(52a)') ('-',i=1,52)
+    endif
+       
 !----------------------------------------------------------------------
 ! Compute the number of unique spin coupling coefficients for the
 ! spin multiplicity under consideration
@@ -96,13 +101,13 @@ contains
 !----------------------------------------------------------------------
 ! Output some information about what we are doing
 !----------------------------------------------------------------------
-    call print_spincp_info(imult,nspincp)
+    call print_spincp_info(imult,nspincp,verbose)
 
 !----------------------------------------------------------------------
 ! Allocate the spin coupling coefficient arrays
 !----------------------------------------------------------------------
     call init_spincp_arrays(imult,nocase1,nocase2,ncsfs,npattern1,&
-         npattern2,spincp1,spincp2)
+         npattern2,spincp1,spincp2,verbose)
     
 !----------------------------------------------------------------------
 ! Compute the Case 1 spin coupling coefficients
@@ -127,14 +132,14 @@ contains
 ! spin-coupling coefficients
 !----------------------------------------------------------------------
     call zero_coeffs(imult,nocase1,nocase2,ncsfs,npattern1,npattern2,&
-         spincp1,spincp2)
+         spincp1,spincp2,verbose)
 
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
     call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'generate_coupling_coefficients')
+    if (verbose) call report_times(twall_end-twall_start,&
+         tcpu_end-tcpu_start,'generate_coupling_coefficients')
 
     return
   
@@ -218,7 +223,7 @@ contains
 ! print_spincp_info: Printing of some information about the spin
 !                    coupling coefficients being calculated
 !######################################################################
-  subroutine print_spincp_info(imult,nspincp)
+  subroutine print_spincp_info(imult,nspincp,verbose)
 
     use constants
         
@@ -226,30 +231,35 @@ contains
 
     integer(is), intent(in) :: imult
     integer(is), intent(in) :: nspincp(2)
+    logical, intent(in)     :: verbose
     
     integer(is)             :: n,i
 
 !----------------------------------------------------------------------
 ! Spin multiplicity
 !----------------------------------------------------------------------
-    write(6,'(/,x,a,x,i0)') 'Spin multiplicity:',imult
+    if (verbose) write(6,'(/,x,a,x,i0)') 'Spin multiplicity:',imult
     
 !----------------------------------------------------------------------
 ! Number of unique spin-coupling coefficients
 !----------------------------------------------------------------------
-    ! Total number of spin-coupling coefficients
-    write(6,'(/,x,a,2x,i0)') &
-         'Total number of spin coupling coefficients:',&
-         sum(nspincp)
+    if (verbose) then
+       
+       ! Total number of spin-coupling coefficients
+       write(6,'(/,x,a,2x,i0)') &
+            'Total number of spin coupling coefficients:',&
+            sum(nspincp)
+       
+       ! Number of Case 1 spin-coupling coefficients
+       write(6,'(x,a,x,i0)') &
+            'Number of Case 1 spin coupling coefficients:',nspincp(1)
 
-    ! Number of Case 1 spin-coupling coefficients
-    write(6,'(x,a,x,i0)') &
-         'Number of Case 1 spin coupling coefficients:',nspincp(1)
+       ! Number of Case 2 spin-coupling coefficients
+       write(6,'(x,a,x,i0)') &
+            'Number of Case 2 spin coupling coefficients:',nspincp(2)
 
-    ! Number of Case 2 spin-coupling coefficients
-    write(6,'(x,a,x,i0)') &
-         'Number of Case 2 spin coupling coefficients:',nspincp(2)
-
+    endif
+       
     return
     
   end subroutine print_spincp_info
@@ -259,7 +269,7 @@ contains
 !                     spin coupling coefficient arrays
 !######################################################################
   subroutine init_spincp_arrays(imult,nocase1,nocase2,ncsfs,npattern1,&
-       npattern2,spincp1,spincp2)
+       npattern2,spincp1,spincp2,verbose)
 
     use constants
         
@@ -269,6 +279,7 @@ contains
     integer(is), intent(in)  :: ncsfs(0:nocase2)
     integer(is), intent(out) :: npattern1,npattern2
     real(dp), allocatable    :: spincp1(:,:,:),spincp2(:,:,:)
+    logical, intent(in)      :: verbose
     
     integer(is)              :: nopen
     real(dp)                 :: mem
@@ -334,7 +345,7 @@ contains
 !----------------------------------------------------------------------
     mem=(2*(npattern1*ncsfs(nocase1)**2)+npattern2*ncsfs(nocase2)**2) &
          *8/1024.0d0**2
-    write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',mem,'MB'
+    if (verbose) write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',mem,'MB'
     
     return
     
@@ -1365,7 +1376,7 @@ contains
 !######################################################################
 
   subroutine zero_coeffs(imult,nocase1,nocase2,ncsfs,npattern1,&
-       npattern2,spincp1,spincp2)
+       npattern2,spincp1,spincp2,verbose)
 
     use constants
     
@@ -1376,6 +1387,7 @@ contains
     integer(is), intent(in) :: npattern1,npattern2
     real(dp), intent(in)    :: spincp1(ncsfs(nocase1),ncsfs(nocase1),npattern1*2)
     real(dp), intent(in)    :: spincp2(ncsfs(nocase2),ncsfs(nocase2),npattern2)
+    logical, intent(in)     :: verbose
     
     integer(is) :: nopen,icsf1,icsf2,is1,is2,indx
     integer(is) :: ntot,nzero
@@ -1465,7 +1477,8 @@ contains
 !----------------------------------------------------------------------
 ! Output the percentage of zero spin-coupling coefficients
 !----------------------------------------------------------------------
-    write(6,'(/,x,a,x,F5.2,a)') 'Zero spin-coupling coefficients:',&
+    if (verbose) write(6,'(/,x,a,x,F5.2,a)') &
+         'Zero spin-coupling coefficients:',&
          dble(nzero)/dble(ntot)*100,'%'
     
     return

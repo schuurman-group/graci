@@ -162,7 +162,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   if (cfg%csfdim > full_lim) then
 
      ! Maximum subspace dimension
-     maxvec=4*blocksize
+     maxvec=6*blocksize
 
      ! Dimension of the subspace used to generate the guess vectors
      guessdim=750

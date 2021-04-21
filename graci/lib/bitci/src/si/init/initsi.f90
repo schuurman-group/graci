@@ -4,10 +4,10 @@
 !                   perform a State Interaction calculation.
 !######################################################################
 #ifdef CBINDING
-subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1) &
+subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1) &
      bind(c,name='bitsi_initialise')
 #else
-subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
+subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1)
 #endif
 
   use constants
@@ -21,12 +21,15 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
   ! Bra and Ket spin multiplicities and numbers of electrons
   integer(is), intent(in) :: imultB1,imultK1,nelB1,nelK1
 
+  ! Dimensions
+  integer(is), intent(in) :: nmo1
+  
   ! Calculation type
   logical                 :: samemult,soc,rdm,dyson
   
   ! Everything else
   real(dp)                :: s,smax
-
+  logical                 :: verbose
   
 !----------------------------------------------------------------------
 ! Quick sanity check on the numbers of electrons and spin
@@ -95,6 +98,16 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
   nelK_spin(2)=nelK_beta
 
 !----------------------------------------------------------------------
+! Set the number of spatial orbitals
+!----------------------------------------------------------------------
+  nmo=nmo1
+
+!----------------------------------------------------------------------
+! Set the bitstring integer array lengths
+!----------------------------------------------------------------------
+  n_int=(nmo-1)/64+1
+  
+!----------------------------------------------------------------------
 ! Is this a spin-orbit coupling calculation?
 !----------------------------------------------------------------------
   soc=.false.
@@ -133,12 +146,16 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
 ! Generate the bra and ket CSFs
 !----------------------------------------------------------------------
   ! 1-RDM or 1-TDM calculation: equal bra and ket spin multiplicities
-  if (rdm) call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,&
-       maxdet,csfcoe,detvec)
-
+  if (rdm) then
+     verbose=.false.
+     call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,maxdet,&
+          csfcoe,detvec,verbose)
+  endif
+     
   ! SOC calculation: non-equal bra and ket spin multiplicities, equal
   ! numbers of electrons
   if (soc) then
+     verbose=.true.
      errmsg='SOC calculations not yet supported in bitSI'
      call error_control
   endif
@@ -146,6 +163,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
   ! Dyson orbital calculation: non-equal bra and ket spin
   ! multiplicities and non-equal numbers of electrons
   if (dyson) then
+     verbose=.true.
      errmsg='Dyson orbital calculations not yet supported in bitSI'
      call error_control
   endif
@@ -154,13 +172,18 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
 ! Compute the spin-coupling coefficients
 !----------------------------------------------------------------------
   ! 1-RDM or 1-TDM calculation: equal bra and ket spin multiplicities
-  if (rdm) call generate_coupling_coefficients(imultB,nocase1,nocase2,&
-       maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,npattern2,&
-       maxpattern,patternmap1,patternmap2,nspincp,spincp1,spincp2,N1s)
-
+  if (rdm) then
+     verbose=.false.
+     call generate_coupling_coefficients(imultB,nocase1,nocase2,&
+          maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
+          npattern2,maxpattern,patternmap1,patternmap2,nspincp,&
+          spincp1,spincp2,N1s,verbose)
+  endif
+     
   ! SOC calculation: non-equal bra and ket spin multiplicities, equal
   ! numbers of electrons
   if (soc) then
+     verbose=.true.
      errmsg='SOC calculations not yet supported in bitSI'
      call error_control
   endif
@@ -168,11 +191,33 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1)
   ! Dyson orbital calculation: non-equal bra and ket spin
   ! multiplicities and non-equal numbers of electrons
   if (dyson) then
+     verbose=.true.
      errmsg='Dyson orbital calculations not yet supported in bitSI'
      call error_control
   endif
 
-  
+!----------------------------------------------------------------------
+! Scratch directory: the top-level bitscratch directory is assumed to
+! have already been created in a preceding bitci calculation
+!----------------------------------------------------------------------
+  scratchdir='bitscratch/interaction'
+  call system('mkdir -p '//trim(scratchdir))
+
+!----------------------------------------------------------------------
+! Initialise the scratch unit counter and allocate the scratch unit
+! arrays
+!----------------------------------------------------------------------
+  nscratch=0
+  maxunits=200
+  allocate(scrunit(maxunits))
+  scrunit=0
+  allocate(scrname(maxunits))
+  scrname=''
+
+!----------------------------------------------------------------------
+! Flush stdout
+!----------------------------------------------------------------------
+  flush(6)
   
   return
   

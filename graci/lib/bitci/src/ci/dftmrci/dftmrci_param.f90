@@ -47,7 +47,7 @@ module hparam
        0.5102d0, &  ! pJ
        0.5945d0, &  ! p[0]
        0.1058d0]    ! alpha
-
+  
   ! Singlet parameters, delta E_sel = 0.8
   real(dp), parameter, dimension(5) :: grimme1_short= &
        [0.6290d0, & ! p1

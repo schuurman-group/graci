@@ -61,12 +61,12 @@ bitci_intent = {
 
 # registry of bitsi functions
 bitsi_registry = {
-        ''                   : []
-        }
+    'density_mrci' : ['int32','int32','double','string','string']
+}
 
 bitsi_intent   = {
-        ''                   : []
-        }
+    'density_mrci' : ['in','in','out','in','in']
+}
 
 # list of existing library objects
 lib_objs = {}
@@ -77,8 +77,15 @@ def lib_func(name, args):
     global bitci_registry, bitci_intent
     global bitsi_registry, bitsi_intent, lib_objs
 
-    arg_list   = bitci_registry[name]
-    arg_intent = bitci_intent[name]
+    if name in bitci_registry:
+        arg_list   = bitci_registry[name]
+        arg_intent = bitci_intent[name]
+    elif name in bitsi_registry:
+        arg_list   = bitsi_registry[name]
+        arg_intent = bitsi_intent[name]
+
+    #arg_list   = bitci_registry[name]
+    #arg_intent = bitci_intent[name]
 
     arg_ctype = []
     arg_ptr   = []
@@ -97,8 +104,13 @@ def lib_func(name, args):
             arg_ptr.append(c_arg)
         else:
             arg_ptr.append(ctypes.byref(c_arg))
-    
-    getattr(lib_objs['bitci'], name)(*arg_ptr)
+
+    if name in bitci_registry:
+        getattr(lib_objs['bitci'], name)(*arg_ptr)
+    elif name in bitsi_registry:
+        getattr(lib_objs['bitsi'], name)(*arg_ptr)
+        
+    #getattr(lib_objs['bitci'], name)(*arg_ptr)
 
     args_out = ()
     for i in range(len(args)):
@@ -176,7 +188,14 @@ def init_bitci(mol, scf, ci):
     return 
 
 #
-def init_bitsi(mol_bra, mol_ket, ci_bra, ci_ket):
+def finalise_bitci():
+    """Finalises the bitci library"""
+    lib_bitci = lib_objs['bitci']
+    lib_bitci.bitci_finalise()
+    return
+
+#
+def init_bitsi(mol_bra, mol_ket, ci_bra, ci_ket, scf):
     """Initialize the bitsi library"""
     global lib_objs
 
@@ -193,14 +212,22 @@ def init_bitsi(mol_bra, mol_ket, ci_bra, ci_ket):
     imultKet = convert.convert_ctypes(mol_ket.mult, dtype='int32')
     nelBra   = convert.convert_ctypes(mol_bra.nel,  dtype='int32')
     nelKet   = convert.convert_ctypes(mol_ket.nel,  dtype='int32')
-
+    nmo      = convert.convert_ctypes(scf.nmo,    dtype='int32')
+    
     # call to bitsi_initialise
     lib_bitsi.bitsi_initialise(ctypes.byref(imultBra),
                                ctypes.byref(imultKet),
                                ctypes.byref(nelBra),
-                               ctypes.byref(nelKet))
+                               ctypes.byref(nelKet),
+                               ctypes.byref(nmo))
         
     lib_objs['bitsi'] = lib_bitsi
 
     return
 
+#
+def finalise_bitsi():
+    """Finalises the bitsi library"""
+    lib_bitsi = lib_objs['bitsi']
+    lib_bitsi.bitsi_finalise()
+    return

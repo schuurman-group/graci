@@ -25,7 +25,7 @@ contains
 !                shells + 2 (nocase2=nomax+2).
 !######################################################################
   subroutine generate_csfs(imult,nocase2,ncsfs,ndets,maxcsf,maxdet,&
-       csfcoe,detvec)
+       csfcoe,detvec,verbose)
 
     use constants
     use timing
@@ -56,18 +56,23 @@ contains
     ! Bit string encoding of the CSFs
     integer(ib), allocatable :: csfvec(:,:)
 
+    ! Verbose output
+    logical, intent(in)      :: verbose
+    
     ! Everything else
     integer(is)              :: i
     real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
-
+    
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-    write(6,'(/,52a)') ('-',i=1,52)
-    write(6,'(x,a)') 'CSF generation'
-    write(6,'(52a)') ('-',i=1,52)
-    
+    if (verbose) then
+       write(6,'(/,52a)') ('-',i=1,52)
+       write(6,'(x,a)') 'CSF generation'
+       write(6,'(52a)') ('-',i=1,52)
+    endif
+       
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -82,7 +87,7 @@ contains
 !----------------------------------------------------------------------
 ! Output the dimensions of the CSF and deteminant bases
 !----------------------------------------------------------------------
-    call write_csf_info(imult,nocase2,ncsfs,ndets)
+    call write_csf_info(imult,nocase2,ncsfs,ndets,verbose)
     
 !----------------------------------------------------------------------
 ! Generate the determinant bit string encodings for all numbers of open
@@ -140,8 +145,9 @@ contains
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
-  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-       'generate_csfs')
+
+  if (verbose) call report_times(twall_end-twall_start,&
+       tcpu_end-tcpu_start,'generate_csfs')
     
     return
     
@@ -236,38 +242,41 @@ contains
 ! write_csf_info: outputs the dimensions of the CSF and determinant
 !                 bases  
 !######################################################################
-  subroutine write_csf_info(imult,nocase2,ncsfs,ndets)
+  subroutine write_csf_info(imult,nocase2,ncsfs,ndets,verbose)
 
     use constants
     use math
     
     implicit none
 
-    integer(is), intent(in)  :: imult
-    integer(is), intent(in)  :: nocase2
+    integer(is), intent(in) :: imult
+    integer(is), intent(in) :: nocase2
     integer(is), intent(in) :: ncsfs(0:nocase2),ndets(0:nocase2)
+    logical, intent(in)     :: verbose
     
     integer(is)              :: n,i
     
 !----------------------------------------------------------------------
 ! Spin multiplicity
 !----------------------------------------------------------------------
-    write(6,'(/,x,a,x,i0)') 'Spin multiplicity:',imult
+    if (verbose) write(6,'(/,x,a,x,i0)') 'Spin multiplicity:',imult
     
 !----------------------------------------------------------------------
 ! Numbers of CSFs and determinants
 !----------------------------------------------------------------------
-    write(6,'(/,x,21a)') ('-',i=1,21)
-    write(6,'(2x,a)') 'nopen | ncsf | ndet'
-    write(6,'(x,21a)') ('-',i=1,21)
-    do n=1,nocase2
-       if (ncsfs(n) /= 0) then
-          write(6,'(2x,i2,4x,a,x,i4,x,a,x,i4)') &
-               n,'|',ncsfs(n),'|',ndets(n)
-       endif
-    enddo
-    write(6,'(x,21a)') ('-',i=1,21)
-    
+    if (verbose) then
+       write(6,'(/,x,21a)') ('-',i=1,21)
+       write(6,'(2x,a)') 'nopen | ncsf | ndet'
+       write(6,'(x,21a)') ('-',i=1,21)
+       do n=1,nocase2
+          if (ncsfs(n) /= 0) then
+             write(6,'(2x,i2,4x,a,x,i4,x,a,x,i4)') &
+                  n,'|',ncsfs(n),'|',ndets(n)
+          endif
+       enddo
+       write(6,'(x,21a)') ('-',i=1,21)
+    endif
+       
     return
     
   end subroutine write_csf_info
