@@ -155,7 +155,6 @@ module bitglobal
   !
   integer(is) :: nelB,nelB_alpha,nelB_beta,nelB_spin(2)
   integer(is) :: nelK,nelK_alpha,nelK_beta,nelK_spin(2)
-  
-  
+
 end module bitglobal
 

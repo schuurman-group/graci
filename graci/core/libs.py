@@ -208,18 +208,22 @@ def init_bitsi(mol_bra, mol_ket, ci_bra, ci_ket, scf):
     lib_bitsi = ctypes.cdll.LoadLibrary(bitsi_path)
 
     # set all variables that have to be passed to bitsi_initialise
+    # (note that the pgrp uses Fortran indexing)
     imultBra = convert.convert_ctypes(mol_bra.mult, dtype='int32')
     imultKet = convert.convert_ctypes(mol_ket.mult, dtype='int32')
     nelBra   = convert.convert_ctypes(mol_bra.nel,  dtype='int32')
     nelKet   = convert.convert_ctypes(mol_ket.nel,  dtype='int32')
     nmo      = convert.convert_ctypes(scf.nmo,    dtype='int32')
+    isym  = mol_bra.sym_indx + 1 if mol_bra.sym_indx > 0 else 1
+    pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
     
     # call to bitsi_initialise
     lib_bitsi.bitsi_initialise(ctypes.byref(imultBra),
                                ctypes.byref(imultKet),
                                ctypes.byref(nelBra),
                                ctypes.byref(nelKet),
-                               ctypes.byref(nmo))
+                               ctypes.byref(nmo),
+                               ctypes.byref(pgrp))
         
     lib_objs['bitsi'] = lib_bitsi
 

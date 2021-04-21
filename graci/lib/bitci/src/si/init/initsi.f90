@@ -4,14 +4,15 @@
 !                   perform a State Interaction calculation.
 !######################################################################
 #ifdef CBINDING
-subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1) &
+subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1) &
      bind(c,name='bitsi_initialise')
 #else
-subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1)
+subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1)
 #endif
 
   use constants
   use bitglobal
+  use setsym
   use csf
   use spin_coupling
   use iomod
@@ -23,6 +24,9 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1)
 
   ! Dimensions
   integer(is), intent(in) :: nmo1
+
+  ! Point group index
+  integer(is), intent(in) :: ipg1
   
   ! Calculation type
   logical                 :: samemult,soc,rdm,dyson
@@ -75,6 +79,14 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1)
           //' with the current value of nomax.'
      call error_control
   endif
+
+!----------------------------------------------------------------------
+! Exit if the given point group is not recognised
+!----------------------------------------------------------------------
+  if (ipg1.lt.1.or.ipg1.gt.8) then
+     write(errmsg,'(a,1x,i0)') 'Illegal point group index:',ipg1
+     call error_control
+  endif
   
 !----------------------------------------------------------------------
 ! Set the bra and ket spin multiplicities
@@ -106,6 +118,23 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1)
 ! Set the bitstring integer array lengths
 !----------------------------------------------------------------------
   n_int=(nmo-1)/64+1
+
+!----------------------------------------------------------------------
+! Initialise the symmetry arrays
+!----------------------------------------------------------------------
+  call initialise_symmetry
+  
+!----------------------------------------------------------------------
+! Point group
+!----------------------------------------------------------------------
+  ! Point group index
+  ipg=ipg1
+
+  ! Point group label
+  pgroup=pglbls(ipg)
+
+  ! Number of irreps
+  nirrep=pgdim(ipg)
   
 !----------------------------------------------------------------------
 ! Is this a spin-orbit coupling calculation?

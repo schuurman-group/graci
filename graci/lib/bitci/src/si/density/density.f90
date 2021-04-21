@@ -42,6 +42,17 @@ subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in)
 
   ! Scratch file numbers
   integer(is)             :: confscr,vecscr
+
+  ! Everything else
+  integer(is)             :: i
+
+!----------------------------------------------------------------------
+! Output what we are doing
+!----------------------------------------------------------------------
+  write(6,'(/,52a)') ('-',i=1,52)
+  write(6,'(3(x,a))') 'Density matrix calculation for the',&
+       trim(irreplbl(irrep,ipg)),'subspace'
+  write(6,'(52a)') ('-',i=1,52)
   
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the MRCI configuration and
@@ -74,7 +85,7 @@ subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in)
 !----------------------------------------------------------------------
 ! Read in the eigenvectors
 !----------------------------------------------------------------------
-  
+  ! Allocate arrays
   
 !----------------------------------------------------------------------
 ! Deallocate arrays
