@@ -928,10 +928,10 @@ contains
     real(dp), allocatable    :: coe1(:,:),coe2(:,:),spincoe(:,:)
 
 
-    ! Phase factors accociated with creating the doubly-occupied
+    ! Phase factor accociated with creating the doubly-occupied
     ! MO in the ket determinants from the determinants with
     ! only unoccupied MOs
-    integer(is), allocatable :: docc_phase(:)
+    integer(is)              :: docc_phase
     integer(is)              :: n2,n2a,n2b,i
     integer(is)              :: noa
     
@@ -968,11 +968,6 @@ contains
     coe2=0.0d0
     allocate(spincoe(ncsfs(nopen1),ncsfs(nopen2)))
     spincoe=0.0d0
-
-    ! Phase factors associated with creating the doubly-occupied
-    ! MO in the ket determinants
-    allocate(docc_phase(ndets(nopen1)))
-    docc_phase=0
     
 !----------------------------------------------------------------------
 ! Generate the determinants for CSF 1 (the ket CSF, with N singly-
@@ -1058,37 +1053,34 @@ contains
 !----------------------------------------------------------------------
 ! Determine the phase factors associated with operating on the
 ! open-shell-only determinants to yield the ket determinants (which
-! contain a single doubly-occupied MO)
+! contain a single doubly-occupied MO).
+! Note that the phase factor will be the same for all determinants
+! with the same spatial configuration.
 !----------------------------------------------------------------------
     ! Number of unpaired alpha electrons
     noa=popcnt(d1(1,1))
     
-    ! Loop over ket determinants
-    do idet=1,ndets(nopen1)
-   
-       ! Number of electrons before the index of the alpha-spin
-       ! creation operator
-       n2a=0
-       if (n2 > 1) then
-          do i=1,n2-1
-             if (btest(d1(1,idet),i-1)) n2a=n2a+1
-          enddo
-       endif
-
-       ! Number of electrons before the index of the beta-spin
-       ! creation operator
-       n2b=noa+1
-       if (n2 > 1) then
-          do i=1,n2-1
-             if (btest(d1(2,idet),i-1)) n2b=n2b+1
-          enddo
-       endif
-       
-       ! Phase factor
-       docc_phase(idet)=(-1)**(n2a+n2b)
-       
-    enddo
-
+    ! Number of electrons before the index of the alpha-spin
+    ! creation operator
+    n2a=0
+    if (n2 > 1) then
+       do i=1,n2-1
+          if (btest(d1(1,1),i-1)) n2a=n2a+1
+       enddo
+    endif
+    
+    ! Number of electrons before the index of the beta-spin
+    ! creation operator
+    n2b=noa+1
+    if (n2 > 1) then
+       do i=1,n2-1
+          if (btest(d1(2,1),i-1)) n2b=n2b+1
+       enddo
+    endif
+    
+    ! Phase factor
+    docc_phase=(-1)**(n2a+n2b)
+    
 !----------------------------------------------------------------------
 ! Determine the indices of the singlet excitation operator E_i^j
 ! Remember that these are given by the positions of the two 0's in
@@ -1184,9 +1176,7 @@ contains
 
     ! Multiply the ket CSF expansion coefficients by the phase factors
     ! associated with creating the doubly-occupied MO
-    do idet=1,ndet1
-       coe1(:,idet)=coe1(:,idet)*docc_phase(idet)
-    enddo
+    coe1=coe1*docc_phase
     
     ! Contract the phase matrix with the CSF 2 expansion coefficients,
     ! pcT = phasemat * transpose(csfcoe2)
