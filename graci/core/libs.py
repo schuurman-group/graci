@@ -61,11 +61,11 @@ bitci_intent = {
 
 # registry of bitsi functions
 bitsi_registry = {
-    'density_mrci' : ['int32','int32','double','string','string']
+    'density_mrci' : ['int32','int32','int32','double','string','string']
 }
 
 bitsi_intent   = {
-    'density_mrci' : ['in','in','out','in','in']
+    'density_mrci' : ['in','in','in','out','in','in']
 }
 
 # list of existing library objects

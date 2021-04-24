@@ -14,6 +14,10 @@ import graci.io.output as output
 def rdm(ci, states, irr, scf):
     """Calculation of the MRCI 1-RDMs for a single irrep"""
 
+    # States for which the 1-RDMs are required (note that bitCI
+    # uses Fortran indexing here)
+    state_indx = np.array([n+1 for n in states], dtype=int)
+    
     # Name of the MRCI configuration file
     conf_name = ci.mrci_wfn.conf_name[irr]
 
@@ -30,7 +34,7 @@ def rdm(ci, states, irr, scf):
     dmat = np.zeros((nmo*nmo*nstates), dtype=np.float64)
     
     # Compute the 1-RDM for all states in this irrep
-    args = (irr, nstates, dmat, conf_name, ci_name)
+    args = (irr, nstates, state_indx, dmat, conf_name, ci_name)
     (dmat) = libs.lib_func('density_mrci', args)
     
     return

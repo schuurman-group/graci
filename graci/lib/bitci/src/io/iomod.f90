@@ -780,5 +780,84 @@ contains
   end subroutine read_all_eigenpairs
     
 !######################################################################
+! read_some_eigenpairs: reads a subset of the eigenpairs (as specified
+!                       in the array iroots) from the scratch file
+!                       numbered scrnum
+!######################################################################
+  subroutine read_some_eigenpairs(scrnum,vec,ener,dim,nroots,iroots)
+
+    use constants
+    use bitglobal
+    
+    implicit none
+
+    integer(is), intent(in) :: scrnum,dim,nroots
+    integer(is)             :: iscratch
+    integer(is)             :: ndum,nentries,i,n
+    integer(is)             :: ipos(1)
+    integer(is), intent(in) :: iroots(nroots)
+    real(dp), intent(out)   :: vec(dim,nroots),ener(nroots)
+    real(dp), allocatable   :: ener1(:),vec1(:)
+    
+    !
+    ! Open the scratch file
+    !
+    iscratch=scrunit(scrnum)
+    open(iscratch,file=scrname(scrnum),form='unformatted',&
+         status='old')
+
+    !
+    ! Consistency check on the CSF basis dimension
+    !
+    read(iscratch) ndum
+    if (ndum /= dim) then
+       errmsg='Error in read_all_eigenpairs: '&
+            //'wrong CSF basis dimension encountered'
+       call error_control
+    endif
+
+    !
+    ! Number of roots on file
+    !
+    read(iscratch) nentries
+
+    !
+    ! Allocate working arrays
+    !
+    allocate(ener1(nentries))
+    allocate(vec1(dim))
+    
+    !
+    ! Read in the energies
+    !
+    read(iscratch) ener1
+
+    !
+    ! Read in the eigenvectors
+    !
+    n=0
+    do i=1,nentries
+       ! Read in the next eigenvector
+       read(iscratch) vec1(:)
+       ! Save the eigenvector (and energy) if it is in the subset
+       ! of requested roots
+       ipos=findloc(iroots,value=i)
+       if (ipos(1) /= 0) then
+          n=n+1
+          vec(:,n)=vec1(:)
+          ener(n)=ener1(i)
+       endif
+    enddo
+
+    !
+    ! Close the scratch file
+    !
+    close(iscratch)
+    
+    return
+    
+  end subroutine read_some_eigenpairs
+    
+!######################################################################
   
 end module iomod

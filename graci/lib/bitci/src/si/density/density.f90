@@ -7,10 +7,10 @@
 !               density matrices
 !######################################################################
 #ifdef CBINDING
-subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in) &
+subroutine density_mrci(irrep,nroots,iroots,dmat,conffile_in,vecfile_in) &
      bind(c,name='density_mrci')
 #else
-subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in)
+subroutine density_mrci(irrep,nroots,iroots,dmat,conffile_in,vecfile_in)
 #endif
 
   use constants
@@ -18,6 +18,7 @@ subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in)
   use iomod
   use iso_c_binding, only: C_CHAR
   use conftype
+  use rdm
   
   implicit none
 
@@ -34,6 +35,9 @@ subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in)
   ! Irrep and no. roots
   integer(is), intent(in) :: irrep,nroots
 
+  ! Indices of the states for which 1-RDMs are requested
+  integer(is), intent(in) :: iroots(nroots)
+  
   ! Density matrix
   real(dp), intent(out)   :: dmat(nmo,nmo,nroots)
 
@@ -43,6 +47,9 @@ subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in)
   ! Scratch file numbers
   integer(is)             :: confscr,vecscr
 
+  ! Eigenpairs
+  real(dp), allocatable   :: vec(:,:),ener(:)
+  
   ! Everything else
   integer(is)             :: i
 
@@ -86,11 +93,23 @@ subroutine density_mrci(irrep,nroots,dmat,conffile_in,vecfile_in)
 ! Read in the eigenvectors
 !----------------------------------------------------------------------
   ! Allocate arrays
+  allocate(vec(cfg%csfdim,nroots))
+  allocate(ener(nroots))
+  
+  ! Read in the eigenvectors
+  call read_some_eigenpairs(vecscr,vec,ener,cfg%csfdim,nroots,iroots)
+  
+!----------------------------------------------------------------------
+! Compute the 1-RDMs
+!----------------------------------------------------------------------
+  call rdm_mrci(cfg,cfg%csfdim,nroots,vec,dmat)
   
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
   call cfg%finalise
+  deallocate(vec)
+  deallocate(ener)
   
 !----------------------------------------------------------------------
 ! Flush stdout
