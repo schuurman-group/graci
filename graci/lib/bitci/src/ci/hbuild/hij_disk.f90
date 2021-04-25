@@ -217,9 +217,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Matrix of two-electron spin-coupling coefficients
-    real(dp), allocatable   :: spincpmat(:,:,:)
-    
     ! Everything else
     integer(is)                :: iconf,bconf,kconf,kcsf,bcsf
     integer(is)                :: bomega,komega
@@ -246,9 +243,6 @@ contains
     allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
     harr2=0.0d0
 
-    allocate(spincpmat(ncsfs(nomax),ncsfs(nomax),nomax))
-    spincpmat=0.0d0
-    
 !----------------------------------------------------------------------
 ! (1) Off-diagonal elements between CSFs with the same spatial part,
 !     but different spin couplings
@@ -382,7 +376,6 @@ contains
 !----------------------------------------------------------------------
     deallocate(harr)
     deallocate(harr2)
-    deallocate(spincpmat)
     
 !----------------------------------------------------------------------
 ! Stop timing and print report

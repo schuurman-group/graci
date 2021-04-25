@@ -56,7 +56,7 @@ contains
     call rdm_mrci_diag(cfg,csfdim,nroots,vec,dmat)
     
 !----------------------------------------------------------------------
-! (2) Off-diagonal elements of the Ref-Ref block
+! (2) Ref-Ref contributions to the 1-RDMs
 !----------------------------------------------------------------------
     call rdm_mrci_0h_0h(cfg,csfdim,nroots,vec,dmat)
     
@@ -425,14 +425,15 @@ contains
   end subroutine rdm_mrci_diag
     
 !######################################################################
-! rdm_mrci_0h_0h: Calculation of the off-diagonal elements of the
-!                 Ref-Ref block of the MRCI 1-RDMs
+! rdm_mrci_0h_0h: Calculation of the Ref-Ref contributions to the MRCI
+!                 1-RDMs
 !######################################################################  
   subroutine rdm_mrci_0h_0h(cfg,csfdim,nroots,vec,dmat)
 
     use constants
     use bitglobal
     use conftype
+    use mrciutils
     
     implicit none
 
@@ -451,12 +452,199 @@ contains
     ! Density matrix
     real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
 
-    print*,'>Here?'
+    ! Number of open shells preceding each MO
+    integer(is)             :: nbefore(nmo)
+    
+    ! Creation/annihilation operator indices
+    integer(is), parameter  :: maxexci=1
+    integer(is)             :: hlist(maxexci),plist(maxexci)
+
+    ! Working arrays
+    integer(ib)             :: kconf_full(n_int,2)
+    integer(ib)             :: ksop_full(n_int,2)
+        
+    ! Spin-coupling coefficients
+    real(dp), allocatable   :: spincp(:,:)
+    
+    ! Everything else
+    integer(is)             :: kconf,bconf,nexci,n_int_I
+    integer(is)             :: knsp,bnsp,knopen,bnopen
+    integer(is)             :: i,a,ista,ikcsf,ibcsf,komega,bomega
+    real(dp)                :: kcoe,bcoe
+    real(dp)                :: prod
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    spincp=0.0d0
+    
+!----------------------------------------------------------------------
+! Contributions from bra and ket reference space CSFs
+!----------------------------------------------------------------------
+    n_int_I=cfg%n_int_I
+
+    ! Loop over ket configurations
+    do kconf=1,cfg%n0h-1
+
+       ! Ket configuration and SOP in the full MO space
+       kconf_full=0_ib
+       ksop_full=0_ib
+       kconf_full(1:n_int_I,:)=cfg%conf0h(:,:,kconf)
+       ksop_full(1:n_int_I,:)=cfg%sop0h(:,:,kconf)
+
+       ! Number of open shells in the ket configuration
+       knopen=sop_nopen(cfg%sop0h(:,:,kconf),n_int_I)
+
+       ! Number of ket CSFs
+       knsp=ncsfs(knopen)
+       
+       ! Get the number of open shells preceding each ket conf MO
+       call nobefore(kconf_full,nbefore)
+       
+       ! Loop over bra configurations
+       do bconf=kconf+1,cfg%n0h
+
+          ! Compute the excitation degree between the two
+          ! configurations
+          nexci=exc_degree_conf(cfg%conf0h(:,:,kconf),&
+               cfg%conf0h(:,:,bconf),n_int_I)
+
+          ! Cycle if the excitation degree is not equal to 1
+          if (nexci /= 1) cycle
+
+          ! Number of open shells in the bra configuration
+          bnopen=sop_nopen(cfg%sop0h(:,:,bconf),n_int_I)
+
+          ! Number of bra CSFs
+          bnsp=ncsfs(bnopen)
+          
+          ! Get the indices of the MOs involved in the excitation
+          hlist=0
+          plist=0
+          call get_exci_indices(cfg%conf0h(:,:,kconf),&
+               cfg%conf0h(:,:,bconf),n_int_I,hlist(1:nexci),&
+               plist(1:nexci),nexci)
+
+          ! Get the spin-coupling coefficients
+          spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+               plist(1),hlist(1),knopen,nbefore)
+
+          ! Idices of the 1-RDM elements
+          i=hlist(1)
+          a=plist(1)
+
+          ! Loop over roots
+          do ista=1,nroots
+
+             ! Loop over bra CSFs
+             bomega=0
+             do ibcsf=cfg%csfs0h(bconf),cfg%csfs0h(bconf+1)-1
+                bomega=bomega+1
+                bcoe=vec(ibcsf,ista)
+
+                ! Loop over ket CSFs
+                komega=0
+                do ikcsf=cfg%csfs0h(kconf),cfg%csfs0h(kconf+1)-1
+                   komega=komega+1
+                   kcoe=vec(ikcsf,ista)
+
+                   ! Contribution to the 1-RDM
+                   prod=kcoe*bcoe*spincp(komega,bomega)
+                   dmat(i,a,ista)=dmat(i,a,ista)+prod
+                   dmat(a,i,ista)=dmat(a,i,ista)+prod
+                   
+                enddo
+                   
+             enddo
+                
+          enddo
+          
+       enddo
+       
+    enddo
 
     return
     
   end subroutine rdm_mrci_0h_0h
+  
+!######################################################################
+! spincp_coeff: Given a SOP and pair of creation/annihilation operator
+!               indices, returns the complete set of spin-coupling
+!               coefficients
+!######################################################################
+  function spincp_coeff(knsp,bnsp,sop,ac,ia,nopen,nbefore) result(spincp)
+
+    use constants
+    use bitglobal
+    use pattern_indices
+    use bitstrings
+    use iomod
     
+    implicit none
+
+    ! Numbers of ket and bra CSFs
+    integer(is), intent(in) :: knsp,bnsp
+
+    ! SOP
+    integer(ib), intent(in) :: sop(n_int,2)
+    
+    ! Creation/annihilation operator indices
+    integer(is), intent(in) :: ac,ia
+
+    ! Number of open shells
+    integer(is), intent(in) :: nopen
+    
+    ! Number of open shells preceding each MO
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! Spin-coupling sub-case bit string encodings
+    integer(is)             :: pattern
+    integer(ib)             :: icase
+
+    ! Function result
+    real(dp)                :: spincp(knsp,bnsp)
+    
+    ! Everything else
+    integer(is)             :: nc,na
+
+!----------------------------------------------------------------------
+! Get the pattern index and sub-case bit string for the spin-coupling
+! coefficients
+!----------------------------------------------------------------------
+    ! No. open shells before the created electron
+    nc=nbefore(ac)
+    
+    ! No. open shells before the annihilated electron
+    na=nbefore(ia)
+
+    ! Spin-coupling sub-case bit string
+    icase=get_icase(sop,ac,ia)
+
+    ! Pattern index
+    pattern=pattern_index(sop,ac,ia,nc,na,nopen,icase)
+    
+!----------------------------------------------------------------------
+! Fill in the array of spin-coupling coefficients
+!----------------------------------------------------------------------
+    select case(icase)
+    case(i1a)
+       spincp(1:knsp,1:bnsp)=spincp1(1:knsp,1:bnsp,pattern)
+    case(i1b)
+       spincp(1:knsp,1:bnsp)=-spincp1(1:knsp,1:bnsp,pattern)
+    case(i2a)
+       spincp(1:knsp,1:bnsp)=spincp2(1:knsp,1:bnsp,pattern)
+    case(i2b)
+       spincp(1:knsp,1:bnsp)=transpose(spincp2(1:bnsp,1:knsp,pattern))
+    case default
+       errmsg='Unrecognised icase value in spincp_coeff'
+       call error_control
+    end select
+    
+    return
+    
+  end function spincp_coeff
+  
 !######################################################################
   
 end module rdm
