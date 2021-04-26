@@ -53,12 +53,27 @@ contains
 !----------------------------------------------------------------------
 ! (1) On-diagonal elements
 !----------------------------------------------------------------------
-    call rdm_mrci_diag(cfg,csfdim,nroots,vec,dmat)
+    call rdm_diag(cfg,csfdim,nroots,vec,dmat)
     
 !----------------------------------------------------------------------
 ! (2) Ref-Ref contributions to the 1-RDMs
 !----------------------------------------------------------------------
-    call rdm_mrci_0h_0h(cfg,csfdim,nroots,vec,dmat)
+    call rdm_0h_0h(cfg,csfdim,nroots,vec,dmat)
+
+!----------------------------------------------------------------------
+! (3) Ref - 1H contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    call rdm_0h_1h(cfg,csfdim,nroots,vec,dmat)
+
+!----------------------------------------------------------------------
+! (4) Ref - 2H contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    call rdm_0h_2h(cfg,csfdim,nroots,vec,dmat)
+
+!----------------------------------------------------------------------
+! (5) 1H - 1H contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    
     
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -75,7 +90,7 @@ contains
 ! rdm_mrci_ondiag: Calculation of the on-diagonal elements of the MRCI
 !                  1-RDMs
 !######################################################################
-  subroutine rdm_mrci_diag(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_diag(cfg,csfdim,nroots,vec,dmat)
 
     use constants
     use bitglobal
@@ -422,13 +437,13 @@ contains
     
     return
     
-  end subroutine rdm_mrci_diag
+  end subroutine rdm_diag
     
 !######################################################################
 ! rdm_mrci_0h_0h: Calculation of the Ref-Ref contributions to the MRCI
 !                 1-RDMs
 !######################################################################  
-  subroutine rdm_mrci_0h_0h(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_0h_0h(cfg,csfdim,nroots,vec,dmat)
 
     use constants
     use bitglobal
@@ -500,7 +515,7 @@ contains
        knsp=ncsfs(knopen)
        
        ! Get the number of open shells preceding each ket conf MO
-       call nobefore(kconf_full,nbefore)
+       call nobefore(ksop_full,nbefore)
        
        ! Loop over bra configurations
        do bconf=kconf+1,cfg%n0h
@@ -566,7 +581,838 @@ contains
 
     return
     
-  end subroutine rdm_mrci_0h_0h
+  end subroutine rdm_0h_0h
+
+!######################################################################
+! rdm_mrci_0h_1h: Calculation of the Ref-1I and Ref-1E contributions
+!                 to the MRCI 1-RDMs
+!######################################################################  
+  subroutine rdm_0h_1h(cfg,csfdim,nroots,vec,dmat)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! No. CSFs
+    integer(is), intent(in) :: csfdim
+    
+    ! No. roots for which the RDMs will be computed
+    integer(is), intent(in) :: nroots
+    
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vec(csfdim,nroots)
+    
+    ! Density matrix
+    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+
+    ! Number of open shells preceding each MO
+    integer(is)             :: nbefore(nmo)
+
+    ! Working arrays
+    integer(ib)             :: kconf_full(n_int,2)
+    integer(ib)             :: ksop_full(n_int,2)
+    
+    ! Everything else
+    integer(is)             :: kconf,n,nac,nexci,n_int_I
+    integer(is)             :: knsp,knopen
+
+!----------------------------------------------------------------------
+! Contributions ket reference and bra 1I & 1E CSFs
+!----------------------------------------------------------------------
+    n_int_I=cfg%n_int_I
+    
+    ! Loop over ket reference configurations
+    do kconf=1,cfg%n0h
+
+       ! Number of open shells in the ket configuration
+       knopen=sop_nopen(cfg%sop0h(:,:,kconf),n_int_I)
+       
+       ! Number of ket CSFs
+       knsp=ncsfs(knopen)
+
+       ! Ket configuration and SOP in the full MO space
+       kconf_full=0_ib
+       ksop_full=0_ib
+       kconf_full(1:n_int_I,:)=cfg%conf0h(:,:,kconf)
+       ksop_full(1:n_int_I,:)=cfg%sop0h(:,:,kconf)
+       
+       ! Get the number of open shells preceding each ket conf MO
+       call nobefore(ksop_full,nbefore)
+
+       ! Loop over 1-hole configurations
+       do n=1,cfg%n1h
+
+          ! Number of creation and annihilation operators linking the
+          ! reference and 1-hole configurations
+          nac=n_create_annihilate(cfg%conf0h(1:n_int_I,:,kconf), &
+               cfg%conf1h(1:n_int_I,:,n),n_int_I)
+
+          ! Ref - 1I contributions
+          if (nac <= 3 .and. cfg%n1I >0 &
+               .and. cfg%off1I(n) /= cfg%off1I(n+1)) then
+             call rdm_0h_1I(n,kconf,ksop_full,nbefore,knopen,knsp,&
+                  n_int_I,cfg,csfdim,nroots,vec,dmat)
+          endif
+
+          ! Ref - 1E contributions
+          if (nac <= 1 .and. cfg%n1E >0 &
+               .and. cfg%off1E(n) /= cfg%off1E(n+1)) then
+             call rdm_0h_1E(n,kconf,ksop_full,nbefore,knopen,knsp,&
+                  n_int_I,cfg,csfdim,nroots,vec,dmat)
+          endif
+             
+       enddo
+       
+    enddo
+    
+    return
+    
+  end subroutine rdm_0h_1h
+
+!######################################################################
+! rdm_mrci_0h_2h: Calculation of the Ref-2I, Ref-2E and Ref-1I1E
+!                 contributions to the MRCI 1-RDMs
+!######################################################################  
+  subroutine rdm_0h_2h(cfg,csfdim,nroots,vec,dmat)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! No. CSFs
+    integer(is), intent(in) :: csfdim
+    
+    ! No. roots for which the RDMs will be computed
+    integer(is), intent(in) :: nroots
+    
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vec(csfdim,nroots)
+    
+    ! Density matrix
+    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+
+    ! Number of open shells preceding each MO
+    integer(is)             :: nbefore(nmo)
+
+    ! Working arrays
+    integer(ib)             :: kconf_full(n_int,2)
+    integer(ib)             :: ksop_full(n_int,2)
+    
+    ! Everything else
+    integer(is)             :: kconf,n,nac,nexci,n_int_I
+    integer(is)             :: knsp,knopen
+
+!----------------------------------------------------------------------
+! Contributions ket reference and bra 2I, 2E & 1I1E CSFs
+!----------------------------------------------------------------------
+    n_int_I=cfg%n_int_I
+    
+    ! Loop over ket reference configurations
+    do kconf=1,cfg%n0h
+
+       ! Number of open shells in the ket configuration
+       knopen=sop_nopen(cfg%sop0h(:,:,kconf),n_int_I)
+       
+       ! Number of ket CSFs
+       knsp=ncsfs(knopen)
+
+       ! Ket configuration and SOP in the full MO space
+       kconf_full=0_ib
+       ksop_full=0_ib
+       kconf_full(1:n_int_I,:)=cfg%conf0h(:,:,kconf)
+       ksop_full(1:n_int_I,:)=cfg%sop0h(:,:,kconf)
+       
+       ! Get the number of open shells preceding each ket conf MO
+       call nobefore(ksop_full,nbefore)
+
+       ! Loop over 2-hole configurations
+       do n=1,cfg%n2h
+
+          ! Number of creation and annihilation operators linking the
+          ! reference and 2-hole configurations
+          nac=n_create_annihilate(cfg%conf0h(1:n_int_I,:,kconf), &
+               cfg%conf2h(1:n_int_I,:,n),n_int_I)
+
+          ! Ref - 2I contributions
+          if (nac <= 4 .and. cfg%n2I >0 &
+               .and. cfg%off2I(n) /= cfg%off2I(n+1)) then
+             call rdm_0h_2I(n,kconf,ksop_full,nbefore,knopen,knsp,&
+                  n_int_I,cfg,csfdim,nroots,vec,dmat)
+          endif
+
+          ! Ref - 2E contributions
+          if (nac == 0 .and. cfg%n2E >0 &
+               .and. cfg%off2E(n) /= cfg%off2E(n+1)) then
+             call rdm_0h_2E(n,kconf,ksop_full,nbefore,knopen,knsp,&
+                  n_int_I,cfg,csfdim,nroots,vec,dmat)
+          endif
+
+          ! Ref - 1I1E contributions
+          if (nac <= 2 .and. cfg%n1I1E >0 &
+               .and. cfg%off1I1E(n) /= cfg%off1I1E(n+1)) then
+             call rdm_0h_1I1E(n,kconf,ksop_full,nbefore,knopen,knsp,&
+                  n_int_I,cfg,csfdim,nroots,vec,dmat)
+          endif
+          
+       enddo
+       
+    enddo
+    
+    return
+    
+  end subroutine rdm_0h_2h
+    
+!######################################################################
+! rdm_0h_1I: Calculation of the Ref-1I contributions to the 1-RDMs
+!###################################################################### 
+  subroutine rdm_0h_1I(n,kconf,ksop_full,nbefore,knopen,knsp,&
+       n_int_I,cfg,csfdim,nroots,vec,dmat)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! Index of the 1-hole configuration
+    integer(is), intent(in) :: n
+
+    ! Dimensions
+    integer(is), intent(in) :: n_int_I,csfdim,nroots
+
+    ! Ket reference space configuration
+    integer(is), intent(in) :: kconf
+    integer(ib), intent(in) :: ksop_full(n_int,2)
+    integer(is), intent(in) :: knopen,knsp
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vec(csfdim,nroots)
+    
+    ! Density matrix
+    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    
+    ! Spin-coupling coefficients
+    real(dp), allocatable   :: spincp(:,:)
+
+    ! Working arrays
+    integer(ib)             :: bconf_int(n_int_I,2)
+    integer(ib)             :: bsop_int(n_int_I,2)
+    integer(is), parameter  :: maxexci=1
+    integer(is)             :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: bnsp,bnopen
+    integer(is)             :: i,a,ista,ioff,ikcsf,ibcsf,komega,bomega
+    integer(is)             :: nexci
+    real(dp)                :: kcoe,bcoe
+    real(dp)                :: prod
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    spincp=0.0d0
+
+!----------------------------------------------------------------------
+! Compute the R-1I contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    ! Loop over 1I configurations generated by the current
+    ! 1-hole configuration
+    do ioff=cfg%off1I(n),cfg%off1I(n+1)-1
+
+       ! Bra 1I configuration in the internal MO space
+       bconf_int=0_ib
+       bsop_int=0_ib
+       bconf_int=cfg%conf1I(1:n_int_I,:,ioff)
+       bsop_int=cfg%sop1I(1:n_int_I,:,ioff)
+       
+       ! Compute the excitation degree between the two
+       ! configurations
+       nexci=exc_degree_conf(cfg%conf0h(:,:,kconf),bconf_int,n_int_I)
+
+       ! Cycle if the excitation degree is not equal to 1
+       if (nexci /= 1) cycle
+
+       ! Number of open shells in the bra configuration
+       bnopen=sop_nopen(bsop_int,n_int_I)
+    
+       ! Number of bra CSFs
+       bnsp=ncsfs(bnopen)
+    
+       ! Get the indices of the MOs involved in the excitation
+       hlist=0
+       plist=0
+       call get_exci_indices(cfg%conf0h(:,:,kconf),bconf_int,&
+            n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+
+       ! Get the spin-coupling coefficients
+       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+            plist(1),hlist(1),knopen,nbefore)
+
+       ! Idices of the 1-RDM elements
+       i=hlist(1)
+       a=plist(1)
+       
+       ! Loop over roots
+       do ista=1,nroots
+          
+          ! Loop over bra CSFs
+          bomega=0
+          do ibcsf=cfg%csfs1I(ioff),cfg%csfs1I(ioff+1)-1
+             bomega=bomega+1
+             bcoe=vec(ibcsf,ista)
+             
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=cfg%csfs0h(kconf),cfg%csfs0h(kconf+1)-1
+                komega=komega+1
+                kcoe=vec(ikcsf,ista)
+                
+                ! Contribution to the 1-RDM
+                prod=kcoe*bcoe*spincp(komega,bomega)
+                dmat(i,a,ista)=dmat(i,a,ista)+prod
+                dmat(a,i,ista)=dmat(a,i,ista)+prod
+                
+             enddo
+             
+          enddo
+          
+       enddo
+
+    enddo
+       
+    return
+    
+  end subroutine rdm_0h_1I
+
+!######################################################################
+! rdm_0h_1E: Calculation of the Ref-1E contributions to the 1-RDMs
+!###################################################################### 
+  subroutine rdm_0h_1E(n,kconf,ksop_full,nbefore,knopen,knsp,&
+       n_int_I,cfg,csfdim,nroots,vec,dmat)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! Index of the 1-hole configuration
+    integer(is), intent(in) :: n
+
+    ! Dimensions
+    integer(is), intent(in) :: n_int_I,csfdim,nroots
+
+    ! Ket reference space configuration
+    integer(is), intent(in) :: kconf
+    integer(ib), intent(in) :: ksop_full(n_int,2)
+    integer(is), intent(in) :: knopen,knsp
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vec(csfdim,nroots)
+    
+    ! Density matrix
+    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    
+    ! Spin-coupling coefficients
+    real(dp), allocatable   :: spincp(:,:)
+
+    ! Working arrays
+    integer(ib)             :: bconf_int(n_int_I,2)
+    integer(ib)             :: bsop_int(n_int_I,2)
+    integer(is), parameter  :: maxexci=1
+    integer(is)             :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: bnsp,bnopen
+    integer(is)             :: i,a,ista,ioff,ikcsf,ibcsf,komega,bomega
+    integer(is)             :: nexci
+    real(dp)                :: kcoe,bcoe
+    real(dp)                :: prod
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    spincp=0.0d0
+
+!----------------------------------------------------------------------
+! Compute the R-1E contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    ! Loop over 1E configurations generated by the current
+    ! 1-hole configuration
+    do ioff=cfg%off1E(n),cfg%off1E(n+1)-1
+
+       ! Bra 1E configuration in the internal MO space
+       bconf_int=0_ib
+       bsop_int=0_ib
+       bconf_int=cfg%conf1E(1:n_int_I,:,ioff)
+       bsop_int=cfg%sop1E(1:n_int_I,:,ioff)
+       
+       ! Compute the excitation degree between the two
+       ! configurations
+       nexci=exc_degree_conf(cfg%conf0h(:,:,kconf),bconf_int,n_int_I)
+
+       ! Cycle if the excitation degree is not equal to 1
+       if (nexci /= 1) cycle
+
+       ! Number of open shells in the bra configuration
+       bnopen=sop_nopen(bsop_int,n_int_I)
+    
+       ! Number of bra CSFs
+       bnsp=ncsfs(bnopen)
+    
+       ! Get the indices of the MOs involved in the excitation
+       hlist=0
+       plist=0
+       call get_exci_indices(cfg%conf0h(:,:,kconf),bconf_int,&
+            n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+
+       ! Get the spin-coupling coefficients
+       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+            plist(1),hlist(1),knopen,nbefore)
+
+       ! Idices of the 1-RDM elements
+       i=hlist(1)
+       a=plist(1)
+       
+       ! Loop over roots
+       do ista=1,nroots
+          
+          ! Loop over bra CSFs
+          bomega=0
+          do ibcsf=cfg%csfs1E(ioff),cfg%csfs1E(ioff+1)-1
+             bomega=bomega+1
+             bcoe=vec(ibcsf,ista)
+             
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=cfg%csfs0h(kconf),cfg%csfs0h(kconf+1)-1
+                komega=komega+1
+                kcoe=vec(ikcsf,ista)
+                
+                ! Contribution to the 1-RDM
+                prod=kcoe*bcoe*spincp(komega,bomega)
+                dmat(i,a,ista)=dmat(i,a,ista)+prod
+                dmat(a,i,ista)=dmat(a,i,ista)+prod
+                
+             enddo
+             
+          enddo
+          
+       enddo
+       
+    enddo
+       
+    return
+    
+  end subroutine rdm_0h_1E
+
+!######################################################################
+! rdm_0h_2I: Calculation of the Ref-2I contributions to the 1-RDMs
+!###################################################################### 
+  subroutine rdm_0h_2I(n,kconf,ksop_full,nbefore,knopen,knsp,&
+       n_int_I,cfg,csfdim,nroots,vec,dmat)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! Index of the 2-hole configuration
+    integer(is), intent(in) :: n
+
+    ! Dimensions
+    integer(is), intent(in) :: n_int_I,csfdim,nroots
+
+    ! Ket reference space configuration
+    integer(is), intent(in) :: kconf
+    integer(ib), intent(in) :: ksop_full(n_int,2)
+    integer(is), intent(in) :: knopen,knsp
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vec(csfdim,nroots)
+    
+    ! Density matrix
+    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    
+    ! Spin-coupling coefficients
+    real(dp), allocatable   :: spincp(:,:)
+
+    ! Working arrays
+    integer(ib)             :: bconf_int(n_int_I,2)
+    integer(ib)             :: bsop_int(n_int_I,2)
+    integer(is), parameter  :: maxexci=1
+    integer(is)             :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: bnsp,bnopen
+    integer(is)             :: i,a,ista,ioff,ikcsf,ibcsf,komega,bomega
+    integer(is)             :: nexci
+    real(dp)                :: kcoe,bcoe
+    real(dp)                :: prod
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    spincp=0.0d0
+
+!----------------------------------------------------------------------
+! Compute the R-2I contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    ! Loop over 2I configurations generated by the current
+    ! 2-hole configuration
+    do ioff=cfg%off2I(n),cfg%off2I(n+1)-1
+
+       ! Bra 2I configuration in the internal MO space
+       bconf_int=0_ib
+       bsop_int=0_ib
+       bconf_int=cfg%conf2I(1:n_int_I,:,ioff)
+       bsop_int=cfg%sop2I(1:n_int_I,:,ioff)
+       
+       ! Compute the excitation degree between the two
+       ! configurations
+       nexci=exc_degree_conf(cfg%conf0h(:,:,kconf),bconf_int,n_int_I)
+
+       ! Cycle if the excitation degree is not equal to 1
+       if (nexci /= 1) cycle
+
+       ! Number of open shells in the bra configuration
+       bnopen=sop_nopen(bsop_int,n_int_I)
+    
+       ! Number of bra CSFs
+       bnsp=ncsfs(bnopen)
+    
+       ! Get the indices of the MOs involved in the excitation
+       hlist=0
+       plist=0
+       call get_exci_indices(cfg%conf0h(:,:,kconf),bconf_int,&
+            n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+
+       ! Get the spin-coupling coefficients
+       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+            plist(1),hlist(1),knopen,nbefore)
+
+       ! Idices of the 1-RDM elements
+       i=hlist(1)
+       a=plist(1)
+       
+       ! Loop over roots
+       do ista=1,nroots
+          
+          ! Loop over bra CSFs
+          bomega=0
+          do ibcsf=cfg%csfs2I(ioff),cfg%csfs2I(ioff+1)-1
+             bomega=bomega+1
+             bcoe=vec(ibcsf,ista)
+             
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=cfg%csfs0h(kconf),cfg%csfs0h(kconf+1)-1
+                komega=komega+1
+                kcoe=vec(ikcsf,ista)
+                
+                ! Contribution to the 1-RDM
+                prod=kcoe*bcoe*spincp(komega,bomega)
+                dmat(i,a,ista)=dmat(i,a,ista)+prod
+                dmat(a,i,ista)=dmat(a,i,ista)+prod
+                
+             enddo
+             
+          enddo
+          
+       enddo
+
+    enddo
+       
+    return
+    
+  end subroutine rdm_0h_2I
+
+!######################################################################
+! rdm_0h_2E: Calculation of the Ref-2E contributions to the 1-RDMs
+!###################################################################### 
+  subroutine rdm_0h_2E(n,kconf,ksop_full,nbefore,knopen,knsp,&
+       n_int_I,cfg,csfdim,nroots,vec,dmat)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! Index of the 2-hole configuration
+    integer(is), intent(in) :: n
+
+    ! Dimensions
+    integer(is), intent(in) :: n_int_I,csfdim,nroots
+
+    ! Ket reference space configuration
+    integer(is), intent(in) :: kconf
+    integer(ib), intent(in) :: ksop_full(n_int,2)
+    integer(is), intent(in) :: knopen,knsp
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vec(csfdim,nroots)
+    
+    ! Density matrix
+    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    
+    ! Spin-coupling coefficients
+    real(dp), allocatable   :: spincp(:,:)
+
+    ! Working arrays
+    integer(ib)             :: bconf_int(n_int_I,2)
+    integer(ib)             :: bsop_int(n_int_I,2)
+    integer(is), parameter  :: maxexci=1
+    integer(is)             :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: bnsp,bnopen
+    integer(is)             :: i,a,ista,ioff,ikcsf,ibcsf,komega,bomega
+    integer(is)             :: nexci
+    real(dp)                :: kcoe,bcoe
+    real(dp)                :: prod
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    spincp=0.0d0
+
+!----------------------------------------------------------------------
+! Compute the R-2E contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    ! Loop over 2E configurations generated by the current
+    ! 2-hole configuration
+    do ioff=cfg%off2E(n),cfg%off2E(n+1)-1
+
+       ! Bra 2E configuration in the internal MO space
+       bconf_int=0_ib
+       bsop_int=0_ib
+       bconf_int=cfg%conf2E(1:n_int_I,:,ioff)
+       bsop_int=cfg%sop2E(1:n_int_I,:,ioff)
+       
+       ! Compute the excitation degree between the two
+       ! configurations
+       nexci=exc_degree_conf(cfg%conf0h(:,:,kconf),bconf_int,n_int_I)
+
+       ! Cycle if the excitation degree is not equal to 1
+       if (nexci /= 1) cycle
+
+       ! Number of open shells in the bra configuration
+       bnopen=sop_nopen(bsop_int,n_int_I)
+    
+       ! Number of bra CSFs
+       bnsp=ncsfs(bnopen)
+    
+       ! Get the indices of the MOs involved in the excitation
+       hlist=0
+       plist=0
+       call get_exci_indices(cfg%conf0h(:,:,kconf),bconf_int,&
+            n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+
+       ! Get the spin-coupling coefficients
+       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+            plist(1),hlist(1),knopen,nbefore)
+
+       ! Idices of the 1-RDM elements
+       i=hlist(1)
+       a=plist(1)
+       
+       ! Loop over roots
+       do ista=1,nroots
+          
+          ! Loop over bra CSFs
+          bomega=0
+          do ibcsf=cfg%csfs2E(ioff),cfg%csfs2E(ioff+1)-1
+             bomega=bomega+1
+             bcoe=vec(ibcsf,ista)
+             
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=cfg%csfs0h(kconf),cfg%csfs0h(kconf+1)-1
+                komega=komega+1
+                kcoe=vec(ikcsf,ista)
+                
+                ! Contribution to the 1-RDM
+                prod=kcoe*bcoe*spincp(komega,bomega)
+                dmat(i,a,ista)=dmat(i,a,ista)+prod
+                dmat(a,i,ista)=dmat(a,i,ista)+prod
+                
+             enddo
+             
+          enddo
+          
+       enddo
+
+    enddo
+       
+    return
+    
+  end subroutine rdm_0h_2E
+
+!######################################################################
+! rdm_0h_1I1E: Calculation of the Ref-1I1E contributions to the 1-RDMs
+!###################################################################### 
+  subroutine rdm_0h_1I1E(n,kconf,ksop_full,nbefore,knopen,knsp,&
+       n_int_I,cfg,csfdim,nroots,vec,dmat)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! Index of the 2-hole configuration
+    integer(is), intent(in) :: n
+
+    ! Dimensions
+    integer(is), intent(in) :: n_int_I,csfdim,nroots
+
+    ! Ket reference space configuration
+    integer(is), intent(in) :: kconf
+    integer(ib), intent(in) :: ksop_full(n_int,2)
+    integer(is), intent(in) :: knopen,knsp
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vec(csfdim,nroots)
+    
+    ! Density matrix
+    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    
+    ! Spin-coupling coefficients
+    real(dp), allocatable   :: spincp(:,:)
+
+    ! Working arrays
+    integer(ib)             :: bconf_int(n_int_I,2)
+    integer(ib)             :: bsop_int(n_int_I,2)
+    integer(is), parameter  :: maxexci=1
+    integer(is)             :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: bnsp,bnopen
+    integer(is)             :: i,a,ista,ioff,ikcsf,ibcsf,komega,bomega
+    integer(is)             :: nexci
+    real(dp)                :: kcoe,bcoe
+    real(dp)                :: prod
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    spincp=0.0d0
+
+!----------------------------------------------------------------------
+! Compute the R-1I1E contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    ! Loop over 1I1E configurations generated by the current
+    ! 2-hole configuration
+    do ioff=cfg%off1I1E(n),cfg%off1I1E(n+1)-1
+
+       ! Bra 1I1E configuration in the internal MO space
+       bconf_int=0_ib
+       bsop_int=0_ib
+       bconf_int=cfg%conf1I1E(1:n_int_I,:,ioff)
+       bsop_int=cfg%sop1I1E(1:n_int_I,:,ioff)
+       
+       ! Compute the excitation degree between the two
+       ! configurations
+       nexci=exc_degree_conf(cfg%conf0h(:,:,kconf),bconf_int,n_int_I)
+
+       ! Cycle if the excitation degree is not equal to 1
+       if (nexci /= 1) cycle
+
+       ! Number of open shells in the bra configuration
+       bnopen=sop_nopen(bsop_int,n_int_I)
+    
+       ! Number of bra CSFs
+       bnsp=ncsfs(bnopen)
+    
+       ! Get the indices of the MOs involved in the excitation
+       hlist=0
+       plist=0
+       call get_exci_indices(cfg%conf0h(:,:,kconf),bconf_int,&
+            n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+
+       ! Get the spin-coupling coefficients
+       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+            plist(1),hlist(1),knopen,nbefore)
+
+       ! Idices of the 1-RDM elements
+       i=hlist(1)
+       a=plist(1)
+       
+       ! Loop over roots
+       do ista=1,nroots
+          
+          ! Loop over bra CSFs
+          bomega=0
+          do ibcsf=cfg%csfs1I1E(ioff),cfg%csfs1I1E(ioff+1)-1
+             bomega=bomega+1
+             bcoe=vec(ibcsf,ista)
+             
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=cfg%csfs0h(kconf),cfg%csfs0h(kconf+1)-1
+                komega=komega+1
+                kcoe=vec(ikcsf,ista)
+                
+                ! Contribution to the 1-RDM
+                prod=kcoe*bcoe*spincp(komega,bomega)
+                dmat(i,a,ista)=dmat(i,a,ista)+prod
+                dmat(a,i,ista)=dmat(a,i,ista)+prod
+                
+             enddo
+             
+          enddo
+          
+       enddo
+
+    enddo
+       
+    return
+    
+  end subroutine rdm_0h_1I1E
   
 !######################################################################
 ! spincp_coeff: Given a SOP and pair of creation/annihilation operator
