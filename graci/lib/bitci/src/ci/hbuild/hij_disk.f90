@@ -1,6 +1,11 @@
 module hij_disk
 
+  use constants
+  
   implicit none
+
+  ! Temporary Hij array
+  real(dp), allocatable :: harr2(:,:)
   
 contains
 
@@ -71,8 +76,11 @@ contains
          status='unknown')
 
 !----------------------------------------------------------------------
-! Initialise the buffer
+! Allocate arrays and initialise the buffer
 !----------------------------------------------------------------------
+    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    harr2=0.0d0
+    
     allocate(ibuffer(2,bufsize))
     ibuffer=0
 
@@ -147,6 +155,7 @@ contains
 !----------------------------------------------------------------------
     deallocate(ibuffer)
     deallocate(hbuffer)
+    deallocate(harr2)
     
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -207,7 +216,7 @@ contains
     
     ! Temporary Hij array
     integer(is)               :: arrdim
-    real(dp), allocatable     :: harr(:),harr2(:,:)
+    real(dp), allocatable     :: harr(:)
     
     ! Working arrays
     integer(ib)                :: conf_full(n_int,2)
@@ -239,9 +248,6 @@ contains
 !----------------------------------------------------------------------
     allocate(harr(ncsfs(nomax)**2))
     harr=0.0d0
-
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! (1) Off-diagonal elements between CSFs with the same spatial part,
@@ -364,8 +370,7 @@ contains
           ! Save the above-threshold matrix elements
           call save_above_threshold(bconf,kconf,&
                cfg%csfs0h,cfg%csfs0h,cfg%n0h+1,cfg%n0h+1,&
-               harr2(1:bnsp,1:knsp),bnsp,knsp,&
-               iscratch,hbuffer,ibuffer,nbuf,nrec)
+               bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
              
        enddo
           
@@ -375,7 +380,6 @@ contains
 ! Dellocate arrays
 !----------------------------------------------------------------------
     deallocate(harr)
-    deallocate(harr2)
     
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -801,7 +805,7 @@ contains
                 ! Cycle if the the bra 1-hole configuration cannot
                 ! generate configurations that interact with the
                 ! ket 1I configuration
-                if (nac > 6) cycle
+                if (nac > 5) cycle
                 
                 ! Number of open shells in the ket 1I configuration
                 knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
@@ -814,7 +818,7 @@ contains
                      socc,nsocc,Dw,ndiff,nbefore)
                 
                 ! 1I - 1I matrix elements
-                if (nac <= 6 &
+                if (nac <= 5 &
                      .and. cfg%off1I(bn) /= cfg%off1I(bn+1)) then
                    call save_hij_1I_1I(bn,ioff,kconf_full,&
                         ksop_full,kconf_int,ksop_int,n_int_I,&
@@ -824,7 +828,7 @@ contains
                 endif
           
                 ! 1I - 1E matrix elements
-                if (nac <= 4 &
+                if (nac <= 3 &
                      .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
                    call save_hij_1I_1E(bn,ioff,kconf_full,&
                         ksop_full,kconf_int,ksop_int,n_int_I,&
@@ -1579,19 +1583,9 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
 
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
-    
 !----------------------------------------------------------------------
 ! Compute the R-1I matrix elements
 !----------------------------------------------------------------------
@@ -1641,16 +1635,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I,kconf,&
             cfg%csfs1I,cfg%csfs0h,cfg%n1I+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
 
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_0h_1I
@@ -1719,18 +1707,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the R-1E matrix elements
@@ -1781,16 +1759,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1E,kconf,&
             cfg%csfs1E,cfg%csfs0h,cfg%n1E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
 
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-        
     return
     
   end subroutine save_hij_0h_1E
@@ -1858,18 +1830,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the R-2I matrix elements
@@ -1920,16 +1882,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf2I,kconf,&
             cfg%csfs2I,cfg%csfs0h,cfg%n2I+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_0h_2I
@@ -1998,18 +1954,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the R-2E matrix elements
@@ -2060,16 +2006,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf2E,kconf,&
             cfg%csfs2E,cfg%csfs0h,cfg%n2E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_0h_2E
@@ -2139,19 +2079,9 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
     
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
-
 !----------------------------------------------------------------------
 ! Compute the R-1I1E matrix elements
 !----------------------------------------------------------------------
@@ -2201,16 +2131,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I1E,kconf,&
             cfg%csfs1I1E,cfg%csfs0h,cfg%n1I1E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
              
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_0h_1I1E
@@ -2278,10 +2202,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1I
     integer(is)                :: nexci,bnopen,bnsp
@@ -2289,8 +2209,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I-1I matrix elements
@@ -2344,16 +2264,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I,ikconf1I,&
             cfg%csfs1I,cfg%csfs1I,cfg%n1I+1,cfg%n1I+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_1I_1I
@@ -2421,10 +2335,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1E
     integer(is)                :: nexci,bnopen,bnsp
@@ -2432,8 +2342,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I-1E matrix elements
@@ -2482,16 +2392,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1E,ikconf1I,&
             cfg%csfs1E,cfg%csfs1I,cfg%n1E+1,cfg%n1I+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_1I_1E
@@ -2564,10 +2468,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1E
     integer(is)                :: nexci,bnopen,bnsp
@@ -2575,8 +2475,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1E-1E matrix elements
@@ -2653,15 +2553,9 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1E,ikconf1E,&
             cfg%csfs1E,cfg%csfs1E,cfg%n1E+1,cfg%n1E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
     
     return
     
@@ -2730,10 +2624,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1I
     integer(is)                :: nexci,bnopen,bnsp
@@ -2741,8 +2631,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2I-1I matrix elements
@@ -2793,16 +2683,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I,ikconf2I,&
             cfg%csfs1I,cfg%csfs2I,cfg%n1I+1,cfg%n2I+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
 
   end subroutine save_hij_2I_1I
@@ -2870,10 +2754,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1E
     integer(is)                :: nexci,bnopen,bnsp
@@ -2881,8 +2761,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2I-1E matrix elements
@@ -2931,16 +2811,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1E,ikconf2I,&
             cfg%csfs1E,cfg%csfs2I,cfg%n1E+1,cfg%n2I+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
 
   end subroutine save_hij_2I_1E
@@ -3008,10 +2882,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-
     ! Everything else
     integer(is)                :: ioff,ibconf1I
     integer(is)                :: nexci,bnopen,bnsp
@@ -3019,8 +2889,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2E-1I matrix elements
@@ -3069,16 +2939,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I,ikconf2E,&
             cfg%csfs1I,cfg%csfs2E,cfg%n1I+1,cfg%n2E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_2E_1I
@@ -3146,10 +3010,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-
     ! Everything else
     integer(is)                :: ioff,ibconf1E
     integer(is)                :: nexci,bnopen,bnsp
@@ -3157,8 +3017,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2E-1E matrix elements
@@ -3207,16 +3067,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1E,ikconf2E,&
             cfg%csfs1E,cfg%csfs2E,cfg%n1E+1,cfg%n2E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
 
   end subroutine save_hij_2E_1E
@@ -3284,10 +3138,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-
     ! Everything else
     integer(is)                :: ioff,ibconf1I
     integer(is)                :: nexci,bnopen,bnsp 
@@ -3295,8 +3145,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I1E-1I matrix elements
@@ -3345,15 +3195,9 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I,ikconf1I1E,&
             cfg%csfs1I,cfg%csfs1I1E,cfg%n1I+1,cfg%n1I1E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
     
     return
     
@@ -3422,10 +3266,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-
     ! Everything else
     integer(is)                :: ioff,ibconf1E
     integer(is)                :: nexci,bnopen,bnsp 
@@ -3433,8 +3273,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I1E-1E matrix elements
@@ -3483,16 +3323,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1E,ikconf1I1E,&
             cfg%csfs1E,cfg%csfs1I1E,cfg%n1E+1,cfg%n1I1E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-        
     return
     
   end subroutine save_hij_1I1E_1E
@@ -3560,10 +3394,6 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf2I
     integer(is)                :: nexci,bnopen,bnsp
@@ -3571,8 +3401,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2I-2I matrix elements
@@ -3627,16 +3457,10 @@ contains
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf2I,ikconf2I,&
             cfg%csfs2I,cfg%csfs2I,cfg%n2I+1,cfg%n2I+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_2I_2I
@@ -3708,10 +3532,6 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf2E
     integer(is)                :: nexci,bnopen,bnsp
@@ -3719,8 +3539,8 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2I-2E matrix elements
@@ -3768,16 +3588,10 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf2E,ikconf2I,&
             cfg%csfs2E,cfg%csfs2I,cfg%n2E+1,cfg%n2I+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_2I_2E
@@ -3845,10 +3659,6 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1I1E
     integer(is)                :: nexci,bnopen,bnsp
@@ -3856,8 +3666,8 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2I-1I1E matrix elements
@@ -3906,16 +3716,10 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I1E,ikconf2I,&
             cfg%csfs1I1E,cfg%csfs2I,cfg%n1I1E+1,cfg%n2I+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
               
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-        
     return
     
   end subroutine save_hij_2I_1I1E
@@ -3990,10 +3794,6 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf2E
     integer(is)                :: nexci,bnopen,bnsp
@@ -4005,8 +3805,8 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
     
 !----------------------------------------------------------------------
 ! Compute the 2E-2E matrix elements
@@ -4115,16 +3915,10 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf2E,ikconf2E,&
             cfg%csfs2E,cfg%csfs2E,cfg%n2E+1,cfg%n2E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_2E_2E
@@ -4192,10 +3986,6 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1I1E
     integer(is)                :: nexci,bnopen,bnsp
@@ -4203,8 +3993,8 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2E-1I1E matrix elements
@@ -4253,16 +4043,10 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I1E,ikconf2E,&
             cfg%csfs1I1E,cfg%csfs2E,cfg%n1I1E+1,cfg%n2E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine save_hij_2E_1I1E
@@ -4330,10 +4114,6 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,ibconf1I1E
     integer(is)                :: nexci,bnopen,bnsp
@@ -4341,8 +4121,8 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
+    !allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    !harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I1E-1I1E matrix elements
@@ -4394,16 +4174,10 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
        ! Save the above-threshold matrix elements
        call save_above_threshold(ibconf1I1E,ikconf1I1E,&
             cfg%csfs1I1E,cfg%csfs1I1E,cfg%n1I1E+1,cfg%n1I1E+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            iscratch,hbuffer,ibuffer,nbuf,nrec)
+            bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-
     return
     
   end subroutine save_hij_1I1E_1I1E
@@ -4414,7 +4188,7 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 !                       disk
 !######################################################################
   subroutine save_above_threshold(bconf,kconf,bcsfs,kcsfs,bdim,kdim,&
-       harr2,bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
+       bnsp,knsp,iscratch,hbuffer,ibuffer,nbuf,nrec)
 
     use constants
     use bitglobal
@@ -4428,9 +4202,8 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
     integer(is), intent(in)    :: kdim,bdim
     integer(is), intent(in)    :: bcsfs(bdim),kcsfs(kdim)
 
-    ! Hamiltonian matrix elements
+    ! Numbers of bra and ket CSFs
     integer(is), intent(in)    :: bnsp,knsp
-    real(dp), intent(in)       :: harr2(:,:)
 
     ! Buffered I/O variables
     integer(is), intent(in)    :: iscratch
