@@ -7,8 +7,13 @@
 !**********************************************************************
 module asci_avec
 
+  use constants
+  
   implicit none
 
+  ! Temporary Hij array
+  real(dp), allocatable, private :: harr2(:,:)
+  
 contains
 
 !######################################################################
@@ -61,6 +66,9 @@ contains
     allocate(vec0(refdim,nroots))
     vec0=0.0d0
 
+    ! Hij working array
+    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    
 !----------------------------------------------------------------------
 ! Reference space eigenpairs
 !----------------------------------------------------------------------
@@ -91,6 +99,7 @@ contains
 !----------------------------------------------------------------------
     deallocate(e0)
     deallocate(vec0)
+    deallocate(harr2)
     
     return
     
@@ -406,18 +415,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I A-vector elements
@@ -469,16 +468,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf1I,kconf,&
             cfg%csfs1I,cfg%csfs0h,cfg%n1I+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_1I
@@ -546,18 +539,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1E A-vector elements
@@ -607,16 +590,10 @@ contains
 
        call contract_hmat_vec0(ibconf1E,kconf,&
             cfg%csfs1E,cfg%csfs0h,cfg%n1E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
 
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
 
   end subroutine avec_1E
@@ -684,18 +661,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2I elements
@@ -747,16 +714,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf2I,kconf,&
             cfg%csfs2I,cfg%csfs0h,cfg%n2I+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_2I
@@ -825,18 +786,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2E elements
@@ -888,16 +839,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf2E,kconf,&
             cfg%csfs2E,cfg%csfs0h,cfg%n2E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_2E
@@ -966,18 +911,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I1E elements
@@ -1029,16 +964,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf1I1E,kconf,&
             cfg%csfs1I1E,cfg%csfs0h,cfg%n1I1E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_1I1E
@@ -1049,7 +978,7 @@ contains
 !                     eigenvectors
 !######################################################################
   subroutine contract_hmat_vec0(bconf,kconf,bcsfs,kcsfs,bdim,kdim,&
-       harr2,bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
+       bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
 
     use constants
     use bitglobal
@@ -1063,9 +992,8 @@ contains
     integer(is), intent(in) :: kdim,bdim
     integer(is), intent(in) :: bcsfs(bdim),kcsfs(kdim)
 
-    ! Hamiltonian matrix elements
+    ! Numbers of bra and ket CSFs
     integer(is), intent(in) :: bnsp,knsp
-    real(dp), intent(in)    :: harr2(:,:)
 
     ! A-vector
     integer(is), intent(in) :: csfdim,nroots
