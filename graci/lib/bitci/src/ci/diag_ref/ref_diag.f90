@@ -124,14 +124,6 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
           //'inconsistent configuration numbers'
      call error_control
   endif
-
-!----------------------------------------------------------------------
-! Sanity check on the number of roots
-!----------------------------------------------------------------------
-  if (nconf(irrep) < nroots) then
-     errmsg='Error in ref_diag_mrci: nroots > nconf'
-     call error_control
-  endif
   
 !----------------------------------------------------------------------
 ! Determine the total number of CSFs and the offsets for each
@@ -142,6 +134,14 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
 
   call basis_dimensions(hdim,offset,sop,n_int_I,nconf1)
 
+!----------------------------------------------------------------------
+! Sanity check on the number of roots
+!----------------------------------------------------------------------
+  if (hdim < nroots) then
+     errmsg='Error in ref_diag_mrci: N_roots > N_CSF'
+     call error_control
+  endif
+  
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------

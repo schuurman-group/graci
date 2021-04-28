@@ -8,7 +8,7 @@ module rdm
   implicit none
 
   ! Spin-coupling coefficients
-  real(dp), allocatable :: spincp(:,:)
+  real(dp), allocatable, private :: spincp(:,:)
   
 contains
 
