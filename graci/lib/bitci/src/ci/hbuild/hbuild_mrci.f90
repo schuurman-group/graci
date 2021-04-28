@@ -266,9 +266,6 @@ contains
     ! Integrals
     real(dp)                :: Vpqrs(nmo)
     
-    ! Everything else
-    integer(is)             :: bomega,komega,bcsf,kcsf
-
 !*********************************************************************
 ! Note that here the lists of holes/particles are the indices of the
 ! annihilation/creation operators operating on the ket configuration
@@ -300,10 +297,9 @@ contains
 !----------------------------------------------------------------------
     select case(nexci)
     case(1)
-       call hij_single_mrci_batch(bnopen,knopen,pairindx(1),&
-            icase,bpattern,kpattern,Vpqrs,socc,nsocc,&
-            ndiff,hlist(1),plist(1),harr,harrdim,bcsfs,kcsfs,&
-            bdim,kdim,bconf,kconf)
+       call hij_single_mrci_batch(bnopen,knopen,pairindx(1),icase,&
+            bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,hlist(1),&
+            plist(1),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
     case(2)
        call hij_double_mrci_batch(bnopen,knopen,pairindx(1:2),&
             bpattern(1:2),kpattern(1:2),Vpqrs(1:2),plist(1:2),&
