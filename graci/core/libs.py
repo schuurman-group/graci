@@ -39,7 +39,9 @@ bitci_registry = {
                                  'logical'],
         'print_mrci_states'   : ['int32','int32','int32'],
         'refine_ref_space'    : ['int32','int32','int32','int32',
-                                 'double','double','int32']
+                                 'double','double','int32'],
+        'density_mrci'        : ['int32','int32','int32','double',
+                                 'int32','int32']
         }
 
 bitci_intent = {
@@ -55,17 +57,16 @@ bitci_intent = {
         'diag_mrci'           : ['in','in','in','out','in','in','in',
                                  'in','in'],
         'print_mrci_states'   : ['in','in','in'],
-        'refine_ref_space'    : ['in','out','in','in','in','out','out']
+        'refine_ref_space'    : ['in','out','in','in','in','out','out'],
+        'density_mrci'        : ['in','in','in','out','in','in']
         }
 
 
 # registry of bitsi functions
-bitsi_registry = {
-    'density_mrci' : ['int32','int32','int32','double','string','string']
-}
+bitsi_registry = { }
 
 bitsi_intent   = {
-    'density_mrci' : ['in','in','in','out','in','in']
+    
 }
 
 # list of existing library objects

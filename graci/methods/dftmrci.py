@@ -93,21 +93,13 @@ class Dftmrci:
             if min_norm > 0.9025 and i > 0:
                 print('\n * Reference Space Converged *', flush=True)
                 break
-        
+
+        # Compute the 1-RDMs for all states
+        mrci_1rdm.rdm(self, scf)
+            
         # Finalise the bitCI library
         libs.finalise_bitci()
 
-        # Initialise the bitSI library
-        libs.init_bitsi(mol, mol, self, self, scf)
-        
-        # Compute the 1-RDMs for all states
-        for irr in range(len(self.nstates)):
-            states = [n for n in range(self.nstates[irr])]
-            self.density(states, irr, mol, scf)
-
-        # Finalise the bitSI library
-        libs.finalise_bitsi()
-            
         return 
     
     #
@@ -128,12 +120,10 @@ class Dftmrci:
 
     #
     def density(self, states, irr, mol, scf):
-        """ computes the density matrices for the states in 
+        """return the density matrices for the states in 
         the array 'states' for the irrep 'irr'"""
         
-        mrci_1rdm.rdm(self, states, irr, scf)
-        
-        return
+        return 
 
     #
     def slater_dets(self, state):
@@ -165,7 +155,10 @@ class Dftmrci:
             self.ener        = None
             # Hamiltonian integer label
             self.hamiltonian = None
-        
+            # Density matrices (list of numpy arrays, one per irrep,
+            # shape: (nirr,nmo,nmo,nstates))
+            self.dmat        = None
+            
         #
         def set_nconf(self, nconf):
             """Sets the numbers of configurations"""
@@ -208,3 +201,8 @@ class Dftmrci:
             self.hamiltonian = hamiltonians.index(lbl)
             return
 
+        #
+        def set_dmat(self, dmat):
+            """Adds the list of 1-RDMs"""
+            self.dmat = dmat
+            return
