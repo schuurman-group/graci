@@ -5,7 +5,8 @@ module hij_disk
   implicit none
 
   ! Temporary Hij array
-  real(dp), allocatable :: harr2(:,:)
+  integer(is), private           :: harr2dim
+  real(dp), allocatable, private :: harr2(:)
   
 contains
 
@@ -78,7 +79,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays and initialise the buffer
 !----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    harr2dim=ncsfs(nomax)**2
+    allocate(harr2(harr2dim))
     harr2=0.0d0
     
     allocate(ibuffer(2,bufsize))
@@ -361,7 +363,7 @@ contains
 
           ! Compute the matrix elements between the CSFs generated
           ! by the bra and ket configurations
-          call hij_mrci(harr2,ncsfs(nomax),nexci,bconf,kconf,&
+          call hij_mrci(harr2,harr2dim,nexci,bconf,kconf,&
                bsop_full,ksop_full,bnsp,knsp,bnopen,knopen,&
                hlist,plist,cfg%m2c,socc,nsocc,nbefore,Dw,ndiff,&
                cfg%csfs0h,cfg%csfs0h,cfg%n0h+1,cfg%n0h+1,&
@@ -1623,7 +1625,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I,kconf,&
             cfg%sop1I(:,:,ibconf1I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -1747,7 +1749,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,kconf,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -1870,7 +1872,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2I,kconf,&
             cfg%sop2I(:,:,ibconf2I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -1994,7 +1996,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2E,kconf,&
             cfg%sop2E(:,:,ibconf2E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -2119,7 +2121,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I1E,kconf,&
             cfg%sop1I1E(:,:,ibconf1I1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -2246,7 +2248,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I,ikconf1I,&
             cfg%sop1I(:,:,ibconf1I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -2368,7 +2370,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,ikconf1I,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -2523,7 +2525,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,ikconf1E,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -2647,7 +2649,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I,ikconf2I,&
             cfg%sop1I(:,:,ibconf1I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -2769,7 +2771,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,ikconf2I,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -2891,7 +2893,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I,ikconf2E,&
             cfg%sop1I(:,:,ibconf1I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3013,7 +3015,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,ikconf2E,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3135,7 +3137,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I,ikconf1I1E,&
             cfg%sop1I(:,:,ibconf1I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3257,7 +3259,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,ikconf1I1E,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3385,7 +3387,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2I,ikconf2I,&
             cfg%sop2I(:,:,ibconf2I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3510,7 +3512,7 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2E,ikconf2I,&
             cfg%sop2E(:,:,ibconf2E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3632,7 +3634,7 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I1E,ikconf2I,&
             cfg%sop1I1E(:,:,ibconf1I1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3823,7 +3825,7 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2E,ikconf2E,&
             cfg%sop2E(:,:,ibconf2E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -3945,7 +3947,7 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I1E,ikconf2E,&
             cfg%sop1I1E(:,:,ibconf1I1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -4070,7 +4072,7 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I1E,ikconf1I1E,&
             cfg%sop1I1E(:,:,ibconf1I1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -4121,7 +4123,10 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
 
     ! Everything else
     integer(is)                :: bomega,komega,ikcsf,ibcsf
+    integer(is)                :: counter
 
+    counter=0
+    
     ! Loop over ket CSFs
     komega=0
     do ikcsf=kcsfs(kconf),kcsfs(kconf+1)-1
@@ -4131,13 +4136,14 @@ subroutine save_hij_2I_2E(nac1,bn,ikconf2I,kconf_full,ksop_full,&
        bomega=0
        do ibcsf=bcsfs(bconf),bcsfs(bconf+1)-1
           bomega=bomega+1
+          counter=counter+1
           
           ! Save the matrix element if it is above threshold
-          if (abs(harr2(bomega,komega)) > epshij) then
+          if (abs(harr2(counter)) > epshij) then
              nbuf=nbuf+1
              ibuffer(1,nbuf)=ibcsf
              ibuffer(2,nbuf)=ikcsf
-             hbuffer(nbuf)=harr2(bomega,komega)
+             hbuffer(nbuf)=harr2(counter)
              if (nbuf == bufsize) call dump_buffer(iscratch,&
                   hbuffer,ibuffer,nbuf,nrec)
           endif

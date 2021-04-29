@@ -207,8 +207,8 @@ contains
     integer(is)              :: nbefore(nmo)
   
     ! Temporary Hij array
-    integer(is)              :: arrdim
-    real(dp), allocatable    :: harr(:),harr2(:,:)
+    integer(is)              :: arrdim,harr2dim
+    real(dp), allocatable    :: harr(:),harr2(:)
 
     ! I/O variables
     integer(is)              :: iscratch
@@ -224,7 +224,7 @@ contains
     integer(is)              :: iconf,kconf,bconf
     integer(is)              :: icsf,kcsf,bcsf
     integer(is)              :: iomega,komega,bomega
-    integer(is)              :: nsp,count,count1,count2,blim1,blim2,&
+    integer(is)              :: nsp,count,blim1,blim2,&
                                 klim1,klim2,bnsp,knsp
     
     ! Timing variables
@@ -269,7 +269,8 @@ contains
     allocate(harr(ncsfs(nomax)**2))
     harr=0.0d0
 
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    harr2dim=ncsfs(nomax)**2
+    allocate(harr2(harr2dim))
     harr2=0.0d0
 
 !----------------------------------------------------------------------
@@ -383,24 +384,22 @@ contains
 
           ! Compute the matrix elements between the CSFs generated
           ! by the bra and ket configurations
-          call hij_mrci(harr2,ncsfs(nomax),nexci,bconf,kconf,&
+          call hij_mrci(harr2,harr2dim,nexci,bconf,kconf,&
                bsop_full,ksop_full,bnsp,knsp,bnopen,knopen,&
                hlist,plist,m2c,socc,nsocc,nbefore,Dw,ndiff,&
                offset,offset,nconf+1,nconf+1,averageii(bconf),&
                averageii(kconf))
         
           ! Save the above threshold matrix elements
-          count1=0
+          count=0
           do kcsf=offset(kconf),offset(kconf+1)-1
-             count1=count1+1
-             count2=0
              do bcsf=offset(bconf),offset(bconf+1)-1
-                count2=count2+1
-                if (abs(harr2(count2,count1)) > epshij) then
+                count=count+1
+                if (abs(harr2(count)) > epshij) then
                    nbuf=nbuf+1
                    ibuffer(1,nbuf)=bcsf
                    ibuffer(2,nbuf)=kcsf
-                   hbuffer(nbuf)=harr2(count2,count1)
+                   hbuffer(nbuf)=harr2(count)
                    if (nbuf == bufsize) then
                       write(iscratch) hbuffer,ibuffer,nbuf
                       nbuf=0

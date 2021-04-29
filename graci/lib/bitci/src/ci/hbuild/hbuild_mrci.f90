@@ -215,7 +215,7 @@ contains
 
     ! Array of off-diagonal matrix elements
     integer(is), intent(in) :: harrdim
-    real(dp), intent(out)   :: harr(harrdim,harrdim)
+    real(dp), intent(out)   :: harr(harrdim)
 
     ! Bra and ket configuration indices
     integer(is), intent(in) :: bconf,kconf
@@ -275,7 +275,7 @@ contains
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
-    harr(1:bnsp,1:knsp)=0.0d0
+    harr(1:bnsp*knsp)=0.0d0
     
 !----------------------------------------------------------------------
 ! Fill the integrals, pattern index, and pair index arrays
@@ -309,7 +309,7 @@ contains
 !----------------------------------------------------------------------
 ! DFT/MRCI corrections
 !----------------------------------------------------------------------
-    if (ldftmrci) call hij_dftmrci_batch(harr(1:bnsp,1:knsp),bnsp,&
+    if (ldftmrci) call hij_dftmrci_batch(harr(1:bnsp*knsp),bnsp,&
          knsp,bavii,kavii)
 
     return
@@ -473,7 +473,7 @@ contains
 
     ! Array of off-diagonal matrix elements
     integer(is), intent(in) :: harrdim
-    real(dp), intent(out)   :: harr(harrdim,harrdim)
+    real(dp), intent(out)   :: harr(harrdim)
 
     ! CSF offsets
     integer(is), intent(in) :: kdim,bdim
@@ -484,9 +484,12 @@ contains
     
     ! Everything else
     integer(is)             :: bomega,komega,bcsf,kcsf
-    integer(is)             :: indx,k,k1
+    integer(is)             :: indx,k,k1,counter
     real(dp)                :: spincp,halfspincp,product
 
+    ! Initialise the harr counter
+    counter=0
+    
     ! Loop over ket CSFs
     komega=0
     do kcsf=kcsfs(kconf),kcsfs(kconf+1)-1
@@ -498,6 +501,9 @@ contains
        bomega=0
        do bcsf=bcsfs(bconf),bcsfs(bconf+1)-1
 
+          ! Increment the harr counter
+          counter=counter+1
+          
           ! Bra CSF spin coupling index
           bomega=bomega+1
 
@@ -536,12 +542,11 @@ contains
              
              ! Contraction of the fibers of the spin-coupling coefficient
              ! tensor
-             product=contract_spincp(bomega,komega,bpattern(k),kpattern(k),&
-                  pairindx,bnopen,knopen)
+             product=contract_spincp(bomega,komega,bpattern(k),&
+                  kpattern(k),pairindx,bnopen,knopen)
              
              ! Sum the contribution
-             harr(bomega,komega)=harr(bomega,komega)&
-                  +Vpqrs(k)*(product-halfspincp)
+             harr(counter)=harr(counter)+Vpqrs(k)*(product-halfspincp)
        
           enddo
 
@@ -549,12 +554,12 @@ contains
           ! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
           ! x <w' omega'|E_a^i|w omega>
           !
-          harr(bomega,komega)=harr(bomega,komega)+Vpqrs(nsocc+1)*spincp
+          harr(counter)=harr(counter)+Vpqrs(nsocc+1)*spincp
           
           !
           ! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
           !
-          harr(bomega,komega)=harr(bomega,komega)+Vpqrs(nsocc+2)*spincp
+          harr(counter)=harr(counter)+Vpqrs(nsocc+2)*spincp
           
        enddo
 
@@ -681,7 +686,7 @@ contains
 
     ! Array of off-diagonal matrix elements
     integer(is), intent(in) :: harrdim
-    real(dp), intent(out)   :: harr(harrdim,harrdim)
+    real(dp), intent(out)   :: harr(harrdim)
 
     ! CSF offsets
     integer(is), intent(in) :: kdim,bdim
@@ -694,6 +699,7 @@ contains
     integer(is)             :: bomega,komega,bcsf,kcsf
     
     ! Everything else
+    integer(is)             :: counter
     real(dp)                :: product
 
 !----------------------------------------------------------------------
@@ -708,6 +714,9 @@ contains
 !----------------------------------------------------------------------
 ! Compute the matrix elements
 !----------------------------------------------------------------------
+    ! Initialise the harr counter
+    counter=0
+
     ! Loop over ket CSFs
     komega=0
     do kcsf=kcsfs(kconf),kcsfs(kconf+1)-1
@@ -719,18 +728,21 @@ contains
        bomega=0
        do bcsf=bcsfs(bconf),bcsfs(bconf+1)-1
 
+          ! Increment the harr counter
+          counter=counter+1
+          
           ! Bra CSF spin coupling index
           bomega=bomega+1
 
           ! V_aibj contribution    
-          product=contract_spincp(bomega,komega,bpattern(1),kpattern(1),&
-               pairindx(1),bnopen,knopen)
-          harr(bomega,komega)=harr(bomega,komega)+Vpqrs(1)*product
+          product=contract_spincp(bomega,komega,bpattern(1),&
+               kpattern(1),pairindx(1),bnopen,knopen)
+          harr(counter)=harr(counter)+Vpqrs(1)*product
           
           ! V_ajbi contribution    
-          product=contract_spincp(bomega,komega,bpattern(2),kpattern(2),&
-               pairindx(2),bnopen,knopen)
-          harr(bomega,komega)=harr(bomega,komega)+Vpqrs(2)*product
+          product=contract_spincp(bomega,komega,bpattern(2),&
+               kpattern(2),pairindx(2),bnopen,knopen)
+          harr(counter)=harr(counter)+Vpqrs(2)*product
           
        enddo
 

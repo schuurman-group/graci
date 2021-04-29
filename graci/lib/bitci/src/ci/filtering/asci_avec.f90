@@ -12,7 +12,8 @@ module asci_avec
   implicit none
 
   ! Temporary Hij array
-  real(dp), allocatable, private :: harr2(:,:)
+  integer(is), private           :: harr2dim
+  real(dp), allocatable, private :: harr2(:)
   
 contains
 
@@ -67,7 +68,8 @@ contains
     vec0=0.0d0
 
     ! Hij working array
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
+    harr2dim=ncsfs(nomax)**2
+    allocate(harr2(harr2dim))
     
 !----------------------------------------------------------------------
 ! Reference space eigenpairs
@@ -455,7 +457,7 @@ contains
        
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I,kconf,&
             cfg%sop1I(:,:,ibconf1I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -579,7 +581,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,kconf,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -701,7 +703,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2I,kconf,&
             cfg%sop2I(:,:,ibconf2I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -826,7 +828,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2E,kconf,&
             cfg%sop2E(:,:,ibconf2E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -951,7 +953,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I1E,kconf,&
             cfg%sop1I1E(:,:,ibconf1I1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -1005,11 +1007,13 @@ contains
     
     ! Everything else
     integer(is)             :: bomega,komega,ikcsf,ibcsf
-    integer(is)             :: j
+    integer(is)             :: j,counter
 
     ! Loop over roots
     do j=1,nroots
-    
+
+       counter=0
+       
        ! Loop over ket CSFs (reference space CSFs)
        komega=0
        do ikcsf=kcsfs(kconf),kcsfs(kconf+1)-1
@@ -1019,9 +1023,10 @@ contains
           bomega=0
           do ibcsf=bcsfs(bconf),bcsfs(bconf+1)-1
              bomega=bomega+1
+             counter=counter+1
              
              Avec(ibcsf,j)=Avec(ibcsf,j)&
-                  +harr2(bomega,komega)*vec0(ikcsf,j)
+                  +harr2(counter)*vec0(ikcsf,j)
              
           enddo
                     
