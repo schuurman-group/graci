@@ -29,8 +29,8 @@ def refine_ref_space(ci):
 
     # Configuration selection threshold. We will just hardcode this
     # for now
-    cthrsh = 0.1
-
+    cthrsh = 0.055
+    
     # Minimum reference space norm
     min_norm = 0.
 

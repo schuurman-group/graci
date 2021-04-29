@@ -14,9 +14,11 @@ contains
 
 !######################################################################
 ! 1rdm_mrci: Master routine for the calculation of MRCI 1-RDMs for
-!            a specified set of states of a single irrep
+!            a specified set of states of a single irrep.
 !######################################################################
-  subroutine rdm_mrci(cfg,csfdim,nroots,vec,dmat)
+!            Note that the 1-RDMS have the 'Canonical' MO indexing
+!######################################################################
+  subroutine rdm_mrci(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -39,11 +41,13 @@ contains
     real(dp), intent(in)    :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(out)   :: dmat(nmo,nmo,nroots)
+    real(dp), intent(out)   :: rho(nmo,nmo,nroots)
    
     ! Timing variables
-    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
-                                twall_end 
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
+
+    integer(is) :: i
     
 !----------------------------------------------------------------------
 ! Start timing
@@ -53,7 +57,7 @@ contains
 !----------------------------------------------------------------------
 ! Allocate and initialise arrays
 !----------------------------------------------------------------------
-    dmat=0.0d0
+    rho=0.0d0
 
     allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
     spincp=0.0d0
@@ -61,37 +65,37 @@ contains
 !----------------------------------------------------------------------
 ! (1) On-diagonal elements
 !----------------------------------------------------------------------
-    call rdm_diag(cfg,csfdim,nroots,vec,dmat)
+    call rdm_diag(cfg,csfdim,nroots,vec,rho)
     
 !----------------------------------------------------------------------
 ! (2) Ref-Ref contributions to the 1-RDMs
 !----------------------------------------------------------------------
-    call rdm_0h_0h(cfg,csfdim,nroots,vec,dmat)
+    call rdm_0h_0h(cfg,csfdim,nroots,vec,rho)
 
 !----------------------------------------------------------------------
 ! (3) Ref - 1H contributions to the 1-RDMs
 !----------------------------------------------------------------------
-    call rdm_0h_1h(cfg,csfdim,nroots,vec,dmat)
+    call rdm_0h_1h(cfg,csfdim,nroots,vec,rho)
 
 !----------------------------------------------------------------------
 ! (4) Ref - 2H contributions to the 1-RDMs
 !----------------------------------------------------------------------
-    call rdm_0h_2h(cfg,csfdim,nroots,vec,dmat)
+    call rdm_0h_2h(cfg,csfdim,nroots,vec,rho)
 
 !----------------------------------------------------------------------
 ! (5) 1H - 1H contributions to the 1-RDMs
 !----------------------------------------------------------------------
-    call rdm_1h_1h(cfg,csfdim,nroots,vec,dmat)
+    call rdm_1h_1h(cfg,csfdim,nroots,vec,rho)
 
 !----------------------------------------------------------------------
 ! (6) 2H - 1H contributions to the 1-RDMs
 !----------------------------------------------------------------------
-    call rdm_2h_1h(cfg,csfdim,nroots,vec,dmat)
+    call rdm_2h_1h(cfg,csfdim,nroots,vec,rho)
 
 !----------------------------------------------------------------------
 ! (6) 2H - 2H contributions to the 1-RDMs
 !----------------------------------------------------------------------
-    call rdm_2h_2h(cfg,csfdim,nroots,vec,dmat)
+    call rdm_2h_2h(cfg,csfdim,nroots,vec,rho)
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -113,7 +117,7 @@ contains
 ! rdm_mrci_ondiag: Calculation of the on-diagonal elements of the MRCI
 !                  1-RDMs
 !######################################################################
-  subroutine rdm_diag(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_diag(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -136,7 +140,7 @@ contains
     real(dp), intent(in)    :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout) :: rho(nmo,nmo,nroots)
 
     ! Working arrays
     integer(ib)             :: conf_full(n_int,2)
@@ -179,14 +183,14 @@ contains
 
              ! Singly-occupied MO contributions to the 1-RDM
              do i=1,nsocc
-                imo=socc(i)
-                dmat(imo,imo,ista)=dmat(imo,imo,ista)+c2
+                imo=cfg%m2c(socc(i))
+                rho(imo,imo,ista)=rho(imo,imo,ista)+c2
              enddo
 
              ! Doubly-occupied MO contributions to the 1-RDM
              do i=1,ndocc
-                imo=docc(i)
-                dmat(imo,imo,ista)=dmat(imo,imo,ista)+2.0d0*c2
+                imo=cfg%m2c(docc(i))
+                rho(imo,imo,ista)=rho(imo,imo,ista)+2.0d0*c2
              enddo
              
           enddo
@@ -224,14 +228,14 @@ contains
                    
                    ! Singly-occupied MO contributions to the 1-RDM
                    do i=1,nsocc
-                      imo=socc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+c2
+                      imo=cfg%m2c(socc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+c2
                    enddo
                    
                    ! Doubly-occupied MO contributions to the 1-RDM
                    do i=1,ndocc
-                      imo=docc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+2.0d0*c2
+                      imo=cfg%m2c(docc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+2.0d0*c2
                    enddo
                    
                 enddo
@@ -273,14 +277,14 @@ contains
                    
                    ! Singly-occupied MO contributions to the 1-RDM
                    do i=1,nsocc
-                      imo=socc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+c2
+                      imo=cfg%m2c(socc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+c2
                    enddo
                    
                    ! Doubly-occupied MO contributions to the 1-RDM
                    do i=1,ndocc
-                      imo=docc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+2.0d0*c2
+                      imo=cfg%m2c(docc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+2.0d0*c2
                    enddo
                    
                 enddo
@@ -322,14 +326,14 @@ contains
                    
                    ! Singly-occupied MO contributions to the 1-RDM
                    do i=1,nsocc
-                      imo=socc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+c2
+                      imo=cfg%m2c(socc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+c2
                    enddo
                    
                    ! Doubly-occupied MO contributions to the 1-RDM
                    do i=1,ndocc
-                      imo=docc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+2.0d0*c2
+                      imo=cfg%m2c(docc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+2.0d0*c2
                    enddo
                    
                 enddo
@@ -371,14 +375,14 @@ contains
                    
                    ! Singly-occupied MO contributions to the 1-RDM
                    do i=1,nsocc
-                      imo=socc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+c2
+                      imo=cfg%m2c(socc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+c2
                    enddo
                    
                    ! Doubly-occupied MO contributions to the 1-RDM
                    do i=1,ndocc
-                      imo=docc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+2.0d0*c2
+                      imo=cfg%m2c(docc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+2.0d0*c2
                    enddo
                    
                 enddo
@@ -420,14 +424,14 @@ contains
                    
                    ! Singly-occupied MO contributions to the 1-RDM
                    do i=1,nsocc
-                      imo=socc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+c2
+                      imo=cfg%m2c(socc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+c2
                    enddo
                    
                    ! Doubly-occupied MO contributions to the 1-RDM
                    do i=1,ndocc
-                      imo=docc(i)
-                      dmat(imo,imo,ista)=dmat(imo,imo,ista)+2.0d0*c2
+                      imo=cfg%m2c(docc(i))
+                      rho(imo,imo,ista)=rho(imo,imo,ista)+2.0d0*c2
                    enddo
                    
                 enddo
@@ -448,7 +452,7 @@ contains
        trace=0.0d0
        ! Loop over MOs
        do imo=1,nmo
-          trace=trace+dmat(imo,imo,ista)
+          trace=trace+rho(imo,imo,ista)
        enddo
        ! Exit here if the trace of the 1-RDM does not equal the
        ! no. electrons
@@ -466,7 +470,7 @@ contains
 ! rdm_mrci_0h_0h: Calculation of the Ref-Ref contributions to the MRCI
 !                 1-RDMs
 !######################################################################  
-  subroutine rdm_0h_0h(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_0h_0h(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -488,7 +492,7 @@ contains
     real(dp), intent(in)    :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout) :: rho(nmo,nmo,nroots)
 
     ! Number of open shells preceding each MO
     integer(is)             :: nbefore(nmo)
@@ -560,8 +564,8 @@ contains
                plist(1),hlist(1),knopen,nbefore)
 
           ! Idices of the 1-RDM elements
-          i=hlist(1)
-          a=plist(1)
+          i=cfg%m2c(hlist(1))
+          a=cfg%m2c(plist(1))
 
           ! Loop over roots
           do ista=1,nroots
@@ -580,8 +584,8 @@ contains
 
                    ! Contribution to the 1-RDM
                    prod=kcoe*bcoe*spincp(komega,bomega)
-                   dmat(i,a,ista)=dmat(i,a,ista)+prod
-                   dmat(a,i,ista)=dmat(a,i,ista)+prod
+                   rho(i,a,ista)=rho(i,a,ista)+prod
+                   rho(a,i,ista)=rho(a,i,ista)+prod
                    
                 enddo
                    
@@ -601,7 +605,7 @@ contains
 ! rdm_mrci_0h_1h: Calculation of the Ref-1I and Ref-1E contributions
 !                 to the MRCI 1-RDMs
 !######################################################################  
-  subroutine rdm_0h_1h(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_0h_1h(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -623,7 +627,7 @@ contains
     real(dp), intent(in)    :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout) :: rho(nmo,nmo,nroots)
 
     ! Number of open shells preceding each MO
     integer(is)             :: nbefore(nmo)
@@ -676,7 +680,7 @@ contains
                   cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                   cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                   cfg%csfs1I,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,dmat)
+                  csfdim,nroots,vec,rho,cfg%m2c)
           endif
 
           ! Ref - 1E contributions
@@ -688,7 +692,7 @@ contains
                   cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                   cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                   cfg%csfs1E,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,dmat)
+                  csfdim,nroots,vec,rho,cfg%m2c)
           endif
              
        enddo
@@ -703,7 +707,7 @@ contains
 ! rdm_mrci_0h_2h: Calculation of the Ref-2I, Ref-2E and Ref-1I1E
 !                 contributions to the MRCI 1-RDMs
 !######################################################################  
-  subroutine rdm_0h_2h(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_0h_2h(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -725,7 +729,7 @@ contains
     real(dp), intent(in)    :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout) :: rho(nmo,nmo,nroots)
 
     ! Number of open shells preceding each MO
     integer(is)             :: nbefore(nmo)
@@ -778,7 +782,7 @@ contains
                   cfg%conf2I,cfg%sop2I,&  ! bra confs and SOPs
                   cfg%n2h,cfg%off2I,&     ! no. bra hole confs and offsets
                   cfg%csfs2I,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,dmat)
+                  csfdim,nroots,vec,rho,cfg%m2c)
           endif
 
           ! Ref - 2E contributions
@@ -790,7 +794,7 @@ contains
                   cfg%conf2E,cfg%sop2E,&  ! bra confs and SOPs
                   cfg%n2h,cfg%off2E,&     ! no. bra hole confs and offsets
                   cfg%csfs2E,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,dmat)
+                  csfdim,nroots,vec,rho,cfg%m2c)
           endif
 
           ! Ref - 1I1E contributions
@@ -802,7 +806,7 @@ contains
                   cfg%conf1I1E,cfg%sop1I1E,& ! bra confs and SOPs
                   cfg%n2h,cfg%off1I1E,&      ! no. bra hole confs and offsets
                   cfg%csfs1I1E,cfg%csfs0h,&  ! bra and ket CSF offsets
-                  csfdim,nroots,vec,dmat)
+                  csfdim,nroots,vec,rho,cfg%m2c)
           endif
           
        enddo
@@ -817,7 +821,7 @@ contains
 ! rdm_1h_1h: Calculation of the 1I-1I, 1I-1E and 1E-1E contributions
 !            to the MRCI 1-RDMs
 !######################################################################
-  subroutine rdm_1h_1h(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_1h_1h(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -839,7 +843,7 @@ contains
     real(dp), intent(in)     :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout)  :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout)  :: rho(nmo,nmo,nroots)
 
     ! Number of open shells preceding each MO
     integer(is)              :: nbefore(nmo)
@@ -931,7 +935,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs1I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
                 ! 1I - 1E contributions
@@ -943,7 +947,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs1I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                    
              enddo
@@ -985,7 +989,7 @@ contains
                   cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                   cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                   cfg%csfs1E,cfg%csfs1E,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,dmat)
+                  csfdim,nroots,vec,rho,cfg%m2c)
              
           enddo
              
@@ -1001,7 +1005,7 @@ contains
 ! rdm_2h_1h: Calculation of the 2I-1I, 2I-1E, 2E-1I, 2E-1E, 1I1E-1I,
 !            and 1I1E-1E contributions to the MRCI 1-RDMs
 !######################################################################
-  subroutine rdm_2h_1h(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_2h_1h(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -1011,35 +1015,35 @@ contains
     implicit none
 
     ! No. CSFs
-    integer(is), intent(in) :: csfdim
+    integer(is), intent(in)  :: csfdim
     
     ! No. roots for which the RDMs will be computed
-    integer(is), intent(in) :: nroots
+    integer(is), intent(in)  :: nroots
     
     ! MRCI configuration derived type
-    type(mrcfg), intent(in) :: cfg
+    type(mrcfg), intent(in)  :: cfg
 
     ! Eigenvectors
-    real(dp), intent(in)    :: vec(csfdim,nroots)
+    real(dp), intent(in)     :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout)  :: rho(nmo,nmo,nroots)
 
     ! Number of open shells preceding each MO
-    integer(is)             :: nbefore(nmo)
+    integer(is)              :: nbefore(nmo)
 
     ! Working arrays
-    integer(ib), allocatable   :: kconf_int(:,:)
-    integer(ib), allocatable   :: ksop_int(:,:)
-    integer(ib)                :: kconf_full(n_int,2)
-    integer(ib)                :: ksop_full(n_int,2)
-    integer(ib)                :: bconf1h_full(n_int,2)
-    integer(is), parameter     :: maxexci=1
-    integer(is)                :: hlist(maxexci),plist(maxexci)
+    integer(ib), allocatable :: kconf_int(:,:)
+    integer(ib), allocatable :: ksop_int(:,:)
+    integer(ib)              :: kconf_full(n_int,2)
+    integer(ib)              :: ksop_full(n_int,2)
+    integer(ib)              :: bconf1h_full(n_int,2)
+    integer(is), parameter   :: maxexci=1
+    integer(is)              :: hlist(maxexci),plist(maxexci)
     
     ! Everything else
-    integer(is)                :: n_int_I,knopen,knsp,kn,bn,nac,nac1
-    integer(is)                :: ikconf
+    integer(is)              :: n_int_I,knopen,knsp,kn,bn,nac,nac1
+    integer(is)              :: ikconf
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1118,7 +1122,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
                 ! 2I - 1E matrix contributions
@@ -1130,7 +1134,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
              enddo
@@ -1168,7 +1172,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs2E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                    
                 ! 2E - 1E matrix contributions
@@ -1179,7 +1183,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs2E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
              enddo
@@ -1225,7 +1229,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&    ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&       ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs1I1E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
 
                 ! 1I1E - 1E matrix contributions
@@ -1236,7 +1240,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&    ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&       ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs1I1E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
              enddo
@@ -1255,7 +1259,7 @@ contains
 ! rdm_2h_2h: Calculation of the 2I-2I, 2I-2E, 2I-1I1E, 2E-2E, 2I-1I1E,
 !            and 1I1E-1I1E contributions to the MRCI 1-RDMs
 !######################################################################
-  subroutine rdm_2h_2h(cfg,csfdim,nroots,vec,dmat)
+  subroutine rdm_2h_2h(cfg,csfdim,nroots,vec,rho)
 
     use constants
     use bitglobal
@@ -1265,35 +1269,35 @@ contains
     implicit none
 
     ! No. CSFs
-    integer(is), intent(in) :: csfdim
+    integer(is), intent(in)  :: csfdim
     
     ! No. roots for which the RDMs will be computed
-    integer(is), intent(in) :: nroots
+    integer(is), intent(in)  :: nroots
     
     ! MRCI configuration derived type
-    type(mrcfg), intent(in) :: cfg
+    type(mrcfg), intent(in)  :: cfg
 
     ! Eigenvectors
-    real(dp), intent(in)    :: vec(csfdim,nroots)
+    real(dp), intent(in)     :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout)  :: rho(nmo,nmo,nroots)
 
     ! Number of open shells preceding each MO
-    integer(is)             :: nbefore(nmo)
+    integer(is)              :: nbefore(nmo)
 
     ! Working arrays
-    integer(ib), allocatable   :: kconf_int(:,:)
-    integer(ib), allocatable   :: ksop_int(:,:)
-    integer(ib)                :: kconf_full(n_int,2)
-    integer(ib)                :: ksop_full(n_int,2)
-    integer(ib)                :: bconf2h_full(n_int,2)
-    integer(is), parameter     :: maxexci=1
-    integer(is)                :: hlist(maxexci),plist(maxexci)
+    integer(ib), allocatable :: kconf_int(:,:)
+    integer(ib), allocatable :: ksop_int(:,:)
+    integer(ib)              :: kconf_full(n_int,2)
+    integer(ib)              :: ksop_full(n_int,2)
+    integer(ib)              :: bconf2h_full(n_int,2)
+    integer(is), parameter   :: maxexci=1
+    integer(is)              :: hlist(maxexci),plist(maxexci)
     
     ! Everything else
-    integer(is)                :: n_int_I,knopen,knsp,kn,bn,nac,nac1
-    integer(is)                :: ikconf
+    integer(is)              :: n_int_I,knopen,knsp,kn,bn,nac,nac1
+    integer(is)              :: ikconf
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1372,7 +1376,7 @@ contains
                         cfg%conf2I,cfg%sop2I,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off2I,&     ! no. bra hole confs and offsets
                         cfg%csfs2I,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
           
                 ! 2I - 2E matrix elements
@@ -1385,7 +1389,7 @@ contains
                         cfg%conf2E,cfg%sop2E,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off2E,&     ! no. bra hole confs and offsets
                         cfg%csfs2E,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
           
                 ! 2I - 1I1E matrix elements
@@ -1398,7 +1402,7 @@ contains
                         cfg%conf1I1E,cfg%sop1I1E,& ! bra confs and SOPs
                         cfg%n2h,cfg%off1I1E,&      ! no. bra hole confs and offsets
                         cfg%csfs1I1E,cfg%csfs2I,&  ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
              enddo
@@ -1449,7 +1453,7 @@ contains
                         cfg%conf2E,cfg%sop2E,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off2E,&     ! no. bra hole confs and offsets
                         cfg%csfs2E,cfg%csfs2E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
           
                 ! 2E - 1I1E matrix elements
@@ -1461,7 +1465,7 @@ contains
                         cfg%conf1I1E,cfg%sop1I1E,& ! bra confs and SOPs
                         cfg%n2h,cfg%off1I1E,&      ! no. bra hole confs and offsets
                         cfg%csfs1I1E,cfg%csfs2E,&  ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
              enddo
@@ -1511,7 +1515,7 @@ contains
                         cfg%conf1I1E,cfg%sop1I1E,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off1I1E,&       ! no. bra hole confs and offsets
                         cfg%csfs1I1E,cfg%csfs1I1E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,dmat)
+                        csfdim,nroots,vec,rho,cfg%m2c)
                 endif
                 
              enddo
@@ -1533,7 +1537,7 @@ contains
 !######################################################################
   subroutine rdm_batch(bn,ikconf,kconf,ksop,knopen,knsp,knbefore,&
        nbconf,nkconf,bconfs,bsops,nh,boffset,bcsfs,kcsfs,&
-       csfdim,nroots,vec,dmat)
+       csfdim,nroots,vec,rho,m2c)
 
     use constants
     use bitglobal
@@ -1569,8 +1573,11 @@ contains
     real(dp), intent(in)    :: vec(csfdim,nroots)
     
     ! Density matrix
-    real(dp), intent(inout) :: dmat(nmo,nmo,nroots)
+    real(dp), intent(inout) :: rho(nmo,nmo,nroots)
 
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
     ! Working arrays
     integer(ib)             :: bconf(n_int,2),bsop(n_int,2)
     integer(is), parameter  :: maxexci=1
@@ -1612,8 +1619,8 @@ contains
             hlist(1),knopen,knbefore)
 
        ! Idices of the 1-RDM elements
-       i=hlist(1)
-       a=plist(1)
+       i=m2c(hlist(1))
+       a=m2c(plist(1))
 
        ! Loop over roots
        do ista=1,nroots
@@ -1632,8 +1639,8 @@ contains
 
                 ! Contribution to the 1-RDM
                 prod=kcoe*bcoe*spincp(komega,bomega)
-                dmat(i,a,ista)=dmat(i,a,ista)+prod
-                dmat(a,i,ista)=dmat(a,i,ista)+prod
+                rho(i,a,ista)=rho(i,a,ista)+prod
+                rho(a,i,ista)=rho(a,i,ista)+prod
                 
              enddo
              
