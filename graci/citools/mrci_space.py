@@ -50,12 +50,11 @@ def generate(scf, ci):
                 nconf, emax, cvsflag)
         (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
         
-        # Optional filtering based on the ASCI selection
-        # criterion
-        if ci.asci != 'off':
-            thrsh = ci.asci_thresh[ci.asci]
+        # Optional pruning of the configuration space
+        if ci.prune != 'off':
+            thrsh = ci.prune_thresh[ci.prune]
             args = (thrsh, irrep, nroots, ci_confunits, ref_ciunits, nconf)
-            nconf = libs.lib_func('filter_asci', args)
+            nconf = libs.lib_func('mrci_prune', args)
 
     # Set the number of MRCI configurations
     ci.mrci_wfn.set_nconf(nconf)

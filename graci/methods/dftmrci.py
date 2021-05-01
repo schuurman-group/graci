@@ -37,7 +37,7 @@ class Dftmrci:
         self.icvs           = []
         self.ciorder        = 2
         self.refiter        = 3
-        self.asci           = 'off'
+        self.prune          = 'off'
         self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001
         self.diag_iter      = 50
@@ -46,7 +46,7 @@ class Dftmrci:
         self.label          = 'dftmrci'
 
         # class variables
-        self.asci_thresh    = {'tight'  : 1e-4,
+        self.prune_thresh   = {'tight'  : 1e-4,
                                'normal' : 1e-3,
                                'loose'  : 3e-3}
         self.niter          = 0
@@ -69,7 +69,7 @@ class Dftmrci:
         # generate the reference space configurations
         self.ref_wfn = self.Wavefunction()
         ref_space.generate(scf, self)
-        
+
         # Perform the MRCI iterations, refining the reference space
         # as we go
         for i in range(self.refiter):
@@ -78,7 +78,7 @@ class Dftmrci:
             
             # reference space diagonalisation
             ref_diag.diag(mol, self)
-        
+            
             # generate the MRCI configurations
             self.mrci_wfn = self.Wavefunction()
             mrci_space.generate(scf, self)
