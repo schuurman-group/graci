@@ -22,6 +22,7 @@ molecule_kword =     {'charge'   : int,
                       'ri_basis' : str,
                       'use_sym'  : bool,
                       'use_df'   : bool,
+                      'naf'      : bool,
                       'label'    : str
                      }
 

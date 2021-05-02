@@ -17,7 +17,8 @@
  mult         = 1
  basis        = aug-cc-pvdz
  use_sym      = False
- use_df       = False
+ use_df       = True
+ ri_basis     = aug-cc-pvdz-jkfit
  $end
 
  $scf section
