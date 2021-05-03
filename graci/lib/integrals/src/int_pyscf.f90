@@ -68,19 +68,21 @@ module int_pyscf
   !              False
   !     use_rr:  Boolean that is true if the rank reduction of the
   !              DF 3-index integral tensor is to be performed
+  !     rr_fac:  Rank reduced DF compression factor  
   !
 #ifdef CBINDING
-    subroutine intpyscf_initialise(n_mo1, n_aux1, use_ri, use_rr, thresh, max_memory) &
+    subroutine intpyscf_initialise(n_mo1, n_aux1, use_ri, use_rr, rr_fac, thresh, max_memory) &
          bind(c,name="intpyscf_initialise")
 #else
-      subroutine intpyscf_initialise(n_mo, n_aux, use_ri, use_rr, thresh, max_memory)
+      subroutine intpyscf_initialise(n_mo, n_aux, use_ri, use_rr, rr_fac, thresh, max_memory)
 #endif
     use rrdf
     integer(ik), intent(in)                   :: n_mo1           ! number of MOs
     integer(ik), intent(in)                   :: n_aux1          ! number of auxility basis functions, if using DF, else
                                                                  ! it's the dimension of the AO space
     logical, intent(in)                       :: use_ri          ! whether or not to use density fitting
-    logical, intent(in)                       :: use_rr          ! whether or not to use RR-DF
+    logical, intent(in)                       :: use_rr          ! whether or not to use rank density fitting
+    integer(ik), intent(in)                   :: rr_fac          ! rank reduced DF compression factor
     real(drk), intent(in)                     :: thresh          ! threshold for zero integrals
     integer(ik), intent(in), optional         :: max_memory      ! maximum memory that can be used by integral arrays 
                                                                  ! (in double precision numbers). If < 0, no limit is
@@ -255,8 +257,7 @@ module int_pyscf
     !
     ! Rank reduction of the density fitting 3-index integrals
     !
-    if (use_ri .and. use_rr) &
-         call rank_reduce(n_aux, n_ij, integrals, 2e-1_8)
+    if (use_ri .and. use_rr) call rank_reduce(n_aux, n_ij, integrals, rr_fac)
     
     return
   end subroutine intpyscf_initialise 

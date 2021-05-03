@@ -146,18 +146,20 @@ def init_bitci(mol, scf, ci):
     lib_bitci = ctypes.cdll.LoadLibrary(bitci_path)
 
     # set the variables that have to be passed to intpyscf_initialise
-    nmo     = convert.convert_ctypes(scf.nmo,    dtype='int32')
-    naux    = convert.convert_ctypes(scf.naux,   dtype='int32')
-    use_df  = convert.convert_ctypes(mol.use_df, dtype='logical')
-    use_rr  = convert.convert_ctypes(mol.rrdf,   dtype='logical')
-    thresh  = convert.convert_ctypes(1e-14,      dtype='double')
-    max_mem = convert.convert_ctypes(-1,         dtype='int32')   
+    nmo      = convert.convert_ctypes(scf.nmo,      dtype='int32')
+    naux     = convert.convert_ctypes(scf.naux,     dtype='int32')
+    use_df   = convert.convert_ctypes(mol.use_df,   dtype='logical')
+    use_rrdf = convert.convert_ctypes(mol.use_rrdf, dtype='logical')
+    rrdf_fac = convert.convert_ctypes(mol.rrdf_fac, dtype='int32')
+    thresh   = convert.convert_ctypes(1e-14,        dtype='double')
+    max_mem  = convert.convert_ctypes(-1,           dtype='int32')   
 
     # call to intpyscf_initialise
     lib_bitci.intpyscf_initialise(ctypes.byref(nmo),
                                   ctypes.byref(naux),
                                   ctypes.byref(use_df),
-                                  ctypes.byref(use_rr),
+                                  ctypes.byref(use_rrdf),
+                                  ctypes.byref(rrdf_fac),
                                   ctypes.byref(thresh),
                                   ctypes.byref(max_mem))
     
