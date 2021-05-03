@@ -6,11 +6,65 @@ module bitglobal
 
   save
 
+!----------------------------------------------------------------------
+! Common variables
+!----------------------------------------------------------------------
   !
   ! Name of the scratch directory
   !
   character(len=255) :: scratchdir
+
+  !
+  ! Scratch files
+  !
+  integer(is)                     :: maxunits   ! Maximum number of scratch
+                                                ! units
+  integer(is)                     :: nscratch   ! Number of scratch units in use
+  integer(is), allocatable        :: scrunit(:) ! Values of the scratch units
+  character(len=255), allocatable :: scrname(:) ! Names of the scratch units
+
+  !
+  ! Maximum number of open shells
+  !
+  integer(is), parameter :: nexmax=8        ! Max. excitation degree relative
+                                            ! to the base configuration allowed
+                                            ! in the CSF basis
+  integer(is), parameter :: nomax=10        ! Max. no. open shells allowed in
+                                            ! the CSF basis
+  integer(is), parameter :: nocase1=nomax   ! Max. number of open shells
+                                            ! for the Case 1 spin coupling
+                                            ! coefficients
+  integer(is), parameter :: nocase2=nomax+2 ! Max. number of open shells
+                                            ! for the Case 2 spin coupling
+                                            ! coefficients
+
+  !
+  ! Spin coupling coefficients
+  !
+  integer(is)              :: nspincp(2)      ! Number of unique spin coupling
+                                              ! coefficients 
+  integer(is)              :: maxpattern(2)   ! Maximum possible simplified
+                                              ! spatial occupation pattern values
+  integer(is)              :: npattern1,&     ! Number of Case 1 and Case 2
+                              npattern2       ! patterns
+  integer(is), allocatable :: patternmap1(:)  ! Case 1 pattern -> array index
+                                              ! mapping
+  integer(is), allocatable :: patternmap2(:)  ! Case 2 pattern -> array index
+                                              ! mapping
+  integer(ib), allocatable :: N1s(:)          ! Bit strings comprised of N 1's
+
+  real(dp), allocatable    :: spincp1(:,:,:)  ! Case 1 spin coupling coefficients
+  real(dp), allocatable    :: spincp2(:,:,:)  ! Case 2 spin coupling coefficients
   
+  !
+  ! Buffered I/O
+  !
+  integer(is), parameter :: bufsize=2097152 ! Buffer size
+                                            ! (16 MB of 8-byte reals)
+  
+!----------------------------------------------------------------------
+! Configuration interaction variables
+!----------------------------------------------------------------------
   !
   ! Dimensions
   !
@@ -44,33 +98,9 @@ module bitglobal
   character(len=3) :: pglbls(8)       ! Labels of every Abelian point group
 
   !
-  ! Scratch files
-  !
-  integer(is)                     :: maxunits   ! Maximum number of scratch
-                                                ! units
-  integer(is)                     :: nscratch   ! Number of scratch units in use
-  integer(is), allocatable        :: scrunit(:) ! Values of the scratch units
-  character(len=255), allocatable :: scrname(:) ! Names of the scratch units
-
-  !
   ! Spin multiplicity
   !
   integer(is) :: imult
-
-  !
-  ! Maximum number of open shells
-  !
-  integer(is), parameter :: nexmax=8        ! Max. excitation degree relative
-                                            ! to the base configuration allowed
-                                            ! in the CSF basis
-  integer(is), parameter :: nomax=10        ! Max. no. open shells allowed in
-                                            ! the CSF basis
-  integer(is), parameter :: nocase1=nomax   ! Max. number of open shells
-                                            ! for the Case 1 spin coupling
-                                            ! coefficients
-  integer(is), parameter :: nocase2=nomax+2 ! Max. number of open shells
-                                            ! for the Case 2 spin coupling
-                                            ! coefficients
   
   !
   ! CSF information
@@ -88,24 +118,6 @@ module bitglobal
                                                ! shells
   integer(ib), allocatable :: detvec(:,:)      ! Encoding of the determinants
                                                ! contributing to the CSFs
-  
-  !
-  ! Spin coupling coefficients
-  !
-  integer(is)              :: nspincp(2)      ! Number of unique spin coupling
-                                              ! coefficients 
-  integer(is)              :: maxpattern(2)   ! Maximum possible simplified
-                                              ! spatial occupation pattern values
-  integer(is)              :: npattern1,&     ! Number of Case 1 and Case 2
-                              npattern2       ! patterns
-  integer(is), allocatable :: patternmap1(:)  ! Case 1 pattern -> array index
-                                              ! mapping
-  integer(is), allocatable :: patternmap2(:)  ! Case 2 pattern -> array index
-                                              ! mapping
-  integer(ib), allocatable :: N1s(:)          ! Bit strings comprised of N 1's
-
-  real(dp), allocatable    :: spincp1(:,:,:)  ! Case 1 spin coupling coefficients
-  real(dp), allocatable    :: spincp2(:,:,:)  ! Case 2 spin coupling coefficients
 
   !
   ! Pre-computed integrals
@@ -122,12 +134,6 @@ module bitglobal
   logical :: ldftmrci
 
   !
-  ! Buffered I/O
-  !
-  integer(is), parameter :: bufsize=2097152 ! Buffer size
-                                            ! (16 MB of 8-byte reals)
-
-  !
   ! Hamiltonian build & diagonalisation
   !
   real(dp), parameter :: epshij=1e-6_dp ! Threshold for neglect of Hamiltonian
@@ -135,6 +141,20 @@ module bitglobal
                                         ! sigma-vector builds
   real(dp), parameter :: hshift=1e-6_dp ! Hamiltonian shift: useful if the
                                         ! lowest eigenvalue is vanishingly small
-  
+
+!----------------------------------------------------------------------
+! State interaction variables
+!----------------------------------------------------------------------
+  !
+  ! Bra and ket spin multiplicities
+  !
+  integer(is) :: imultB,imultK
+
+  !
+  ! Bra and ket numbers of electrons
+  !
+  integer(is) :: nelB,nelB_alpha,nelB_beta,nelB_spin(2)
+  integer(is) :: nelK,nelK_alpha,nelK_beta,nelK_spin(2)
+
 end module bitglobal
 

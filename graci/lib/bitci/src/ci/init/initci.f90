@@ -14,6 +14,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   use constants
   use bitglobal
   use utils
+  use setsym
   use iomod
   use baseconf
   use csf
@@ -30,7 +31,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   real(dp), intent(in)               :: moen1(nmo1)
   real(dp), intent(in)               :: enuc1
   real(dp)                           :: s,smax
-
+  logical                            :: verbose
+  
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: label1(*)
   character(len=255)                 :: label
@@ -62,6 +64,18 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   endif
 
 !----------------------------------------------------------------------
+! Exit if the requested spin multiplicity is not supported by the
+! maximum number of openshells
+!----------------------------------------------------------------------
+  smax=dble(nomax)/2.0d0
+  s=dble(imult1-1)/2.0
+  if (s > smax) then
+     write(errmsg,'(a)') 'The requested multiplicity is incompatible'&
+          //' with the current value of nomax.'
+     call error_control
+  endif
+  
+!----------------------------------------------------------------------
 ! Exit if the given point group is not recognised
 !----------------------------------------------------------------------
   if (ipg1.lt.1.or.ipg1.gt.8) then
@@ -73,18 +87,6 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 ! Set the spin multiplicity
 !----------------------------------------------------------------------
   imult=imult1
-
-!----------------------------------------------------------------------
-! Exit if the requested spin multiplicity is not supported by the
-! maximum number of openshells
-!----------------------------------------------------------------------
-  smax=dble(nomax)/2.0d0
-  s=dble(imult-1)/2.0
-  if (s > smax) then
-     write(errmsg,'(a)') 'The requested multiplicity is incompatible'&
-          //' with the current value of nomax.'
-     call error_control
-  endif
   
 !----------------------------------------------------------------------
 ! Set the number of electrons
@@ -147,14 +149,20 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 ! Generate the CSFs for the given spin multiplicity up to the maximum
 ! number of open shells
 !----------------------------------------------------------------------
-  call generate_csfs
+  verbose=.true.
+  call generate_csfs(imult,nocase2,ncsfs,ndets,maxcsf,maxdet,&
+       csfcoe,detvec,verbose)
 
 !----------------------------------------------------------------------
 ! Generate the spin coupling coefficients for the given spin
 ! multiplicity
 !----------------------------------------------------------------------
-  call generate_coupling_coefficients
-  
+  verbose=.true.
+  call generate_coupling_coefficients(imult1,nocase1,nocase2,maxcsf,&
+       maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,npattern2,&
+       maxpattern,patternmap1,patternmap2,nspincp,spincp1,spincp2,&
+       N1s,verbose)
+
 !----------------------------------------------------------------------
 ! Generate the base determinant and base configuration
 !----------------------------------------------------------------------
@@ -197,80 +205,3 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
 
 end subroutine bitci_initialise
 
-!######################################################################
-! initialise_symmetry: sets point group and irrep labels, and the the
-!                      point group multiplication array
-!######################################################################
-subroutine initialise_symmetry
-
-  use constants
-  use bitglobal
-  use iomod
-  
-  implicit none
-
-  integer(is)      :: i
-  character(len=3) :: all_labels(8)
-
-!----------------------------------------------------------------------
-! Set the point group labels
-!----------------------------------------------------------------------
-  pglbls=(/'c1 ','ci ','c2 ','cs ','c2h','c2v','d2 ','d2h'/)
-
-!----------------------------------------------------------------------
-! Set the irrep labels
-!----------------------------------------------------------------------
-  ! C1
-  pgdim(1)=1
-  irreplbl(0,1)='A'
-  
-  ! Ci
-  pgdim(2)=2
-  irreplbl(0,2)='Ag'
-  irreplbl(1,2)='Au'
-  
-  ! C2
-  pgdim(3)=2
-  irreplbl(0,3)='A'
-  irreplbl(1,3)='B'
-  
-  ! Cs
-  pgdim(4)=2
-  irreplbl(0,4)='A'''
-  irreplbl(1,4)='A'''''
-  
-  ! C2h
-  pgdim(5)=4
-  irreplbl(0,5)='Ag'
-  irreplbl(1,5)='Bg'
-  irreplbl(2,5)='Au'
-  irreplbl(3,5)='Bu'
-  
-  ! C2v
-  pgdim(6)=4
-  irreplbl(0,6)='A1'
-  irreplbl(1,6)='A2'
-  irreplbl(2,6)='B1'
-  irreplbl(3,6)='B2'
-  
-  ! D2
-  pgdim(7)=4
-  irreplbl(0,7)='A1'
-  irreplbl(1,7)='B1'
-  irreplbl(2,7)='B2'
-  irreplbl(3,7)='B3'
-
-  ! D2h
-  pgdim(8)=8
-  irreplbl(0,8)='A1g'
-  irreplbl(1,8)='B1g'
-  irreplbl(2,8)='B2g'
-  irreplbl(3,8)='B3g'
-  irreplbl(4,8)='A1u'
-  irreplbl(5,8)='B1u'
-  irreplbl(6,8)='B2u'
-  irreplbl(7,8)='B3u'
-  
-  return
-  
-end subroutine initialise_symmetry

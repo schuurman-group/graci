@@ -14,7 +14,7 @@ module int_pyscf
   use map_module
   implicit none
 
-  public load_mo_integrals
+  public intpyscf_initialise 
 
   interface mo_integral
     module procedure mo_integral_ijkl
@@ -66,17 +66,21 @@ module int_pyscf
   !              i.e. n_mo*(n_mo+1)/2
   !     use_ri:  Boolean that is true if DF is employed, else
   !              False
+  !     use_rr:  Boolean that is true if the rank reduction of the
+  !              DF 3-index integral tensor is to be performed
   !
 #ifdef CBINDING
-    subroutine load_mo_integrals(n_mo, n_aux, use_ri, thresh, max_memory) &
-         bind(c,name="load_mo_integrals")
+    subroutine intpyscf_initialise(n_mo1, n_aux1, use_ri, use_rr, thresh, max_memory) &
+         bind(c,name="intpyscf_initialise")
 #else
-      subroutine load_mo_integrals(n_mo, n_aux, use_ri, thresh, max_memory)
+      subroutine intpyscf_initialise(n_mo, n_aux, use_ri, use_rr, thresh, max_memory)
 #endif
-    integer(ik), intent(in)                   :: n_mo            ! number of MOs
-    integer(ik), intent(in)                   :: n_aux           ! number of auxility basis functions, if using DF, else
+    use rrdf
+    integer(ik), intent(in)                   :: n_mo1           ! number of MOs
+    integer(ik), intent(in)                   :: n_aux1          ! number of auxility basis functions, if using DF, else
                                                                  ! it's the dimension of the AO space
     logical, intent(in)                       :: use_ri          ! whether or not to use density fitting
+    logical, intent(in)                       :: use_rr          ! whether or not to use RR-DF
     real(drk), intent(in)                     :: thresh          ! threshold for zero integrals
     integer(ik), intent(in), optional         :: max_memory      ! maximum memory that can be used by integral arrays 
                                                                  ! (in double precision numbers). If < 0, no limit is
@@ -84,7 +88,7 @@ module int_pyscf
 
     ! H5 file variables
     integer(HID_T)                            :: data_type       ! data_type (i.e. NATIVE_DOUBLE)
-    integer(HID_T)                            :: file_id     ! file_id for integral file
+    integer(HID_T)                            :: file_id         ! file_id for integral file
     integer(HID_T)                            :: dset_id         ! geeric dataset id
     integer(HID_T)                            :: data_space        ! data_space id
     integer(HID_T)                            :: mem_space       ! memspace identifier 
@@ -106,9 +110,11 @@ module int_pyscf
     integer(ik)                               :: ket_off
     integer(ik)                               :: nd_ket, nd_bra
     real(drk), allocatable                    :: int_buffer(:,:)
- 
-    ! set module variable 
+
+    ! set module variables
     ri_int = use_ri
+    n_aux  = n_aux1
+    n_mo   = n_mo1
 
     !*********************************************************
     ! one-electron integral file(s)
@@ -117,7 +123,8 @@ module int_pyscf
     allocate(h_core(n_mo, n_mo))
 
     dset_name = 'hcore_mo'
-    call open_dataset(one_name, dset_name, data_type, file_id, dset_id, data_space, rank, dims)
+    call open_dataset(one_name, dset_name, data_type, file_id, dset_id,&
+         data_space, rank, dims)
 
     if(rank /= 2 .or. any(dims /= int_dims))then
       print *,'Error in hcore_mo file: read status=',error,' rank=',rank, &
@@ -245,9 +252,14 @@ module int_pyscf
     !
     call h5close_f(error)
 
-
+    !
+    ! Rank reduction of the density fitting 3-index integrals
+    !
+    if (use_ri .and. use_rr) &
+         call rank_reduce(n_aux, n_ij, integrals, 2e-1_8)
+    
     return
-  end subroutine load_mo_integrals
+  end subroutine intpyscf_initialise 
 
   !
   ! deallocates all the memory structures associated with integral
@@ -479,25 +491,21 @@ module int_pyscf
     real(drk)                                 :: ijkl
     real(integral_kind)                       :: ijkl_tmp
 
-    if(use_hash) then
-    
-      call map_get(int_table, mo_eri_integral_index(i,j,k,l), ijkl_tmp)
-      ijkl = real(ijkl_tmp, kind=drk)
-      return
-    
+    if (use_hash) then
+       call map_get(int_table, mo_eri_integral_index(i,j,k,l), ijkl_tmp)
+       ijkl = real(ijkl_tmp, kind=drk)
+       return
     else
-
-      ij = indx_ut(i,j)
-      kl = indx_ut(k,l)
-      if(ri_int) then
-         ijkl = dot_product(integrals(:,ij),integrals(:,kl))
-      else
-         ijkl = integrals(ij, kl)
-      endif
-      return
-
-      endif
-
+       ij = indx_ut(i,j)
+       kl = indx_ut(k,l)
+       if(ri_int) then
+          ijkl = dot_product(integrals(:,ij),integrals(:,kl))
+       else
+          ijkl = integrals(ij, kl)
+       endif
+       return
+    endif
+    
   end function mo_integral_ijkl
 
   !

@@ -5,11 +5,12 @@ Module for performing the reference space diagonalisation
 import sys
 import ctypes as ctypes
 import numpy as np
+import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
-def diag(mol, ci, lib_bitci):
+def diag(mol, ci):
     """Diagonalisation of the reference space Hamiltonian"""
 
     # length of nstates vector is the number of irreps
@@ -22,70 +23,54 @@ def diag(mol, ci, lib_bitci):
     output.print_refdiag_header()
     
     # Bitci reference configuration scratch file numbers
-    confscr = np.array(ci.ref_conf.confscr, dtype=int)
-    confscr = convert.convert_ctypes(confscr, dtype='int32')
+    confunits = np.array(ci.ref_wfn.conf_units, dtype=int)
 
     # Numbers of configurations
-    nconf = np.array(ci.ref_conf.nconf, dtype=int)
-    nconf = convert.convert_ctypes(nconf, dtype='int32')
-    
+    nconf = np.array(ci.ref_wfn.nconf, dtype=int)
+
     # Bitci eigenvector scratch file numbers
-    vecscr1 = 0
-    vecscr1 = ctypes.c_int32(vecscr1)
-    vecscr  = []
+    ciunit   = 0
+    ciunits = []
     
     # Loop over irreps
-    for i in range(nirr):
+    for irrep in range(nirr):
     
         # Number of roots for the current irrep
-        nroots = ctypes.c_int32(ci.nstates[i])
-    
-        # Irrep number
-        irrep = ctypes.c_int32(i)
-        
+        nroots = ci.n_states(irrep)
+
         # Call to the bitci reference space diagonalisation routine
-        lib_bitci.ref_diag_mrci(ctypes.byref(irrep),
-                                ctypes.byref(nroots),
-                                confscr,
-                                nconf,
-                                ctypes.byref(vecscr1))
-        
+        args = (irrep, nroots, confunits, nconf, ciunit)
+        (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
+
         # Bitci eigenvector scratch number
-        vecscr.append(vecscr1.value)
+        ciunits.append(ciunit)
     
         # If the number of reference space configurations for the
         # current irrep is less than the requested number of roots
         # then reset nstates accordingly
-        if nroots.value < ci.nstates[i]:
-            ci.nstates[i] = nroots.value
+
+        if nroots < ci.nstates[irrep]:
+            ci.nstates[irrep] = nroots
     
     # Retrieve the reference space energies
     maxroots = max(ci.nstates)
     ener = np.zeros((nirr, maxroots), dtype=float)
-    for i in range(nirr):
-        if ci.nstates[i] > 0:
-    
-            # Energies
-            ener1 = np.zeros(ci.nstates[i], dtype=float)
-            ener1 = convert.convert_ctypes(ener1, dtype='double')
+    for irrep in range(nirr):
+        if ci.n_states(irrep) > 0:
     
             # Number of roots for the current irrep
-            nroots = ctypes.c_int32(ci.nstates[i])
-    
-            # Eigenvector Scratch file number
-            vecscr1 = ctypes.c_int32(vecscr[i])
-    
+            nroots = ci.n_states(irrep)
+
             # Retrieve the energies
-            lib_bitci.retrieve_energies(ctypes.byref(vecscr1),
-                                        ctypes.byref(nroots),
-                                        ener1)
-            ener[i][:ci.nstates[i]] = ener1[:]
-            
+            args = (ciunits[irrep], nroots, ener[irrep, :nroots])
+            (ener[irrep, :nroots]) = \
+                    libs.lib_func('retrieve_energies', args)
+        
     # Save the list of bitci eigenvector scratch numbers
-    ci.ref_conf.set_vecscr(vecscr)
+    ci.ref_wfn.set_ciunits(ciunits)
     
     # Save the reference space state energies
-    ci.ref_conf.set_ener(np.transpose(ener))
+    ci.ref_wfn.set_ener(np.transpose(ener))
     
     # Print the section header
     output.print_refdiag_summary(mol, ci)

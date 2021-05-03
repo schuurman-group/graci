@@ -64,7 +64,7 @@ contains
 
     ! Hamiltonian matrix elements
     integer(is), intent(in) :: bdim,kdim
-    real(dp), intent(inout) :: hij(:,:)
+    real(dp), intent(inout) :: hij(:)
     real(dp), intent(in)    :: bav,kav
     real(dp)                :: damp
     
@@ -86,7 +86,7 @@ contains
 !----------------------------------------------------------------------
 ! Apply the damping factor
 !----------------------------------------------------------------------
-    hij(1:bdim,1:kdim)=hij(1:bdim,1:kdim)*damp
+    hij(1:bdim*kdim)=hij(1:bdim*kdim)*damp
     
     return
     

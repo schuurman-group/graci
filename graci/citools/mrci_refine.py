@@ -5,10 +5,11 @@ Module for the refinement of the reference space in an MRCI calculation
 import sys
 import ctypes as ctypes
 import numpy as np
+import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 
-def refine_ref_space(ci, lib_bitci):
+def refine_ref_space(ci):
     """Refinement of the reference space"""
 
     # Start timing
@@ -18,50 +19,41 @@ def refine_ref_space(ci, lib_bitci):
     nirr = len(ci.nstates)
 
     # Bitci MRCI configuration scratch file numbers
-    confscrM = convert.convert_ctypes(np.array(ci.mrci_conf.confscr, 
-                                      dtype=int),dtype='int32')
-        
+    ci_confunits = np.array(ci.mrci_wfn.conf_units, dtype=int)
+
     # Bitci eigenvector scratch file numbers
-    vecscr = convert.convert_ctypes(np.array(ci.mrci_conf.vecscr, 
-                                      dtype=int), dtype='int32')
+    ci_ciunits = np.array(ci.mrci_wfn.ci_units, dtype=int)
 
     # No. roots per irrep
-    nstates = convert.convert_ctypes(ci.nstates, dtype='int32')
+    nstates = ci.nstates
 
     # Configuration selection threshold. We will just hardcode this
     # for now
-    cthrsh = convert.convert_ctypes(0.1, dtype='double')
-
-    # Minimum reference space norm
-    min_norm = convert.convert_ctypes(0., dtype='double')
+    cthrsh = 0.055
     
+    # Minimum reference space norm
+    min_norm = 0.
+
     # Scratch file numbers for the updated reference configurations
-    confscrR = convert.convert_ctypes(np.array(ci.ref_conf.confscr, 
-                                      dtype=int), dtype='int32')
+    ref_confunits = np.array(ci.ref_wfn.conf_units, dtype=int)
 
     # New number of reference space configurations per irrep
-    nconf0 = np.zeros(nirr, dtype=int)
-    nconf0 = convert.convert_ctypes(nconf0, dtype='int32')
+    ref_nconf = np.zeros(nirr, dtype=int)
     
     # Refine the reference space
-    lib_bitci.refine_ref_space(confscrM, confscrR, vecscr, nstates,
-                               ctypes.byref(cthrsh),
-                               ctypes.byref(min_norm),
-                               nconf0)
-
-    # Convert the nconf0 and confscr ctypes array to lists
-    # (note that slicing a ctypes array will automatically
-    # produce a list)
-    nconf0=nconf0[:]
-    confscrR=confscrR[:]
+    args = (ci_confunits, ref_confunits, ci_ciunits, nstates, cthrsh, 
+            min_norm, ref_nconf)
+    (confunits_ref, min_norm, ref_nconf) = \
+            libs.lib_func('refine_ref_space', args)
 
     # Set the number of reference space configurations
-    ci.ref_conf.set_nconf(nconf0)
+    ci.ref_wfn.set_nconf(ref_nconf)
     
     # Set the reference space configurations scratch file number
-    ci.ref_conf.set_confscr(confscrR)
+    ci.ref_wfn.set_confunits(ref_confunits)
         
     # Stop timing
     timing.stop('mrci_refine')
     
-    return min_norm.value
+    #return min_norm.value
+    return min_norm

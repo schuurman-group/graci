@@ -87,6 +87,11 @@ contains
     enddo
 
 !----------------------------------------------------------------------
+! Deadwood analysis
+!----------------------------------------------------------------------
+    !call deadwood(vecscr,nroots,cfg)
+    
+!----------------------------------------------------------------------
 ! Read in the state energies
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
@@ -729,7 +734,85 @@ contains
     return
     
   end subroutine exci_to_string
-    
-!######################################################################  
+  
+!######################################################################
+! deadwood: deadwood analysis
+!######################################################################
+  subroutine deadwood(vecscr,nroots,cfg)
 
+    use constants
+    use bitglobal
+    use conftype
+    use iomod
+    use utils
+    
+    implicit none
+
+    ! MRCI eigenpair scratch file numbers
+    integer(is), intent(in)  :: vecscr(0:nirrep-1)
+    
+    ! Number of roots per irrep
+    integer(is), intent(in)  :: nroots(0:nirrep-1)
+
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in)  :: cfg(0:nirrep-1)
+    
+    ! Eigenvectors
+    real(dp), allocatable    :: vec(:)
+
+    ! Everything else
+    integer(is)              :: irrep,k,i,csfdim,unit
+    integer(is), allocatable :: indx(:)
+    real(dp)                 :: normsq
+    character(len=255)       :: filename
+    
+    ! Loop over irreps
+    do irrep=0,nirrep-1
+
+       ! No. CSFs
+       csfdim=cfg(irrep)%csfdim
+       
+       ! Allocate arrays
+       allocate(vec(csfdim),indx(csfdim))
+       
+       ! Loop over roots
+       do k=1,nroots(irrep)
+
+          ! Open the output file
+          write(filename,'(a,i0,a)') &
+               'normsq_',k,trim(irreplbl(irrep,ipg))//'.dat'
+          call freeunit(unit)
+          open(unit,file=filename,form='formatted',status='unknown')
+          
+          ! Read in the eigenvector
+          call read_single_vector(vecscr(irrep),vec,csfdim,k)
+       
+          ! Sort the coefficients
+          vec=abs(vec)
+          call dsortindxa1('D',csfdim,vec,indx)
+
+          ! Squared norm of the truncated wavefunction
+          normsq=0.0d0
+          do i=1,csfdim
+             normsq=normsq+vec(indx(i))**2
+             write(unit,'(i0,x,ES10.4)') i,normsq
+             if (normsq > 0.9999d0) exit
+          enddo
+
+          ! Close the output file
+          close(unit)
+          
+       enddo
+          
+       ! Deallocate arrays
+       deallocate(vec,indx)
+       
+    enddo
+    
+    return
+    
+  end subroutine deadwood
+    
+!######################################################################
+  
 end module mrci_output

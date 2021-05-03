@@ -7,8 +7,14 @@
 !**********************************************************************
 module asci_avec
 
+  use constants
+  
   implicit none
 
+  ! Temporary Hij array
+  integer(is), private           :: harr2dim
+  real(dp), allocatable, private :: harr2(:)
+  
 contains
 
 !######################################################################
@@ -61,6 +67,10 @@ contains
     allocate(vec0(refdim,nroots))
     vec0=0.0d0
 
+    ! Hij working array
+    harr2dim=ncsfs(nomax)**2
+    allocate(harr2(harr2dim))
+    
 !----------------------------------------------------------------------
 ! Reference space eigenpairs
 !----------------------------------------------------------------------
@@ -91,6 +101,7 @@ contains
 !----------------------------------------------------------------------
     deallocate(e0)
     deallocate(vec0)
+    deallocate(harr2)
     
     return
     
@@ -406,18 +417,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I A-vector elements
@@ -456,7 +457,7 @@ contains
        
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I,kconf,&
             cfg%sop1I(:,:,ibconf1I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -469,16 +470,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf1I,kconf,&
             cfg%csfs1I,cfg%csfs0h,cfg%n1I+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_1I
@@ -546,18 +541,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1E A-vector elements
@@ -596,7 +581,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1E,kconf,&
             cfg%sop1E(:,:,ibconf1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -607,16 +592,10 @@ contains
 
        call contract_hmat_vec0(ibconf1E,kconf,&
             cfg%csfs1E,cfg%csfs0h,cfg%n1E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
 
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
 
   end subroutine avec_1E
@@ -684,18 +663,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2I elements
@@ -734,7 +703,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2I,kconf,&
             cfg%sop2I(:,:,ibconf2I),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -747,16 +716,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf2I,kconf,&
             cfg%csfs2I,cfg%csfs0h,cfg%n2I+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_2I
@@ -825,18 +788,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 2E elements
@@ -875,7 +828,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf2E,kconf,&
             cfg%sop2E(:,:,ibconf2E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -888,16 +841,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf2E,kconf,&
             cfg%csfs2E,cfg%csfs0h,cfg%n2E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_2E
@@ -966,18 +913,8 @@ contains
     integer(is), parameter     :: maxexci=2
     integer(is)                :: hlist(maxexci),plist(maxexci)
 
-    ! Temporary Hij array
-    integer(is)                :: arrdim
-    real(dp), allocatable      :: harr2(:,:)
-    
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(harr2(ncsfs(nomax),ncsfs(nomax)))
-    harr2=0.0d0
 
 !----------------------------------------------------------------------
 ! Compute the 1I1E elements
@@ -1016,7 +953,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2,ncsfs(nomax),nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf1I1E,kconf,&
             cfg%sop1I1E(:,:,ibconf1I1E),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -1029,16 +966,10 @@ contains
        ! the reference space eigenvectors
        call contract_hmat_vec0(ibconf1I1E,kconf,&
             cfg%csfs1I1E,cfg%csfs0h,cfg%n1I1E+1,cfg%n0h+1,&
-            harr2(1:bnsp,1:knsp),bnsp,knsp,&
-            Avec,vec0,csfdim,nroots,refdim)
+            bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
        
     enddo
        
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(harr2)
-    
     return
     
   end subroutine avec_1I1E
@@ -1049,7 +980,7 @@ contains
 !                     eigenvectors
 !######################################################################
   subroutine contract_hmat_vec0(bconf,kconf,bcsfs,kcsfs,bdim,kdim,&
-       harr2,bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
+       bnsp,knsp,Avec,vec0,csfdim,nroots,refdim)
 
     use constants
     use bitglobal
@@ -1063,9 +994,8 @@ contains
     integer(is), intent(in) :: kdim,bdim
     integer(is), intent(in) :: bcsfs(bdim),kcsfs(kdim)
 
-    ! Hamiltonian matrix elements
+    ! Numbers of bra and ket CSFs
     integer(is), intent(in) :: bnsp,knsp
-    real(dp), intent(in)    :: harr2(:,:)
 
     ! A-vector
     integer(is), intent(in) :: csfdim,nroots
@@ -1077,11 +1007,13 @@ contains
     
     ! Everything else
     integer(is)             :: bomega,komega,ikcsf,ibcsf
-    integer(is)             :: j
+    integer(is)             :: j,counter
 
     ! Loop over roots
     do j=1,nroots
-    
+
+       counter=0
+       
        ! Loop over ket CSFs (reference space CSFs)
        komega=0
        do ikcsf=kcsfs(kconf),kcsfs(kconf+1)-1
@@ -1091,9 +1023,10 @@ contains
           bomega=0
           do ibcsf=bcsfs(bconf),bcsfs(bconf+1)-1
              bomega=bomega+1
+             counter=counter+1
              
              Avec(ibcsf,j)=Avec(ibcsf,j)&
-                  +harr2(bomega,komega)*vec0(ikcsf,j)
+                  +harr2(counter)*vec0(ikcsf,j)
              
           enddo
                     

@@ -7,6 +7,7 @@ import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftcis as dftcis
 import graci.properties.moments as moments
+import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit
 
 # geometry section, input keywords and data types
@@ -21,6 +22,7 @@ molecule_kword =     {'charge'   : int,
                       'ri_basis' : str,
                       'use_sym'  : bool,
                       'use_df'   : bool,
+                      'rrdf'     : bool,
                       'label'    : str
                      }
 
@@ -45,7 +47,7 @@ dftmrci_kword  = {'nstates'        : int,
                   'autoras'        : bool,
                   'ciorder'        : int,
                   'refiter'        : int,
-                  'asci'           : str,
+                  'prune'          : str,
                   'diag_method'    : str,
                   'diag_tol'       : float,
                   'diag_iter'      : int,
@@ -54,16 +56,21 @@ dftmrci_kword  = {'nstates'        : int,
                   'label'          : str
                  }
 
+# DFT/CIS section input keywords and data types
 dftcis_kword   = {'nstates'        : int,
                   'hamiltonian'    : str,
                   'de_select'      : float,
                   'label'          : str
                 }
 
-# geometry section, input keywords and data types
-moments_kword   = {'bra_states' : int,
-                   'ket_states' : int
+# moments section, input keywords and data types
+moments_kword   = {'states'        : int
                   }
+
+# transition moments input keywords and data types
+transition_kword = {'init'         : int,
+                    'final'        : int
+                   }
 
 # molecule section input keywords and data typess
 spinorbit_kword = {'bra_states' : int,
@@ -90,6 +97,8 @@ def name2obj(name):
         return dftmrci.Dftmrci()
     elif name == 'moments':
         return moments.Moments()
+    elif name == 'transition':
+        return transition.Transition()
     elif name == 'spinorbit':
         return spinorbit.Spinorbit()
     else:
@@ -98,8 +107,10 @@ def name2obj(name):
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_objs = ['geometry', 'molecule', 'parameterize', 'scf', 'dftmrci', 
-              'dftmrcis', 'moments', 'spinorbit']
+valid_objs = ['geometry', 'molecule', 'parameterize', 
+              'scf', 'dftmrci', 'dftmrcis', 
+              'moments', 'transition', 'spinorbit']
+
 
 ##############################################
 kwords = {'geometry'     : geometry_kword,
@@ -109,6 +120,7 @@ kwords = {'geometry'     : geometry_kword,
           'dftcis'       : dftcis_kword,
           'dftmrci'      : dftmrci_kword,
           'moments'      : moments_kword,
+          'transition'   : transition_kword,
           'spinorbit'    : spinorbit_kword
          }
 

@@ -3,14 +3,15 @@ Module for generating the MRCI configurations from single
 and double excitations out of an arbitrary reference space
 """
 
-import sys
+import sys as sys
 import ctypes as ctypes
 import numpy as np
+import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
-def generate(scf, ci, lib_bitci):
+def generate(scf, ci):
     """generate the MRCI configurations"""
 
     # Construct the molecule object
@@ -23,90 +24,56 @@ def generate(scf, ci, lib_bitci):
     output.print_mrcispace_header()
     
     # Bitci reference configuration scratch file numbers
-    conf0scr = convert.convert_ctypes(np.array(ci.ref_conf.confscr, 
-                               dtype=int), dtype='int32')
+    ref_confunits = np.array(ci.ref_wfn.conf_units, dtype=int)
 
     # Bitci MRCI configuration scratch file numbers
-    confMscr = convert.convert_ctypes(np.zeros(nirr, dtype=int),
-                               dtype='int32')
+    ci_confunits = np.zeros(nirr, dtype=int)
 
     # Number of MRCI configurations per irrep
-    nconf = convert.convert_ctypes(np.zeros(nirr, dtype=int),
-                               dtype='int32')
-    
+    nconf = np.zeros(nirr, dtype=int)
+
     # Energy of the highest-lying reference space state
-    #emax = convert.convert_ctypes(ci.ref_conf.ener.max() - 
-    #                              ci.ref_conf.ener.min(), 
-    #                              dtype='double')
-    emax = convert.convert_ctypes(ci.ref_conf.ener.max(),
-                                  dtype='double')
-    
+    emax = ci.ref_wfn.ener[ci.ref_wfn.ener != 0].max()
+
     # CVS core MO flags
     cvsflag = np.zeros(scf.nmo, dtype=int)
     for i in ci.icvs:
         cvsflag[i-1] = 1
-    cvsflag = convert.convert_ctypes(cvsflag, dtype='int32')
     
-    # Number of roots for each irrep
-    nroots = convert.convert_ctypes(np.array(ci.nstates, 
-                               dtype=int),dtype='int32')
+    ref_ciunits = np.array(ci.ref_wfn.ci_units, dtype=int)
+    nroots      = ci.nstates
 
-    # Reference space eigenvector scratch file numbers
-    vec0scr = convert.convert_ctypes(np.array(ci.ref_conf.vecscr, 
-                               dtype=int), dtype='int32')
-    
     # Loop over irreps
-    for i in range(nirr):
+    for irrep in range(nirr):
 
-        # Irrep number
-        irrep = ctypes.c_int32(i)
+        args = (irrep, nroots, ref_confunits, ci_confunits, \
+                nconf, emax, cvsflag)
+        (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
         
-        # Construct the MRCI configurations for the i'th irrep
-        lib_bitci.generate_mrci_confs(ctypes.byref(irrep),
-                                      nroots,
-                                      conf0scr,
-                                      confMscr,
-                                      nconf,
-                                      ctypes.byref(emax),
-                                      cvsflag)
-
-        # Optional filtering based on the ASCI selection
-        # criterion
-        if ci.asci != 'off':
-            thrsh = ci.asci_thresh[ci.asci]
-            thrsh = convert.convert_ctypes(thrsh, dtype='double')
-            lib_bitci.filter_asci(ctypes.byref(thrsh),
-                                  ctypes.byref(irrep),
-                                  nroots,
-                                  confMscr,
-                                  vec0scr,
-                                  nconf)
-            
-    # Convert the nconf and confMscr ctypes array to lists
-    # (note that slicing a ctypes array will automatically
-    # produce a list)
-    nconf=nconf[:]
-    confMscr=confMscr[:]
+        # Optional pruning of the configuration space
+        if ci.prune != 'off':
+            thrsh = ci.prune_thresh[ci.prune]
+            args = (thrsh, irrep, nroots, ci_confunits, ref_ciunits, nconf)
+            nconf = libs.lib_func('mrci_prune', args)
 
     # Set the number of MRCI configurations
-    ci.mrci_conf.set_nconf(nconf)
+    ci.mrci_wfn.set_nconf(nconf)
     
     # Set the MRCI configuration scratch file number
-    ci.mrci_conf.set_confscr(confMscr)
+    ci.mrci_wfn.set_confunits(ci_confunits)
 
     # Retrieve the MRCI configuration scratch file names
-    name     = convert.convert_ctypes(' '*255, dtype='string')
     confname = []
+    name     = ' '
     for i in range(nirr):
-        scrnum = convert.convert_ctypes(ci.mrci_conf.confscr[i],
-                                        dtype='int32')
-        lib_bitci.retrieve_filename(ctypes.byref(scrnum), name)
-        confname.append(bytes.decode(name.value))
-    ci.mrci_conf.set_confname(confname)
-    
+        args = (ci.mrci_wfn.conf_units[i], name)
+        name = libs.lib_func('retrieve_filename', args)
+        confname.append(name)
+    ci.mrci_wfn.set_confname(confname)
+
     # Stop timing
     timing.stop('mrci_space')
     
     return
 
-
+ 

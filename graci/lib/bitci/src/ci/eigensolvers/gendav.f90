@@ -125,11 +125,13 @@ contains
 ! Fill in the indices of the CSFs that will *not* be coupled in the
 ! construction of the preconditioner
 !----------------------------------------------------------------------
-    idiag=1
-    do i=1,subdim
-       idiag(s2f(i))=0
-    enddo
-    
+    if (ipre == 2) then
+       idiag=1
+       do i=1,subdim
+          idiag(s2f(i))=0
+       enddo
+    endif
+       
 !----------------------------------------------------------------------
 ! Perform the generalised Davidson iterations
 !----------------------------------------------------------------------
@@ -252,7 +254,7 @@ contains
     deallocate(rho1)
     deallocate(rnorm)
     deallocate(iconv)
-    deallocate(idiag)
+    if (allocated(idiag)) deallocate(idiag)
     if (allocated(s2f)) deallocate(s2f)
     if (allocated(subeig)) deallocate(subeig)
     if (allocated(subvec)) deallocate(subvec)

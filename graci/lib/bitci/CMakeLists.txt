@@ -18,6 +18,19 @@ if (CBINDING)
 endif()
 
 #
+# Profile-guided optimisation (ifort only)
+#
+option(PGO_GEN "Profile-guided optimisation generation" OFF)
+option(PGO_USE "Profile-guided optimisation use" OFF)
+if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+  if (PGO_GEN)
+    add_definitions(-prof-gen -prof-dir=../)
+  elseif (PGO_USE)
+    add_definitions(-prof-use -prof-dir=../)
+  endif()
+endif()
+  
+#
 # HDF5 include and lib directories
 #
 if (HDF5_INC_DIR)
@@ -35,9 +48,9 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
         -mavx -lblas -llapack")
   set(bounds "-fbounds-check")
 endif()
-if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(dialect "-g -O3 -cpp -free -implicitnone -traceback \
-        -xCORE-AVX2 -mkl -diag-disable 7423 -qopenmp")
+if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")  
+  set(dialect "-w -g -O3 -cpp -free -implicitnone -traceback -mkl -qopenmp \
+    -march=native -auto -ipo -qopt-prefetch")
   set(bounds "-check bounds")
 endif()
 
@@ -45,31 +58,26 @@ list(APPEND CMAKE_Fortran_FLAGS_DEBUG ${bounds})
 list(APPEND CMAKE_Fortran_FLAGS ${dialect})
 
 #
-# int_pyscf include and lib directories
+# Add bitCI library target
 #
-set(INT_PYSCF_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/modules)
-include_directories(${INT_PYSCF_INC_DIR})
-set(INT_PYSCF_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../integrals/lib)
-link_directories(${INT_PYSCF_LIB_DIR})
+file(GLOB_RECURSE CIsources
+  src/ci/* src/include/* src/io/* src/utils/* src/spin_coupling/*
+  src/slater_condon/* src/conftype/* ../integrals/src/*)
+add_library(bitci SHARED ${CIsources})
 
 #
-# Add the library targets
+# Add bitSI library target
 #
-# bitCI
-file(GLOB_RECURSE CIsources src/ci/* src/include/*)
-add_library(bitci SHARED ${CIsources})
-# bitSI
-file(GLOB_RECURSE SIsources src/si/* src/include/*)
+file(GLOB_RECURSE SIsources
+  src/si/* src/include/* src/io/* src/utils/* src/spin_coupling/*
+  src/slater_condon/* src/conftype/* ../integrals/src/*)
 add_library(bitsi SHARED ${SIsources})
 
-
-# Link to int_pyscf
-target_link_libraries(bitci -lint_pyscf)
+# Link the targets to the HDF5 Fortran library
+target_link_libraries(bitci -lhdf5_fortran)
+target_link_libraries(bitsi -lhdf5_fortran)
 
 #
 # Install
 #
-# bitCI
-install(TARGETS bitci DESTINATION lib)
-# bitSI
-install(TARGETS bitsi DESTINATION lib)
+install(TARGETS bitci bitsi DESTINATION lib)

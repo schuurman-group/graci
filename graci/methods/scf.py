@@ -19,7 +19,7 @@ class Scf:
     def __init__(self):
         # user defined input paramaters
         self.xc        = 'hf'
-        self.label     = 'default'
+        self.label     = 'scf'
 
         # computed quantities
         self.energy    = None
@@ -43,7 +43,7 @@ class Scf:
         pymol = mol.pymol()
 
         output.print_scf_header()
-   
+
         # if var.d3_inp['xc']='hf', use canonical hf orbitals
         if self.xc == 'hf': 
             if mol.use_df:
@@ -75,13 +75,13 @@ class Scf:
         # save integrals
         if mol.use_df:
             mf.with_df.auxbasis       = mol.ri_basis
-            # this will be generated during the calculation, 
+            # this will be generated during the calculation,
             # saved upon completion
             mf.with_df._cderi_to_save = output.file_names['2ei']
         else:
             if self.xc != 'hf':
                 mf.with_df = False    
-                
+
         # run the dft computation
         self.energy = mf.kernel()
 
@@ -89,8 +89,7 @@ class Scf:
         if not mf.converged:
             sys.exit('Reference SCF computation did not converge.')
         
-        # orb_sym are the symmetry labels
-    
+        # orb_sym are the symmetry labels 
         if pymol.symmetry: 
             orb_sym = symm.label_orb_symm(pymol, pymol.irrep_name, 
                                    pymol.symm_orb, mf.mo_coeff)
@@ -151,6 +150,15 @@ class Scf:
 
 
         return
+
+    def energy(self, state=0):
+        """return the energy of state 'state'"""
+
+        if state != 0:
+            output.print_message('Calling scf.energy() for state != 0')
+
+        return self.energy
+
 
     def slater_dets(self, state):
         """return the slater determinant list for state 'state'"""

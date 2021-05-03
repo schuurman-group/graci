@@ -618,6 +618,7 @@ contains
     
     ! Everything else
     integer(is)              :: i,bcsf,kcsf
+    real(dp), dimension(1)   :: hij
     
 !----------------------------------------------------------------------
 ! Initialisation
@@ -710,8 +711,8 @@ contains
           ! Note that we will have to take account of the nexci=0
           ! case once we implement the Dusseldorf group Hamiltonians...
           if (nexci > 0) then
-             call hij_dftmrci_batch(subhmat(bcsf:bcsf,kcsf:kcsf),1,1,&
-                  subavii(bcsf),subavii(kcsf))
+             hij=reshape(subhmat(bcsf:bcsf,kcsf:kcsf),(/1/))
+             call hij_dftmrci_batch(hij,1,1,subavii(bcsf),subavii(kcsf))
           endif
           
           ! Fill in the upper triangle

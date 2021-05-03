@@ -30,7 +30,9 @@
 
 \begin{document}
 
-
+%----------------------------------------------------------------------
+% Representation of the electronic Hamiltonian
+%----------------------------------------------------------------------
 \chapter{CSF representation of the electronic Hamiltonian}
 \section{CSF expansion of the electronic wavefunctions}
 Following Segal and Wetmore\cite{segal_ci_matrix_elements_1975}, let
@@ -134,7 +136,7 @@ operators obey the following commutation relation:
   \delta_{il} \hat{E}_{k}^{j}.
 \end{equation}
 
-\subsubsection{Number operators}
+\subsubsection{Number operators}\label{sec:number_operators}
 The diagonal singlet excitation operator $\hat{E}_{i}^{i}$ corresponds
 to a number operator in the sense that taking it's expectation value
 with respect to any CSF $| \text{w} \omega \rangle$ yields the
@@ -187,6 +189,9 @@ couplings are zero, i.e.,
 This is again easily verified by
 inserting the Slater determinant expansions of the two CSFs.
 
+%----------------------------------------------------------------------
+% Hamiltonian matrix working equations
+%----------------------------------------------------------------------
 \subsection{Hamiltonian matrix elements}
 Using the above properties of the singlet excitation operators and the
 form of the electronic Hamiltonian given in Equation
@@ -480,6 +485,45 @@ $b$. Then our working equation simply reads
     V_{ajbi} \eta_{ab}^{ji}(\text{w}',\omega',\text{w},\omega) \right]
   \left[ (1+\delta_{ab}) (1+\delta_{ij}) \right]^{-1}.
 \end{equation}
+
+%----------------------------------------------------------------------
+% (Transition) Density matrix working equations
+%----------------------------------------------------------------------
+\chapter{(Transition) Density matrices}
+\section{One-electron reduced density matrices}
+Let the $I$'th electronic state be denoted by
+
+\begin{equation}
+  | \Psi_{I} \rangle = \sum_{\text{w}\omega} =
+  C_{\text{w}\omega}^{(I)} | \text{w} \omega \rangle.
+\end{equation}
+
+The one-electron reduced density matrix (1-RDM) for the state $|
+\Psi_{I} \rangle$, $\boldsymbol{\rho}^{(I)}$, has elements
+
+\begin{equation}
+  \rho_{pq}^{(I)} = \langle \Psi_{I} | \hat{E}_{p}^{q} | \Psi_{I}
+  \rangle.
+\end{equation}
+
+By making use of the relations given in Section
+\ref{sec:number_operators}, we arrive at the following working
+equations for the 1-RDMs:
+
+\begin{equation}
+  \rho_{pp}^{(I)} = \sum_{\text{w}\omega} \left|
+  C_{\text{w}\omega}^{(I)} \right|^{2} \text{w}_{p},
+\end{equation}
+
+\begin{equation}
+  \rho_{pq}^{(I)} = \sum_{\substack{\text{w}\ne\text{w}'
+      \\ \omega\ne\omega'}} C_{\text{w}'\omega'}^{(I)}
+  C_{\text{w}\omega}^{(I)}
+  \eta_{p}^{q}(\text{w}',\omega',\text{w},\omega), \hspace{0.5cm}
+  p \ne q.
+\end{equation}
+
+\section{One-electron transition density matrices}
 
 %----------------------------------------------------------------------
 % Bit string representation of configurations

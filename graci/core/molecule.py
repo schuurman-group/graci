@@ -21,6 +21,7 @@ class Molecule:
         self.basis    = ''
         self.ri_basis = ''
         self.use_df   = False
+        self.rrdf     = False
         self.label    = 'default'
 
         # the following are determined based on user

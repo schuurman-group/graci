@@ -1,19 +1,19 @@
 !**********************************************************************
-! Additional filtering of the MRCI configurations based on their
+! Additional pruning of the MRCI configurations based on their
 ! interaction with the reference space configurations
 !**********************************************************************
 
 !######################################################################
-! filter_asci: Filtering out of MRCI configurations based on the
-!              Adaptive Sampling Configuration Interaction (ASCI)
-!              selection algorithm. For a description of this, see
-!              J. Chem. Phys., 145, 044112 (2016).
+! mrci_prune: Pruning of the MRCI configuration space based on the
+!             Adaptive Sampling Configuration Interaction (ASCI)
+!             selection algorithm. For a description of this, see
+!             J. Chem. Phys., 145, 044112 (2016).
 !######################################################################
 #ifdef CBINDING
-subroutine filter_asci(Athrsh,irrep,nroots,confscr,vec0scr,nconf) &
-     bind(c,name="filter_asci")
+subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf) &
+     bind(c,name="mrci_prune")
 #else
-subroutine filter_asci(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
+subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
 #endif
     
   use constants
@@ -67,8 +67,8 @@ subroutine filter_asci(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
 !----------------------------------------------------------------------
   ! Section header
   write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'ASCI configuration filtering for the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
+  write(6,'(3(x,a))') 'Pruning of the',trim(irreplbl(irrep,ipg)),&
+       'subspace'
   write(6,'(52a)') ('-',i=1,52)
 
   ! Configuration selection threshold
@@ -150,6 +150,6 @@ subroutine filter_asci(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
 
   return
     
-end subroutine filter_asci
+end subroutine mrci_prune
 
 !######################################################################
