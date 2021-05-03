@@ -149,7 +149,7 @@ def init_bitci(mol, scf, ci):
     nmo     = convert.convert_ctypes(scf.nmo,    dtype='int32')
     naux    = convert.convert_ctypes(scf.naux,   dtype='int32')
     use_df  = convert.convert_ctypes(mol.use_df, dtype='logical')
-    use_naf = convert.convert_ctypes(mol.naf,    dtype='logical')
+    use_rr  = convert.convert_ctypes(mol.rrdf,   dtype='logical')
     thresh  = convert.convert_ctypes(1e-14,      dtype='double')
     max_mem = convert.convert_ctypes(-1,         dtype='int32')   
 
@@ -157,7 +157,7 @@ def init_bitci(mol, scf, ci):
     lib_bitci.intpyscf_initialise(ctypes.byref(nmo),
                                   ctypes.byref(naux),
                                   ctypes.byref(use_df),
-                                  ctypes.byref(use_naf),
+                                  ctypes.byref(use_rr),
                                   ctypes.byref(thresh),
                                   ctypes.byref(max_mem))
     

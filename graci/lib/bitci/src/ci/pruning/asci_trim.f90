@@ -23,17 +23,17 @@ contains
     implicit none
 
     ! Dimensions
-    integer(is), intent(in) :: csfdim,confdim,nroots
-    integer(is), intent(in) :: n1I,n2I,n1E,n2E,n1I1E
+    integer(is), intent(in)  :: csfdim,confdim,nroots
+    integer(is), intent(in)  :: n1I,n2I,n1E,n2E,n1I1E
     
     ! MRCI configuration derived type
-    type(mrcfg), intent(in) :: cfg
+    type(mrcfg), intent(in)  :: cfg
 
     ! Configuration selection threshold
-    real(dp), intent(in)    :: Athrsh
+    real(dp), intent(in)     :: Athrsh
     
     ! A-vectors
-    real(dp), intent(in)    :: Avec(csfdim,nroots)
+    real(dp), intent(in)     :: Avec(csfdim,nroots)
 
     ! Surviving configuration flags
     integer(is), intent(out) :: i1I(n1I),i2I(n2I),i1E(n1E),i2E(n2E),&
@@ -41,7 +41,7 @@ contains
     
     ! Everything else
     integer(is)              :: n,ioff,csf,root
-
+    
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
