@@ -222,11 +222,8 @@ def parse_value(valstr):
 def check_input(run_list):
     """Checks on the user-supplied input"""
     
-    # Make sure that nstates is an array - in the case of C1
-    # symmetry this will be a single integer, but it needs
-    # to be a numpy array for use later on
     for obj in run_list:
-
+        
         # Make sure that nstates is an array - in the case of C1
         # symmetry this will be a single integer, but it needs
         # to be a numpy array for use later on
@@ -249,7 +246,13 @@ def check_input(run_list):
         if 'icvs' in params.kwords[obj.name()].keys():
             if isinstance(obj.icvs, int):
                 obj.icvs = np.array([obj.icvs], dtype=int)
-        
+
+        # If RR-DF is enabled, make sure that the DF flag is
+        # set to True
+        if 'use_rrdf' in params.kwords[obj.name()].keys():
+            if (obj.use_rrdf and not obj.use_df):
+                obj.use_df = True
+                
     return
     
 #
