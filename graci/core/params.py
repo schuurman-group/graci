@@ -111,6 +111,7 @@ valid_objs = ['geometry', 'molecule', 'parameterize',
               'scf', 'dftmrci', 'dftmrcis', 
               'moments', 'transition', 'spinorbit']
 
+
 ##############################################
 kwords = {'geometry'     : geometry_kword,
           'molecule'     : molecule_kword,
