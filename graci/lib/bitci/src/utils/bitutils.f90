@@ -149,5 +149,40 @@ contains
   end subroutine list_from_bitstring
   
 !######################################################################
+! get_chunks: splits a 64-bit bit string I into 32-bit chunks
+!######################################################################
+  subroutine get_chunks(dim,I,chunks)
+
+    use constants
+    
+    implicit none
+
+    ! Input 64-bit bit string
+    integer(is), intent(in)  :: dim
+    integer(ib), intent(in)  :: I(dim)
+
+    ! Output 32-bit chunks
+    integer(is), intent(out) :: chunks(2*dim)
+
+    ! Bit masks
+    integer(ib), parameter :: mask1=4294967295  ! 11...100...0
+    integer(ib), parameter :: mask2=-4294967296 ! 00...011...1
+
+    ! Everything else
+    integer(is)            :: k,n
+    
+    n=0
+    do k=1,dim
+       n=n+1
+       chunks(n)=iand(mask1,I(k))
+       n=n+1
+       chunks(n)=ishft(iand(mask2,I(k)),-32)
+    enddo
+
+    return
+    
+  end subroutine get_chunks
+  
+!######################################################################
   
 end module bitutils

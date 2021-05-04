@@ -2,9 +2,8 @@
 ! dethash: Routines for the creation of a hash table to store the
 !          unique determinants, configurations and SOPs.
 !----------------------------------------------------------------------
-!          Uses open addressing with quadratic probing.
-!          The hash algorithm used is the boost hash_combine function 
-!          modified for use with 64-bit integer array keys.
+!          Uses open addressing with linear probing and the 32-bit
+!          MurmurHash3 hash function.
 !----------------------------------------------------------------------
 !          The resizing algorithm is quite crude: upon increasing the
 !          number of buckets, all the previous keys are re-mapped.
@@ -22,6 +21,7 @@
 module dethash
 
   use constants
+  use detutils, only: det_hash
   
   private
 
@@ -100,9 +100,9 @@ contains
     h%n_buckets=initial_size
 
     ! Round up the initial hash table size to a power of 2
-    ! Note that this is essential for both the quadratic probing
-    ! scheme used and the replacement of modulo operations by
-    ! iand operations
+    ! Note that this is essential for both the replacement of modulo
+    ! operations by iand operations, and is also necessary if we
+    ! ever switch to quadratic probing
     h%n_buckets=2**ceiling(log(dble(h%n_buckets))/log(2.0d0))
 
     ! Set the number of keys stored to zero
@@ -176,9 +176,8 @@ contains
 !----------------------------------------------------------------------
 ! Get the hash index for the determinant key
 !----------------------------------------------------------------------
-!    i1=hash_index(h,key)
-
-    hash=key_hash(h,key)
+    !hash=key_hash(h,key)
+    hash=det_hash(key)
     nb=h%n_buckets
     i1=iand(hash,nb-1)+1
     
@@ -198,7 +197,10 @@ contains
           ! The key is already stored in the hash table
           exit
        else
-          i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Quadratic probing
+          !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Linear probing
+          i1=iand(hash+step,nb-1)+1
        endif
        
     enddo
@@ -206,77 +208,7 @@ contains
     return
     
   end function get_index
-
-!######################################################################
-! key_hash: returns the hash of a determinant key. Uses a modified
-!            version of the boost hash_combine function.
-!######################################################################
-    function key_hash(h,key) result(hash)
-
-    use constants
-
-    implicit none
-
-    class(dhtbl), intent(in) :: h
-    integer(ib), intent(in)  :: key(n_int,2)
-    integer(ib)              :: hash
-    integer(is)              :: i,k
-    integer(ib)              :: nb
-
-!----------------------------------------------------------------------
-! Hash of the determinant key
-!----------------------------------------------------------------------
-    hash=0_il
-    do i=1,2
-       do k=1,n_int
-          hash=ieor(hash,key(k,i)+7046029254386353130_il+ishft(hash,6)&
-               +ishft(hash,-2))
-       enddo
-    enddo
-    
-    return
-    
-  end function key_hash
   
-!######################################################################
-! hash_index: returns the hash of a key modulo the size of the hash
-!             table. Uses a modified version of the boost hash_combine
-!             function
-!######################################################################
-  function hash_index(h,key) result(hindx)
-
-    use constants
-
-    implicit none
-
-    class(dhtbl), intent(in) :: h
-    integer(ib), intent(in)  :: key(n_int,2)
-    integer(ib)              :: hindx
-    integer(ib)              :: hash
-    integer(is)              :: i,k
-    integer(ib)              :: nb
-
-!----------------------------------------------------------------------
-! Hash of the determinant key
-!----------------------------------------------------------------------
-    hash=0_il
-    do i=1,2
-       do k=1,n_int
-          hash=ieor(hash,key(k,i)+7046029254386353130_il+ishft(hash,6)&
-               +ishft(hash,-2))
-       enddo
-    enddo
-
-!----------------------------------------------------------------------
-! Hash of the determinant key modulo the hash table size
-!----------------------------------------------------------------------
-    nb=h%n_buckets
-    hindx=iand(hash,nb-1)+1
-    
-    return
-    
-  end function hash_index
-    
 !######################################################################
 ! keys_equal: returns .true. if the two determinant keys are equal,
 !             .false. otherwise
@@ -335,7 +267,8 @@ contains
     !
     ! Get the hash of the key
     !
-    hash=key_hash(h,key)
+    !hash=key_hash(h,key)
+    hash=det_hash(key)
     
     !
     ! Get the hash index for the determinant key
@@ -359,7 +292,10 @@ contains
           ! The key is already stored in the hash table
           exit
        else
-          i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Quadratic probing
+          !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Linear probing
+          i1=iand(hash+step,nb-1)+1
        endif
 
     enddo
@@ -368,7 +304,7 @@ contains
 ! Return if the key is already stored in the hash table
 !----------------------------------------------------------------------
     if (indx.eq.-1) return
-       
+
 !----------------------------------------------------------------------
 ! Update the number of filled buckets
 !----------------------------------------------------------------------
@@ -511,7 +447,10 @@ contains
              stop
              exit
           else
-             i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+             ! Quadratic probing
+             !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+             ! Linear probing
+             i1=iand(hash+step,nb-1)+1
           endif
           
        enddo
@@ -690,7 +629,8 @@ contains
     !
     ! Get the hash of the key
     !
-    hash=key_hash(h,key)
+    !hash=key_hash(h,key)
+    hash=det_hash(key)
     
     !
     ! Get the hash index for the determinant key
@@ -714,7 +654,10 @@ contains
           indx=i1
           exit
        else
-          i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Quadratic probing
+          !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Linear probing
+          i1=iand(hash+step,nb-1)+1
        endif
 
     enddo

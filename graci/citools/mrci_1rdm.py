@@ -52,8 +52,8 @@ def rdm(ci, scf):
     # Save the 1-RDMs
     ci.mrci_wfn.set_dmat(dmat_all)
 
-    # Test
-    #occ, vec = np.linalg.eigh(dmat_all[1][:,:,0])
+    ## Test
+    #occ, vec = np.linalg.eigh(dmat_all[0][:,:,1])
     #indx = np.abs(occ).argsort()[::-1]
     #occ  = occ[indx]
     #vec  = vec[:, indx]
