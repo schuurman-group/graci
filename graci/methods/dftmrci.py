@@ -46,9 +46,9 @@ class Dftmrci:
         self.label          = 'dftmrci'
 
         # class variables
-        self.prune_thresh   = {'tight'  : 1e-4,
-                               'normal' : 1e-3,
-                               'loose'  : 3e-3}
+        self.prune_thresh   = {'tight'  : 0.9950,
+                               'normal' : 0.9925,
+                               'loose'  : 0.9900}
         self.niter          = 0
         self.ref_wfn        = None
         self.mrci_wfn       = None
