@@ -13,3 +13,6 @@ cm2au    = 1. / au2cm
 bohr2ang = 0.529177249
 # angstrom to bohr
 ang2bohr  = 1. / bohr2ang
+
+#CHARGE CONVERSIONS
+au2debye  = 2.541580

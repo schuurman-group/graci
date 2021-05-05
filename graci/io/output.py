@@ -2,8 +2,10 @@
 
 import sys
 import ctypes
+import os as os
 import numpy as np
 from contextlib import contextmanager
+import pyscf.tools.molden as molden
 import graci.utils.constants as constants
 import graci.utils.timing as timing
 import graci.core.params as params
@@ -203,3 +205,62 @@ def print_cleanup():
         outfile.flush()
         
     return
+
+#
+def print_nos_molden(mol, irr, state, occ, orb):
+    """print out the orbitals, labeled and ordered by 'occ' array
+       vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
+    
+    file_name = 'orbs/natorb.'+str(mol.irreplbl[irr])+'.state'+str(state)
+
+    # if a file called 'orbs' exists, delete it
+    if os.path.isfile('orbs'):
+        os.remove('orbs')
+
+    # if orbs directory doesn't exist, create it
+    if not os.path.exists('orbs'):
+        os.mkdir('orbs')
+
+    # dump the nos to file in the orbs directory
+    molden.from_mo(mol.pymol(), file_name, orb, spin='Alpha', 
+                   symm=None, occ=occ, ignore_h=True)
+
+    return
+
+#
+def print_moments_header(irr):
+    """prints out header for moments section"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        ostr = '\n\n Dipole and Quadrupole Moments, Symmetry: '+\
+                str(irr)+' ---------------'
+        outfile.write(ostr)
+
+#
+def print_moments(irr, st, mu, q2):
+    """prints out the dipole moment vector"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n state: '+str(st+1))
+        ostr = '\n dipole vector[au]: {:10.6f} {:10.6f} {:10.6f} '+\
+                'total: {:10.6f} D'
+        outfile.write(ostr.format(mu[0],mu[1],mu[2],
+                        np.linalg.norm(mu)*constants.au2debye))
+
+        st_str = str(irr)+'('+str(st+1)+')'
+        ostr = '\n <'+st_str+' | r^2 | '+st_str+'> (a.u.): {:10.6f}'
+        outfile.write(ostr.format(q2))
+
+    return
+
+def print_quad(irr, st, qtensor):
+    """prints out the quadrupole moment tensor"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n quadrupole moment tensor -- \n')
+        for i in range(3):
+            outfile.write('\n {:10.6f}   {:10.6f}   {:10.6f}'.
+                          format(qtensor[i,:]))
+              
+
+
