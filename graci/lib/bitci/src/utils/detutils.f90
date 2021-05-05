@@ -289,40 +289,13 @@ contains
     
   end subroutine get_unocc
 
-!!######################################################################
-!! det_hash: hash of the bit string representation of a determinant
-!!######################################################################
-!  function det_hash(det) result(hash)
-!    
-!    use constants
-!    use bitglobal
-!    
-!    implicit none
-!
-!    integer(ib)             :: hash
-!    integer(ib), intent(in) :: det(n_int,2)
-!    integer                 :: i,k
-!
-!    hash=0_ib
-!    
-!    do i=1,2
-!       do k=1,n_int
-!          hash=ieor(hash,det(k,i)+7046029254386353130_ib+ishft(hash,6)&
-!               +ishft(hash,-2))
-!       enddo
-!    enddo
-!    
-!    return
-!    
-!  end function det_hash
-
 !######################################################################
 ! det_hash: hash of the bit string representation of a determinant
+!           using the MurmerHash3 32-bit hash function
 !######################################################################
   function det_hash(det) result(hash)
 
     use constants
-    use bitutils
     
     implicit none
 
@@ -333,8 +306,13 @@ contains
     integer(is)             :: chunks(4*n_int)
     integer(is)             :: len
     integer(is)             :: seed
-    integer(is)             :: i,k,t
-    
+    integer(is)             :: i,j,k,t
+
+    ! Bit masks
+    integer(ib), parameter :: mask1=4294967295  ! 11...100...0
+    integer(ib), parameter :: mask2=-4294967296 ! 00...011...1
+
+    ! MurmurHash3 32-bit hash function parameters
     integer(is), parameter  :: c1=-862048943 ! 0xcc9e2d51
     integer(is), parameter  :: c2=461845907  ! 0x1b873593
     integer(is), parameter  :: m=5
@@ -343,12 +321,20 @@ contains
     integer(is), parameter  :: q=-1028477387 ! 0xc2b2ae35
     integer(is), parameter  :: r1=15
     integer(is), parameter  :: r2=13
-
+    
 !----------------------------------------------------------------------
 ! Split the 64-bit bit strings into 32-bit chunks
 !----------------------------------------------------------------------
-    call get_chunks(2*n_int,det,chunks)
-
+    j=0
+    do k=1,2
+       do i=1,n_int
+          j=j+1
+          chunks(j)=iand(mask1,det(i,k))
+          j=j+1
+          chunks(j)=ishft(iand(mask2,det(i,k)),-32)
+       enddo
+    enddo
+    
 !----------------------------------------------------------------------    
 ! Compute the hash function value
 !----------------------------------------------------------------------

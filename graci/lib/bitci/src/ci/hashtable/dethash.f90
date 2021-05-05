@@ -35,6 +35,9 @@ module dethash
      ! Number of keys stored in the hash table
      integer(ib)                :: n_keys_stored=0
 
+     ! Number of collisions
+     integer(ib)                :: n_collisions=0
+     
      ! Keys (determinants) stored in the hash table
      integer(ib), allocatable   :: keys(:,:,:)
 
@@ -180,7 +183,7 @@ contains
     hash=det_hash(key)
     nb=h%n_buckets
     i1=iand(hash,nb-1)+1
-    
+
 !----------------------------------------------------------------------
 ! Loop over buckets, and check to see if the key already exists in
 ! the table or if another key with the same index is already present
@@ -252,7 +255,8 @@ contains
     integer(ib), intent(in)     :: key(n_int,2)
     integer(ib)                 :: hash,indx
     integer(ib)                 :: nb,i1,step
-
+    logical                     :: collision
+    
 !----------------------------------------------------------------------
 ! Get the key index
 !----------------------------------------------------------------------
@@ -275,11 +279,12 @@ contains
     !
     nb=h%n_buckets
     i1=iand(hash,nb-1)+1
-    
+
     !
     ! Loop over buckets, and check to see if the key already exists in
     ! the table or if another key with the same index is already present
     !
+    collision=.false.
     ! Loop over buckets
     do step=1,h%n_buckets
        
@@ -292,6 +297,7 @@ contains
           ! The key is already stored in the hash table
           exit
        else
+          collision=.true.
           ! Quadratic probing
           !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
           ! Linear probing
@@ -305,6 +311,11 @@ contains
 !----------------------------------------------------------------------
     if (indx.eq.-1) return
 
+!----------------------------------------------------------------------
+! Update the number of collisions
+!----------------------------------------------------------------------
+    if (collision) h%n_collisions=h%n_collisions+1
+    
 !----------------------------------------------------------------------
 ! Update the number of filled buckets
 !----------------------------------------------------------------------
