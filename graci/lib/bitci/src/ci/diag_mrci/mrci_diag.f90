@@ -194,7 +194,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
            ipre=2
         endif
      endif
-     
+
      ! Perform the iterative diagonalisation
      select case(ialg)
      case(1)

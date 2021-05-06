@@ -309,8 +309,8 @@ contains
     integer(is)             :: i,j,k,t
 
     ! Bit masks
-    integer(ib), parameter :: mask1=4294967295_ib  ! 11...100...0
-    integer(ib), parameter :: mask2=-4294967296_ib ! 00...011...1
+    integer(ib), parameter  :: mask1=4294967295_ib  ! 11...100...0
+    integer(ib), parameter  :: mask2=-4294967296_ib ! 00...011...1
 
     ! MurmurHash3 32-bit hash function parameters
     integer(is), parameter  :: c1=-862048943 ! 0xcc9e2d51
@@ -321,7 +321,7 @@ contains
     integer(is), parameter  :: q=-1028477387 ! 0xc2b2ae35
     integer(is), parameter  :: r1=15
     integer(is), parameter  :: r2=13
-    
+
 !----------------------------------------------------------------------
 ! Split the 64-bit bit strings into 32-bit chunks
 !----------------------------------------------------------------------

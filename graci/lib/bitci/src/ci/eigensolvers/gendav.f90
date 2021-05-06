@@ -419,7 +419,7 @@ contains
        call residual_vectors(matdim,blocksize,tol)
 
        ! Print the report for this iteration
-       call print_report(k,nstates,tol)
+       call print_report(k,nstates)
        
        ! Stop here if all the roots are converged
        if (converged(nstates,tol)) exit
@@ -848,8 +848,6 @@ contains
     ! Everything else
     integer(is)             :: i,k
 
-    write(6,'(/,3x,a)') '* Collapsing the subspace *'
-    
 !----------------------------------------------------------------------
 ! Compute the Ritz vectors. We will use the sigvec array as a working
 ! array here to store the Ritz vectors
@@ -901,9 +899,6 @@ contains
     ! Convergence threshold
     real(dp), intent(in)    :: tol
     
-    ! Everything else
-    integer(is)             :: i,nconv
-
     nconv=sum(iconv(1:nstates))
 
     if (nconv >= nstates) then
@@ -920,7 +915,7 @@ contains
 ! print_report: Outputs the energies, residual norms, etc. for the
 !               current iteration
 !######################################################################
-  subroutine print_report(k,nstates,tol)
+  subroutine print_report(k,nstates)
 
     use constants
     use bitglobal
@@ -932,46 +927,31 @@ contains
 
     ! Dimensions
     integer(is), intent(in) :: nstates
-
-    ! Convergence threshold
-    real(dp), intent(in)    :: tol
     
     ! Everything else
     integer(is)             :: i
-    character(len=1)        :: aconv
     
 !----------------------------------------------------------------------
 ! Table header
 !----------------------------------------------------------------------
     if (k == 1) then
-       write(6,'(/,53a)') ('*',i=1,53)
-       write(6,'(4(a,6x))') &
-            'Iteration','Energies','Residuals','Converged'
-       write(6,'(53a)') ('*',i=1,53)
+       write(6,'(/,43a)') ('*',i=1,43)
+       write(6,'(x,a,2x,a,3x,a,7x,a)') &
+            'Iteration','Nvec','Max rnorm','Nconv'
+       write(6,'(43a)') ('*',i=1,43)
     endif
-
+    
 !----------------------------------------------------------------------
 ! Information for the current iteration
 !----------------------------------------------------------------------
-    do i=1,nstates
+    write(6,'(x,i4,7x,i4,3x,E13.7,3x,i4)') &
+         k,currdim,maxval(rnorm(1:nstates)),sum(iconv(1:nstates))
 
-       ! Converged?
-       if (rnorm(i) < tol) then
-          aconv='y'
-       else
-          aconv='n'
-       endif
-
-       ! Energies and residual norms
-       if (i == 1) then
-          write(6,'(/,i4,10x,F12.7,3x,E13.7,2x,a1)') &
-               k,rho(i)+escf+enuc,rnorm(i),aconv
-       else
-          write(6,'(14x,F12.7,3x,E13.7,2x,a1)') &
-               rho(i)+escf+enuc,rnorm(i),aconv
-       endif
-       
-    enddo
+!----------------------------------------------------------------------    
+! Table footer
+!----------------------------------------------------------------------
+    if (sum(iconv(1:nstates)) == nstates) &
+         write(6,'(43a)') ('*',i=1,43)
     
 !----------------------------------------------------------------------
 ! Flush stdout
