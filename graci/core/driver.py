@@ -59,7 +59,9 @@ class Driver:
         for mol in mol_arr:
             for scf in scf_arr:
                 for method in method_arr:
-                    method.run(mol, scf)
+                    method.set_mol(mol)
+                    method.set_scf(scf)
+                    method.run()
 
         return
 

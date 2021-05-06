@@ -2,10 +2,10 @@
 module for compute moments of the dipole operator
 for a given electronic state
 """
-
+import graci.core.libs as libs
 
 class Transition:
-    """Moment class for determing permanent and transition moments, right now
+    """Transition class for determing transition moments, right now
        it will only accept calculations for which the 'Molecule' and 'Scf' 
        objects are the same"""
     def __init__(self):
@@ -32,8 +32,7 @@ class Transition:
            used."""
 
         # compute the dipole moment integrals
-        mu_ao = self.mol.pymol().intor('int1e_z')
-        q_ao  = self.mol.pymol().intor('int1e_zz')
+        mu_ao = self.mol.pymol().intor('int1e_r')
 
         # contract with the MOs
         mu_mo = np.matmul(np.matmul(scf.orbs.T, mu_ao), scf.orbs)
@@ -47,7 +46,7 @@ class Transition:
                 self.trans_list.append([ket, bra])
 
         # what happens depends on the libSI interface
-
+                 
 
 
 

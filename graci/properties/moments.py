@@ -9,9 +9,11 @@ class Moments:
     """Moment class for determing permanent and transition moments, right now
        it will only accept calculations for which the 'Molecule' and 'Scf' 
        objects are the same"""
-    def __init__(self):
+    def __init__(self, mol, scf, method):
         # user defined quantities
-        nstates           = None
+        self.mol         = mol
+        self.scf         = scf
+        self.method      = method
         
         # these variables are set internally
         self.dipole_vec  = None
@@ -25,29 +27,31 @@ class Moments:
         return 'moments'
 
     #
-    def run(self, mol, scf, method):
+    def run(self):
         """return the dipole moments for states in 'states'"""
 
         # compute the dipole moment integrals dimensions = (3,nmo,nmo)
-        mu_ao = mol.pymol().intor('int1e_r')
+        mu_ao = self.mol.pymol().intor('int1e_r')
         # compute the quadrupole tensor, dimensions = (9, nmo, nmo)
-        q_ao  = mol.pymol().intor('int1e_rr')
+        q_ao  = self.mol.pymol().intor('int1e_rr')
         # compute the second moment
-        q2_ao = mol.pymol().intor('int1e_r2')
+        q2_ao = self.mol.pymol().intor('int1e_r2')
 
         # load the dipole vector and quadrupole arrays
-        mu_shape = (len(method.nstates), max(method.nstates), 3) 
-        q_shape  = (len(method.nstates), max(method.nstates), 3, 3)
-        q2_shape = (len(method.nstates), max(method.nstates))
+        nirr = len(self.method.nstates)
+        nmax = max(self.method.nstates)
+        mu_shape = (nirr, nmax, 3) 
+        q_shape  = (nirr, nmax, 3, 3)
+        q2_shape = (nirr, nmax)
 
-        self.nstates     = method.nstates
+        self.nstates     = self.method.nstates
         self.dipole_vec  = np.zeros(mu_shape, dtype=float)
         self.quad_tensor = np.zeros(q_shape, dtype=float)
         self.second_momt = np.zeros(q2_shape, dtype=float)
 
-        for irr in range(len(method.nstates)):
-            for st in range(method.nstates[irr]):
-                occ, no_ao = method.natural_orbs(irr, st, basis='ao')
+        for irr in range(nirr):
+            for st in range(self.method.n_states(irr)):
+                occ, no_ao = self.method.natural_orbs(irr, st, basis='ao')
                 rdm_ao = np.matmul(np.matmul(no_ao, np.diag(occ)), no_ao.T)
                 self.second_momt[irr, st] = np.sum(rdm_ao*q2_ao)
                 for i in range(3):

@@ -133,28 +133,34 @@ def lib_func(name, args):
         return args_out
 
 #
-def init_bitci(mol, scf, ci):
+def init_bitci(ci_method):
     """Initialize the bitci library"""
     global lib_objs
     
     # load the appropriate library
-    bitci_path = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitci.{}'.format(
-        'so' if sys.platform != 'darwin' else 'dylib')
+    path_str   = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitci.{}'
+    bitci_path = path_str.format('so' if sys.platform != 'darwin' else 'dylib')
     
     if not os.path.isfile(bitci_path):
         raise FileNotFoundError('bitci library not found: '+bitci_path)
-    lib_bitci = ctypes.cdll.LoadLibrary(bitci_path)
+    lib_objs['bitci'] = ctypes.cdll.LoadLibrary(bitci_path)
 
     # set the variables that have to be passed to intpyscf_initialise
-    nmo     = convert.convert_ctypes(scf.nmo,    dtype='int32')
-    naux    = convert.convert_ctypes(scf.naux,   dtype='int32')
-    use_df  = convert.convert_ctypes(mol.use_df, dtype='logical')
-    use_rr  = convert.convert_ctypes(mol.rrdf,   dtype='logical')
-    thresh  = convert.convert_ctypes(1e-14,      dtype='double')
-    max_mem = convert.convert_ctypes(-1,         dtype='int32')   
+    nmo     = convert.convert_ctypes(ci_method.scf.nmo,    
+            dtype='int32')
+    naux    = convert.convert_ctypes(ci_method.scf.naux,   
+            dtype='int32')
+    use_df  = convert.convert_ctypes(ci_method.mol.use_df, 
+            dtype='logical')
+    use_rr  = convert.convert_ctypes(ci_method.mol.rrdf,   
+            dtype='logical')
+    thresh  = convert.convert_ctypes(1e-14,                
+            dtype='double')
+    max_mem = convert.convert_ctypes(-1,                   
+            dtype='int32')   
 
     # call to intpyscf_initialise
-    lib_bitci.intpyscf_initialise(ctypes.byref(nmo),
+    lib_objs['bitci'].intpyscf_initialise(ctypes.byref(nmo),
                                   ctypes.byref(naux),
                                   ctypes.byref(use_df),
                                   ctypes.byref(use_rr),
@@ -163,19 +169,31 @@ def init_bitci(mol, scf, ci):
     
     # set all variable that have to be passed to bitci_initialise
     # (note that the pgrp and iham variables use Fortran indexing)
-    imult = convert.convert_ctypes(mol.mult,               dtype='int32')
-    nel   = convert.convert_ctypes(mol.nel,                dtype='int32')
-    mosym = convert.convert_ctypes(np.array(scf.orb_sym),  dtype='int64')
-    moen  = convert.convert_ctypes(np.array(scf.orb_ener), dtype='double')
-    isym  = mol.sym_indx + 1 if mol.sym_indx > 0 else 1
-    pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
-    enuc  = convert.convert_ctypes(mol.enuc,               dtype='double')
-    iham  = convert.convert_ctypes(hamiltonians.index(ci.hamiltonian)+1,
-                                   dtype='int32')
-    label = convert.convert_ctypes(ci.label, dtype='string')
+    imult = convert.convert_ctypes(ci_method.mol.mult,               
+            dtype='int32')
+    nel   = convert.convert_ctypes(ci_method.mol.nel,                
+            dtype='int32')
+    mosym = convert.convert_ctypes(np.array(ci_method.scf.orb_sym),  
+            dtype='int64')
+    moen  = convert.convert_ctypes(np.array(ci_method.scf.orb_ener), 
+            dtype='double')
+
+    if ci_method.mol.sym_indx <= 0:
+        isym = 1
+    else:
+        isym = ci_method.mol.sym_indx + 1
+
+    pgrp  = convert.convert_ctypes(isym,                   
+            dtype='int32')
+    enuc  = convert.convert_ctypes(ci_method.mol.enuc,               
+            dtype='double')
+    iham  = convert.convert_ctypes(hamiltonians.index(ci_method.hamiltonian)+1,
+            dtype='int32')
+    label = convert.convert_ctypes(ci_method.label, 
+            dtype='string')
     
     # call to bitci_initialise
-    lib_bitci.bitci_initialise(ctypes.byref(imult),
+    lib_objs['bitci'].bitci_initialise(ctypes.byref(imult),
                                ctypes.byref(nel),
                                ctypes.byref(nmo),
                                mosym,
@@ -185,56 +203,55 @@ def init_bitci(mol, scf, ci):
                                ctypes.byref(iham),
                                label)
     
-    # store ci.label 
-    lib_objs['bitci'] = lib_bitci
-
     return 
 
 #
 def finalise_bitci():
     """Finalises the bitci library"""
-    lib_bitci = lib_objs['bitci']
-    lib_bitci.bitci_finalise()
+    lib_objs['bitci'].bitci_finalise()
     return
 
 #
-def init_bitsi(mol_bra, mol_ket, ci_bra, ci_ket, scf):
+def init_bitsi(ci_bra, ci_ket):
     """Initialize the bitsi library"""
     global lib_objs
 
     # load the appropriate library
-    bitsi_path = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitsi.{}'.format(
-        'so' if sys.platform != 'darwin' else 'dylib')
+    path_str   = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitsi.{}'
+    bitsi_path = path_str.format('so' if sys.platform != 'darwin' else 'dylib')
     
     if not os.path.isfile(bitsi_path):
         raise FileNotFoundError('bitsi library not found: '+bitsi_path)
-    lib_bitsi = ctypes.cdll.LoadLibrary(bitsi_path)
+    lib_objs['bitsi'] = ctypes.cdll.LoadLibrary(bitsi_path)
 
+    # if the number of mos is different between bra and ket, end
+    if ci_bra.scf.nmo != ci_ket.scf.nmo:
+        sys.exit('ci_bra.scf.nmo != ci_ket.scf.nmo in init_bitsi')
+    
     # set all variables that have to be passed to bitsi_initialise
     # (note that the pgrp uses Fortran indexing)
-    imultBra = convert.convert_ctypes(mol_bra.mult, dtype='int32')
-    imultKet = convert.convert_ctypes(mol_ket.mult, dtype='int32')
-    nelBra   = convert.convert_ctypes(mol_bra.nel,  dtype='int32')
-    nelKet   = convert.convert_ctypes(mol_ket.nel,  dtype='int32')
-    nmo      = convert.convert_ctypes(scf.nmo,    dtype='int32')
+    imultBra = convert.convert_ctypes(ci_bra.mol.mult, dtype='int32')
+    imultKet = convert.convert_ctypes(ci_ket.mol.mult, dtype='int32')
+    nelBra   = convert.convert_ctypes(ci_bra.mol.nel,  dtype='int32')
+    nelKet   = convert.convert_ctypes(ci_ket.mol.nel,  dtype='int32')
+    nmo      = convert.convert_ctypes(ci_bra.scf.nmo,  dtype='int32')
+
+    # not sure what this is about...
     isym  = mol_bra.sym_indx + 1 if mol_bra.sym_indx > 0 else 1
-    pgrp  = convert.convert_ctypes(isym,                   dtype='int32')
+    pgrp  = convert.convert_ctypes(isym,               dtype='int32')
     
     # call to bitsi_initialise
-    lib_bitsi.bitsi_initialise(ctypes.byref(imultBra),
+    lib_objs['bitsi'].bitsi_initialise(ctypes.byref(imultBra),
                                ctypes.byref(imultKet),
                                ctypes.byref(nelBra),
                                ctypes.byref(nelKet),
                                ctypes.byref(nmo),
                                ctypes.byref(pgrp))
         
-    lib_objs['bitsi'] = lib_bitsi
-
     return
 
 #
 def finalise_bitsi():
     """Finalises the bitsi library"""
-    lib_bitsi = lib_objs['bitsi']
-    lib_bitsi.bitsi_finalise()
+    lib_objs['bitsi'].bitsi_finalise()
     return

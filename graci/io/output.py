@@ -111,7 +111,7 @@ def print_scf_header():
     return
 
 #
-def print_scf_summary(mol, scf):
+def print_scf_summary(scf):
     """print summary of the SCF computation"""
     global file_names
 
@@ -122,7 +122,7 @@ def print_scf_summary(mol, scf):
         outfile.write(' {:>5}  {:>9}  {:>10}  {:>8}\n'.
               format('Index','Symmetry','Energy','Occ'))
 
-        orb_cnt = np.zeros(mol.n_irrep(), dtype=int)
+        orb_cnt = np.zeros(scf.mol.n_irrep(), dtype=int)
 
         for iorb in range(scf.nmo):
             sym_indx = scf.orb_sym[iorb]
@@ -150,24 +150,25 @@ def print_refdiag_header():
     return
 
 #
-def print_refdiag_summary(mol, ci):
+def print_refdiag_summary(ci_method):
     """print the summary of the reference space diagonalisation"""
     global file_names
 
-    mine = np.amin(ci.ref_wfn.ener)
+    mine = np.amin(ci_method.ref_ener)
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
         outfile.write('\n -------------------------')
     
-        for i in range(len(ci.nstates)):
-            if ci.nstates[i] > 0:
+        nirr = len(ci_method.nstates)
+        for i in range(nirr):
+            if ci_method.n_states(i) > 0:
                 outfile.write('\n')
-                for n in range(ci.nstates[i]):
+                for n in range(ci_method.n_states(i)):
                     outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
-                          .format(n+1, mol.irreplbl[i],
-                            ci.ref_wfn.ener[n][i],
-                            (ci.ref_wfn.ener[n][i]-mine)*constants.au2ev))
+                        .format(n+1, ci_method.mol.irreplbl[i],
+                        ci_method.ref_ener[i,n],
+                        (ci_method.ref_ener[i,n]-mine)*constants.au2ev))
         outfile.write('\n')
         outfile.flush()
 
@@ -207,7 +208,7 @@ def print_cleanup():
     return
 
 #
-def print_nos_molden(mol, irr, state, occ, orb):
+def print_nos_molden(mol, irr, state, orb, occ, sym):
     """print out the orbitals, labeled and ordered by 'occ' array
        vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
     
@@ -223,7 +224,7 @@ def print_nos_molden(mol, irr, state, occ, orb):
 
     # dump the nos to file in the orbs directory
     molden.from_mo(mol.pymol(), file_name, orb, spin='Alpha', 
-                   symm=None, occ=occ, ignore_h=True)
+                   symm=sym, occ=occ, ignore_h=True)
 
     return
 

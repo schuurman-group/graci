@@ -11,24 +11,27 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
-def rdm(ci, scf):
+def rdm(ci_method):
     """Calculation of the MRCI 1-RDMs for all states"""
 
+    # number of molecular orbitals
+    nmo = ci_method.scf.nmo
+
+    # bitci mrci wfn object
+    mrci_wfn = ci_method.bitci_mrci()
+
     # MRCI configuration file scratch file numbers
-    ci_confunits = np.array(ci.mrci_wfn.conf_units, dtype=int)
+    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
     
     # MRCI eigenvector scratch file numbers
-    ci_ciunits = np.array(ci.mrci_wfn.ci_units, dtype=int)
+    ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
     
-    # No. MOs
-    nmo = scf.nmo
-
     # 1-RDMs for all irreps
     dmat_all = []
     
     # Loop over irreps
-    for irr in range(len(ci.nstates)):
-        states = [n for n in range(ci.nstates[irr])]
+    for irr in range(len(ci_method.nstates)):
+        states = [n for n in range(ci_method.n_states(irr))]
         
         # States for which the 1-RDMs are required (note that bitCI
         # uses Fortran indexing here)
@@ -49,16 +52,5 @@ def rdm(ci, scf):
         dmat_all.append(np.reshape(dmat, (nmo, nmo, nstates),
                                    order='F'))
 
-    # Save the 1-RDMs
-    ci.mrci_wfn.set_dmat(dmat_all)
-
-    # Test
-    #occ, vec = np.linalg.eigh(dmat_all[1][:,:,0])
-    #indx = np.abs(occ).argsort()[::-1]
-    #occ  = occ[indx]
-    #vec  = vec[:, indx]
-    #for i in range(nmo):
-    #   print(i,occ[i])
-    
-    return
+    return dmat_all
 
