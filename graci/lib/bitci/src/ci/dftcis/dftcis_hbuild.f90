@@ -71,7 +71,7 @@ contains
     call get_times(twall_start,tcpu_start)
 
 !----------------------------------------------------------------------
-! Precompute G_pq = (p,q|p,q)
+! Precompute G_pq = (p,q|p,q)^1/2
 !----------------------------------------------------------------------
     if (loose) call precompute_gmat
     

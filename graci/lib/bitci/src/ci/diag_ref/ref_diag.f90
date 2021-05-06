@@ -154,14 +154,14 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
 ! Compute the on-diagonal Hamiltonian matrix elements and the
 ! their spin-coupling averaged values
 !----------------------------------------------------------------------
-  call hii_double(nconf1,hdim,offset,conf,sop,n_int_I,m2c,nmoI,&
-       irrep,hii,averageii)
+  call hii_double(nconf1,hdim,offset,conf,sop,n_int_I,m2c,irrep,hii,&
+       averageii)
   
 !----------------------------------------------------------------------
 ! Save to disk the non-zero off-diagonal Hamiltonian matrix elements
 !----------------------------------------------------------------------
   call save_hij_double(nconf1,hdim,offset,averageii,conf,sop,n_int_I,&
-       m2c,nmoI,irrep,hscr,nrec,'hij_ref')
+       m2c,irrep,hscr,nrec,'hij_ref')
 
 !----------------------------------------------------------------------
 ! Full diagonalisation
