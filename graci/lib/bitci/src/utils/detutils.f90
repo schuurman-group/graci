@@ -309,8 +309,8 @@ contains
     integer(is)             :: i,j,k,t
 
     ! Bit masks
-    integer(ib), parameter :: mask1=4294967295  ! 11...100...0
-    integer(ib), parameter :: mask2=-4294967296 ! 00...011...1
+    integer(ib), parameter :: mask1=4294967295_ib  ! 11...100...0
+    integer(ib), parameter :: mask2=-4294967296_ib ! 00...011...1
 
     ! MurmurHash3 32-bit hash function parameters
     integer(is), parameter  :: c1=-862048943 ! 0xcc9e2d51
