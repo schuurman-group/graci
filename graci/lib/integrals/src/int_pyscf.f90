@@ -256,7 +256,7 @@ module int_pyscf
 
     !
     ! Rank reduction of the density fitting 3-index integrals
-    !
+    !    
     if (use_ri .and. use_rr) call rank_reduce(n_aux, n_ij, integrals, rr_fac)
     
     return

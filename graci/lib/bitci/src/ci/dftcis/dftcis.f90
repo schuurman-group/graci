@@ -12,10 +12,10 @@
 !              for a given symmetry subspace
 !######################################################################
 #ifdef CBINDING
-subroutine diag_dftcis(irrep,nroots,icvs,vecscr) &
+subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose) &
      bind(c,name='diag_dftcis')
 #else
-subroutine diag_dftcis(irrep,nroots,icvs,vecscr)
+subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
 #endif
 
   use constants
@@ -42,6 +42,10 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr)
   
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
+
+  ! Loose integral screening: only to be used for the generation
+  ! of RAS spaces
+  logical, intent(in)      :: loose
   
   ! No. CIS CSFs
   integer(is)              :: ncsf
@@ -128,7 +132,7 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr)
 ! Calculate and save the non-zero off-diagonal elements of the DFT/CIS
 ! Hamiltonian matrix
 !----------------------------------------------------------------------
-  call save_hij_dftcis(irrep,hscr,nrec,ncsf,iph)
+  call save_hij_dftcis(irrep,hscr,nrec,ncsf,iph,loose)
   
 !----------------------------------------------------------------------
 ! Full diagonalisation
@@ -166,7 +170,7 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr)
           niter,ipre)
      
   endif
-     
+  
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------

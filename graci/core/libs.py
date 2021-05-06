@@ -23,7 +23,7 @@ bitci_registry = {
         'generate_ref_confs'  : ['int32','int32','int32','int32',
                                  'int32','int32','int32','int32',
                                  'int32','int32','int32','int32'],
-        'diag_dftcis'         : ['int32','int32','int32','int32'],
+        'diag_dftcis'         : ['int32','int32','int32','int32','logical'],
         'ras_guess_dftcis'    : ['int32','int32','int32','int32',
                                  'int32'],
         'ref_diag_mrci'       : ['int32','int32','int32','int32',
@@ -47,7 +47,7 @@ bitci_registry = {
 bitci_intent = {
         'generate_ref_confs'  : ['in','in','in','in','in','in','in',
                                  'in','in','in','out','out'],
-        'diag_dftcis'         : ['in','in','in','out'],
+        'diag_dftcis'         : ['in','in','in','out','in'],
         'ras_guess_dftcis'    : ['in','in','in','out','out'],
         'ref_diag_mrci'       : ['in','out','in','in','out'],
         'retrieve_energies'   : ['in','in','out'],
