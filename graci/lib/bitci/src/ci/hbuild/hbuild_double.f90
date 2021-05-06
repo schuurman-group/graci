@@ -1,18 +1,19 @@
 !**********************************************************************
-! Routines for the construction of the reference space Hamiltonian
+! Routines for the construction of a Hamiltonian matrix using the
+! simple double loop algorithm
 !**********************************************************************
-module hbuild_ref
+module hbuild_double
 
   implicit none
 
 contains
 
 !######################################################################
-! href_diagonal: Calculation of the on-diagonal Hamiltonian matrix
-!                elements and the their spin-coupling averaged values
+! hii_double: Calculation of the on-diagonal Hamiltonian matrix
+!             elements and the their spin-coupling averaged values
 !######################################################################
-  subroutine href_diagonal(nconf,hdim,offset,conf,sop,n_int_I,m2c,&
-       nmoI,irrep,hii,averageii)
+  subroutine hii_double(nconf,hdim,offset,conf,sop,n_int_I,m2c,nmoI,&
+       irrep,hii,averageii)
 
     use constants
     use bitglobal
@@ -141,14 +142,14 @@ contains
     
     return
     
-  end subroutine href_diagonal
+  end subroutine hii_double
     
 !######################################################################
-! save_hrefij : Saves the non-zero off-diagonal elements of the
-!               reference space Hamiltonian to disk
+! save_hij_double: Saves the non-zero off-diagonal elements of the
+!                  Hamiltonian to disk
 !######################################################################
-  subroutine save_hrefij(nconf,hdim,offset,averageii,conf,sop,&
-       n_int_I,m2c,nmoI,irrep,hscr,nrec)
+  subroutine save_hij_double(nconf,hdim,offset,averageii,conf,sop,&
+       n_int_I,m2c,nmoI,irrep,hscr,nrec,hstem)
     
     use constants
     use bitglobal
@@ -164,72 +165,77 @@ contains
     implicit none
 
     ! Irrep number
-    integer(is), intent(in)  :: irrep
+    integer(is), intent(in)      :: irrep
   
     ! Dimensions
-    integer(is), intent(in)  :: nconf,hdim,nmoI
-    integer(is), intent(in)  :: offset(nconf+1)
+    integer(is), intent(in)      :: nconf,hdim,nmoI
+    integer(is), intent(in)      :: offset(nconf+1)
 
     ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
-    real(dp), intent(in)     :: averageii(nconf)
+    real(dp), intent(in)         :: averageii(nconf)
     
     ! Configurations and SOPs
-    integer(is), intent(in)  :: n_int_I
-    integer(ib), intent(in)  :: conf(n_int_I,2,nconf)
-    integer(ib), intent(in)  :: sop(n_int_I,2,nconf)
+    integer(is), intent(in)      :: n_int_I
+    integer(ib), intent(in)      :: conf(n_int_I,2,nconf)
+    integer(ib), intent(in)      :: sop(n_int_I,2,nconf)
 
     ! MO mapping array
-    integer(is), intent(in)  :: m2c(nmo)
+    integer(is), intent(in)      :: m2c(nmo)
 
     ! Hamiltonian scratch file number
-    integer(is), intent(out) :: hscr
+    integer(is), intent(out)     :: hscr
 
     ! Number of Hamiltonian scratch file records
-    integer(is), intent(out) :: nrec
+    integer(is), intent(out)     :: nrec
+
+    ! Hamiltonian scratch file stem
+    character(len=*), intent(in) :: hstem
     
     ! Hamiltonian build variables
-    integer(is)              :: nexci
-    integer(is)              :: socc(nmo),docc(nmo),unocc(nmo)
-    integer(is)              :: nopen,nsocc,ndocc,nunocc
-    integer(ib)              :: conf_full(n_int,2)
-    integer(ib)              :: sop_full(n_int,2)
-    integer(is)              :: knopen,bnopen
-    integer(ib)              :: bconf_full(n_int,2),kconf_full(n_int,2)
-    integer(ib)              :: bsop_full(n_int,2),ksop_full(n_int,2)
-    integer(is), parameter   :: maxexci=2
-    integer(is)              :: hlist(maxexci),plist(maxexci)
+    integer(is)                  :: nexci
+    integer(is)                  :: socc(nmo),docc(nmo),unocc(nmo)
+    integer(is)                  :: nopen,nsocc,ndocc,nunocc
+    integer(ib)                  :: conf_full(n_int,2)
+    integer(ib)                  :: sop_full(n_int,2)
+    integer(is)                  :: knopen,bnopen
+    integer(ib)                  :: bconf_full(n_int,2)
+    integer(ib)                  :: kconf_full(n_int,2)
+    integer(ib)                  :: bsop_full(n_int,2)
+    integer(ib)                  :: ksop_full(n_int,2)
+    integer(is), parameter       :: maxexci=2
+    integer(is)                  :: hlist(maxexci),plist(maxexci)
         
     ! Difference configuration information
-    integer(is)              :: ndiff
-    integer(is)              :: Dw(nmo,2)
+    integer(is)                  :: ndiff
+    integer(is)                  :: Dw(nmo,2)
     
     ! Number of open shells preceding each MO
-    integer(is)              :: nbefore(nmo)
+    integer(is)                  :: nbefore(nmo)
   
     ! Temporary Hij array
-    integer(is)              :: arrdim,harr2dim
-    real(dp), allocatable    :: harr(:),harr2(:)
+    integer(is)                  :: arrdim,harr2dim
+    real(dp), allocatable        :: harr(:),harr2(:)
 
     ! I/O variables
-    integer(is)              :: iscratch
-    character(len=60)        :: hamfile
-    character(len=2)         :: amult,airrep
+    integer(is)                  :: iscratch
+    character(len=60)            :: hamfile
+    character(len=2)             :: amult,airrep
 
     ! Buffer
-    integer(is)              :: nbuf
-    integer(is), allocatable :: ibuffer(:,:)
-    real(dp), allocatable    :: hbuffer(:)
+    integer(is)                  :: nbuf
+    integer(is), allocatable     :: ibuffer(:,:)
+    real(dp), allocatable        :: hbuffer(:)
     
     ! Everything else
-    integer(is)              :: iconf,kconf,bconf
-    integer(is)              :: icsf,kcsf,bcsf
-    integer(is)              :: iomega,komega,bomega
-    integer(is)              :: nsp,count,blim1,blim2,&
-                                klim1,klim2,bnsp,knsp
+    integer(is)                  :: iconf,kconf,bconf
+    integer(is)                  :: icsf,kcsf,bcsf
+    integer(is)                  :: iomega,komega,bomega
+    integer(is)                  :: nsp,count,blim1,blim2,&
+                                    klim1,klim2,bnsp,knsp
     
     ! Timing variables
-    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
-                                twall_end
+    real(dp)                     :: tcpu_start,tcpu_end,twall_start,&
+                                    twall_end
 
 !----------------------------------------------------------------------
 ! Start timing
@@ -241,8 +247,8 @@ contains
 !----------------------------------------------------------------------
     write(amult,'(i0)') imult
     write(airrep,'(i0)') irrep
-    call scratch_name('hij_ref.mult'//trim(amult)//'.sym'&
-         //trim(airrep),hamfile)
+    call scratch_name(trim(hstem)//'.mult'//trim(amult)//'.sym'&
+         //trim(airrep),hamfile)    
     call register_scratch_file(hscr,hamfile)
 
 !----------------------------------------------------------------------
@@ -442,8 +448,8 @@ contains
     
     return
     
-  end subroutine save_hrefij
+  end subroutine save_hij_double
     
 !######################################################################
   
-end module hbuild_ref
+end module hbuild_double

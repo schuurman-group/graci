@@ -15,7 +15,7 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
 
   use constants
   use bitglobal
-  use hbuild_ref
+  use hbuild_double
   use ref_guess
   use full_diag
   use gendav
@@ -154,14 +154,14 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
 ! Compute the on-diagonal Hamiltonian matrix elements and the
 ! their spin-coupling averaged values
 !----------------------------------------------------------------------
-  call href_diagonal(nconf1,hdim,offset,conf,sop,n_int_I,m2c,nmoI,&
+  call hii_double(nconf1,hdim,offset,conf,sop,n_int_I,m2c,nmoI,&
        irrep,hii,averageii)
   
 !----------------------------------------------------------------------
 ! Save to disk the non-zero off-diagonal Hamiltonian matrix elements
 !----------------------------------------------------------------------
-  call save_hrefij(nconf1,hdim,offset,averageii,conf,sop,n_int_I,&
-       m2c,nmoI,irrep,hscr,nrec)
+  call save_hij_double(nconf1,hdim,offset,averageii,conf,sop,n_int_I,&
+       m2c,nmoI,irrep,hscr,nrec,'hij_ref')
 
 !----------------------------------------------------------------------
 ! Full diagonalisation
@@ -195,7 +195,7 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
      isigma(3)=nrec
 
      ! Set the preconditioner: DPR makes sense due to the small
-     ! no. CSFs in a DFT/CIS calculation
+     ! no. CSFs in a reference space diagonalisation
      ipre=1
      
      ! Generalised Davidson diagonalisation
@@ -312,4 +312,3 @@ subroutine basis_dimensions(hdim,offset,sop,n_int_I,nconf)
   return
   
 end subroutine basis_dimensions
-
