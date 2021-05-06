@@ -18,7 +18,7 @@ def generate(ci_method):
     timing.start('mrci_space')
 
     # number of irreps
-    nirr    = len(ci_method.nstates)
+    nirr    = ci_method.n_irrep()
 
     # number of mos
     nmo     = ci_method.scf.nmo
@@ -47,7 +47,7 @@ def generate(ci_method):
         cvsflag[i-1] = 1
     
     ref_ciunits = np.array(ref_wfn.ci_units, dtype=int)
-    nroots      = ci_method.nstates
+    nroots      = ci_method.n_states()
 
     # Loop over irreps
     for irrep in range(nirr):

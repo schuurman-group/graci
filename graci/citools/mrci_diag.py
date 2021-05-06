@@ -16,7 +16,7 @@ def diag(ci_method):
     timing.start('mrci_diag')
 
     # nirr is given by the length of the nstates vector in ci obj
-    nirr = len(ci_method.nstates)
+    nirr = ci_method.n_irrep()
 
     # the bitci mrci wfn object
     mrci_wfn = ci_method.bitci_mrci()
@@ -24,9 +24,6 @@ def diag(ci_method):
     # Get the information needed to run the MRCI diagonalisation
     # calculation
     ialg, tol, niter, blocksize, deflate = diag_vars(ci_method)
-
-    # nirr is given by the length of the nstates vector in ci obj
-    nirr = len(ci_method.nstates)
 
     # Bitci MRCI configuration scratch file numbers
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
@@ -53,7 +50,7 @@ def diag(ci_method):
         ciunits.append(ciunit)
 
     # Retrieve the MRCI energies
-    maxroots = max(ci_method.nstates)
+    maxroots = max(ci_method.n_states())
     ener     = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
         if ci_method.n_states(irrep) > 0:
@@ -75,7 +72,7 @@ def diag(ci_method):
 
     # Print the report of the MRCI states
     ciunits = np.array(ciunits, dtype=int)
-    nstates = ci_method.nstates
+    nstates = ci_method.n_states()
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
 

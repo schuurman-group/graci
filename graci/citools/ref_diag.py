@@ -14,7 +14,7 @@ def diag(ci_method):
     """Diagonalisation of the reference space Hamiltonian"""
 
     # length of nstates vector is the number of irreps
-    nirr    = len(ci_method.nstates)
+    nirr    = ci_method.n_irrep()
 
     # bitci reference space wfn
     ref_wfn = ci_method.bitci_ref()
@@ -56,7 +56,7 @@ def diag(ci_method):
             ci_method.nstates[irrep] = nroots
     
     # Retrieve the reference space energies
-    maxroots = max(ci_method.nstates)
+    maxroots = max(ci_method.n_states())
     ener = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
         if ci_method.n_states(irrep) > 0:

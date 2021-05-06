@@ -16,7 +16,7 @@ def refine_ref_space(ci_method):
     timing.start('mrci_refine')
 
     # number of irreps given by length of ci.nstates vector
-    nirr = len(ci_method.nstates)
+    nirr = ci_method.n_irrep()
 
     # bitci mrci wfn object
     mrci_wfn = ci_method.bitci_mrci()
@@ -31,7 +31,7 @@ def refine_ref_space(ci_method):
     ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
 
     # No. roots per irrep
-    nstates = ci_method.nstates
+    nstates = ci_method.n_states()
 
     # Configuration selection threshold. We will just hardcode this
     # for now

@@ -234,7 +234,8 @@ def print_moments_header(irr):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         ostr = '\n\n Dipole and Quadrupole Moments, Symmetry: '+\
-                str(irr)+' ---------------'
+                str(irr)
+        ostr = ostr + '\n ********************************************'
         outfile.write(ostr)
 
 #
@@ -243,6 +244,7 @@ def print_moments(irr, st, mu, q2):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n\n state: '+str(st+1))
+        outfile.write('\n ----------------------------------')
         ostr = '\n dipole vector[au]: {:10.6f} {:10.6f} {:10.6f} '+\
                 'total: {:10.6f} D'
         outfile.write(ostr.format(mu[0],mu[1],mu[2],
@@ -259,9 +261,9 @@ def print_quad(irr, st, qtensor):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n\n quadrupole moment tensor -- \n')
+        ostr = '\n {:10.6f}   {:10.6f}   {:10.6f}'
         for i in range(3):
-            outfile.write('\n {:10.6f}   {:10.6f}   {:10.6f}'.
-                          format(qtensor[i,:]))
+            outfile.write(ostr.format(qtensor[i,0],qtensor[i,1],qtensor[i,2]))
               
 
 

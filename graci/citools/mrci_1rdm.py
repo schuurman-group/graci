@@ -30,7 +30,7 @@ def rdm(ci_method):
     dmat_all = []
     
     # Loop over irreps
-    for irr in range(len(ci_method.nstates)):
+    for irr in range(ci_method.n_irrep()):
         states = [n for n in range(ci_method.n_states(irr))]
         
         # States for which the 1-RDMs are required (note that bitCI

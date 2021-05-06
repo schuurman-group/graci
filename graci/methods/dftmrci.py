@@ -61,7 +61,7 @@ class Dftmrci:
         self.niter          = 0
         self.ref_wfn        = None
         self.mrci_wfn       = None
-        self.print_quad     = False
+        self.print_quad     = False 
         # reference space energies
         self.ref_ener       = None
         # ci energies
@@ -196,7 +196,12 @@ class Dftmrci:
                             st, 
                             momts.quadrupole(irr,st))
         return 
-    
+
+    # 
+    def n_irrep(self):
+        """return the number of irreps"""
+        return len(self.nstates)
+ 
     #
     def n_states(self, irrep=None):
         """number of states to compute"""

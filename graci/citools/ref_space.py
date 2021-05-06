@@ -18,12 +18,12 @@ def generate(ci_method):
         autoras(ci_method)
 
     # number of irreps
-    nirr = len(ci_method.nstates)
+    nirr = ci_method.n_irrep()
 
     # number of mos
     nmo = ci_method.scf.nmo
 
-    # orbital occupatoins
+    # orbital occupations
     occ = ci_method.scf.orb_occ
 
     # Number of orbitals in RAS1, RAS2, and RAS3
@@ -90,7 +90,7 @@ def autoras(ci_method):
     output.print_autoras_header()
    
     # number of irreps
-    nirr = len(ci_method.nstates)
+    nirr = ci_method.n_irrep()
 
     # number of mos
     nmo = ci_method.scf.nmo
