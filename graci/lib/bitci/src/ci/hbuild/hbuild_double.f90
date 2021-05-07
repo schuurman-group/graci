@@ -291,7 +291,7 @@ contains
 !----------------------------------------------------------------------
     ! Loop over configurations
     do iconf=1,nconf
-       
+
        ! Number of open shells
        nopen=sop_nopen(sop(:,:,iconf),n_int_in)
        

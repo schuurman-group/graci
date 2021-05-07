@@ -90,6 +90,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   integer(is)              :: nconf,ncsf
   integer(ib), allocatable :: conf(:,:,:),sop(:,:,:)
   integer(is), allocatable :: offset(:)
+  real(dp), allocatable    :: averageii1(:)
   
 !----------------------------------------------------------------------
 ! Output what we are doing
@@ -142,7 +143,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   
   ! Compute the diagonal elements
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
-
+    
 !----------------------------------------------------------------------
 ! If we are using disk-based sigma-vector builds, then save the
 ! non-zero off-diagonal elements of the Hamiltonian matrix to disk
@@ -157,19 +158,22 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   !nconf=cfg%confdim
   !ncsf=cfg%csfdim
   !
-  ! Check: remove confs
-  !nconf=nconf &
-  !     -cfg%n1I &
-  !     -cfg%n2I &
-  !     -cfg%n1E &
-  !     -cfg%n2E &
-  !     -cfg%n1I1E
-  !ncsf=ncsf &
-  !     -(cfg%csfs1I(cfg%n1I+1)-cfg%csfs1I(1)) &     ! 1I
-  !     -(cfg%csfs2I(cfg%n2I+1)-cfg%csfs2I(1)) &     ! 2I
-  !     -(cfg%csfs1E(cfg%n1E+1)-cfg%csfs1E(1)) &     ! 1E
-  !     -(cfg%csfs2E(cfg%n2E+1)-cfg%csfs2E(1)) &     ! 2E
-  !     -(cfg%csfs1I1E(cfg%n1I1E+1)-cfg%csfs1I1E(1)) ! 1I1E
+  !!! Check: remove confs
+  !!nconf=nconf &
+  !!     !-cfg%n0h &
+  !!     !-cfg%n1I &
+  !!     -cfg%n2I &
+  !!     !-cfg%n1E &
+  !!     -cfg%n2E &
+  !!     -cfg%n1I1E
+  !!
+  !!ncsf=ncsf &
+  !!     !-(cfg%csfs0h(cfg%n0h+1)-cfg%csfs0h(1)) &     ! R
+  !!     !-(cfg%csfs1I(cfg%n1I+1)-cfg%csfs1I(1)) &     ! 1I
+  !!     -(cfg%csfs2I(cfg%n2I+1)-cfg%csfs2I(1)) &     ! 2I
+  !!     !-(cfg%csfs1E(cfg%n1E+1)-cfg%csfs1E(1)) &     ! 1E
+  !!     -(cfg%csfs2E(cfg%n2E+1)-cfg%csfs2E(1)) &     ! 2E
+  !!     -(cfg%csfs1I1E(cfg%n1I1E+1)-cfg%csfs1I1E(1)) ! 1I1E
   !
   !allocate(conf(n_int,2,nconf))
   !allocate(sop(n_int,2,nconf))
@@ -179,6 +183,9 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   !call fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
   !
   !! Compute the on-diagonal Hamiltonian matrix elements
+  !allocate(averageii1(nconf))
+  !averageii1=averageii
+  !
   !call hii_double(nconf,ncsf,offset,conf,sop,n_int,cfg%m2c,irrep,&
   !     hdiag,averageii)
   !
@@ -186,6 +193,8 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   !! to disk
   !call save_hij_double(nconf,ncsf,offset,averageii,conf,sop,n_int,&
   !     cfg%m2c,irrep,hamscr,nrec,'hij')
+  !
+  !STOP
   
 !----------------------------------------------------------------------
 ! Eigenpair scratch file stem

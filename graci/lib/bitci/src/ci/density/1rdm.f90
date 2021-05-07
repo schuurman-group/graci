@@ -879,8 +879,9 @@ contains
     do kn=1,cfg%n1h
     
        ! Loop over bra 1-hole configurations
-       do bn=kn,cfg%n1h
-
+       !do bn=kn,cfg%n1h
+       do bn=1,cfg%n1h
+       
           ! Number of creation and annihilation operators linking the
           ! bra and ket 1-hole configurations
           nac1=n_create_annihilate(cfg%conf1h(1:n_int_I,:,kn),&
@@ -929,7 +930,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! 1I - 1I contributions
-                if (nac <= 3 &
+                if (nac <= 3 .and. bn >= kn &
                      .and. cfg%off1I(bn) /= cfg%off1I(bn+1)) then
                    call rdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -967,6 +968,9 @@ contains
           ! cannot generate interacting 1E configurations wrt the
           ! singlet excitation operators E_a^i
           if (nac1 > 2) cycle
+
+          ! Skip duplicate 1E - 1E  elements
+          if (bn < kn) cycle
           
           ! Loop over ket 1E configurations
           do ikconf=cfg%off1E(kn),cfg%off1E(kn+1)-1
@@ -1318,8 +1322,9 @@ contains
     do kn=1,cfg%n2h
     
        ! Loop over bra 2-hole configurations
-       do bn=kn,cfg%n2h
-
+       !do bn=kn,cfg%n2h
+       do bn=1,cfg%n2h
+       
           ! Bra 2-hole configuration in the full MO space
           bconf2h_full=0_ib
           bconf2h_full(1:n_int_I,:)=cfg%conf2h(1:n_int_I,:,bn)
@@ -1370,7 +1375,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! 2I - 2I matrix elements
-                if (nac <= 4 &
+                if (nac <= 4 .and. bn >= kn &
                      .and. cfg%off2I(bn) /= cfg%off2I(bn+1)) then
                    call rdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1447,7 +1452,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! 2E - 2E matrix elements
-                if (cfg%off2E(bn) /= cfg%off2E(bn+1)&
+                if (cfg%off2E(bn) /= cfg%off2E(bn+1) .and. bn >= kn &
                      .and.nac1 <= 2) then
                    call rdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1510,7 +1515,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! 1I1E - 1I1E matrix elements
-                if (cfg%off1I1E(bn) /= cfg%off1I1E(bn+1)) then
+                if (cfg%off1I1E(bn) /= cfg%off1I1E(bn+1) .and. bn >= kn) then
                    call rdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfg%n1I1E,cfg%n1I1E,&       ! no. bra and ket confs
