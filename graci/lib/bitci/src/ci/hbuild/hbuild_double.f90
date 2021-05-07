@@ -12,8 +12,8 @@ contains
 ! hii_double: Calculation of the on-diagonal Hamiltonian matrix
 !             elements and the their spin-coupling averaged values
 !######################################################################
-  subroutine hii_double(nconf,hdim,offset,conf,sop,n_int_I,m2c,nmoI,&
-       irrep,hii,averageii)
+  subroutine hii_double(nconf,hdim,offset,conf,sop,n_int_in,m2c,irrep,&
+       hii,averageii)
 
     use constants
     use bitglobal
@@ -32,13 +32,13 @@ contains
     integer(is), intent(in)  :: irrep
   
     ! Dimensions
-    integer(is), intent(in)  :: nconf,hdim,nmoI
+    integer(is), intent(in)  :: nconf,hdim
     integer(is), intent(in)  :: offset(nconf+1)
     
     ! Configurations and SOPs
-    integer(is), intent(in)  :: n_int_I
-    integer(ib), intent(in)  :: conf(n_int_I,2,nconf)
-    integer(ib), intent(in)  :: sop(n_int_I,2,nconf)
+    integer(is), intent(in)  :: n_int_in
+    integer(ib), intent(in)  :: conf(n_int_in,2,nconf)
+    integer(ib), intent(in)  :: sop(n_int_in,2,nconf)
 
     ! MO mapping array
     integer(is), intent(in)  :: m2c(nmo)
@@ -76,19 +76,25 @@ contains
     harr=0.0d0
 
 !----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    hii=0.0d0
+    averageii=0.0d0
+    
+!----------------------------------------------------------------------
 ! Compute the on-diagonal elements
 !----------------------------------------------------------------------
     ! Loop over configurations
     do iconf=1,nconf
        
        ! Number of open shells
-       nopen=sop_nopen(sop(:,:,iconf),n_int_I)
+       nopen=sop_nopen(sop(:,:,iconf),n_int_in)
        
        ! Configuration and SOP in the full MO space
        conf_full=0_ib
        sop_full=0_ib
-       conf_full(1:n_int_I,:)=conf(:,:,iconf)
-       sop_full(1:n_int_I,:)=sop(:,:,iconf)
+       conf_full(1:n_int_in,:)=conf(:,:,iconf)
+       sop_full(1:n_int_in,:)=sop(:,:,iconf)
        
        ! Get all the configuration information needed to evaluate
        ! the on-diagonal Hamiltonian matrix element
@@ -149,7 +155,7 @@ contains
 !                  Hamiltonian to disk
 !######################################################################
   subroutine save_hij_double(nconf,hdim,offset,averageii,conf,sop,&
-       n_int_I,m2c,nmoI,irrep,hscr,nrec,hstem)
+       n_int_in,m2c,irrep,hscr,nrec,hstem)
     
     use constants
     use bitglobal
@@ -168,16 +174,16 @@ contains
     integer(is), intent(in)      :: irrep
   
     ! Dimensions
-    integer(is), intent(in)      :: nconf,hdim,nmoI
+    integer(is), intent(in)      :: nconf,hdim
     integer(is), intent(in)      :: offset(nconf+1)
 
     ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
     real(dp), intent(in)         :: averageii(nconf)
     
     ! Configurations and SOPs
-    integer(is), intent(in)      :: n_int_I
-    integer(ib), intent(in)      :: conf(n_int_I,2,nconf)
-    integer(ib), intent(in)      :: sop(n_int_I,2,nconf)
+    integer(is), intent(in)      :: n_int_in
+    integer(ib), intent(in)      :: conf(n_int_in,2,nconf)
+    integer(ib), intent(in)      :: sop(n_int_in,2,nconf)
 
     ! MO mapping array
     integer(is), intent(in)      :: m2c(nmo)
@@ -285,15 +291,15 @@ contains
 !----------------------------------------------------------------------
     ! Loop over configurations
     do iconf=1,nconf
-       
+
        ! Number of open shells
-       nopen=sop_nopen(sop(:,:,iconf),n_int_I)
+       nopen=sop_nopen(sop(:,:,iconf),n_int_in)
        
        ! Configuration and SOP in the full MO space
        conf_full=0_ib
        sop_full=0_ib
-       conf_full(1:n_int_I,:)=conf(:,:,iconf)
-       sop_full(1:n_int_I,:)=sop(:,:,iconf)
+       conf_full(1:n_int_in,:)=conf(:,:,iconf)
+       sop_full(1:n_int_in,:)=sop(:,:,iconf)
        
        ! Get all the configuration information needed to evaluate
        ! the on-diagonal Hamiltonian matrix element
@@ -346,7 +352,7 @@ contains
     do kconf=1,nconf-1
        
        ! Number of open shells in the ket configuration
-       knopen=sop_nopen(sop(:,:,kconf),n_int_I)
+       knopen=sop_nopen(sop(:,:,kconf),n_int_in)
 
        ! Number of ket CSFs
        knsp=ncsfs(knopen)
@@ -354,8 +360,8 @@ contains
        ! Ket configuration and SOP in the full MO space
        kconf_full=0_ib
        ksop_full=0_ib
-       kconf_full(1:n_int_I,:)=conf(:,:,kconf)
-       ksop_full(1:n_int_I,:)=sop(:,:,kconf)
+       kconf_full(1:n_int_in,:)=conf(:,:,kconf)
+       ksop_full(1:n_int_in,:)=sop(:,:,kconf)
      
        ! Package the ket configuration information
        call package_confinfo(ksop_full,kconf_full,unocc,socc,docc,&
@@ -365,13 +371,13 @@ contains
        do bconf=kconf+1,nconf
         
           ! Compute the excitation degree between the two configurations
-          nexci=exc_degree_conf(conf(:,:,kconf),conf(:,:,bconf),n_int_I)
+          nexci=exc_degree_conf(conf(:,:,kconf),conf(:,:,bconf),n_int_in)
 
           ! Cycle if the excitation degree is greater than 2
           if (nexci > 2) cycle
         
           ! Number of open shells in the bra configuration
-          bnopen=sop_nopen(sop(:,:,bconf),n_int_I)
+          bnopen=sop_nopen(sop(:,:,bconf),n_int_in)
 
           ! Number of bra CSFs
           bnsp=ncsfs(bnopen)
@@ -379,14 +385,14 @@ contains
           ! Bra configuration and SOP in the full MO space
           bconf_full=0_ib
           bsop_full=0_ib
-          bconf_full(1:n_int_I,:)=conf(:,:,bconf)
-          bsop_full(1:n_int_I,:)=sop(:,:,bconf)
+          bconf_full(1:n_int_in,:)=conf(:,:,bconf)
+          bsop_full(1:n_int_in,:)=sop(:,:,bconf)
           
           ! Get the indices of the MOs involved in the excitation
           hlist=0
           plist=0
           call get_exci_indices(conf(:,:,kconf),conf(:,:,bconf),&
-               n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+               n_int_in,hlist(1:nexci),plist(1:nexci),nexci)
 
           ! Compute the matrix elements between the CSFs generated
           ! by the bra and ket configurations
