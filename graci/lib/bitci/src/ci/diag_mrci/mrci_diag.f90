@@ -87,6 +87,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   character(len=20)        :: vecstem
 
   ! Hamiltonian build testing
+  integer(is)              :: nconf,ncsf
   integer(ib), allocatable :: conf(:,:,:),sop(:,:,:)
   integer(is), allocatable :: offset(:)
   
@@ -153,21 +154,38 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
 ! Hamiltonian build debugging
 !----------------------------------------------------------------------
   !! Allocate arrays
-  !allocate(conf(n_int,2,cfg%confdim))
-  !allocate(sop(n_int,2,cfg%confdim))
-  !allocate(offset(cfg%confdim+1))
+  !nconf=cfg%confdim
+  !ncsf=cfg%csfdim
+  !
+  ! Check: remove confs
+  !nconf=nconf &
+  !     -cfg%n1I &
+  !     -cfg%n2I &
+  !     -cfg%n1E &
+  !     -cfg%n2E &
+  !     -cfg%n1I1E
+  !ncsf=ncsf &
+  !     -(cfg%csfs1I(cfg%n1I+1)-cfg%csfs1I(1)) &     ! 1I
+  !     -(cfg%csfs2I(cfg%n2I+1)-cfg%csfs2I(1)) &     ! 2I
+  !     -(cfg%csfs1E(cfg%n1E+1)-cfg%csfs1E(1)) &     ! 1E
+  !     -(cfg%csfs2E(cfg%n2E+1)-cfg%csfs2E(1)) &     ! 2E
+  !     -(cfg%csfs1I1E(cfg%n1I1E+1)-cfg%csfs1I1E(1)) ! 1I1E
+  !
+  !allocate(conf(n_int,2,nconf))
+  !allocate(sop(n_int,2,nconf))
+  !allocate(offset(nconf+1))
   !
   !! Fill in the conf, SOP and CSF offset arrays
-  !call fill_conf_arrays(cfg%confdim,cfg%csfdim,conf,sop,offset,cfg)
+  !call fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
   !
   !! Compute the on-diagonal Hamiltonian matrix elements
-  !call hii_double(cfg%confdim,cfg%csfdim,offset,conf,sop,n_int,&
-  !     cfg%m2c,irrep,hdiag,averageii)
+  !call hii_double(nconf,ncsf,offset,conf,sop,n_int,cfg%m2c,irrep,&
+  !     hdiag,averageii)
   !
   !! Save the non-zero off-diagonal Hamiltonian matrix elements
   !! to disk
-  !call save_hij_double(cfg%confdim,cfg%csfdim,offset,averageii,&
-  !     conf,sop,n_int,cfg%m2c,irrep,hamscr,nrec,'hij')
+  !call save_hij_double(nconf,ncsf,offset,averageii,conf,sop,n_int,&
+  !     cfg%m2c,irrep,hamscr,nrec,'hij')
   
 !----------------------------------------------------------------------
 ! Eigenpair scratch file stem
@@ -258,6 +276,7 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
   use constants
   use bitglobal
   use conftype
+  use mrciutils
   
   implicit none
 
@@ -273,7 +292,8 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
   
   ! Everything else
   integer(is)              :: n,iconf,n_int_I,counter
-  
+  integer(is)              :: sum,nopen
+
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
@@ -282,7 +302,9 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
   offset=0
 
   counter=0
-  
+
+  sum=1
+    
 !----------------------------------------------------------------------
 ! Reference configurations
 !----------------------------------------------------------------------
@@ -294,10 +316,16 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
      ! Increment the counter
      counter=counter+1
 
-     ! Save the conf and SOP and CSF offset
+     ! Save the conf and SOP
      conf(1:n_int_I,:,counter)=cfg%conf0h(:,:,iconf)
      sop(1:n_int_I,:,counter)=cfg%sop0h(:,:,iconf)
-     offset(counter)=cfg%csfs0h(iconf)
+     
+     ! Number of open shells
+     nopen=sop_nopen(sop(:,:,counter),n_int)
+     
+     ! Offset
+     offset(counter)=sum
+     sum=sum+ncsfs(nopen)
 
   enddo
 
@@ -316,10 +344,16 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
            ! Increment the counter
            counter=counter+1
            
-           ! Save the conf and SOP and CSF offset
+           ! Save the conf and SOP
            conf(:,:,counter)=cfg%conf1I(:,:,iconf)
            sop(:,:,counter)=cfg%sop1I(:,:,iconf)
-           offset(counter)=cfg%csfs1I(iconf)
+           
+           ! Number of open shells
+           nopen=sop_nopen(sop(:,:,counter),n_int)
+     
+           ! Offset
+           offset(counter)=sum
+           sum=sum+ncsfs(nopen)
            
         enddo
            
@@ -342,10 +376,16 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
            ! Increment the counter
            counter=counter+1
            
-           ! Save the conf and SOP and CSF offset
+           ! Save the conf and SOP
            conf(:,:,counter)=cfg%conf2I(:,:,iconf)
            sop(:,:,counter)=cfg%sop2I(:,:,iconf)
-           offset(counter)=cfg%csfs2I(iconf)
+
+           ! Number of open shells
+           nopen=sop_nopen(sop(:,:,counter),n_int)
+           
+           ! Offset
+           offset(counter)=sum
+           sum=sum+ncsfs(nopen)
            
         enddo
            
@@ -368,10 +408,16 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
            ! Increment the counter
            counter=counter+1
            
-           ! Save the conf and SOP and CSF offset
+           ! Save the conf and SOP
            conf(:,:,counter)=cfg%conf1E(:,:,iconf)
            sop(:,:,counter)=cfg%sop1E(:,:,iconf)
-           offset(counter)=cfg%csfs1E(iconf)
+           
+           ! Number of open shells
+           nopen=sop_nopen(sop(:,:,counter),n_int)
+           
+           ! Offset
+           offset(counter)=sum
+           sum=sum+ncsfs(nopen)
            
         enddo
            
@@ -394,10 +440,16 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
            ! Increment the counter
            counter=counter+1
            
-           ! Save the conf and SOP and CSF offset
+           ! Save the conf and SOP
            conf(:,:,counter)=cfg%conf2E(:,:,iconf)
            sop(:,:,counter)=cfg%sop2E(:,:,iconf)
-           offset(counter)=cfg%csfs2E(iconf)
+           
+           ! Number of open shells
+           nopen=sop_nopen(sop(:,:,counter),n_int)
+           
+           ! Offset
+           offset(counter)=sum
+           sum=sum+ncsfs(nopen)
            
         enddo
            
@@ -420,10 +472,16 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
            ! Increment the counter
            counter=counter+1
            
-           ! Save the conf and SOP and CSF offset
+           ! Save the conf and SOP
            conf(:,:,counter)=cfg%conf1I1E(:,:,iconf)
            sop(:,:,counter)=cfg%sop1I1E(:,:,iconf)
-           offset(counter)=cfg%csfs1I1E(iconf)
+           
+           ! Number of open shells
+           nopen=sop_nopen(sop(:,:,counter),n_int)
+           
+           ! Offset
+           offset(counter)=sum
+           sum=sum+ncsfs(nopen)
            
         enddo
            
@@ -434,7 +492,7 @@ subroutine fill_conf_arrays(nconf,ncsf,conf,sop,offset,cfg)
 !----------------------------------------------------------------------
 ! Final CSF offset element
 !----------------------------------------------------------------------
-  offset(nconf+1)=ncsf+1
+  offset(nconf+1)=sum
   
   return
   
