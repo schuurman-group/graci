@@ -18,6 +18,7 @@ subroutine density_mrci(irrep,nroots,iroots,dmat,confscr,vecscr)
   use iomod
   use conftype
   use rdm
+  use rdm_double
   
   implicit none
 
@@ -71,7 +72,17 @@ subroutine density_mrci(irrep,nroots,iroots,dmat,confscr,vecscr)
 !----------------------------------------------------------------------
 ! Compute the 1-RDMs
 !----------------------------------------------------------------------
-  call rdm_mrci(cfg,cfg%csfdim,nroots,vec,dmat)
+  !call rdm_mrci(cfg,cfg%csfdim,nroots,vec,dmat)
+
+!----------------------------------------------------------------------
+! Debugging: double loop algorithm
+!----------------------------------------------------------------------
+  ! Fill in the conf, SOP and CSF offset arrays
+  call cfg%concatenate_arrays
+
+  ! Calculate the 1-RDMs
+  call rdm_double_loop(cfg%confdim,cfg%csfdim,cfg%confall,cfg%sopall,&
+       cfg%csfsall,nroots,vec,dmat,cfg%m2c)
   
 !----------------------------------------------------------------------
 ! Deallocate arrays

@@ -25,10 +25,7 @@ contains
     use conftype
     use iomod
     use timing
-
-
     use utils
-    
     
     implicit none
 
@@ -153,7 +150,7 @@ contains
     integer(is)             :: nsocc,ndocc,nunocc
     
     ! Everything else
-    integer(is)             :: iconf,iomega,icsf
+    integer(is)             :: iconf,icsf
     integer(is)             :: i,n,ista,imo,ioff
     integer(is)             :: n_int_I
     real(dp)                :: c2,trace
