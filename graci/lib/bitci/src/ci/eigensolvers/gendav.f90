@@ -636,7 +636,7 @@ contains
 
        ! Update the convergence information
        if (rnorm(k) < tol) iconv(k)=1
-       
+
        ! Save the residual vector and corresponding eigenvalue if it
        ! corresponds to an unconverged root
        if (iconv(k) == 0) then

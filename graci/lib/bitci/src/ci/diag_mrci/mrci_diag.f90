@@ -223,7 +223,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
      ! Generate the guess vectors
      call mrci_guess_subspace(guessscr,blocksize,cfg,cfg%csfdim,&
           guessdim,hdiag,averageii,cfg%confdim)
-     
+
      ! Set the sigma-vector algorithm information
      if (direct) then
         isigma=0
