@@ -25,10 +25,7 @@ contains
     use conftype
     use iomod
     use timing
-
-
     use utils
-    
     
     implicit none
 
@@ -50,6 +47,12 @@ contains
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
                                twall_end
+
+
+    ! TEST
+    open(unit=350,file='pairs.dat',form='formatted',status='unknown')
+    ! TEST
+    
     
 !----------------------------------------------------------------------
 ! Start timing
@@ -68,9 +71,9 @@ contains
 ! (1) On-diagonal elements
 !----------------------------------------------------------------------
     call rdm_diag(cfg,csfdim,nroots,vec,rho)
-    
+
 !----------------------------------------------------------------------
-! (2) Ref-Ref contributions to the 1-RDMs
+! (2) Ref - Ref contributions to the 1-RDMs
 !----------------------------------------------------------------------
     call rdm_0h_0h(cfg,csfdim,nroots,vec,rho)
 
@@ -153,7 +156,7 @@ contains
     integer(is)             :: nsocc,ndocc,nunocc
     
     ! Everything else
-    integer(is)             :: iconf,iomega,icsf
+    integer(is)             :: iconf,icsf
     integer(is)             :: i,n,ista,imo,ioff
     integer(is)             :: n_int_I
     real(dp)                :: c2,trace
@@ -167,7 +170,7 @@ contains
 !----------------------------------------------------------------------
 ! Reference space configurations
 !----------------------------------------------------------------------
-    ! Loop over reference configurationd
+    ! Loop over reference configurations
     do iconf=1,cfg%n0h
 
        ! Get the lists of singly-occupied and doubly-occupied MOs
@@ -674,7 +677,7 @@ contains
                cfg%conf1h(1:n_int_I,:,n),n_int_I)
 
           ! Ref - 1I contributions
-          if (nac <= 3 .and. cfg%n1I >0 &
+          if (nac <= 3 .and. cfg%n1I > 0 &
                .and. cfg%off1I(n) /= cfg%off1I(n+1)) then
              call rdm_batch(&
                   n,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -682,11 +685,11 @@ contains
                   cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                   cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                   cfg%csfs1I,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,rho,cfg%m2c)
+                  csfdim,nroots,vec,rho,cfg%m2c,.false.)
           endif
-
+          
           ! Ref - 1E contributions
-          if (nac <= 1 .and. cfg%n1E >0 &
+          if (nac <= 1 .and. cfg%n1E > 0 &
                .and. cfg%off1E(n) /= cfg%off1E(n+1)) then
              call rdm_batch(&
                   n,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -694,7 +697,7 @@ contains
                   cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                   cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                   cfg%csfs1E,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,rho,cfg%m2c)
+                  csfdim,nroots,vec,rho,cfg%m2c,.false.)
           endif
              
        enddo
@@ -776,7 +779,7 @@ contains
                cfg%conf2h(1:n_int_I,:,n),n_int_I)
 
           ! Ref - 2I contributions
-          if (nac <= 4 .and. cfg%n2I >0 &
+          if (nac <= 4 .and. cfg%n2I > 0 &
                .and. cfg%off2I(n) /= cfg%off2I(n+1)) then
              call rdm_batch(&
                   n,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -784,11 +787,11 @@ contains
                   cfg%conf2I,cfg%sop2I,&  ! bra confs and SOPs
                   cfg%n2h,cfg%off2I,&     ! no. bra hole confs and offsets
                   cfg%csfs2I,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,rho,cfg%m2c)
+                  csfdim,nroots,vec,rho,cfg%m2c,.false.)
           endif
 
           ! Ref - 2E contributions
-          if (nac == 0 .and. cfg%n2E >0 &
+          if (nac == 0 .and. cfg%n2E > 0 &
                .and. cfg%off2E(n) /= cfg%off2E(n+1)) then
              call rdm_batch(&
                   n,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -796,11 +799,11 @@ contains
                   cfg%conf2E,cfg%sop2E,&  ! bra confs and SOPs
                   cfg%n2h,cfg%off2E,&     ! no. bra hole confs and offsets
                   cfg%csfs2E,cfg%csfs0h,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,rho,cfg%m2c)
+                  csfdim,nroots,vec,rho,cfg%m2c,.false.)
           endif
 
           ! Ref - 1I1E contributions
-          if (nac <= 2 .and. cfg%n1I1E >0 &
+          if (nac <= 2 .and. cfg%n1I1E > 0 &
                .and. cfg%off1I1E(n) /= cfg%off1I1E(n+1)) then
              call rdm_batch(&
                   n,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -808,7 +811,7 @@ contains
                   cfg%conf1I1E,cfg%sop1I1E,& ! bra confs and SOPs
                   cfg%n2h,cfg%off1I1E,&      ! no. bra hole confs and offsets
                   cfg%csfs1I1E,cfg%csfs0h,&  ! bra and ket CSF offsets
-                  csfdim,nroots,vec,rho,cfg%m2c)
+                  csfdim,nroots,vec,rho,cfg%m2c,.false.)
           endif
           
        enddo
@@ -879,7 +882,6 @@ contains
     do kn=1,cfg%n1h
     
        ! Loop over bra 1-hole configurations
-       !do bn=kn,cfg%n1h
        do bn=1,cfg%n1h
        
           ! Number of creation and annihilation operators linking the
@@ -938,7 +940,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs1I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.true.)
                 endif
                 
                 ! 1I - 1E contributions
@@ -950,7 +952,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs1I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                    
              enddo
@@ -995,7 +997,7 @@ contains
                   cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                   cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                   cfg%csfs1E,cfg%csfs1E,& ! bra and ket CSF offsets
-                  csfdim,nroots,vec,rho,cfg%m2c)
+                  csfdim,nroots,vec,rho,cfg%m2c,.true.)
              
           enddo
              
@@ -1128,7 +1130,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                 
                 ! 2I - 1E matrix contributions
@@ -1140,7 +1142,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                 
              enddo
@@ -1178,7 +1180,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&     ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs2E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                    
                 ! 2E - 1E matrix contributions
@@ -1189,7 +1191,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&  ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&     ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs2E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                 
              enddo
@@ -1235,7 +1237,7 @@ contains
                         cfg%conf1I,cfg%sop1I,&    ! bra confs and SOPs
                         cfg%n1h,cfg%off1I,&       ! no. bra hole confs and offsets
                         cfg%csfs1I,cfg%csfs1I1E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
 
                 ! 1I1E - 1E matrix contributions
@@ -1246,7 +1248,7 @@ contains
                         cfg%conf1E,cfg%sop1E,&    ! bra confs and SOPs
                         cfg%n1h,cfg%off1E,&       ! no. bra hole confs and offsets
                         cfg%csfs1E,cfg%csfs1I1E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                 
              enddo
@@ -1383,7 +1385,7 @@ contains
                         cfg%conf2I,cfg%sop2I,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off2I,&     ! no. bra hole confs and offsets
                         cfg%csfs2I,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.true.)
                 endif
           
                 ! 2I - 2E matrix elements
@@ -1396,7 +1398,7 @@ contains
                         cfg%conf2E,cfg%sop2E,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off2E,&     ! no. bra hole confs and offsets
                         cfg%csfs2E,cfg%csfs2I,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
           
                 ! 2I - 1I1E matrix elements
@@ -1409,7 +1411,7 @@ contains
                         cfg%conf1I1E,cfg%sop1I1E,& ! bra confs and SOPs
                         cfg%n2h,cfg%off1I1E,&      ! no. bra hole confs and offsets
                         cfg%csfs1I1E,cfg%csfs2I,&  ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                 
              enddo
@@ -1460,7 +1462,7 @@ contains
                         cfg%conf2E,cfg%sop2E,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off2E,&     ! no. bra hole confs and offsets
                         cfg%csfs2E,cfg%csfs2E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.true.)
                 endif
           
                 ! 2E - 1I1E matrix elements
@@ -1472,7 +1474,7 @@ contains
                         cfg%conf1I1E,cfg%sop1I1E,& ! bra confs and SOPs
                         cfg%n2h,cfg%off1I1E,&      ! no. bra hole confs and offsets
                         cfg%csfs1I1E,cfg%csfs2E,&  ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.false.)
                 endif
                 
              enddo
@@ -1522,7 +1524,7 @@ contains
                         cfg%conf1I1E,cfg%sop1I1E,&  ! bra confs and SOPs
                         cfg%n2h,cfg%off1I1E,&       ! no. bra hole confs and offsets
                         cfg%csfs1I1E,cfg%csfs1I1E,& ! bra and ket CSF offsets
-                        csfdim,nroots,vec,rho,cfg%m2c)
+                        csfdim,nroots,vec,rho,cfg%m2c,.true.)
                 endif
                 
              enddo
@@ -1544,7 +1546,7 @@ contains
 !######################################################################
   subroutine rdm_batch(bn,ikconf,kconf,ksop,knopen,knsp,knbefore,&
        nbconf,nkconf,bconfs,bsops,nh,boffset,bcsfs,kcsfs,&
-       csfdim,nroots,vec,rho,m2c)
+       csfdim,nroots,vec,rho,m2c,same_class)
 
     use constants
     use bitglobal
@@ -1584,6 +1586,9 @@ contains
 
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
+
+    ! Same bra and ket configuration class?
+    logical, intent(in)     :: same_class
     
     ! Working arrays
     integer(ib)             :: bconf(n_int,2),bsop(n_int,2)
@@ -1608,7 +1613,7 @@ contains
        
        ! Cycle if the excitation degree is not equal to 1
        if (nexci /= 1) cycle
-       
+
        ! Number of open shells in the bra configuration
        bnopen=sop_nopen(bsop,n_int)
     
@@ -1642,6 +1647,9 @@ contains
              do ikcsf=kcsfs(ikconf),kcsfs(ikconf+1)-1
                 komega=komega+1
                 kcoe=vec(ikcsf,ista)
+
+                ! Cycle duplicate CSF pairs
+                if (same_class .and. ibcsf < ikcsf) cycle
                 
                 ! Contribution to the 1-RDM
                 prod=kcoe*bcoe*spincp(komega,bomega)

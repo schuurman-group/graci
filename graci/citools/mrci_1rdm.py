@@ -58,7 +58,9 @@ def rdm(ci, scf):
     #occ  = occ[indx]
     #vec  = vec[:, indx]
     #for i in range(nmo):
-    #   print(i,occ[i])
-    
+    #    #if occ[i] < 0. and np.abs(occ[i]) > 1e-14:
+    #    #    print(i,occ[i])
+    #    print(i,occ[i])
+        
     return
 
