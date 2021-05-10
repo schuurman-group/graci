@@ -64,8 +64,12 @@ class Dftmrci:
         self.print_quad     = False 
         # reference space energies
         self.ref_ener       = None
-        # ci energies
+        # ci energies, by irrep and root index
         self.mrci_ener      = None
+        # ci energies, sorted by value
+        self.mrci_sorted    = None
+        # corresponding states of sorted energy list
+        self.state_sorted   = None
         # Density matrices (list of numpy arrays, one per irrep,
         # shape: (nirr,nmo,nmo,nstates))
         self.dmat           = None
@@ -147,6 +151,9 @@ class Dftmrci:
             self.mrci_wfn.set_ciunits(mrci_ci_units)
             self.mrci_wfn.set_ciname(mrci_ci_files)
             self.mrci_ener = mrci_ener
+            # generate the energies sorted by value, and their
+            # corresponding states
+            self.order_ener()
 
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
@@ -220,6 +227,19 @@ class Dftmrci:
         """return the energy of state 'state'"""
 
         return self.mrci_ener[irrep, state]
+
+    #
+    def energy_n(self, n):
+        """return the energy of the nth root"""
+
+        return self.mrci_sorted[n]
+
+    #
+    def state_n(self, n):
+        """return the irrep and state index of the root corresponding
+           to the energy of the nth root"""
+
+        return self.state_sorted[n]
 
     #
     def rdm1(self, irrep, state):
@@ -334,6 +354,42 @@ class Dftmrci:
 
 
 #########################################################################
+    #
+    def order_ener(self):
+        """orders the mrci_ener array to create mrci_sorted, a 1D array
+           of energies in ascending order, and a corresponding state_sorted
+           array of [irrep, st] pairs for each energy in mrci_sorted."""
+
+        if self.mrci_ener is None:
+            sys.exit('cannot sort dftmrci.mrci_ener')
+
+        nirr   = self.mol.n_irrep()
+        istate = np.zeros((nirr),dtype=int)
+        ntot   = sum(self.n_states())
+
+        self.mrci_sorted  = np.zeros((ntot), dtype=float)
+        self.state_sorted = np.zeros((ntot, 2), dtype=int)
+        # mrci_ener is an irrep x maxroots array, with trailing values 
+        # of 'zero'. 
+        mrci_vals         = np.pad(self.mrci_ener, ((0,0),(0,1)), 
+                                   'constant', 
+                                   constant_values=((0,0),(0,0)))
+       
+        nsrt = 0
+        while nsrt < ntot:
+            eners = np.array([mrci_vals[irr, istate[irr]] 
+                              for irr in range(nirr)])
+            iirr  = np.argsort(eners)[0]
+
+            self.mrci_sorted[nsrt]    = mrci_vals[iirr, istate[iirr]]
+            self.state_sorted[nsrt,:] = [iirr, istate[iirr]]
+            # increment the number of elements in the sorted array,
+            # and the irrep state index of irrep just chosen
+            nsrt         += 1
+            istate[iirr] += 1
+
+        return
+
     #
     def order_orbs(self, occ):
         """sort the occupation vector 'occ'. This is a dedicated 

@@ -26,27 +26,30 @@ class Driver:
         # right now, it just looks for a mol and scf objects, and then
         # runs each (non-scf) method using the mol and scf objects 
         # in the list
-        gm_arr     = []
-        mol_arr    = []
-        scf_arr    = []
-        method_arr = []
+        gm_grp     = []
+        mol_grp    = []
+        scf_grp    = []
+        method_grp = []
+        si_grp     = []
         for obj in calc_array:
             # identify the geometries in the run_list
             if obj.name() == 'geometry':
-                gm_arr.extend([obj])
+                gm_grp.extend([obj])
             elif obj.name() == 'molecule':
-                mol_arr.extend([obj])
+                mol_grp.extend([obj])
             elif obj.name() == 'scf':
-                scf_arr.extend([obj])
-            elif obj.name() in params.valid_objs:
-                method_arr.extend([obj])
+                scf_grp.extend([obj])
+            elif obj.name() in params.method_objs:
+                method_grp.extend([obj])
+            elif obj.name() in params.si_objs:
+                si_grp.extend([obj])
 
         # initialize each of the molecule objects with
         # the appropriate geometry object if they don't
         # already exit
-        for mol_obj in mol_arr:
+        for mol_obj in mol_grp:
             if mol_obj.pymol_exists() is False:
-                for gm_obj in gm_arr:
+                for gm_obj in gm_grp:
                     if mol_obj.label == gm_obj.label:
                         mol_obj.set_pymol(gm_obj)
                         break
@@ -54,16 +57,30 @@ class Driver:
                 output.print_message('molecule section, label='+
                         str(mol_obj.label)+
                         ' has no geometry set. Removing from run list')
-                mol_arr.remove(mol_obj)
+                mol_grp.remove(mol_obj)
 
-        for mol in mol_arr:
-            for scf in scf_arr:
-                for method in method_arr:
+        # run each of the methods in turn
+        for mol in mol_grp:
+            for scf in scf_grp:
+                for method in method_grp:
                     method.set_mol(mol)
                     method.set_scf(scf)
                     method.run()
 
-        return
+        # run the state interaction computations
+        for si in si_grp:
+            bra_method = None
+            ket_method = None
+            for method in method_grp:
+                if method.label == si.final_method:
+                    bra_method = method
+                if method.label == si.init_method:
+                    ket_method = method
+
+            if bra_method is not None and ket_method is not None:
+                si.set_init_method(ket_method)
+                si.set_final_method(bra_method)
+                si.run()
 
 
 #######################################################

@@ -46,7 +46,7 @@ def rdm(ci_method):
         # Compute the 1-RDM for all states in this irrep
         args = (irr, nstates, state_indx, dmat, ci_confunits,
                 ci_ciunits)
-        (dmat) = libs.lib_func('density_mrci', args)
+        dmat = libs.lib_func('density_mrci', args)
 
         # Add the 1-RDMs to the list
         dmat_all.append(np.reshape(dmat, (nmo, nmo, nstates),

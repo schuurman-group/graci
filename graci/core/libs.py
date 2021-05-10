@@ -212,7 +212,7 @@ def finalise_bitci():
     return
 
 #
-def init_bitsi(ci_bra, ci_ket):
+def init_bitsi(si_method):
     """Initialize the bitsi library"""
     global lib_objs
 
@@ -230,15 +230,23 @@ def init_bitsi(ci_bra, ci_ket):
     
     # set all variables that have to be passed to bitsi_initialise
     # (note that the pgrp uses Fortran indexing)
-    imultBra = convert.convert_ctypes(ci_bra.mol.mult, dtype='int32')
-    imultKet = convert.convert_ctypes(ci_ket.mol.mult, dtype='int32')
-    nelBra   = convert.convert_ctypes(ci_bra.mol.nel,  dtype='int32')
-    nelKet   = convert.convert_ctypes(ci_ket.mol.nel,  dtype='int32')
-    nmo      = convert.convert_ctypes(ci_bra.scf.nmo,  dtype='int32')
+    imultBra = convert.convert_ctypes(si_method.bra_method.mol.mult, 
+            dtype='int32')
+    imultKet = convert.convert_ctypes(si_method.ket_method.mol.mult, 
+            dtype='int32')
+    nelBra   = convert.convert_ctypes(si_method.bra_method.mol.nel,  
+            dtype='int32')
+    nelKet   = convert.convert_ctypes(si_method.ket_method.mol.nel,  
+            dtype='int32')
+    nmo      = convert.convert_ctypes(si_method.bra_method.scf.nmo,  
+            dtype='int32')
 
     # not sure what this is about...
-    isym  = mol_bra.sym_indx + 1 if mol_bra.sym_indx > 0 else 1
-    pgrp  = convert.convert_ctypes(isym,               dtype='int32')
+    if si_method.bra_method.mol.sym_indx <= 0:
+        isym = 1
+    else:
+        isym = si_method.bra_method.mol.sym_indx + 1
+    pgrp  = convert.convert_ctypes(isym, dtype='int32')
     
     # call to bitsi_initialise
     lib_objs['bitsi'].bitsi_initialise(ctypes.byref(imultBra),

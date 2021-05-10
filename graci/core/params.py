@@ -26,9 +26,7 @@ molecule_kword =     {'charge'   : int,
                       'label'    : str
                      }
 
-# used to parameterize new Hamiltonians
-parameterize_kword = {'algorithm' : str,
-                      'label'     : str}
+#----------------------------------------------
 
 # DFT section input keywords and data types
 scf_kword      = {'xc'          : str,
@@ -63,19 +61,25 @@ dftcis_kword   = {'nstates'        : int,
                   'label'          : str
                 }
 
-# moments section, input keywords and data types
-moments_kword   = {'states'        : int
-                  }
+#---------------------------------------------------
 
 # transition moments input keywords and data types
-transition_kword = {'init'         : int,
-                    'final'        : int
+transition_kword = {'init_states'      : int,
+                    'final_states'     : int,
+                    'nfinal_states'    : int,
+                    'all_final_states' : bool
                    }
 
 # molecule section input keywords and data typess
 spinorbit_kword = {'bra_states' : int,
                    'ket_states' : int
                   }
+
+#----------------------------------------------------
+
+# used to parameterize new Hamiltonians
+parameterize_kword = {'algorithm' : str,
+                      'label'     : str}
 
 
 ######################################################################
@@ -109,8 +113,9 @@ def name2obj(name):
 # inartful.
 valid_objs = ['geometry', 'molecule', 'parameterize', 
               'scf', 'dftmrci', 'dftmrcis', 
-              'moments', 'transition', 'spinorbit']
-
+              'transition', 'spinorbit']
+method_objs = ['dftmrci', 'dftmrcis']
+si_objs     = ['transition', 'spinorbit']
 
 ##############################################
 kwords = {'geometry'     : geometry_kword,
@@ -119,7 +124,6 @@ kwords = {'geometry'     : geometry_kword,
           'scf'          : scf_kword,
           'dftcis'       : dftcis_kword,
           'dftmrci'      : dftmrci_kword,
-          'moments'      : moments_kword,
           'transition'   : transition_kword,
           'spinorbit'    : spinorbit_kword
          }
