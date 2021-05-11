@@ -152,8 +152,10 @@ def init_bitci(ci_method):
                dtype='int32')
     use_df   = convert.convert_ctypes(ci_method.mol.use_df, 
                dtype='logical')
-    use_rrdf = convert.convert_ctypes(ci_method.mol.rrdf,   
+    use_rrdf = convert.convert_ctypes(ci_method.mol.use_rrdf,   
                dtype='logical')
+    rrdf_fac = convert.convert_ctypes(ci_method.mol.rrdf_fac,
+               dtype='int32')
     thresh   = convert.convert_ctypes(1e-14,                
                dtype='double')
     max_mem  = convert.convert_ctypes(-1,                   
