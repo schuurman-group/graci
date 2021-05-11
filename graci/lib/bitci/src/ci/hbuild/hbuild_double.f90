@@ -451,6 +451,13 @@ contains
     deallocate(hbuffer)
     deallocate(harr)
     deallocate(harr2)
+
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+         'save_hij_double')
     
     return
     

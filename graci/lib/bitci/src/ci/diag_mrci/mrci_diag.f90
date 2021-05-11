@@ -87,9 +87,6 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   real(dp)                 :: mem
   character(len=20)        :: vecstem
 
-  ! Hamiltonian build testing
-  integer(is)              :: nconf,ncsf
-  
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -149,42 +146,6 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   if (.not. direct) &
        call save_hij(hamscr,nrec,irrep,averageii,cfg%confdim,cfg)
 
-!----------------------------------------------------------------------  
-! Hamiltonian build debugging
-!----------------------------------------------------------------------
-  ! Dimensions
-  nconf=cfg%confdim
-  ncsf=cfg%csfdim
-  
-  !! Check: remove confs
-  !nconf=nconf &
-  !     !-cfg%n0h &
-  !     !-cfg%n1I &
-  !     -cfg%n2I &
-  !     !-cfg%n1E &
-  !     -cfg%n2E &
-  !     -cfg%n1I1E
-  !
-  !ncsf=ncsf &
-  !     !-(cfg%csfs0h(cfg%n0h+1)-cfg%csfs0h(1)) &     ! R
-  !     !-(cfg%csfs1I(cfg%n1I+1)-cfg%csfs1I(1)) &     ! 1I
-  !     -(cfg%csfs2I(cfg%n2I+1)-cfg%csfs2I(1)) &     ! 2I
-  !     !-(cfg%csfs1E(cfg%n1E+1)-cfg%csfs1E(1)) &     ! 1E
-  !     -(cfg%csfs2E(cfg%n2E+1)-cfg%csfs2E(1)) &     ! 2E
-  !     -(cfg%csfs1I1E(cfg%n1I1E+1)-cfg%csfs1I1E(1)) ! 1I1E
-  
-  ! Fill in the conf, SOP and CSF offset arrays
-  call cfg%concatenate_arrays
-
-  ! Compute the on-diagonal Hamiltonian matrix elements
-  call hii_double(nconf,ncsf,cfg%csfsall,cfg%confall,cfg%sopall,n_int,&
-       cfg%m2c,irrep,hdiag,averageii)
-  
-  ! Save the non-zero off-diagonal Hamiltonian matrix elements
-  ! to disk
-  call save_hij_double(nconf,ncsf,cfg%csfsall,averageii,cfg%confall,&
-       cfg%sopall,n_int,cfg%m2c,irrep,hamscr,nrec,'hij')
-  
 !----------------------------------------------------------------------
 ! Eigenpair scratch file stem
 !----------------------------------------------------------------------
@@ -212,7 +173,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
      ! Generate the guess vectors
      call mrci_guess_subspace(guessscr,blocksize,cfg,cfg%csfdim,&
           guessdim,hdiag,averageii,cfg%confdim)
-
+     
      ! Set the sigma-vector algorithm information
      if (direct) then
         isigma=0

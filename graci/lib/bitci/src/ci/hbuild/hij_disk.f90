@@ -243,15 +243,6 @@ contains
     integer(is)                :: n,ioff,kcsf,bcsf,iconf,n_int_I
     integer(is)                :: nsp,k
 
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -700,15 +691,6 @@ contains
     integer(is)                :: nexci
     integer(is)                :: n_int_I
 
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-    
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -791,12 +773,6 @@ contains
 !----------------------------------------------------------------------
     deallocate(harr)
     
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'save_hij_0h_0h')
     return
     
   end subroutine save_hij_0h_0h
@@ -854,16 +830,7 @@ contains
     integer(is)                :: knopen,nac
     integer(is)                :: n,bnsp,knsp
     integer(is)                :: n_int_I
-    
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-    
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-    
+        
 !----------------------------------------------------------------------
 ! Off-diagonal elements in the R-1I and R-1E classes
 !----------------------------------------------------------------------
@@ -921,13 +888,6 @@ contains
        
     enddo
 
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'save_hij_0h_1h')
-    
     return
     
   end subroutine save_hij_0h_1h
@@ -983,15 +943,6 @@ contains
     integer(is)                :: n,bnsp,knsp,nac,nexci
     integer(is)                :: n_int_I
     integer(is)                :: bref
-    
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
     
 !----------------------------------------------------------------------
 ! Off-diagonal elements in the R-2I, R-2E and R-1I1E classes
@@ -1068,13 +1019,6 @@ contains
     
     enddo
 
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'save_hij_0h_2h')
-
     return
     
   end subroutine save_hij_0h_2h
@@ -1136,15 +1080,6 @@ contains
     integer(is)                :: bref
     integer(is)                :: ioff
     
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -1300,13 +1235,6 @@ contains
     deallocate(kconf_int)
     deallocate(ksop_int)
     
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'save_hij_1h_1h')
-
     return
     
   end subroutine save_hij_1h_1h
@@ -1368,15 +1296,6 @@ contains
     integer(is)                :: bref
     integer(is)                :: ioff
     
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -1604,13 +1523,6 @@ contains
     deallocate(kconf_int)
     deallocate(ksop_int)
     
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'save_hij_2h_1h')
-    
     return
     
   end subroutine save_hij_2h_1h
@@ -1672,15 +1584,6 @@ contains
     integer(is)                :: bref
     integer(is)                :: ioff
     
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-    
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -1916,13 +1819,6 @@ contains
 !----------------------------------------------------------------------
     deallocate(kconf_int)
     deallocate(ksop_int)
-    
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'save_hij_2h_2h')
     
     return
     
