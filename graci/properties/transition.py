@@ -49,6 +49,7 @@ class Transition:
            transitions from all states in method object should be 
            used."""
 
+        print("init")
         # initialize the bitsi library
         libs.init_bitsi(self)
 
@@ -81,6 +82,8 @@ class Transition:
 
     def build_pair_list():
         """built an array of initial states, ordered by irrep"""
+
+        print("init_states="+str(self.init_states))
 
         nirr = self.init_method.mol.n_irrep()
         if nirr != self.final_method.mol.n_irrep():
