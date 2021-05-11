@@ -18,6 +18,7 @@ subroutine density_mrci(irrep,nroots,iroots,dmat,confscr,vecscr)
   use iomod
   use conftype
   use rdm
+  use rdm_double
   
   implicit none
 
@@ -72,7 +73,7 @@ subroutine density_mrci(irrep,nroots,iroots,dmat,confscr,vecscr)
 ! Compute the 1-RDMs
 !----------------------------------------------------------------------
   call rdm_mrci(cfg,cfg%csfdim,nroots,vec,dmat)
-  
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------

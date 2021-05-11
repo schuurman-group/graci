@@ -3,20 +3,27 @@
 !**********************************************************************
 module dftcis_hbuild
 
+  use constants
+  
   implicit none
 
+  real(dp), allocatable :: Goo(:,:),Gvv(:,:),Gov(:,:)
+  integer(is)           :: nocc,nvirt
+    
 contains
   
 !######################################################################
 ! save_hij_dftcis: Saves the non-zero DFT/CIS Hamiltonian matrix
 !                  elements to disk
 !######################################################################
-  subroutine save_hij_dftcis(irrep,hscr,nrec,ncsf,iph)
+  subroutine save_hij_dftcis(irrep,hscr,nrec,ncsf,iph,loose)
 
     use constants
     use bitglobal
     use timing
     use iomod
+
+    use int_pyscf
     
     implicit none
 
@@ -34,6 +41,10 @@ contains
 
     ! Number of Hamiltonian scratch file records
     integer(is), intent(out) :: nrec
+
+    ! Loose integral screening: only to be used in the
+    ! generation of RAS spaces
+    logical, intent(in)      :: loose
     
     ! I/O variables
     integer(is)              :: iscratch
@@ -47,16 +58,22 @@ contains
 
     ! Everthing else
     integer(is)              :: nbra,nket,ibra,iket,abra,aket
+    integer(is)              :: i,j,a,b
     real(dp)                 :: hij
-    
+        
     ! Timing variables
     real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
-
+    
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
     call get_times(twall_start,tcpu_start)
+
+!----------------------------------------------------------------------
+! Precompute G_pq = (p,q|p,q)^1/2
+!----------------------------------------------------------------------
+    if (loose) call precompute_gmat
     
 !----------------------------------------------------------------------
 ! Register Hamiltonian scratch file
@@ -97,7 +114,7 @@ contains
 
        ! Bra hole index
        ibra=iph(2,nbra)
-       
+
        ! Loop over ket CSFs
        do nket=nbra+1,ncsf
 
@@ -106,7 +123,17 @@ contains
           
           ! Key hole index
           iket=iph(2,nket)
-          
+
+          ! Loose integral screening
+          if (loose)  then
+             i=ibra
+             a=abra-nocc
+             j=iket
+             b=aket-nocc
+             if (0.5*Goo(i,j)*Gvv(a,b) < 1.2e-2_dp &
+                  .and. 2*Gov(i,a)*Gov(j,b) < 1.2e-2_dp) cycle
+          endif
+                    
           ! Matrix element
           hij=hij_dftcis(ibra,abra,iket,aket)
 
@@ -152,7 +179,7 @@ contains
     call get_times(twall_end,tcpu_end)
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'save_hij_dftcis')
-    
+
     return
     
   end subroutine save_hij_dftcis
@@ -182,15 +209,17 @@ contains
     select case(ihamiltonian)
 
     case(1)
+
        ! Grimme's original parameterisation
        hij =-hpar(1)*mo_integral(i,j,a,b)&
             +2.0d0*mo_integral(i,a,j,b)
 
     case(2)
+
        ! Our singlet/BHLYP parameterisation
        hij =-hpar(1)*mo_integral(i,j,a,b)&
             +2.0d0*mo_integral(i,a,j,b)
-       
+            
     end select
     
     return
@@ -234,6 +263,7 @@ contains
        select case(ihamiltonian)
 
        case(1)
+
           ! Grimme's original parameterisation
           hii(n)=moen(a)-moen(i) &
                -hpar(1)*Vc(i,a) &
@@ -241,12 +271,13 @@ contains
                -0.025d0*moen(i)+hpar(2)*exp(-hpar(3)*Vx(i,a)**4)
 
        case(2)
+
           ! Our singlet/BHLYP parameterisation
           hii(n)=moen(a)-moen(i) &
                -hpar(1)*Vc(i,a) &
                +2.0d0*Vx(i,a) &
                -0.025d0*moen(i)+hpar(2)*exp(-hpar(3)*Vx(i,a)**4)
-          
+
        end select
        
     enddo
@@ -254,6 +285,51 @@ contains
     return
     
   end subroutine hii_dftcis
+    
+!######################################################################
+
+  subroutine precompute_gmat
+
+    use constants
+    use bitglobal
+    use int_pyscf
+        
+    implicit none
+
+    integer(is) :: i,j,a,b,a1,b1
+    
+    nocc = nel/2
+    nvirt = nmo - nocc
+    
+    allocate(Goo(nocc,nocc), Gvv(nvirt,nvirt), Gov(nocc,nvirt))
+    Goo=0.0d0; Gvv=0.0d0; Gov=0.0d0
+    
+    do i=1,nocc
+       do j=i,nocc
+          Goo(i,j)=sqrt(mo_integral(i,j,i,j))
+          Goo(j,i)=Goo(i,j)
+       enddo
+    enddo
+
+    do a1=1,nvirt
+       a=nocc+a1
+       do b1=a1,nvirt
+          b=nocc+b1
+          Gvv(a1,b1)=sqrt(mo_integral(a,b,a,b))
+          Gvv(b1,a1)=Gvv(a1,b1)
+       enddo
+    enddo
+
+    do i=1,nocc
+       do a1=1,nvirt
+          a=nocc+a1
+          Gov(i,a1)=sqrt(mo_integral(i,a,i,a))
+       enddo
+    enddo
+    
+    return
+    
+  end subroutine precompute_gmat
     
 !######################################################################
   

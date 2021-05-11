@@ -23,7 +23,7 @@ bitci_registry = {
         'generate_ref_confs'  : ['int32','int32','int32','int32',
                                  'int32','int32','int32','int32',
                                  'int32','int32','int32','int32'],
-        'diag_dftcis'         : ['int32','int32','int32','int32'],
+        'diag_dftcis'         : ['int32','int32','int32','int32','logical'],
         'ras_guess_dftcis'    : ['int32','int32','int32','int32',
                                  'int32'],
         'ref_diag_mrci'       : ['int32','int32','int32','int32',
@@ -47,7 +47,7 @@ bitci_registry = {
 bitci_intent = {
         'generate_ref_confs'  : ['in','in','in','in','in','in','in',
                                  'in','in','in','out','out'],
-        'diag_dftcis'         : ['in','in','in','out'],
+        'diag_dftcis'         : ['in','in','in','out','in'],
         'ras_guess_dftcis'    : ['in','in','in','out','out'],
         'ref_diag_mrci'       : ['in','out','in','in','out'],
         'retrieve_energies'   : ['in','in','out'],
@@ -146,24 +146,25 @@ def init_bitci(ci_method):
     lib_objs['bitci'] = ctypes.cdll.LoadLibrary(bitci_path)
 
     # set the variables that have to be passed to intpyscf_initialise
-    nmo     = convert.convert_ctypes(ci_method.scf.nmo,    
-            dtype='int32')
-    naux    = convert.convert_ctypes(ci_method.scf.naux,   
-            dtype='int32')
-    use_df  = convert.convert_ctypes(ci_method.mol.use_df, 
-            dtype='logical')
-    use_rr  = convert.convert_ctypes(ci_method.mol.rrdf,   
-            dtype='logical')
-    thresh  = convert.convert_ctypes(1e-14,                
-            dtype='double')
-    max_mem = convert.convert_ctypes(-1,                   
-            dtype='int32')   
+    nmo      = convert.convert_ctypes(ci_method.scf.nmo,    
+               dtype='int32')
+    naux     = convert.convert_ctypes(ci_method.scf.naux,   
+               dtype='int32')
+    use_df   = convert.convert_ctypes(ci_method.mol.use_df, 
+               dtype='logical')
+    use_rrdf = convert.convert_ctypes(ci_method.mol.rrdf,   
+               dtype='logical')
+    thresh   = convert.convert_ctypes(1e-14,                
+               dtype='double')
+    max_mem  = convert.convert_ctypes(-1,                   
+               dtype='int32')   
 
     # call to intpyscf_initialise
     lib_objs['bitci'].intpyscf_initialise(ctypes.byref(nmo),
                                   ctypes.byref(naux),
                                   ctypes.byref(use_df),
-                                  ctypes.byref(use_rr),
+                                  ctypes.byref(use_rrdf),
+                                  ctypes.byref(rrdf_fac),
                                   ctypes.byref(thresh),
                                   ctypes.byref(max_mem))
     

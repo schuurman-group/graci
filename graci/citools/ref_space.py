@@ -115,7 +115,10 @@ def autoras(ci_method):
     cvsflag = np.zeros(nmo, dtype=int)
     for i in ci_method.icvs:
         cvsflag[i-1] = 1
-    
+
+    # Loose integral screening
+    loose = False
+        
     # Loop over irreps
     for irrep in range(nirr):
 
@@ -123,7 +126,7 @@ def autoras(ci_method):
         nroots = ci_method.n_states(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
-        args = (irrep, nroots, cvsflag, dftcis_vec)
+        args = (irrep, nroots, cvsflag, dftcis_vec, loose)
         dftcis_vec = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number

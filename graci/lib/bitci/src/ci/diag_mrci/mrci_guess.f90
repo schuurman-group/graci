@@ -659,11 +659,13 @@ contains
           bnopen=sop_nopen(sop(:,:,bcsf),n_int)
 
           ! Get the indices of the MOs involved in the excitation
-          hlist=0
-          plist=0
-          call get_exci_indices(conf(:,:,kcsf),conf(:,:,bcsf),&
-               n_int,hlist(1:nexci),plist(1:nexci),nexci)
-
+          if (nexci > 0) then
+             hlist=0
+             plist=0
+             call get_exci_indices(conf(:,:,kcsf),conf(:,:,bcsf),&
+                  n_int,hlist(1:nexci),plist(1:nexci),nexci)
+          endif
+             
           !************************************************************
           ! Note that here the lists of holes/particles are the indices
           ! of the annihilation/creation operators operating on the ket
@@ -713,6 +715,7 @@ contains
           if (nexci > 0) then
              hij=reshape(subhmat(bcsf:bcsf,kcsf:kcsf),(/1/))
              call hij_dftmrci_batch(hij,1,1,subavii(bcsf),subavii(kcsf))
+             subhmat(bcsf,kcsf)=hij(1)
           endif
           
           ! Fill in the upper triangle
@@ -748,17 +751,16 @@ contains
     real(dp), intent(out)   :: subvec(subdim,subdim)
     real(dp), intent(out)   :: subeig(subdim)
 
-    ! Everything else
-    integer(is)             :: i
-        
+    integer(is) :: i
+    
 !----------------------------------------------------------------------
 ! Diagonalise the subspace Hamiltonian matrix
 !----------------------------------------------------------------------
     call diag_matrix_real(subhmat,subeig,subvec,subdim)
-
+    
     ! Add on E_SCF + E_nuc
     subeig=subeig+escf+enuc
-    
+
     return
     
   end subroutine subspace_diagonalise

@@ -19,10 +19,12 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   use conftype
   use hii
   use hij_disk
+  use hbuild_double
   use mrci_guess
   use full_diag
   use blockdav
   use gendav
+  use mrciutils
   use iomod
   
   implicit none
@@ -84,7 +86,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   integer(is)              :: isigma(3)
   real(dp)                 :: mem
   character(len=20)        :: vecstem
-  
+
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -136,7 +138,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   
   ! Compute the diagonal elements
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
-
+    
 !----------------------------------------------------------------------
 ! If we are using disk-based sigma-vector builds, then save the
 ! non-zero off-diagonal elements of the Hamiltonian matrix to disk
@@ -194,7 +196,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
            ipre=2
         endif
      endif
-     
+
      ! Perform the iterative diagonalisation
      select case(ialg)
      case(1)
@@ -225,4 +227,3 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   return
   
 end subroutine diag_mrci
-

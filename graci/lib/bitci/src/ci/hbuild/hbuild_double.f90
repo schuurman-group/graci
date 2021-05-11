@@ -1,18 +1,19 @@
 !**********************************************************************
-! Routines for the construction of the reference space Hamiltonian
+! Routines for the construction of a Hamiltonian matrix using the
+! simple double loop algorithm
 !**********************************************************************
-module hbuild_ref
+module hbuild_double
 
   implicit none
 
 contains
 
 !######################################################################
-! href_diagonal: Calculation of the on-diagonal Hamiltonian matrix
-!                elements and the their spin-coupling averaged values
+! hii_double: Calculation of the on-diagonal Hamiltonian matrix
+!             elements and the their spin-coupling averaged values
 !######################################################################
-  subroutine href_diagonal(nconf,hdim,offset,conf,sop,n_int_I,m2c,&
-       nmoI,irrep,hii,averageii)
+  subroutine hii_double(nconf,hdim,offset,conf,sop,n_int_in,m2c,irrep,&
+       hii,averageii)
 
     use constants
     use bitglobal
@@ -31,13 +32,13 @@ contains
     integer(is), intent(in)  :: irrep
   
     ! Dimensions
-    integer(is), intent(in)  :: nconf,hdim,nmoI
+    integer(is), intent(in)  :: nconf,hdim
     integer(is), intent(in)  :: offset(nconf+1)
     
     ! Configurations and SOPs
-    integer(is), intent(in)  :: n_int_I
-    integer(ib), intent(in)  :: conf(n_int_I,2,nconf)
-    integer(ib), intent(in)  :: sop(n_int_I,2,nconf)
+    integer(is), intent(in)  :: n_int_in
+    integer(ib), intent(in)  :: conf(n_int_in,2,nconf)
+    integer(ib), intent(in)  :: sop(n_int_in,2,nconf)
 
     ! MO mapping array
     integer(is), intent(in)  :: m2c(nmo)
@@ -75,19 +76,25 @@ contains
     harr=0.0d0
 
 !----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    hii=0.0d0
+    averageii=0.0d0
+    
+!----------------------------------------------------------------------
 ! Compute the on-diagonal elements
 !----------------------------------------------------------------------
     ! Loop over configurations
     do iconf=1,nconf
        
        ! Number of open shells
-       nopen=sop_nopen(sop(:,:,iconf),n_int_I)
+       nopen=sop_nopen(sop(:,:,iconf),n_int_in)
        
        ! Configuration and SOP in the full MO space
        conf_full=0_ib
        sop_full=0_ib
-       conf_full(1:n_int_I,:)=conf(:,:,iconf)
-       sop_full(1:n_int_I,:)=sop(:,:,iconf)
+       conf_full(1:n_int_in,:)=conf(:,:,iconf)
+       sop_full(1:n_int_in,:)=sop(:,:,iconf)
        
        ! Get all the configuration information needed to evaluate
        ! the on-diagonal Hamiltonian matrix element
@@ -141,14 +148,14 @@ contains
     
     return
     
-  end subroutine href_diagonal
+  end subroutine hii_double
     
 !######################################################################
-! save_hrefij : Saves the non-zero off-diagonal elements of the
-!               reference space Hamiltonian to disk
+! save_hij_double: Saves the non-zero off-diagonal elements of the
+!                  Hamiltonian to disk
 !######################################################################
-  subroutine save_hrefij(nconf,hdim,offset,averageii,conf,sop,&
-       n_int_I,m2c,nmoI,irrep,hscr,nrec)
+  subroutine save_hij_double(nconf,hdim,offset,averageii,conf,sop,&
+       n_int_in,m2c,irrep,hscr,nrec,hstem)
     
     use constants
     use bitglobal
@@ -164,72 +171,77 @@ contains
     implicit none
 
     ! Irrep number
-    integer(is), intent(in)  :: irrep
+    integer(is), intent(in)      :: irrep
   
     ! Dimensions
-    integer(is), intent(in)  :: nconf,hdim,nmoI
-    integer(is), intent(in)  :: offset(nconf+1)
+    integer(is), intent(in)      :: nconf,hdim
+    integer(is), intent(in)      :: offset(nconf+1)
 
     ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
-    real(dp), intent(in)     :: averageii(nconf)
+    real(dp), intent(in)         :: averageii(nconf)
     
     ! Configurations and SOPs
-    integer(is), intent(in)  :: n_int_I
-    integer(ib), intent(in)  :: conf(n_int_I,2,nconf)
-    integer(ib), intent(in)  :: sop(n_int_I,2,nconf)
+    integer(is), intent(in)      :: n_int_in
+    integer(ib), intent(in)      :: conf(n_int_in,2,nconf)
+    integer(ib), intent(in)      :: sop(n_int_in,2,nconf)
 
     ! MO mapping array
-    integer(is), intent(in)  :: m2c(nmo)
+    integer(is), intent(in)      :: m2c(nmo)
 
     ! Hamiltonian scratch file number
-    integer(is), intent(out) :: hscr
+    integer(is), intent(out)     :: hscr
 
     ! Number of Hamiltonian scratch file records
-    integer(is), intent(out) :: nrec
+    integer(is), intent(out)     :: nrec
+
+    ! Hamiltonian scratch file stem
+    character(len=*), intent(in) :: hstem
     
     ! Hamiltonian build variables
-    integer(is)              :: nexci
-    integer(is)              :: socc(nmo),docc(nmo),unocc(nmo)
-    integer(is)              :: nopen,nsocc,ndocc,nunocc
-    integer(ib)              :: conf_full(n_int,2)
-    integer(ib)              :: sop_full(n_int,2)
-    integer(is)              :: knopen,bnopen
-    integer(ib)              :: bconf_full(n_int,2),kconf_full(n_int,2)
-    integer(ib)              :: bsop_full(n_int,2),ksop_full(n_int,2)
-    integer(is), parameter   :: maxexci=2
-    integer(is)              :: hlist(maxexci),plist(maxexci)
+    integer(is)                  :: nexci
+    integer(is)                  :: socc(nmo),docc(nmo),unocc(nmo)
+    integer(is)                  :: nopen,nsocc,ndocc,nunocc
+    integer(ib)                  :: conf_full(n_int,2)
+    integer(ib)                  :: sop_full(n_int,2)
+    integer(is)                  :: knopen,bnopen
+    integer(ib)                  :: bconf_full(n_int,2)
+    integer(ib)                  :: kconf_full(n_int,2)
+    integer(ib)                  :: bsop_full(n_int,2)
+    integer(ib)                  :: ksop_full(n_int,2)
+    integer(is), parameter       :: maxexci=2
+    integer(is)                  :: hlist(maxexci),plist(maxexci)
         
     ! Difference configuration information
-    integer(is)              :: ndiff
-    integer(is)              :: Dw(nmo,2)
+    integer(is)                  :: ndiff
+    integer(is)                  :: Dw(nmo,2)
     
     ! Number of open shells preceding each MO
-    integer(is)              :: nbefore(nmo)
+    integer(is)                  :: nbefore(nmo)
   
     ! Temporary Hij array
-    integer(is)              :: arrdim,harr2dim
-    real(dp), allocatable    :: harr(:),harr2(:)
+    integer(is)                  :: arrdim,harr2dim
+    real(dp), allocatable        :: harr(:),harr2(:)
 
     ! I/O variables
-    integer(is)              :: iscratch
-    character(len=60)        :: hamfile
-    character(len=2)         :: amult,airrep
+    integer(is)                  :: iscratch
+    character(len=60)            :: hamfile
+    character(len=2)             :: amult,airrep
 
     ! Buffer
-    integer(is)              :: nbuf
-    integer(is), allocatable :: ibuffer(:,:)
-    real(dp), allocatable    :: hbuffer(:)
+    integer(is)                  :: nbuf
+    integer(is), allocatable     :: ibuffer(:,:)
+    real(dp), allocatable        :: hbuffer(:)
     
     ! Everything else
-    integer(is)              :: iconf,kconf,bconf
-    integer(is)              :: icsf,kcsf,bcsf
-    integer(is)              :: iomega,komega,bomega
-    integer(is)              :: nsp,count,blim1,blim2,&
-                                klim1,klim2,bnsp,knsp
+    integer(is)                  :: iconf,kconf,bconf
+    integer(is)                  :: icsf,kcsf,bcsf
+    integer(is)                  :: iomega,komega,bomega
+    integer(is)                  :: nsp,count,blim1,blim2,&
+                                    klim1,klim2,bnsp,knsp
     
     ! Timing variables
-    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
-                                twall_end
+    real(dp)                     :: tcpu_start,tcpu_end,twall_start,&
+                                    twall_end
 
 !----------------------------------------------------------------------
 ! Start timing
@@ -241,8 +253,8 @@ contains
 !----------------------------------------------------------------------
     write(amult,'(i0)') imult
     write(airrep,'(i0)') irrep
-    call scratch_name('hij_ref.mult'//trim(amult)//'.sym'&
-         //trim(airrep),hamfile)
+    call scratch_name(trim(hstem)//'.mult'//trim(amult)//'.sym'&
+         //trim(airrep),hamfile)    
     call register_scratch_file(hscr,hamfile)
 
 !----------------------------------------------------------------------
@@ -279,15 +291,15 @@ contains
 !----------------------------------------------------------------------
     ! Loop over configurations
     do iconf=1,nconf
-       
+
        ! Number of open shells
-       nopen=sop_nopen(sop(:,:,iconf),n_int_I)
+       nopen=sop_nopen(sop(:,:,iconf),n_int_in)
        
        ! Configuration and SOP in the full MO space
        conf_full=0_ib
        sop_full=0_ib
-       conf_full(1:n_int_I,:)=conf(:,:,iconf)
-       sop_full(1:n_int_I,:)=sop(:,:,iconf)
+       conf_full(1:n_int_in,:)=conf(:,:,iconf)
+       sop_full(1:n_int_in,:)=sop(:,:,iconf)
        
        ! Get all the configuration information needed to evaluate
        ! the on-diagonal Hamiltonian matrix element
@@ -340,7 +352,7 @@ contains
     do kconf=1,nconf-1
        
        ! Number of open shells in the ket configuration
-       knopen=sop_nopen(sop(:,:,kconf),n_int_I)
+       knopen=sop_nopen(sop(:,:,kconf),n_int_in)
 
        ! Number of ket CSFs
        knsp=ncsfs(knopen)
@@ -348,8 +360,8 @@ contains
        ! Ket configuration and SOP in the full MO space
        kconf_full=0_ib
        ksop_full=0_ib
-       kconf_full(1:n_int_I,:)=conf(:,:,kconf)
-       ksop_full(1:n_int_I,:)=sop(:,:,kconf)
+       kconf_full(1:n_int_in,:)=conf(:,:,kconf)
+       ksop_full(1:n_int_in,:)=sop(:,:,kconf)
      
        ! Package the ket configuration information
        call package_confinfo(ksop_full,kconf_full,unocc,socc,docc,&
@@ -359,13 +371,13 @@ contains
        do bconf=kconf+1,nconf
         
           ! Compute the excitation degree between the two configurations
-          nexci=exc_degree_conf(conf(:,:,kconf),conf(:,:,bconf),n_int_I)
+          nexci=exc_degree_conf(conf(:,:,kconf),conf(:,:,bconf),n_int_in)
 
           ! Cycle if the excitation degree is greater than 2
           if (nexci > 2) cycle
         
           ! Number of open shells in the bra configuration
-          bnopen=sop_nopen(sop(:,:,bconf),n_int_I)
+          bnopen=sop_nopen(sop(:,:,bconf),n_int_in)
 
           ! Number of bra CSFs
           bnsp=ncsfs(bnopen)
@@ -373,14 +385,14 @@ contains
           ! Bra configuration and SOP in the full MO space
           bconf_full=0_ib
           bsop_full=0_ib
-          bconf_full(1:n_int_I,:)=conf(:,:,bconf)
-          bsop_full(1:n_int_I,:)=sop(:,:,bconf)
+          bconf_full(1:n_int_in,:)=conf(:,:,bconf)
+          bsop_full(1:n_int_in,:)=sop(:,:,bconf)
           
           ! Get the indices of the MOs involved in the excitation
           hlist=0
           plist=0
           call get_exci_indices(conf(:,:,kconf),conf(:,:,bconf),&
-               n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+               n_int_in,hlist(1:nexci),plist(1:nexci),nexci)
 
           ! Compute the matrix elements between the CSFs generated
           ! by the bra and ket configurations
@@ -439,11 +451,18 @@ contains
     deallocate(hbuffer)
     deallocate(harr)
     deallocate(harr2)
+
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+         'save_hij_double')
     
     return
     
-  end subroutine save_hrefij
+  end subroutine save_hij_double
     
 !######################################################################
   
-end module hbuild_ref
+end module hbuild_double

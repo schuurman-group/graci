@@ -290,32 +290,83 @@ contains
   end subroutine get_unocc
 
 !######################################################################
-! det_hash: hash of a determinant. Based on the boost hash_combine
-!           algorithm but modified to work with 64-bit integers
+! det_hash: hash of the bit string representation of a determinant
+!           using the MurmerHash3 32-bit hash function
 !######################################################################
   function det_hash(det) result(hash)
-    
+
     use constants
-    use bitglobal
     
     implicit none
 
     integer(ib)             :: hash
+    
     integer(ib), intent(in) :: det(n_int,2)
-    integer                 :: i,k
-   
-    hash=0_ib
-    do i=1,2
-       do k=1,n_int
-          hash=ieor(hash,det(k,i)+7046029254386353130_ib+ishft(hash,6)&
-               +ishft(hash,-2))
+
+    integer(is)             :: chunks(4*n_int)
+    integer(is)             :: len
+    integer(is)             :: seed
+    integer(is)             :: i,j,k,t
+
+    ! Bit masks
+    integer(ib), parameter  :: mask1=4294967295_ib  ! 11...100...0
+    integer(ib), parameter  :: mask2=-4294967296_ib ! 00...011...1
+
+    ! MurmurHash3 32-bit hash function parameters
+    integer(is), parameter  :: c1=-862048943 ! 0xcc9e2d51
+    integer(is), parameter  :: c2=461845907  ! 0x1b873593
+    integer(is), parameter  :: m=5
+    integer(is), parameter  :: n=430675100   ! 0xe6546b64
+    integer(is), parameter  :: p=-2048144789 ! 0x85ebca6b
+    integer(is), parameter  :: q=-1028477387 ! 0xc2b2ae35
+    integer(is), parameter  :: r1=15
+    integer(is), parameter  :: r2=13
+
+!----------------------------------------------------------------------
+! Split the 64-bit bit strings into 32-bit chunks
+!----------------------------------------------------------------------
+    j=0
+    do k=1,2
+       do i=1,n_int
+          j=j+1
+          chunks(j)=iand(mask1,det(i,k))
+          j=j+1
+          chunks(j)=ishft(iand(mask2,det(i,k)),-32)
        enddo
     enddo
+    
+!----------------------------------------------------------------------    
+! Compute the hash function value
+!----------------------------------------------------------------------
+    seed=0
+    len=16*n_int
+
+    t=seed
+
+    do i=1,4*n_int
+       k=chunks(i)
+       k=k*c1
+       k=ishftc(k,r1)
+       k=k*c2
+       t=ieor(t,k)
+       t=ishftc(t,r2)
+       t=t*m-n
+    enddo
+
+    t=ieor(t,len)
+
+    t=ieor(t,ishft(t,-16))
+    t=t*p
+    t=ieor(t,ishft(t,-13))
+    t=t*q
+    t=ieor(t,ishft(t,-16))
+    
+    hash=t
 
     return
     
   end function det_hash
-
+  
 !######################################################################
 ! det_sym: given a determinant d, returns the integer label of the
 !          irrep that it generates
@@ -450,5 +501,5 @@ contains
   end subroutine write_det_string
   
 !######################################################################
-
+  
 end module detutils
