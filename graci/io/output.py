@@ -2,8 +2,10 @@
 
 import sys
 import ctypes
+import os as os
 import numpy as np
 from contextlib import contextmanager
+import pyscf.tools.molden as molden
 import graci.utils.constants as constants
 import graci.utils.timing as timing
 import graci.core.params as params
@@ -109,7 +111,7 @@ def print_scf_header():
     return
 
 #
-def print_scf_summary(mol, scf):
+def print_scf_summary(scf):
     """print summary of the SCF computation"""
     global file_names
 
@@ -120,7 +122,7 @@ def print_scf_summary(mol, scf):
         outfile.write(' {:>5}  {:>9}  {:>10}  {:>8}\n'.
               format('Index','Symmetry','Energy','Occ'))
 
-        orb_cnt = np.zeros(mol.n_irrep(), dtype=int)
+        orb_cnt = np.zeros(scf.mol.n_irrep(), dtype=int)
 
         for iorb in range(scf.nmo):
             sym_indx = scf.orb_sym[iorb]
@@ -148,24 +150,25 @@ def print_refdiag_header():
     return
 
 #
-def print_refdiag_summary(mol, ci):
+def print_refdiag_summary(ci_method):
     """print the summary of the reference space diagonalisation"""
     global file_names
 
-    mine = np.amin(ci.ref_wfn.ener)
+    mine = np.amin(ci_method.ref_ener)
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
         outfile.write('\n -------------------------')
     
-        for i in range(len(ci.nstates)):
-            if ci.nstates[i] > 0:
+        nirr = len(ci_method.nstates)
+        for i in range(nirr):
+            if ci_method.n_states(i) > 0:
                 outfile.write('\n')
-                for n in range(ci.nstates[i]):
+                for n in range(ci_method.n_states(i)):
                     outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
-                          .format(n+1, mol.irreplbl[i],
-                            ci.ref_wfn.ener[n][i],
-                            (ci.ref_wfn.ener[n][i]-mine)*constants.au2ev))
+                        .format(n+1, ci_method.mol.irreplbl[i],
+                        ci_method.ref_ener[i,n],
+                        (ci_method.ref_ener[i,n]-mine)*constants.au2ev))
         outfile.write('\n')
         outfile.flush()
 
@@ -203,3 +206,64 @@ def print_cleanup():
         outfile.flush()
         
     return
+
+#
+def print_nos_molden(mol, irr, state, orb, occ, sym):
+    """print out the orbitals, labeled and ordered by 'occ' array
+       vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
+    
+    file_name = 'orbs/natorb.'+str(mol.irreplbl[irr])+'.state'+str(state)
+
+    # if a file called 'orbs' exists, delete it
+    if os.path.isfile('orbs'):
+        os.remove('orbs')
+
+    # if orbs directory doesn't exist, create it
+    if not os.path.exists('orbs'):
+        os.mkdir('orbs')
+
+    # dump the nos to file in the orbs directory
+    molden.from_mo(mol.pymol(), file_name, orb, spin='Alpha', 
+                   symm=sym, occ=occ, ignore_h=True)
+
+    return
+
+#
+def print_moments_header(irr):
+    """prints out header for moments section"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        ostr = '\n\n Dipole and Quadrupole Moments, Symmetry: '+\
+                str(irr)
+        ostr = ostr + '\n ********************************************'
+        outfile.write(ostr)
+
+#
+def print_moments(irr, st, mu, q2):
+    """prints out the dipole moment vector"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n state: '+str(st+1))
+        outfile.write('\n ----------------------------------')
+        ostr = '\n dipole vector[au]: {:10.6f} {:10.6f} {:10.6f} '+\
+                'total: {:10.6f} D'
+        outfile.write(ostr.format(mu[0],mu[1],mu[2],
+                        np.linalg.norm(mu)*constants.au2debye))
+
+        st_str = str(irr)+'('+str(st+1)+')'
+        ostr = '\n <'+st_str+' | r^2 | '+st_str+'> (a.u.): {:10.6f}'
+        outfile.write(ostr.format(q2))
+
+    return
+
+def print_quad(irr, st, qtensor):
+    """prints out the quadrupole moment tensor"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n quadrupole moment tensor -- \n')
+        ostr = '\n {:10.6f}   {:10.6f}   {:10.6f}'
+        for i in range(3):
+            outfile.write(ostr.format(qtensor[i,0],qtensor[i,1],qtensor[i,2]))
+              
+
+

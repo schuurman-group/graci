@@ -144,7 +144,7 @@ def print_timings():
                        key=lambda unsort: unsort[1].wall_time, reverse=True)
 
     # pass timing information as a string
-    ostr =  '\n' + '-'*39 + ' timings summary ' + '-'*39 + ' \n'
+    ostr =  '\n\n' + '-'*39 + ' timings summary ' + '-'*39 + ' \n'
     ostr += ('routine'.ljust(35) + 'calls'.rjust(12) +
              'wall time'.rjust(16) + 'frac.'.rjust(8) +
              'cpu time'.rjust(16)  + 'frac.'.rjust(8) + '\n')

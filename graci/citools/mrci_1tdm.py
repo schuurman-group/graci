@@ -11,7 +11,7 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
-def rdm(ci_method):
+def tdm(si_method):
     """Calculation of the MRCI 1-RDMs for all states"""
 
     # number of molecular orbitals
@@ -27,7 +27,7 @@ def rdm(ci_method):
     ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
     
     # 1-RDMs for all irreps
-    dmat_all = []
+    rho_all = []
     
     # Loop over irreps
     for irr in range(ci_method.n_irrep()):
@@ -41,16 +41,16 @@ def rdm(ci_method):
         nstates = len(states)
         
         # 1-RDM array
-        dmat = np.zeros((nmo*nmo*nstates), dtype=np.float64)
+        rho = np.zeros((nmo*nmo*n_bra*n_ket), dtype=np.float64)
         
         # Compute the 1-RDM for all states in this irrep
         args = (irr, nstates, state_indx, dmat, ci_confunits,
                 ci_ciunits)
-        dmat = libs.lib_func('density_mrci', args)
+        rho = libs.lib_func('density_mrci', args)
 
         # Add the 1-RDMs to the list
-        dmat_all.append(np.reshape(dmat, (nmo, nmo, nstates),
+        rho_all.append(np.reshape(rho, (nmo, nmo, n_bra, n_ket),
                                    order='F'))
 
-    return dmat_all
+    return rho_all
 
