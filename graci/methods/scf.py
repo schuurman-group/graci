@@ -84,7 +84,7 @@ class Scf:
         
         # save integrals
         if self.mol.use_df:
-            mf.with_df.auxbasis       = mol.ri_basis
+            mf.with_df.auxbasis       = self.mol.ri_basis
             # this will be generated during the calculation,
             # saved upon completion
             mf.with_df._cderi_to_save = output.file_names['2ei']
