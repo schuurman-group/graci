@@ -42,8 +42,8 @@ contains
     ! Number of Hamiltonian scratch file records
     integer(is), intent(out) :: nrec
 
-    ! Loose integral screening: only to be used in the
-    ! generation of RAS spaces
+    ! Aggressively loose integral screening: only to be used for
+    ! the generation of RAS spaces
     logical, intent(in)      :: loose
     
     ! I/O variables
@@ -297,13 +297,22 @@ contains
     implicit none
 
     integer(is) :: i,j,a,b,a1,b1
-    
+
+    !
+    ! MO subspace dimensions
+    !
     nocc = nel/2
     nvirt = nmo - nocc
-    
+
+    !
+    ! Allocate arrays
+    !
     allocate(Goo(nocc,nocc), Gvv(nvirt,nvirt), Gov(nocc,nvirt))
     Goo=0.0d0; Gvv=0.0d0; Gov=0.0d0
-    
+
+    !
+    ! Occ - occ elements
+    !
     do i=1,nocc
        do j=i,nocc
           Goo(i,j)=sqrt(mo_integral(i,j,i,j))
@@ -311,6 +320,9 @@ contains
        enddo
     enddo
 
+    !
+    ! Virt - virt elements
+    !
     do a1=1,nvirt
        a=nocc+a1
        do b1=a1,nvirt
@@ -320,6 +332,9 @@ contains
        enddo
     enddo
 
+    !
+    ! Occ - virt elements
+    !
     do i=1,nocc
        do a1=1,nvirt
           a=nocc+a1

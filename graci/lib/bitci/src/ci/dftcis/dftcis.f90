@@ -69,6 +69,9 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
   ! Guess vector scratch file number
   integer(is)              :: guessscr
 
+  ! Guess vector subspace dimension
+  integer(is)              :: guessdim
+  
   ! Davidson variables
   integer(is)              :: blocksize,maxvec,ipre,niter
   real(dp)                 :: tol
@@ -151,9 +154,14 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
      niter=100
      tol=5e-4_dp
 
-     ! Guess vector generation
-     call dftcis_guess_unit(ncsf,hii,blocksize,guessscr)
+     ! Dimension of the subspace used to generate the guess vectors
+     guessdim=750
+     if (guessdim > ncsf) guessdim=int(ncsf*0.9d0)
 
+     ! Guess vector generation
+     call dftcis_guess_subspace(ncsf,guessdim,hii,iph,blocksize,&
+          guessscr)
+     
      ! Set the sigma-vector algorithm information: disk-based only
      ! for now
      isigma(1)=1
