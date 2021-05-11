@@ -68,7 +68,9 @@ dftcis_kword   = {'nstates'        : int,
 transition_kword = {'init_states'      : int,
                     'final_states'     : int,
                     'nfinal_states'    : int,
-                    'all_final_states' : bool
+                    'all_final_states' : bool,
+                    'init_method'      : str,
+                    'final_method'     : str
                    }
 
 # molecule section input keywords and data typess

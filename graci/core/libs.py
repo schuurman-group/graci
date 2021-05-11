@@ -154,7 +154,7 @@ def init_bitci(ci_method):
                dtype='logical')
     use_rrdf = convert.convert_ctypes(ci_method.mol.use_rrdf,   
                dtype='logical')
-    rrdf_fac = convert.convert_ctypes(ci_method.mol.rrdf_fac,             
+    rrdf_fac = convert.convert_ctypes(ci_method.mol.rrdf_fac,
                dtype='int32')
     thresh   = convert.convert_ctypes(1e-14,                
                dtype='double')
