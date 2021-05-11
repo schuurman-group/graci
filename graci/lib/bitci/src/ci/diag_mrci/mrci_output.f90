@@ -796,7 +796,7 @@ contains
           do i=1,csfdim
              normsq=normsq+vec(indx(i))**2
              write(unit,'(i0,x,ES10.4)') i,normsq
-             !if (normsq > 0.9999d0) exit
+             if (normsq > 0.9999d0) exit
           enddo
 
           ! Close the output file
