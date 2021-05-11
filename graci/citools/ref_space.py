@@ -115,8 +115,8 @@ def autoras(scf, ci):
     for i in ci.icvs:
         cvsflag[i-1] = 1
 
-    # Loose integral screening
-    loose = False
+    # Aggressively loose integral screening
+    loose = True
         
     # Loop over irreps
     for irrep in range(nirr):

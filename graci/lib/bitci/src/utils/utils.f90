@@ -374,7 +374,6 @@ contains
 ! diag_matrix_real: computes the eigenpairs of a real, double
 !                   precision matrix
 !######################################################################
-  
   subroutine diag_matrix_real(mat,eigval,eigvec,dim)
 
     use constants

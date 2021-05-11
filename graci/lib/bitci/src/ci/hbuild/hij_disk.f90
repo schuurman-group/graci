@@ -1097,7 +1097,6 @@ contains
     do kn=1,cfg%n1h
     
        ! Loop over bra 1-hole configurations
-       !do bn=kn,cfg%n1h
        do bn=1,cfg%n1h
        
           ! Bra 1-hole configuration in the full MO space
@@ -1602,7 +1601,6 @@ contains
     do kn=1,cfg%n2h
     
        ! Loop over bra 2-hole configurations
-       !do bn=kn,cfg%n2h
        do bn=1,cfg%n2h
        
           ! Bra 2-hole configuration in the full MO space
