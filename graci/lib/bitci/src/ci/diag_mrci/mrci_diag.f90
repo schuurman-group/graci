@@ -63,7 +63,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   ! Dimension of the CSF basis past which we will switch to
   ! the direct mode of operations
   integer(is), parameter   :: disk_lim=750000
-
+  
   ! Dimension of the CSF basis past which full diagonalisation
   ! will not be used
   integer(is), parameter   :: full_lim=1000
