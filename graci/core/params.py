@@ -65,9 +65,10 @@ dftcis_kword   = {'nstates'        : int,
 #---------------------------------------------------
 
 # transition moments input keywords and data types
-transition_kword = {'init_states'      : int,
+transition_kword = {'init_states'      : int, 
                     'final_states'     : int,
-                    'nfinal_states'    : int,
+                    'istate_array'     : float,
+                    'fstate_array'     : float,
                     'all_final_states' : bool,
                     'init_method'      : str,
                     'final_method'     : str
