@@ -1,6 +1,7 @@
 """Module for performing file operations"""
 
 import sys
+import re as re
 import numpy as np 
 import graci.utils.timing as timing
 import graci.utils.constants as constants
@@ -207,6 +208,35 @@ def parse_value(valstr):
         # newline and space give the same result for a vector
         split_lines = [[line[0] for line in split_lines]]
 
+    # we have the ability to recognize ranges, specified as either:
+    # 1-4 or 1 - 4 or 1:4 or 1 : 4, etc.
+    # first see if this is a range input. NOTE: we will not accept
+    # ranges split over multiple lines at this time. Also, we will
+    # only take the integers adjacent to the range symbol as being
+    # relevant. So: 1 2 - 4 5 is intepreted as 2-4
+    range_chk = []
+    for i in range(len(split_lines[0][:])):
+        range_chk.extend(re.split('(:)', split_lines[0][i]))
+    if ':' in range_chk:
+        # remove empty strings
+        try:
+            while True:
+                range_chk.remove('')
+        except ValueError:
+            pass
+        range_index = range_chk[:].index(':')
+
+        if range_index == 0 or range_index == len(range_chk[:])-1:
+            sys.exit(' unknown range specified: '+str(valstr))
+
+        try:
+            rstart = int(range_chk[range_index-1])
+            rend   = int(range_chk[range_index+1])+1
+        except:
+            sys.exit('cannot convert range values: '+str(valstr))
+
+        split_lines[0] = list(range(rstart,rend))
+
     if len(split_lines) == 1:
         if len(split_lines[0]) == 1:
             # handle single values
@@ -252,7 +282,22 @@ def check_input(run_list):
         if 'use_rrdf' in params.kwords[obj.name()].keys():
             if (obj.use_rrdf and not obj.use_df):
                 obj.use_df = True
-                
+     
+        # init/final_states and i/fstate_array need to be lists
+        if obj.name() == 'transition':
+            if obj.init_states is not None:
+                if not isinstance(obj.init_states, (list, np.ndarray)):
+                    obj.init_states = [obj.init_states]
+            if obj.final_states is not None:
+                if not isinstance(obj.final_states, (list, np.ndarray)):
+                    obj.final_states = [obj.final_states]
+            if obj.istate_array is not None:
+                if not isinstance(obj.istate_array, (list, np.ndarray)):
+                    obj.istate_array = [obj.istate_array]
+            if obj.fstate_array is not None:
+                if not isinstance(obj.fstate_array, (list, np.ndarray)):
+                    obj.fstate_array = [obj.fstate_array]
+            
     return
     
 #

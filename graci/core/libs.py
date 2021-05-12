@@ -223,32 +223,30 @@ def init_bitsi(si_method):
     path_str   = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitsi.{}'
     bitsi_path = path_str.format('so' if sys.platform != 'darwin' else 'dylib')
     
+    bra_method = si_method.final_method
+    ket_method = si_method.init_method
+
     if not os.path.isfile(bitsi_path):
         raise FileNotFoundError('bitsi library not found: '+bitsi_path)
     lib_objs['bitsi'] = ctypes.cdll.LoadLibrary(bitsi_path)
 
     # if the number of mos is different between bra and ket, end
-    if ci_bra.scf.nmo != ci_ket.scf.nmo:
-        sys.exit('ci_bra.scf.nmo != ci_ket.scf.nmo in init_bitsi')
+    if bra_method.scf.nmo != ket_method.scf.nmo:
+        sys.exit('bra_method.scf.nmo != ket_method.scf.nmo init_bitsi')
     
     # set all variables that have to be passed to bitsi_initialise
     # (note that the pgrp uses Fortran indexing)
-    imultBra = convert.convert_ctypes(si_method.bra_method.mol.mult, 
-            dtype='int32')
-    imultKet = convert.convert_ctypes(si_method.ket_method.mol.mult, 
-            dtype='int32')
-    nelBra   = convert.convert_ctypes(si_method.bra_method.mol.nel,  
-            dtype='int32')
-    nelKet   = convert.convert_ctypes(si_method.ket_method.mol.nel,  
-            dtype='int32')
-    nmo      = convert.convert_ctypes(si_method.bra_method.scf.nmo,  
-            dtype='int32')
+    imultBra = convert.convert_ctypes(bra_method.mol.mult,dtype='int32')
+    imultKet = convert.convert_ctypes(ket_method.mol.mult,dtype='int32')
+    nelBra   = convert.convert_ctypes(bra_method.mol.nel, dtype='int32')
+    nelKet   = convert.convert_ctypes(ket_method.mol.nel, dtype='int32')
+    nmo      = convert.convert_ctypes(bra_method.scf.nmo, dtype='int32')
 
     # not sure what this is about...
-    if si_method.bra_method.mol.sym_indx <= 0:
+    if bra_method.mol.sym_indx <= 0:
         isym = 1
     else:
-        isym = si_method.bra_method.mol.sym_indx + 1
+        isym = bra_method.mol.sym_indx + 1
     pgrp  = convert.convert_ctypes(isym, dtype='int32')
     
     # call to bitsi_initialise

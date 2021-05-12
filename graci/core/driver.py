@@ -70,26 +70,25 @@ class Driver:
         # run the state interaction computations
         for si in si_grp:
 
-            bra_method = None
-            ket_method = None
+            final_method = None
+            init_method  = None
 
             if len(method_grp) == 1:
-                bra_method = si.final_method
-                ket_method = si.init_method
+                final_method = method_grp[0]
+                init_method  = method_grp[0]
 
             else:
                 # if there's only one method, set the default values
                 # of si.final_method and si.init_method to be the same
                 for method in method_grp:
                     if method.label == si.final_method:
-                        bra_method = method
+                        final_method = method
                     if method.label == si.init_method:
-                        ket_method = method
+                        init_method = method
 
-            if bra_method is not None and ket_method is not None:
-                si.set_init_method(ket_method)
-                si.set_final_method(bra_method)
-                print('si.run()')
+            if final_method is not None and init_method is not None:
+                si.set_init_method(init_method)
+                si.set_final_method(final_method)
                 si.run()
 
 
