@@ -92,7 +92,7 @@ contains
 ! Generate the RAS determinants
 !----------------------------------------------------------------------
     call generate_ras_dets(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
-         nras3,mras3,ndet,detscr)
+         nras3,mras3,ndet,detscr,.false.)
 
 !----------------------------------------------------------------------
 ! Determine the unique reference space SOPs
@@ -205,17 +205,12 @@ contains
     integer(is), intent(in)  :: ndet,detscr
 
     ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    integer(is), intent(in)    :: ncvs
+    integer(is), intent(in)  :: icvs(nmo)
+    integer(is), intent(in)  :: ncvs
     
     ! Determinant arrays
-    integer(is)              :: ndet1,offdima,offdimb
-    integer(ib), allocatable :: da(:,:,:),db(:,:,:)
-    integer(is)              :: nsym(0:nirrep-1)
-    integer(is)              :: nuniquea(0:nirrep-1),&
-                                nuniqueb(0:nirrep-1)
-    integer(is), allocatable :: offseta(:,:),offsetb(:,:)
-    integer(is), allocatable :: mapab(:)
+    integer(is)              :: ndet1
+    integer(ib), allocatable :: det(:,:,:)
 
     ! SOP hash table
     type(dhtbl), intent(out) :: h
@@ -231,8 +226,7 @@ contains
 !----------------------------------------------------------------------
 ! Read the ref determinants from disk
 !----------------------------------------------------------------------
-    call read_det_file(detscr,ndet1,offdima,offdimb,nsym,da,db,&
-         nuniquea,nuniqueb,offseta,offsetb,mapab)
+    call read_det_file_unsorted(detscr,ndet1,det)
 
 !----------------------------------------------------------------------
 ! Initialise the hash table
@@ -247,7 +241,7 @@ contains
     do i=1,ndet
        
        ! Calculate the SOP
-       call get_sop(da(:,:,i),key)
+       call get_sop(det(:,:,i),key)
 
        ! Cycle if the number of open shells is greater than nomax
        nopen=sop_nopen(key,n_int)
@@ -255,7 +249,7 @@ contains
         
        ! Cycle if the excitation degree relative to the base
        ! determinant is greater than nexmax
-       nexci=exc_degree_det(da(:,:,i),det0)
+       nexci=exc_degree_det(det(:,:,i),det0)
        if (nexci > nexmax) cycle
 
        ! If this is a CVS-MRCI calculation, then cycle if the no. holes
@@ -270,9 +264,7 @@ contains
 !----------------------------------------------------------------------
 ! Dellocate arrays
 !----------------------------------------------------------------------
-    deallocate(da,db)
-    deallocate(offseta,offsetb)
-    deallocate(mapab)
+    deallocate(det)
   
     return
   

@@ -61,8 +61,8 @@ subroutine hdiag_spinpure(irrep,detscr,vecscr,nroots)
 !----------------------------------------------------------------------
 ! Read in the determinants and associated information from disk
 !----------------------------------------------------------------------
-  call read_det_file(detscr,ndet,offdima,offdimb,nsym,da,db,nuniquea,&
-       nuniqueb,offseta,offsetb,mapab)
+  call read_det_file_sorted(detscr,ndet,offdima,offdimb,nsym,da,db,&
+       nuniquea,nuniqueb,offseta,offsetb,mapab)
 
 !----------------------------------------------------------------------
 ! Return if there are no determinants for the current irrep

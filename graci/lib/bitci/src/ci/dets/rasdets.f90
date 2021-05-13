@@ -53,13 +53,15 @@ end module rasperm
 !                    -nras3: maximum number of electrons in the RAS3
 !                            space
 !                    -mras3: number of orbitals in the RAS3 space
+!                    -sort:  True if the determinants are to be double
+!                            sorted into alpha- and beta-major order
 !----------------------------------------------------------------------
 ! Output variables:  -ndet:    total number of RAS determinants
 !                    -scrnum:  the scratch file number for the RAS
 !                              determinants
 !######################################################################
 subroutine generate_ras_dets(iras1,iras2,iras3,nras1,mras1,nras2,&
-     mras2,nras3,mras3,ndet,scrnum)
+     mras2,nras3,mras3,ndet,scrnum,sort)
   
   use constants
   use bitglobal
@@ -73,7 +75,8 @@ subroutine generate_ras_dets(iras1,iras2,iras3,nras1,mras1,nras2,&
   integer(is), intent(out)   :: ndet
   integer(ib), allocatable   :: detras_a(:,:,:),detras_b(:,:,:)
   integer(is), intent(out)   :: scrnum
-
+  logical, intent(in)        :: sort
+  
   integer(is)                :: offdim_a,offdim_b
   integer(is), allocatable   :: mapab(:)
   integer(is), allocatable   :: nsym(:)
@@ -117,29 +120,33 @@ subroutine generate_ras_dets(iras1,iras2,iras3,nras1,mras1,nras2,&
 !----------------------------------------------------------------------
 ! Sort the RAS determinants
 !----------------------------------------------------------------------
-  call det_sort_all(detras_a,detras_b,ndet,nsym,mapab,offset_a,&
-       offset_b,offdim_a,offdim_b,nunique_a,nunique_b)
+  if (sort) call det_sort_all(detras_a,detras_b,ndet,nsym,mapab,&
+       offset_a,offset_b,offdim_a,offdim_b,nunique_a,nunique_b)
   
 !----------------------------------------------------------------------
 ! Write the sorted determinant arrays to disk
 !----------------------------------------------------------------------
-  call write_ras_dets(scrnum,detras_a,detras_b,ndet,nsym,mapab,&
-       offset_a,offset_b,offdim_a,offdim_b,nunique_a,nunique_b)
-  
+  if (sort) then
+     call write_ras_dets_sorted(scrnum,detras_a,detras_b,ndet,nsym,&
+          mapab,offset_a,offset_b,offdim_a,offdim_b,nunique_a,nunique_b)
+  else
+     call write_ras_dets_unsorted(scrnum,detras_a,ndet)
+  endif
+     
 !----------------------------------------------------------------------
-! Finalisation: deallocate the permutation arrays
+! Deallocate arrays
 !----------------------------------------------------------------------
   if (allocated(v_ras1)) deallocate(v_ras1)
   if (allocated(v_ras2)) deallocate(v_ras2)
   if (allocated(v_ras3)) deallocate(v_ras3)
-  deallocate(detras_a)
-  deallocate(detras_b)
-  deallocate(mapab)
-  deallocate(nsym)
-  deallocate(nunique_a)
-  deallocate(nunique_b)
-  deallocate(offset_a)
-  deallocate(offset_b)
+  if (allocated(detras_a)) deallocate(detras_a)
+  if (allocated(detras_b)) deallocate(detras_b)
+  if (allocated(mapab)) deallocate(mapab)
+  if (allocated(nsym)) deallocate(nsym)
+  if (allocated(nunique_a)) deallocate(nunique_a)
+  if (allocated(nunique_b)) deallocate(nunique_b)
+  if (allocated(offset_a)) deallocate(offset_a)
+  if (allocated(offset_b)) deallocate(offset_b)
 
 !----------------------------------------------------------------------
 ! Flush stdout
@@ -998,11 +1005,11 @@ subroutine fill_orbitals(det,ispin,morb,v,iorb)
 end subroutine fill_orbitals
   
 !######################################################################
-! write_ras_dets: Writes the RAS determinants and offset information
-!                 to disk
+! write_ras_dets_sorted: Writes the double-sorted RAS determinants and
+!                        offset information to disk
 !######################################################################
-subroutine write_ras_dets(scrnum,detras_a,detras_b,ndet,nsym,mapab,&
-     offset_a,offset_b,offdim_a,offdim_b,nunique_a,nunique_b)
+subroutine write_ras_dets_sorted(scrnum,detras_a,detras_b,ndet,nsym,&
+     mapab,offset_a,offset_b,offdim_a,offdim_b,nunique_a,nunique_b)
 
   use constants
   use bitglobal
@@ -1028,7 +1035,7 @@ subroutine write_ras_dets(scrnum,detras_a,detras_b,ndet,nsym,mapab,&
   ! Register a new scratch file
   !
   write(amult,'(i0)') imult
-  call scratch_name('detras.mult'//trim(amult),rasfile)
+  call scratch_name('detras_sorted.mult'//trim(amult),rasfile)
   call register_scratch_file(scrnum,rasfile)
 
   !
@@ -1084,4 +1091,55 @@ subroutine write_ras_dets(scrnum,detras_a,detras_b,ndet,nsym,mapab,&
   
   return
   
-end subroutine write_ras_dets
+end subroutine write_ras_dets_sorted
+
+!######################################################################
+! write_ras_dets_unsorted: Writes the unsorted RAS determinants to disk
+!######################################################################
+subroutine write_ras_dets_unsorted(scrnum,detras,ndet)
+
+  use constants
+  use bitglobal
+  use iomod
+  
+  implicit none
+
+  integer(is), intent(out) :: scrnum
+  integer(is), intent(in)  :: ndet
+  integer(ib), intent(in)  :: detras(n_int,2,ndet)
+  integer(is)              :: iscratch
+  character(len=60)        :: rasfile
+  character(len=2)         :: amult
+  
+  !
+  ! Register a new scratch file
+  !
+  write(amult,'(i0)') imult
+  call scratch_name('detras.mult'//trim(amult),rasfile)
+  call register_scratch_file(scrnum,rasfile)
+
+  !
+  ! Open the scratch file
+  !
+  iscratch=scrunit(scrnum)
+  open(iscratch,file=scrname(scrnum),form='unformatted',&
+       status='unknown')
+
+  !
+  ! Number of RAS determinants
+  !
+  write(iscratch) ndet
+
+  !
+  ! RAS determinants
+  !
+  write(iscratch) detras
+
+  !
+  ! Close the scratch file
+  !
+  close(iscratch)
+  
+  return
+  
+end subroutine write_ras_dets_unsorted
