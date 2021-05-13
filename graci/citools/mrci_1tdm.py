@@ -8,49 +8,61 @@ import ctypes as ctypes
 import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
-import graci.io.convert as convert
-import graci.io.output as output
 
 def tdm(si_method):
     """Calculation of the MRCI 1-RDMs for all states"""
 
+    # number of irreps
+    nirr_ket = si_method.init_method.n_irrep()
+    nirr_bra = si_method.final_method.n_irrep()
+
     # number of molecular orbitals
-    nmo = ci_method.scf.nmo
+    nmo = si_method.bra_method.scf.nmo
 
-    # bitci mrci wfn object
-    mrci_wfn = ci_method.bitci_mrci()
+    # bitci bra mrci wfn object
+    bra_wfn = si_method.bra_method.bitci_mrci()
+   
+    # bitci ket mrci wfn object
+    ket_wfn = si_method.ket_method.bitci_mrci()
 
-    # MRCI configuration file scratch file numbers
-    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
+    # 1-TDMs for all irreps
+    rho = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
     
-    # MRCI eigenvector scratch file numbers
-    ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
-    
-    # 1-RDMs for all irreps
-    rho_all = []
-    
-    # Loop over irreps
-    for irr in range(ci_method.n_irrep()):
-        states = [n for n in range(ci_method.n_states(irr))]
-        
-        # States for which the 1-RDMs are required (note that bitCI
-        # uses Fortran indexing here)
-        state_indx = np.array([n+1 for n in states], dtype=int)
+    # Loop over irreps in initial state
+    for ket_irr in range(nirr_ket):
+        for bra_irr in range(nirr_bra):
 
-        # No. states
-        nstates = len(states)
-        
-        # 1-RDM array
-        rho = np.zeros((nmo*nmo*n_bra*n_ket), dtype=np.float64)
+        # pairs of states for this bra irrep and ket irrep
+        tdm_pairs = si_method.trans_list[bra_irr][ket_irr]
+        npairs    = len(tdm_pairs)
+
+        if npairs == 0:
+            continue
+
+        # total number of bra and ket roots for this irrep
+        bra_tot = si_method.final_method.n_states(bra_irr)
+        ket_tot = si_method.init_method.n_states(ket_irr)
+
+        # 1-TDM array
+        rhoij = np.zeros((nmo*nmo*npairs), dtype=np.float64)
+
+        # configuration and eigenvector files: bra wfn
+        bra_conf = bra_wfn.conf_name
+        bra_vec  = bra_wfn.ci_name
+
+        # configuration and eigenvector files: ket wfn
+        ket_conf = ket_wfn.conf_name
+        ket_vec  = ket_wfn.ci_name
         
         # Compute the 1-RDM for all states in this irrep
-        args = (irr, nstates, state_indx, dmat, ci_confunits,
-                ci_ciunits)
-        rho = libs.lib_func('density_mrci', args)
+        args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, tdm_pairs, 
+                rho,  bra_conf, bra_vec, ket_conf, ket_vec)
+        rhoij = libs.lib_func('transition_density_mrci', args)
 
         # Add the 1-RDMs to the list
-        rho_all.append(np.reshape(rho, (nmo, nmo, n_bra, n_ket),
-                                   order='F'))
+        rho[bra_irr][ket_irr] = np.reshape(rhoij, 
+                                          (nmo, nmo, npairs),
+                                           order='F'))
 
-    return rho_all
+    return rho
 

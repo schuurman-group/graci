@@ -4,6 +4,8 @@ for a given electronic state
 """
 import numpy as np
 import graci.core.libs as libs
+import graci.citools.mrci_1tdm as mrci_1tdm
+import graci.io.output as output
 
 class Transition:
     """Transition class for determing transition moments, right now
@@ -20,6 +22,7 @@ class Transition:
         self.final_method       = None
 
         # global variables
+        self.tdms         = None
         self.trans_list   = None
         self.trans_mom    = None
         self.osc_str      = None
@@ -76,30 +79,62 @@ class Transition:
 
         # construct the trans_list array
         # currently store them as [initial state, final state]
-        st_pairs = self.build_pair_list()
+        self.build_pair_list()
 
-        # what happens depends on the libSI interface
-        nirr = mol_bra.n_irrep()
-        print("\n")
-        for bra_irr in range(nirr):
-            for ket_irr in range(nirr):
+        # grab the transition density matrices
+        self.tdms = mrci_1tdm(self)
 
-                pair_list = st_pairs[bra_irr][ket_irr]
-                print("pair_list="+str(pair_list))
-#                libs.lib_func('transition_density_mrci', )
+        # compute transition dipole moments and oscillator strengths
+        self.build_trans_moments(mu_mo)
 
-
-        # compute the oscillator strengths from the transition dipoles
-        #self.osc_str = []
-        #cnt       = 0
-        #for exc_pair in self.trans_list:
-        #    exc_ener = bra.energy(exc_pair[1]) - ket.energy(exc_pair[0])
-        #    self.osc_str.extend(2.*exc_ener*(self.trans_mom[cnt]**2)/3.)
-        #    cnt += 1
+        # output oscillator strenths and transition dipole matrix 
+        # elements
+        output.print_transition(self)
 
         return
 
-    def build_pair_list(self):
+    #
+    def tdm1(self, b_irr, b_st, k_irr, k_st):
+        """return the tdm for the bra and ket state indicated"""
+
+        try:
+            ind = self.trans_list[b_irr][k_irr].index([b_st,k_st])
+        except:
+            return None
+
+        return self.tdms[b_irr][k_irr][:,:,ind]
+ 
+    #
+    def trans_dipole(self, b_irr, b_st, k_irr, k_st):
+        """return transition dipole matrix element"""
+
+        # return the transition dipole vector given the irreps and
+        # state indices
+        try:
+            ind = self.trans_list[b_irr][k_irr].index([b_st, k_st])
+        except:
+            None
+
+        return self.trans_dipole[bra_irrep][ket_irrep][ind][:]
+
+    # 
+    def osc_strength(self,  b_irr, b_st, k_irr, k_st):
+        """return the transition dipole moments for all pairs of
+           bra_states and ket_states. If one or both are not specified,
+           return all transition moments"""
+
+        # return the transition dipole vector given the irreps and
+        # state indices
+        try:
+            ind = self.trans_list[b_irr][k_irr].index([b_st, k_st])
+        except:
+            None
+
+        return self.osc_str[bra_irrep][ket_irrep][ind][:]
+
+#--------------------------------------------------------------------------
+
+    def build_trans_list(self):
         """built an array of initial states, ordered by irrep"""
 
         nirr = self.final_method.mol.n_irrep()
@@ -123,7 +158,7 @@ class Transition:
 
         # use the istate array (format = irrep.state) to select
         # individual states
-        elif self.istate_array:    
+        elif self.istate_array:
             for state in self.fstate_array:
                 irrep = int(state)
                 st    = int(10*state) - 10*irrep
@@ -141,7 +176,7 @@ class Transition:
 
         # if all_final_states is true, that is overrides anything else
         if self.all_final_states:
-            bra_list = [[st for st in range(bra_avail[irr])] 
+            bra_list = [[st for st in range(bra_avail[irr])]
                             for irr in range(nirr)]
 
         # if the number of final roots is given, pick the lowest n roots
@@ -166,41 +201,45 @@ class Transition:
             sys.exit('no final states selected in Transition')
 
         # create the pair list
-        st_pairs = [[[] for irr_bra in range(nirr)] 
-                        for irr_ket in range(nirr)]
+        self.trans_list = [[[] for irr_bra in range(nirr)]
+                               for irr_ket in range(nirr)]
         for b_irr in range(nirr):
             for k_irr in range(nirr):
                 for b_st in bra_list[b_irr]:
                     for k_st in ket_list[k_irr]:
-                        st_pairs[b_irr][k_irr].append([b_st, k_st])
-
-        return st_pairs
-
-    #
-    def tdm1(self, bra_irrep, bra_st, ket_irrep, ket_st):
-        """return the tdm for the bra and ket state indicated"""
+                        self.trans_list[b_irr][k_irr].append([b_st, k_st])
 
         return
- 
+
     #
-    def trans_dipole(self, bra, ket):
-        """return transition dipole matrix element"""
+    def build_trans_moments(self, mu_mo):
+        """builds the transition moment vector based on the based tdms"""
 
-        # find the state pair in the transition list
-        ind = self.tran_list.index([bra, ket])
+        # loop over the state pairs and construct transition 
+        # dipole moments
+        nirr_bra = self.bra_method.n_irrep()
+        nirr_ket = self.ket_method.n_irrep()
 
-        return self.trans_mom[ind]
+        self.trans_dipole = [[[] for irr_bra in range(nirr_bra)]
+                                 for irr_ket in range(nirr_ket)]
 
-    # 
-    def osc_strength(self, bra, ket):
-        """return the transition dipole moments for all pairs of
-           bra_states and ket_states. If one or both are not specified,
-           return all transition moments"""
+        self.osc_str      = [[[] for irr_bra in range(nirr_bra)]
+                                 for irr_ket in range(nirr_ket)]
 
-        # find the state pair in the transition list
-        ind = self.tran_list.index([bra, ket])
+        for b_irr in range(nirr_bra):
+            for k_irr in range(nirr_ket):
+                for bra_ket in range(len(self.trans_list[b_irr][k_irr])):
 
-        return self.osc_str[ind]
+                    states  = self.trans_list[b_irr][k_irr][bra_ket]
+                    b_ener  = self.final_method.energy(b_irr, states[0])
+                    k_ener  = self.init_method.energy(k_irr, states[1])
 
+                    tdm_mat = self.tdms[b_irr][k_irr][:,:,bra_ket]
+                    td_vec  = np.array([np.sum(tdm_mat*mu_mo[x])
+                              for x in range(3)], dtype=float)
+                    osc_vec = (2./3.)*(b_ener-k_ener)*td_vec**2
 
+                    self.trans_dipole[b_irr][k_irr].append([td_vec])
+                    self.osc_str[b_irr][k_irr].append([osc_vec])
 
+        return

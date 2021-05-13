@@ -256,6 +256,7 @@ def print_moments(irr, st, mu, q2):
 
     return
 
+#
 def print_quad(irr, st, qtensor):
     """prints out the quadrupole moment tensor"""
 
@@ -264,6 +265,13 @@ def print_quad(irr, st, qtensor):
         ostr = '\n {:10.6f}   {:10.6f}   {:10.6f}'
         for i in range(3):
             outfile.write(ostr.format(qtensor[i,0],qtensor[i,1],qtensor[i,2]))
-              
+        
+#
+def print_transition(trans):
+    """print out the summary files for the transition moments"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        # print a table of oscillator strengths and transition 
+        # dipole vectors
 
 
