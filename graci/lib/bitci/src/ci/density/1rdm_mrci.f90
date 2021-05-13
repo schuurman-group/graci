@@ -47,13 +47,6 @@ contains
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
                                twall_end
-
-
-    ! TEST
-    open(unit=350,file='pairs.dat',form='formatted',status='unknown')
-    ! TEST
-    
-    
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------

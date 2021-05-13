@@ -192,7 +192,7 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
 end subroutine diag_dftcis
 
 !######################################################################
-! ras_guess_dftcis: Returns a suggestion for RAS1 and RAS2 MO indices
+! ras_guess_dftcis: Returns a suggestion for RAS1 and RAS3 MO indices
 !                   based on the dominant CSFs in a set of DFT/CIS
 !                   eigenfunctions
 !######################################################################
@@ -236,13 +236,14 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
   real(dp), allocatable    :: vec(:,:),ener(:)
 
   ! MO selection threshold
-  real(dp), parameter      :: phthrsh=0.3d0
+  real(dp), parameter      :: targ=0.9025d0
   
   ! Everything else
   integer(is)              :: k,n
   integer(is), allocatable :: indx(:)
   real(dp), allocatable    :: abscoe(:)
-
+  real(dp)                 :: sumsq
+  
 !----------------------------------------------------------------------
 ! Generate the CIS configuration information
 !----------------------------------------------------------------------
@@ -281,20 +282,23 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
      abscoe=abs(vec(:,k))
      call dsortindxa1('D',ncsf,abscoe,indx)
 
+     sumsq=0.0d0
+     
      ! Loop over CSFs
      do n=1,ncsf
 
-        ! Save the above threshold CSF information
-        if (abs(vec(indx(n),k)) >= phthrsh) then
+        ! Squared norm
+        sumsq=sumsq+vec(indx(n),k)**2
 
-           ! Particle index
-           domph(iph(1,indx(n)))=1
+        ! Particle index
+        domph(iph(1,indx(n)))=1
+        
+        ! Hole index
+        domph(iph(2,indx(n)))=1
 
-           ! Hole index
-           domph(iph(2,indx(n)))=1
-           
-        endif
-
+        ! Exit if we have reached the squared norm target
+        if (sumsq >= targ) exit
+        
      enddo
      
   enddo

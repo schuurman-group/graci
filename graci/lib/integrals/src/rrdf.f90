@@ -26,6 +26,11 @@ contains
                                   twall_end
 
     !
+    ! Start timing
+    !
+    call get_times(twall_start,tcpu_start)
+    
+    !
     ! Output the compression factor
     !
     write(6,'(/,x,a,x,i0)') 'RR-DF compression factor:',fac
@@ -37,11 +42,6 @@ contains
 
     allocate(U(n_aux,n_aux), VT(n_aux,n_ij), S(n_aux), work(workdim), &
          iwork(8*n_aux))
-    
-    !
-    ! Start timing
-    !
-    call get_times(twall_start,tcpu_start)
     
     !
     ! SVD of of the DF 3-index integral tensor
