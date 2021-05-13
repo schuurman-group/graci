@@ -1073,7 +1073,7 @@ contains
 
        ! Loop over CSFs (excluding the reference space ones)
        do icsf=refdim+1,csfdim
-
+          
           ! A-vector element
           Avec(icsf,j)=Avec(icsf,j)/(hdiag(icsf)-e0(j))
           
