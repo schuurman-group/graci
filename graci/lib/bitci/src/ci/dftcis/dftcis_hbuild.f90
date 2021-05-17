@@ -307,6 +307,9 @@ contains
     !
     ! Allocate arrays
     !
+    if (allocated(Goo)) deallocate(Goo)
+    if (allocated(Gvv)) deallocate(Gvv)
+    if (allocated(Gov)) deallocate(Gov)
     allocate(Goo(nocc,nocc), Gvv(nvirt,nvirt), Gov(nocc,nvirt))
     Goo=0.0d0; Gvv=0.0d0; Gov=0.0d0
 

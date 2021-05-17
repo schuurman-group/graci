@@ -206,11 +206,12 @@ contains
   end subroutine register_scratch_file
 
 !#######################################################################
-! read_det_file: Reads the determinants and offset information from
-!                the scratch file numbered scrnum
+! read_det_file_sorted: Reads the double-sorted determinants and offset
+!                       information from the scratch file numbered
+!                       scrnum  
 !#######################################################################
-  subroutine read_det_file(scrnum,ndet,offdim_a,offdim_b,nsym,da,db,&
-       nunique_a,nunique_b,offset_a,offset_b,mapab)
+  subroutine read_det_file_sorted(scrnum,ndet,offdim_a,offdim_b,nsym,&
+       da,db,nunique_a,nunique_b,offset_a,offset_b,mapab)
 
     use constants
     use bitglobal
@@ -285,8 +286,51 @@ contains
     
     return
     
-  end subroutine read_det_file
+  end subroutine read_det_file_sorted
 
+!#######################################################################
+! read_det_file_unsorted: Reads the unsorted determinants from the
+!                         scratch file numbered scrnum  
+!#######################################################################
+  subroutine read_det_file_unsorted(scrnum,ndet,d)
+
+    use constants
+    use bitglobal
+    
+    implicit none
+
+    integer(is), intent(in)  :: scrnum
+    integer(is), intent(out) :: ndet
+    integer(ib), allocatable :: d(:,:,:)
+    integer(is)              :: iscratch
+
+    !
+    ! Open the scratch file
+    !
+    iscratch=scrunit(scrnum)
+    open(iscratch,file=scrname(scrnum),form='unformatted',&
+         status='old')
+    
+    !
+    ! Number of determinants
+    !
+    read(iscratch) ndet
+    
+    !
+    ! Determinants
+    !
+    allocate(d(n_int,2,ndet))
+    read(iscratch) d
+
+    !
+    ! Close the scratch file
+    !
+    close(iscratch)
+    
+    return
+    
+  end subroutine read_det_file_unsorted
+    
 !#######################################################################
 ! read_dets_alpha_major: Reads only the determinants in alpha-major
 !                        order from the scratch file numbered scrnum
