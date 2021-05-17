@@ -181,8 +181,8 @@ class Dftmrci:
                 sym      = self.natural_sym(irr, st)
                 sym_lbl  = [self.mol.irreplbl[sym[i]] 
                             for i in range(len(sym))]
-                output.print_nos_molden(self.mol, irr, st, 
-                                             orb, occ, sym_lbl)
+                output.print_nos_molden(self.mol, irr, st, orb, 
+                                             occ, sym=sym_lbl)
 
         # we'll also compute 1-electron properties by
         # default.
@@ -226,6 +226,15 @@ class Dftmrci:
         """return the energy of state 'state'"""
 
         return self.mrci_ener[irrep, state]
+
+    #
+    def state_index(self, irrep, state):
+        """return adiabatic state label for a given irrep and  root"""
+
+        if [irrep, state] in self.state_sorted:
+            return self.state_sorted.index([irrep, state])
+        else:
+            return None
 
     #
     def energy_n(self, n):
@@ -367,7 +376,7 @@ class Dftmrci:
         ntot   = sum(self.n_states())
 
         self.mrci_sorted  = np.zeros((ntot), dtype=float)
-        self.state_sorted = np.zeros((ntot, 2), dtype=int)
+        self.state_sorted = []
         # mrci_ener is an irrep x maxroots array, with trailing values 
         # of 'zero'. 
         mrci_vals         = np.pad(self.mrci_ener, ((0,0),(0,1)), 
@@ -381,7 +390,7 @@ class Dftmrci:
             iirr  = np.argsort(eners)[0]
 
             self.mrci_sorted[nsrt]    = mrci_vals[iirr, istate[iirr]]
-            self.state_sorted[nsrt,:] = [iirr, istate[iirr]]
+            self.state_sorted.append([iirr, istate[iirr]])
             # increment the number of elements in the sorted array,
             # and the irrep state index of irrep just chosen
             nsrt         += 1

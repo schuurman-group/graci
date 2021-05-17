@@ -283,20 +283,32 @@ def check_input(run_list):
             if (obj.use_rrdf and not obj.use_df):
                 obj.use_df = True
      
-        # init/final_states and i/fstate_array need to be lists
+        # init/final_states and i/fstate_array need to be lists, also:
+        # internal state ordering is 0-n-1, vs. 1-n for input
         if obj.name() == 'transition':
             if obj.init_states is not None:
                 if not isinstance(obj.init_states, (list, np.ndarray)):
                     obj.init_states = [obj.init_states]
+                obj.init_states = [obj.init_states[i]-1 
+                                   for i in range(len(obj.init_states))]
+
             if obj.final_states is not None:
                 if not isinstance(obj.final_states, (list, np.ndarray)):
                     obj.final_states = [obj.final_states]
+                obj.final_states = [obj.final_states[i]-1 
+                                  for i in range(len(obj.final_states))]
+
             if obj.istate_array is not None:
                 if not isinstance(obj.istate_array, (list, np.ndarray)):
                     obj.istate_array = [obj.istate_array]
+                obj.istate_array = [obj.istate_array[i]-1
+                                  for i in range(len(obj.istate_array))]
+
             if obj.fstate_array is not None:
                 if not isinstance(obj.fstate_array, (list, np.ndarray)):
                     obj.fstate_array = [obj.fstate_array]
+                obj.fstate_array = [obj.fstate_array[i]-1
+                                  for i in range(len(obj.fstate_array))]
             
     return
     

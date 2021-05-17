@@ -208,7 +208,7 @@ def print_cleanup():
     return
 
 #
-def print_nos_molden(mol, irr, state, orb, occ, sym):
+def print_nos_molden(mol, irr, state, orb, occ, sym=None):
     """print out the orbitals, labeled and ordered by 'occ' array
        vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
     
@@ -229,14 +229,39 @@ def print_nos_molden(mol, irr, state, orb, occ, sym):
     return
 
 #
+def print_nos_wt_molden(fname, mol, b_st, b_irr, k_st, k_irr, orb, wt):
+    """print out the orbitals, labeled and ordered by 'occ' array
+       vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
+
+    file_name = 'orbs/'+str(fname)+'.state'+str(k_st)+"-"+str(k_irr)+ \
+                                   '.state'+str(b_st)+"-"+str(b_irr)
+
+    # if a file called 'orbs' exists, delete it
+    if os.path.isfile('orbs'):
+        os.remove('orbs')
+
+    # if orbs directory doesn't exist, create it
+    if not os.path.exists('orbs'):
+        os.mkdir('orbs')
+
+    # dump the nos to file in the orbs directory
+    molden.from_mo(mol.pymol(), file_name, orb, spin='Alpha',
+                   occ=wt, ignore_h=True)
+
+    return
+
+#
 def print_moments_header(irr):
     """prints out header for moments section"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        ostr = '\n\n Dipole and Quadrupole Moments, Symmetry: '+\
+        ostr =    '\n\n\n --------------------------------------------'
+        ostr = ostr + '\n Dipole and Quadrupole Moments, Symmetry: '+\
                 str(irr)
-        ostr = ostr + '\n ********************************************'
+        ostr = ostr + '\n --------------------------------------------'
         outfile.write(ostr)
+
+    return
 
 #
 def print_moments(irr, st, mu, q2):
@@ -244,7 +269,7 @@ def print_moments(irr, st, mu, q2):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n\n state: '+str(st+1))
-        outfile.write('\n ----------------------------------')
+        outfile.write(  '\n ----------')
         ostr = '\n dipole vector[au]: {:10.6f} {:10.6f} {:10.6f} '+\
                 'total: {:10.6f} D'
         outfile.write(ostr.format(mu[0],mu[1],mu[2],
@@ -266,12 +291,40 @@ def print_quad(irr, st, qtensor):
         for i in range(3):
             outfile.write(ostr.format(qtensor[i,0],qtensor[i,1],qtensor[i,2]))
         
+        output.print_transition_table(k_sym_st, b_sym_st,
+                                        exc_ordr, td_ordr, osc_ordr)
+
+    return
+
 #
-def print_transition(trans):
+def print_transition_table(init_state, final_states, exc_ener, osc_str): 
     """print out the summary files for the transition moments"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         # print a table of oscillator strengths and transition 
         # dipole vectors
 
+        outfile.write('\n\n\n ------------------------------------------')
+        outfile.write(    '\n Transition Properties')
+        outfile.write(    '\n ------------------------------------------')
+
+        header = '\n\n Init. State    Final State    Energy (eV) '+ \
+                 '   Osc Str     x        y        z'
+        fstr   = '\n {:6d}({:>3}) -> {:6d}({:>3})    {:11.2f}'+ \
+                 '{:11.4f} {:8.4f} {:8.4f} {:8.4f}'
+        undr_str = '-' * (len(header)-1)
+
+        outfile.write(header)
+        outfile.write('\n '+undr_str)
+        outfile.write('\n')
+
+        for i in range(len(final_states)):
+            outfile.write(fstr.format(
+                            *init_state, 
+                            *final_states[i], 
+                            exc_ener[i]*constants.au2ev, 
+                            np.linalg.norm(osc_str[i]), 
+                            *osc_str[i]))
+
+    return
 
