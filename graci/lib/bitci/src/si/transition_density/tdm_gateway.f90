@@ -20,6 +20,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   use iomod
   use iso_c_binding, only: C_CHAR
   use conftype
+  use merge
     
   implicit none
 
@@ -119,10 +120,20 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   
   write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
   write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
-  
+
 !---------------------------------------------------------------------
-!Read in the eigenvectors
+! Merge the bra and ket reference spaces
 !---------------------------------------------------------------------
+  call merge_ref_space(cfgB,cfgK)
+
+!---------------------------------------------------------------------
+! Read in the eigenvectors
+!---------------------------------------------------------------------
+
+  ! We are also going to need a new iroots-type array to use in
+  ! the main 1-TDM routine which tells us which eigenvectors to use
+  ! in the pair-wise contractions...
+
 !! Allocate arrays
 !allocate(vec(cfg%csfdim,nroots))
 !allocate(ener(nroots))
