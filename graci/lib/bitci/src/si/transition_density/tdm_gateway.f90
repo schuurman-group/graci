@@ -8,7 +8,7 @@
 #ifdef CBINDING
 subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
      npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
-     vecfileK_in) bind(c,name='density_mrci')
+     vecfileK_in) bind(c,name='transition_density_mrci')
 #else
   subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
      npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
@@ -48,7 +48,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   real(dp), intent(out)   :: rhoij(nmo,nmo,npairs)
 
   ! MRCI configuration derived type
-  type(mrcfg)             :: cfg
+  type(mrcfg)             :: cfgB,cfgK
 
   ! Scratch file numbers
   integer(is)             :: confscrB,vecscrB,confscrK,vecscrK
@@ -57,7 +57,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   real(dp), allocatable   :: vecB(:,:),enerB(:),vecK(:,:),enerK(:)
   
   ! Everything else
-  integer(is)             :: i
+  integer(is)             :: i,k
 
 !----------------------------------------------------------------------
 ! Output what we are doing
@@ -88,25 +88,38 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   vecfileK=adjustl(trim(conffileK_in))
 #endif
   
-  print*,''
-  print*,conffileB
-  print*,conffileK
-  print*,vecfileB
-  print*,vecfileK
+  !print*,''
+  !print*,''
+  !print*,'conffileB:',conffileB
+  !print*,'conffileK:',conffileK
+  !print*,'vecfileB: ',vecfileB
+  !print*,'vecfileK: ',vecfileK
+  !print*,''
+  !
+  !print*,'npairs:',npairs
+  !
+  !do i=1,npairs
+  !   print*,iroots(i,1),irreplbl(irrepB,ipg),iroots(i,2),irreplbl(irrepK,ipg)
+  !enddo
   
 !----------------------------------------------------------------------
 ! Register the configuration and eigenvector scratch files
 !----------------------------------------------------------------------
-  !call register_scratch_file(confscrK,conffileK)
-  !call register_scratch_file(vecscrK,vecfileK)
+  call register_scratch_file(confscrB,conffileB)
+  call register_scratch_file(vecscrB,vecfileB)
+
+  call register_scratch_file(confscrK,conffileK)
+  call register_scratch_file(vecscrK,vecfileK)
 
 !----------------------------------------------------------------------
 ! Set up the bra and ket configuration derived types
 !----------------------------------------------------------------------
-!call cfg%initialise(irrep,confscr)
-!
-!write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
-!
+  call cfgB%initialise(irrepB,confscrB)
+  call cfgK%initialise(irrepK,confscrK)
+  
+  write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
+  write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
+  
 !---------------------------------------------------------------------
 !Read in the eigenvectors
 !---------------------------------------------------------------------

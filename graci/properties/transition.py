@@ -6,6 +6,7 @@ import numpy as np
 import graci.core.libs as libs
 import graci.citools.mrci_1tdm as mrci_1tdm
 import graci.io.output as output
+import sys as sys
 
 class Transition:
     """Transition class for determing transition moments, right now
@@ -18,8 +19,8 @@ class Transition:
         self.istate_array     = None
         self.fstate_array     = None
         self.all_final_states = False
-        self.init_method       = None
-        self.final_method       = None
+        self.init_method      = None
+        self.final_method     = None
 
         # global variables
         self.tdm          = None
@@ -75,7 +76,7 @@ class Transition:
 
         scf_bra = self.final_method.scf
         scf_ket = self.final_method.scf
- 
+        
         # sanity check that orbitals and geometry are the same
         if np.any(scf_bra.orbs != scf_ket.orbs):
             sys.exit('transition moments require same bra/ket orbs')
@@ -88,7 +89,7 @@ class Transition:
 
         # compute the dipole moment integrals
         mu_ao = mol_ket.pymol().intor('int1e_r')
-
+        
         # contract with the MOs
         mu_mo = [np.matmul(np.matmul(scf_ket.orbs.T, mu_ao[i]), 
                                     scf_ket.orbs) for i in range(3)]

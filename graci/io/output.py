@@ -268,7 +268,7 @@ def print_moments(irr, st, mu, q2):
     """prints out the dipole moment vector"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n\n state: '+str(st+1))
+        outfile.write('\n state: '+str(st+1))
         outfile.write(  '\n ----------')
         ostr = '\n dipole vector[au]: {:10.6f} {:10.6f} {:10.6f} '+\
                 'total: {:10.6f} D'
@@ -276,7 +276,7 @@ def print_moments(irr, st, mu, q2):
                         np.linalg.norm(mu)*constants.au2debye))
 
         st_str = str(irr)+'('+str(st+1)+')'
-        ostr = '\n <'+st_str+' | r^2 | '+st_str+'> (a.u.): {:10.6f}'
+        ostr = '\n <'+st_str+' | r^2 | '+st_str+'> (a.u.): {:10.6f}\n'
         outfile.write(ostr.format(q2))
 
     return

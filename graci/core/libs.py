@@ -63,10 +63,15 @@ bitci_intent = {
 
 
 # registry of bitsi functions
-bitsi_registry = { }
+bitsi_registry = {
+    'transition_density_mrci' : ['int32','int32','int32','int32','int32',
+                                 'int32','double','string','string',
+                                 'string','string']
+}
 
 bitsi_intent   = {
-    
+    'transition_density_mrci' : ['in','in','in','in','in','in','out',
+                                 'in','in','in','in']
 }
 
 # list of existing library objects
@@ -84,7 +89,7 @@ def lib_func(name, args):
     elif name in bitsi_registry:
         arg_list   = bitsi_registry[name]
         arg_intent = bitsi_intent[name]
-
+        
     #arg_list   = bitci_registry[name]
     #arg_intent = bitci_intent[name]
 

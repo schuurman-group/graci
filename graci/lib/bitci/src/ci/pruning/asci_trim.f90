@@ -73,9 +73,9 @@ contains
        ! desired squared A-vector norm
        sumsq=0.0d0
        do i=1,csfdim
-
+          
           sumsq=sumsq+Avec(indx(i),n)**2
-
+          
           iok(indx(i))=1
           
           if (sumsq > goal) exit
