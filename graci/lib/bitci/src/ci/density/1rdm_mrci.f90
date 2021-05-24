@@ -47,6 +47,7 @@ contains
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
                                twall_end
+    
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -467,7 +468,7 @@ contains
 !######################################################################
 ! rdm_mrci_0h_0h: Calculation of the Ref-Ref contributions to the MRCI
 !                 1-RDMs
-!######################################################################  
+!######################################################################
   subroutine rdm_0h_0h(cfg,csfdim,nroots,vec,rho)
 
     use constants
