@@ -82,9 +82,21 @@ contains
          npairs,rhoij,Bmap,Kmap)
 
 !----------------------------------------------------------------------
-! (3) 1H - 1H contributions to the 1-TDMs
+! (4) 1H - 1H contributions to the 1-TDMs
 !----------------------------------------------------------------------
     call tdm_1h_1h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
+         npairs,rhoij,Bmap,Kmap)
+
+!----------------------------------------------------------------------
+! (5) 2H - 1H contributions to the 1-TDMs
+!----------------------------------------------------------------------
+    call tdm_2h_1h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
+         npairs,rhoij,Bmap,Kmap)
+
+!----------------------------------------------------------------------
+! (6) 2H - 2H contributions to the 1-TDMs
+!----------------------------------------------------------------------
+    call tdm_2h_2h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
          npairs,rhoij,Bmap,Kmap)
     
 !----------------------------------------------------------------------
@@ -331,7 +343,7 @@ contains
                   cfgB%csfs1I,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,.false.,transpose)
+                  cfgB%m2c,transpose)
           endif
 
           ! Ket Ref - bra 1E contributions
@@ -345,7 +357,7 @@ contains
                   cfgB%csfs1E,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,.false.,transpose)
+                  cfgB%m2c,transpose)
           endif
           
        enddo
@@ -395,7 +407,7 @@ contains
                   cfgK%csfs1I,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,.false.,transpose)
+                  cfgK%m2c,transpose)
           endif
 
           ! Ket Ref - bra 1E contributions
@@ -409,7 +421,7 @@ contains
                   cfgK%csfs1E,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,.false.,transpose)
+                  cfgK%m2c,transpose)
           endif
           
        enddo
@@ -507,7 +519,7 @@ contains
                   cfgB%csfs2I,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,.false.,transpose)
+                  cfgB%m2c,transpose)
           endif
 
           ! Ket Ref - bra 2E contributions
@@ -521,7 +533,7 @@ contains
                   cfgB%csfs2E,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,.false.,transpose)
+                  cfgB%m2c,transpose)
           endif
 
           ! Ket Ref - bra 1I1E contributions
@@ -535,7 +547,7 @@ contains
                   cfgB%csfs1I1E,cfgK%csfs0h,&  ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,.false.,transpose)
+                  cfgB%m2c,transpose)
           endif
           
        enddo
@@ -585,7 +597,7 @@ contains
                   cfgK%csfs2I,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,.false.,transpose)
+                  cfgK%m2c,transpose)
           endif
 
           ! Ket Ref - bra 2E contributions
@@ -599,7 +611,7 @@ contains
                   cfgK%csfs2E,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,.false.,transpose)
+                  cfgK%m2c,transpose)
           endif
 
           ! Ket Ref - bra 1I1E contributions
@@ -613,7 +625,7 @@ contains
                   cfgK%csfs1I1E,cfgB%csfs0h,&  ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,.false.,transpose)
+                  cfgK%m2c,transpose)
           endif
           
        enddo
@@ -683,9 +695,6 @@ contains
 !----------------------------------------------------------------------
 ! Compute the 1H-1H contributions to the 1-TDMs
 !----------------------------------------------------------------------
-    ! Work with elements < Bra | E_p^q | Ket >
-    transpose=.false.
-
     ! Loop over ket 1-hole configurations
     do kn=1,cfgK%n1h
     
@@ -705,6 +714,8 @@ contains
           !
           ! Ket 1I, bra 1I and 1E contributions
           !
+          ! Work with elements < Bra | E_p^q | Ket >
+          transpose=.false.
           if (cfgK%n1I > 0) then
 
              ! Loop over ket 1I configurations
@@ -740,17 +751,17 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 1I - bra 1I contributions
-                if (nac <= 3 .and. bn >= kn &
-                     .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
+                if (nac <= 3 .and. &
+                     cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1I,cfgK%n1I,&       ! no. bra and ket confs
                         cfgB%conf1I,cfgB%sop1I,&  ! bra confs and SOPs
                         cfgB%n1h,cfgB%off1I,&     ! no. bra hole confs and offsets
-                        cfgB%csfs1I,cfgB%csfs1I,& ! bra and ket CSF offsets
+                        cfgB%csfs1I,cfgK%csfs1I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,.false.,transpose)
+                        cfgB%m2c,transpose)
                 endif
 
                 ! Ket 1I - bra 1E contributions
@@ -761,33 +772,117 @@ contains
                         cfgB%n1E,cfgK%n1I,&       ! no. bra and ket confs
                         cfgB%conf1E,cfgB%sop1E,&  ! bra confs and SOPs
                         cfgB%n1h,cfgB%off1E,&     ! no. bra hole confs and offsets
-                        cfgB%csfs1E,cfgB%csfs1I,& ! bra and ket CSF offsets
+                        cfgB%csfs1E,cfgK%csfs1I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,.false.,transpose)
+                        cfgB%m2c,transpose)
                 endif
                 
              enddo
                 
           endif
 
-
-          !********************************
-          ! Remember the Ket 1E - bra 1I
-          ! contributions
-          !********************************
-
-
           !
-          ! Ket 1E, bra 1I, 1E matrix elements
+          ! Ket 1E - bra 1I contributions
           !
+          ! Work with elements < Ket | E_q^p | Bra >
+          transpose=.true.
+          if (cfgB%n1I > 0) then
+
+             ! Loop over ket 1I configurations
+             do ikconf=cfgB%off1I(bn),cfgB%off1I(bn+1)-1
+
+                ! Ket 1I configuration
+                kconf_int=cfgB%conf1I(1:n_int_I,:,ikconf)
+                ksop_int=cfgB%sop1I(1:n_int_I,:,ikconf)
+                kconf_full=0_ib
+                ksop_full=0_ib
+                kconf_full(1:n_int_I,:)=kconf_int
+                ksop_full(1:n_int_I,:)=ksop_int
+
+                ! Number of creation and annihilation operators linking
+                ! the ket 1I and bra 1-hole configurations
+                nac=n_create_annihilate(kconf_int,&
+                     cfgK%conf1h(1:n_int_I,:,kn),n_int_I)
+
+                ! Cycle if the the bra 1-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 1I configuration wrt the singlet excitation
+                ! operators E_a^i
+                if (nac1 > 3) cycle
+
+                ! Number of open shells in the ket 1I configuration
+                knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
+                
+                ! Number of ket 1I CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket
+                ! conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 1I - bra 1E contributions
+                if (nac <= 1 &
+                     .and. cfgK%off1E(kn) /= cfgK%off1E(kn+1)) then
+                   call tdm_batch(&
+                        kn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1E,cfgB%n1I,&       ! no. bra and ket confs
+                        cfgK%conf1E,cfgK%sop1E,&  ! bra confs and SOPs
+                        cfgK%n1h,cfgK%off1E,&     ! no. bra hole confs and offsets
+                        cfgK%csfs1E,cfgB%csfs1I,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+                
+             enddo
+                
+          endif
+          
+          !
+          ! Ket 1E, bra 1E contributions
+          !
+          ! Work with elements < Bra | E_p^q | Ket >
+          transpose=.false.
+          
           ! Cycle if the bra 1-hole configuration doesn't generate
-          ! any 1I or 1E configurations
-          if (cfgB%off1I(bn) == cfgB%off1I(bn+1) &
-               .and. cfgB%off1E(bn) == cfgB%off1E(bn+1)) cycle
+          ! any 1E configurations
+          if (cfgB%off1E(bn) == cfgB%off1E(bn+1)) cycle
+          
+          ! Cycle if the the bra and ket 1-hole configurations
+          ! cannot generate interacting 1E configurations wrt the
+          ! singlet excitation operators E_a^i
+          if (nac1 > 2) cycle
 
+          ! Loop over ket 1E configurations
+          do ikconf=cfgK%off1E(kn),cfgK%off1E(kn+1)-1
 
-          ! What is the Ket 1E - bra 1I nac/nac1 conditions?
+             ! Ket 1E configuration
+             kconf_full=cfgK%conf1E(:,:,ikconf)
+             ksop_full=cfgK%sop1E(:,:,ikconf)
+             
+             ! Number of open shells in the ket 1E configuration
+             knopen=sop_nopen(ksop_full,n_int)
+                
+             ! Number of ket 1E CSFs
+             knsp=ncsfs(knopen)
+
+             ! Get the number of open shells preceding each ket
+             ! conf MO
+             call nobefore(ksop_full,nbefore)
+
+             ! Ket 1E - bra 1E matrix contributions
+             call tdm_batch(&
+                  bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                  cfgB%n1E,cfgK%n1E,&       ! no. bra and ket confs
+                  cfgB%conf1E,cfgB%sop1E,&  ! bra confs and SOPs
+                  cfgB%n1h,cfgB%off1E,&     ! no. bra hole confs and offsets
+                  cfgB%csfs1E,cfgK%csfs1E,& ! bra and ket CSF offsets
+                  csfdimB,csfdimK,nvecB,nvecK,&
+                  vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                  cfgB%m2c,transpose)
+             
+          enddo
           
        enddo
 
@@ -796,6 +891,917 @@ contains
     return
     
   end subroutine tdm_1h_1h
+
+!######################################################################
+! tdm_2h_1h: Calculation of the 2I-1I, 2I-1E, 2E-1I, 2E-1E, 1I1E-1I,
+!            and 1I1E-1E contributions to the MRCI 1-TDMs
+!######################################################################
+  subroutine tdm_2h_1h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
+       vecK,npairs,rhoij,Bmap,Kmap)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! MRCI configuration derived types
+    type(mrcfg), intent(in) :: cfgB,cfgK
+
+    ! Dimensions
+    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+
+    ! 1-TDMs
+    real(dp), intent(inout) :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Number of open shells preceding each MO
+    integer(is)             :: nbefore(nmo)
+
+    ! Working arrays
+    integer(ib), allocatable :: kconf_int(:,:)
+    integer(ib), allocatable :: ksop_int(:,:)
+    integer(ib)              :: kconf_full(n_int,2)
+    integer(ib)              :: ksop_full(n_int,2)
+    integer(ib)              :: bconf1h_full(n_int,2)
+    integer(is), parameter   :: maxexci=1
+    integer(is)              :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: ikconf,kn,bn,nac,nac1,nexci,n_int_I
+    integer(is)             :: knsp,knopen
+    logical                 :: transpose
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    n_int_I=cfgK%n_int_I
+
+    allocate(kconf_int(n_int_I,2))
+    allocate(ksop_int(n_int_I,2))
+    kconf_int=0_ib
+    ksop_int=0_ib
+
+!----------------------------------------------------------------------
+! Calculate the ket 2H - bra 1H contributions to the 1-TDMs
+!----------------------------------------------------------------------
+    ! Work with elements < Bra | E_p^q | Ket >
+    transpose=.false.
+    
+    ! Loop over ket 2-hole configurations
+    do kn=1,cfgK%n2h
+
+       ! Loop over bra 1-hole configurations
+       do bn=1,cfgB%n1h
+
+          ! Bra 1-hole configuration in the full MO space
+          bconf1h_full=0_ib
+          bconf1h_full(1:n_int_I,:)=cfgB%conf1h(1:n_int_I,:,bn)
+
+          ! Number of creation and annihilation operators linking the
+          ! bra and ket 1- and 2-hole configurations
+          nac1=n_create_annihilate(cfgK%conf2h(1:n_int_I,:,kn),&
+               cfgB%conf1h(1:n_int_I,:,bn),n_int_I)
+
+          ! Cycle if the full configurations generated by the hole
+          ! configurations cannot be interacting
+          if (nac1 > 5) cycle
+
+          !
+          ! Ket: 2I
+          ! Bra: 1I and 1E
+          !
+          if (cfgK%n2I > 0) then
+
+             ! Loop over ket 2I configurations
+             do ikconf=cfgK%off2I(kn),cfgK%off2I(kn+1)-1
+
+                ! Ket 2I configuration
+                kconf_int=cfgK%conf2I(1:n_int_I,:,ikconf)
+                ksop_int=cfgK%sop2I(1:n_int_I,:,ikconf)
+                kconf_full=0_ib
+                ksop_full=0_ib
+                kconf_full(1:n_int_I,:)=kconf_int
+                ksop_full(1:n_int_I,:)=ksop_int
+
+                ! Number of creation and annihilation operators linking
+                ! the ket 2I and bra 1-hole configurations
+                nac=n_create_annihilate(kconf_int,&
+                     cfgB%conf1h(1:n_int_I,:,bn),n_int_I)
+                
+                ! Cycle if the the bra 1-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 2I configuration
+                if (nac > 3) cycle
+
+                ! Number of open shells in the ket 2I configuration
+                knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
+                
+                ! Number of ket 2I CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2I - bra 1I contributions
+                if (nac <= 3 &
+                     .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1I,cfgK%n2I,&       ! no. bra and ket confs
+                        cfgB%conf1I,cfgB%sop1I,&  ! bra confs and SOPs
+                        cfgB%n1h,cfgB%off1I,&     ! no. bra hole confs and offsets
+                        cfgB%csfs1I,cfgK%csfs2I,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+
+                ! Ket 2I - bra 1E contributions
+                if (nac <= 1 &
+                     .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1E,cfgK%n2I,&       ! no. bra and ket confs
+                        cfgB%conf1E,cfgB%sop1E,&  ! bra confs and SOPs
+                        cfgB%n1h,cfgB%off1E,&     ! no. bra hole confs and offsets
+                        cfgB%csfs1E,cfgK%csfs2I,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+                   
+             enddo
+
+          endif
+
+          !
+          ! Ket: 2E
+          ! Bra: 1I and 1E
+          !
+          if (cfgK%n2E > 0 .and. nac1 <= 1) then
+             
+             ! Loop over ket 2E configurations
+             do ikconf=cfgK%off2E(kn),cfgK%off2E(kn+1)-1
+
+                ! Ket 2E configuration
+                kconf_full=cfgK%conf2E(:,:,ikconf)
+                ksop_full=cfgK%sop2E(:,:,ikconf)
+
+                ! Number of open shells in the ket 2E configuration
+                knopen=sop_nopen(ksop_full,n_int)
+                
+                ! Number of ket 2E CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2E - bra 1I contributions
+                if (cfgB%n1I > 0 &
+                     .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1I,cfgK%n2E,&       ! no. bra and ket confs
+                        cfgB%conf1I,cfgB%sop1I,&  ! bra confs and SOPs
+                        cfgB%n1h,cfgB%off1I,&     ! no. bra hole confs and offsets
+                        cfgB%csfs1I,cfgK%csfs2E,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+
+                ! Ket 2E - bra 1E contributions
+                if (cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1E,cfgK%n2E,&       ! no. bra and ket confs
+                        cfgB%conf1E,cfgB%sop1E,&  ! bra confs and SOPs
+                        cfgB%n1h,cfgB%off1E,&     ! no. bra hole confs and offsets
+                        cfgB%csfs1E,cfgK%csfs2E,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+                   
+             enddo
+
+          endif
+
+          !
+          ! Ket: 1I1E
+          ! Bra: 1I and 1E
+          !
+          if (cfgK%n1I1E > 0) then
+             
+             ! Loop over ket 1I1E configurations
+             do ikconf=cfgK%off1I1E(kn),cfgK%off1I1E(kn+1)-1
+
+                ! Ket 1I1E configuration
+                kconf_full=cfgK%conf1I1E(:,:,ikconf)
+                ksop_full=cfgK%sop1I1E(:,:,ikconf)
+
+                ! Number of creation and annihilation operators linking
+                ! the ket 1I1E and bra 1-hole configurations
+                nac=n_create_annihilate(kconf_full,bconf1h_full,n_int)
+
+                ! Cycle if the the bra 1-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 1I1E configuration
+                if (nac > 3) cycle
+
+                ! Number of open shells in the ket 1I1E configuration
+                knopen=sop_nopen(ksop_full,n_int)
+                
+                ! Number of ket 1I1E CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 1I1E - bra 1I contributions
+                if (cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1I,cfgK%n1I1E,&       ! no. bra and ket confs
+                        cfgB%conf1I,cfgB%sop1I,&    ! bra confs and SOPs
+                        cfgB%n1h,cfgB%off1I,&       ! no. bra hole confs and offsets
+                        cfgB%csfs1I,cfgK%csfs1I1E,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+
+                ! Ket 1I1E - bra 1E contributions
+                if (cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1E,cfgK%n1I1E,&       ! no. bra and ket confs
+                        cfgB%conf1E,cfgB%sop1E,&    ! bra confs and SOPs
+                        cfgB%n1h,cfgB%off1E,&       ! no. bra hole confs and offsets
+                        cfgB%csfs1E,cfgK%csfs1I1E,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+                
+             enddo
+
+          endif
+                
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Calculate the bra 2H - ket 1H contributions to the 1-TDMs
+!----------------------------------------------------------------------
+    ! Work with elements < Ket | E_q^p | Bra >
+    transpose=.true.
+
+    ! Loop over ket 2-hole configurations
+    do kn=1,cfgB%n2h
+       
+       ! Loop over bra 1-hole configurations
+       do bn=1,cfgK%n1h
+
+          ! Bra 1-hole configuration in the full MO space
+          bconf1h_full=0_ib
+          bconf1h_full(1:n_int_I,:)=cfgK%conf1h(1:n_int_I,:,bn)
+
+          ! Number of creation and annihilation operators linking the
+          ! bra and ket 1- and 2-hole configurations
+          nac1=n_create_annihilate(cfgB%conf2h(1:n_int_I,:,kn),&
+               cfgK%conf1h(1:n_int_I,:,bn),n_int_I)
+
+          ! Cycle if the full configurations generated by the hole
+          ! configurations cannot be interacting
+          if (nac1 > 5) cycle
+
+          !
+          ! Ket: 2I
+          ! Bra: 1I and 1E
+          !
+          if (cfgB%n2I > 0) then
+
+             ! Loop over ket 2I configurations
+             do ikconf=cfgB%off2I(kn),cfgB%off2I(kn+1)-1
+
+                ! Ket 2I configuration
+                kconf_int=cfgB%conf2I(1:n_int_I,:,ikconf)
+                ksop_int=cfgB%sop2I(1:n_int_I,:,ikconf)
+                kconf_full=0_ib
+                ksop_full=0_ib
+                kconf_full(1:n_int_I,:)=kconf_int
+                ksop_full(1:n_int_I,:)=ksop_int
+
+                ! Number of creation and annihilation operators linking
+                ! the ket 2I and bra 1-hole configurations
+                nac=n_create_annihilate(kconf_int,&
+                     cfgK%conf1h(1:n_int_I,:,bn),n_int_I)
+                
+                ! Cycle if the the bra 1-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 2I configuration
+                if (nac > 3) cycle
+
+                ! Number of open shells in the ket 2I configuration
+                knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
+                
+                ! Number of ket 2I CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2I - bra 1I contributions
+                if (nac <= 3 &
+                     .and. cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1I,cfgB%n2I,&       ! no. bra and ket confs
+                        cfgK%conf1I,cfgK%sop1I,&  ! bra confs and SOPs
+                        cfgK%n1h,cfgK%off1I,&     ! no. bra hole confs and offsets
+                        cfgK%csfs1I,cfgB%csfs2I,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+
+                ! Ket 2I - bra 1E contributions
+                if (nac <= 1 &
+                     .and. cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1E,cfgB%n2I,&       ! no. bra and ket confs
+                        cfgK%conf1E,cfgK%sop1E,&  ! bra confs and SOPs
+                        cfgK%n1h,cfgK%off1E,&     ! no. bra hole confs and offsets
+                        cfgK%csfs1E,cfgB%csfs2I,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+                   
+             enddo
+                
+          endif
+
+          !
+          ! Ket: 2E
+          ! Bra: 1I and 1E
+          !
+          if (cfgB%n2E > 0 .and. nac1 <= 1) then
+             
+             ! Loop over ket 2E configurations
+             do ikconf=cfgB%off2E(kn),cfgB%off2E(kn+1)-1
+
+                ! Ket 2E configuration
+                kconf_full=cfgB%conf2E(:,:,ikconf)
+                ksop_full=cfgB%sop2E(:,:,ikconf)
+
+                ! Number of open shells in the ket 2E configuration
+                knopen=sop_nopen(ksop_full,n_int)
+                
+                ! Number of ket 2E CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2E - bra 1I contributions
+                if (cfgK%n1I > 0 &
+                     .and. cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1I,cfgB%n2E,&       ! no. bra and ket confs
+                        cfgK%conf1I,cfgK%sop1I,&  ! bra confs and SOPs
+                        cfgK%n1h,cfgK%off1I,&     ! no. bra hole confs and offsets
+                        cfgK%csfs1I,cfgB%csfs2E,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+
+                ! Ket 2E - bra 1E contributions
+                if (cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1E,cfgB%n2E,&       ! no. bra and ket confs
+                        cfgK%conf1E,cfgK%sop1E,&  ! bra confs and SOPs
+                        cfgK%n1h,cfgK%off1E,&     ! no. bra hole confs and offsets
+                        cfgK%csfs1E,cfgB%csfs2E,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+                   
+             enddo
+
+          endif
+
+          !
+          ! Ket: 1I1E
+          ! Bra: 1I and 1E
+          !
+          if (cfgB%n1I1E > 0) then
+             
+             ! Loop over ket 1I1E configurations
+             do ikconf=cfgB%off1I1E(kn),cfgB%off1I1E(kn+1)-1
+
+                ! Ket 1I1E configuration
+                kconf_full=cfgB%conf1I1E(:,:,ikconf)
+                ksop_full=cfgB%sop1I1E(:,:,ikconf)
+
+                ! Number of creation and annihilation operators linking
+                ! the ket 1I1E and bra 1-hole configurations
+                nac=n_create_annihilate(kconf_full,bconf1h_full,n_int)
+
+                ! Cycle if the the bra 1-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 1I1E configuration
+                if (nac > 3) cycle
+
+                ! Number of open shells in the ket 1I1E configuration
+                knopen=sop_nopen(ksop_full,n_int)
+                
+                ! Number of ket 1I1E CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 1I1E - bra 1I contributions
+                if (cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1I,cfgB%n1I1E,&       ! no. bra and ket confs
+                        cfgK%conf1I,cfgK%sop1I,&    ! bra confs and SOPs
+                        cfgK%n1h,cfgK%off1I,&       ! no. bra hole confs and offsets
+                        cfgK%csfs1I,cfgB%csfs1I1E,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+
+                ! Ket 1I1E - bra 1E contributions
+                if (cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1E,cfgB%n1I1E,&       ! no. bra and ket confs
+                        cfgK%conf1E,cfgK%sop1E,&    ! bra confs and SOPs
+                        cfgK%n1h,cfgK%off1E,&       ! no. bra hole confs and offsets
+                        cfgK%csfs1E,cfgB%csfs1I1E,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+                   
+             enddo
+
+          endif
+             
+       enddo
+
+    enddo
+       
+    return
+    
+  end subroutine tdm_2h_1h
+
+!######################################################################
+! tdm_2h_2h: Calculation of the 2I-2I, 2I-2E, 2I-1I1E, 2E-2E, 2I-1I1E,
+!            and 1I1E-1I1E contributions to the MRCI 1-TDMs
+!######################################################################
+  subroutine tdm_2h_2h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
+       vecK,npairs,rhoij,Bmap,Kmap)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! MRCI configuration derived types
+    type(mrcfg), intent(in) :: cfgB,cfgK
+
+    ! Dimensions
+    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+
+    ! 1-TDMs
+    real(dp), intent(inout) :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Number of open shells preceding each MO
+    integer(is)             :: nbefore(nmo)
+
+    ! Working arrays
+    integer(ib), allocatable :: kconf_int(:,:)
+    integer(ib), allocatable :: ksop_int(:,:)
+    integer(ib)              :: kconf_full(n_int,2)
+    integer(ib)              :: ksop_full(n_int,2)
+    integer(ib)              :: bconf2h_full(n_int,2)
+    integer(ib)              :: kconf2h_full(n_int,2)
+    integer(is), parameter   :: maxexci=1
+    integer(is)              :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: ikconf,kn,bn,nac,nac1,nexci,n_int_I
+    integer(is)             :: knsp,knopen
+    logical                 :: transpose
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    n_int_I=cfgK%n_int_I
+
+    allocate(kconf_int(n_int_I,2))
+    allocate(ksop_int(n_int_I,2))
+    kconf_int=0_ib
+    ksop_int=0_ib
+
+!----------------------------------------------------------------------
+! 2H-2H contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    ! Loop over ket 2-hole configurations
+    do kn=1,cfgK%n2h
+
+       ! Ket 2-hole configuration in the full MO space
+       kconf2h_full=0_ib
+       kconf2h_full(1:n_int_I,:)=cfgK%conf2h(1:n_int_I,:,kn)
+       
+       ! Loop over bra 2-hole configurations
+       do bn=1,cfgB%n2h
+
+          ! Bra 2-hole configuration in the full MO space
+          bconf2h_full=0_ib
+          bconf2h_full(1:n_int_I,:)=cfgB%conf2h(1:n_int_I,:,bn)
+
+          ! Number of creation and annihilation operators linking the
+          ! bra and ket 2-hole configurations
+          nac1=n_create_annihilate(cfgK%conf2h(1:n_int_I,:,kn),&
+               cfgB%conf2h(1:n_int_I,:,bn),n_int_I)
+
+          ! Cycle if the full configurations generated by the hole
+          ! configurations cannot be interacting
+          if (nac1 > 6) cycle
+
+          !
+          ! Ket: 2I
+          ! Bra: 2I, 2E and 1I1E
+          !
+          ! Work with elements < Bra | E_p^q | Ket >
+          transpose=.false.
+          if (cfgK%n2I > 0) then
+             
+             ! Loop over ket 2I configurations
+             do ikconf=cfgK%off2I(kn),cfgK%off2I(kn+1)-1
+
+                ! Ket 2I configuration
+                kconf_int=cfgK%conf2I(1:n_int_I,:,ikconf)
+                ksop_int=cfgK%sop2I(1:n_int_I,:,ikconf)
+                kconf_full=0_ib
+                ksop_full=0_ib
+                kconf_full(1:n_int_I,:)=kconf_int
+                ksop_full(1:n_int_I,:)=ksop_int
+          
+                ! Number of creation and annihilation operators linking
+                ! the ket 2I and bra 2-hole configurations
+                nac=n_create_annihilate(kconf_int,&
+                     cfgB%conf2h(1:n_int_I,:,bn),n_int_I)
+          
+                ! Cycle if the the bra 2-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 2I configuration
+                if (nac > 4) cycle
+
+                ! Number of open shells in the ket 2I configuration
+                knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
+                
+                ! Number of ket 2I CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2I - bra 2I contributions
+                if (nac <= 4 .and. &
+                     cfgB%off2I(bn) /= cfgB%off2I(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n2I,cfgK%n2I,&       ! no. bra and ket confs
+                        cfgB%conf2I,cfgB%sop2I,&  ! bra confs and SOPs
+                        cfgB%n2h,cfgB%off2I,&     ! no. bra hole confs and offsets
+                        cfgB%csfs2I,cfgK%csfs2I,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+
+                ! Ket 2I - bra 2E contributions
+                if (nac == 0 &
+                     .and. cfgB%n2E > 0 &
+                     .and. cfgB%off2E(bn) /= cfgB%off2E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n2E,cfgK%n2I,&       ! no. bra and ket confs
+                        cfgB%conf2E,cfgB%sop2E,&  ! bra confs and SOPs
+                        cfgB%n2h,cfgB%off2E,&     ! no. bra hole confs and offsets
+                        cfgB%csfs2E,cfgK%csfs2I,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+
+                ! Ket 2I - bra 1I1E contributions
+                if (nac <= 2 &
+                     .and. cfgB%n1I1E > 0 &
+                     .and. cfgB%off1I1E(bn) /= cfgB%off1I1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1I1E,cfgK%n2I,&        ! no. bra and ket confs
+                        cfgB%conf1I1E,cfgB%sop1I1E,& ! bra confs and SOPs
+                        cfgB%n2h,cfgB%off1I1E,&      ! no. bra hole confs and offsets
+                        cfgB%csfs1I1E,cfgK%csfs2I,&  ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+                   
+             enddo
+
+          endif
+
+          !
+          ! Bra: 2I
+          ! Ket: 2E and 1I1E
+          !
+          ! Work with elements < Ket | E_q^p | Bra >
+          transpose=.true.
+          if (cfgB%n2I > 0) then
+             
+             ! Loop over ket 2I configurations
+             do ikconf=cfgB%off2I(bn),cfgB%off2I(bn+1)-1
+
+                ! Ket 2I configuration
+                kconf_int=cfgB%conf2I(1:n_int_I,:,ikconf)
+                ksop_int=cfgB%sop2I(1:n_int_I,:,ikconf)
+                kconf_full=0_ib
+                ksop_full=0_ib
+                kconf_full(1:n_int_I,:)=kconf_int
+                ksop_full(1:n_int_I,:)=ksop_int
+          
+                ! Number of creation and annihilation operators linking
+                ! the ket 2I and bra 2-hole configurations
+                nac=n_create_annihilate(kconf_int,&
+                     cfgK%conf2h(1:n_int_I,:,kn),n_int_I)
+
+                ! Cycle if the the bra 2-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 2I configuration
+                if (nac > 4) cycle
+
+                ! Number of open shells in the ket 2I configuration
+                knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
+                
+                ! Number of ket 2I CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2I - bra 2E contributions
+                if (nac == 0 &
+                     .and. cfgK%n2E > 0 &
+                     .and. cfgK%off2E(kn) /= cfgK%off2E(kn+1)) then
+                   call tdm_batch(&
+                        kn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n2E,cfgB%n2I,&       ! no. bra and ket confs
+                        cfgK%conf2E,cfgK%sop2E,&  ! bra confs and SOPs
+                        cfgK%n2h,cfgK%off2E,&     ! no. bra hole confs and offsets
+                        cfgK%csfs2E,cfgB%csfs2I,& ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+
+                ! Ket 2I - bra 1I1E contributions
+                if (nac <= 2 &
+                     .and. cfgK%n1I1E > 0 &
+                     .and. cfgK%off1I1E(kn) /= cfgK%off1I1E(kn+1)) then
+                   call tdm_batch(&
+                        kn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1I1E,cfgB%n2I,&        ! no. bra and ket confs
+                        cfgK%conf1I1E,cfgK%sop1I1E,& ! bra confs and SOPs
+                        cfgK%n2h,cfgK%off1I1E,&      ! no. bra hole confs and offsets
+                        cfgK%csfs1I1E,cfgB%csfs2I,&  ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+                   
+             enddo
+
+          endif
+
+          !
+          ! Ket: 2E
+          ! Bra: 2E and 1I1E
+          !
+          ! Work with elements < Bra | E_p^q | Ket >
+          transpose=.false.
+          if (cfgK%n2E > 0 .and. nac1 <= 5) then
+
+             ! Loop over ket 2E configurations
+             do ikconf=cfgK%off2E(kn),cfgK%off2E(kn+1)-1
+
+                ! Ket 2E configuration
+                kconf_full=cfgK%conf2E(:,:,ikconf)
+                ksop_full=cfgK%sop2E(:,:,ikconf)
+                kconf_int=0_ib
+                ksop_int=0_ib
+                kconf_int(1:n_int_I,:)=kconf_full(1:n_int_I,:)
+                ksop_int(1:n_int_I,:)=ksop_full(1:n_int_I,:)
+          
+                ! Number of creation and annihilation operators linking
+                ! the ket 2E and bra 2-hole configurations
+                nac=n_create_annihilate(kconf_full,bconf2h_full,n_int)
+          
+                ! Cycle if the the bra 2-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 2E configuration
+                if (nac > 4) cycle
+
+                ! Number of open shells in the ket 2E configuration
+                knopen=sop_nopen(ksop_full,n_int)
+                
+                ! Number of ket 2E CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2E - bra 2E contributions
+                if (cfgB%off2E(bn) /= cfgB%off2E(bn+1) .and. &
+                     nac1 <= 2) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n2E,cfgK%n2E,&       ! no. bra and ket confs
+                        cfgB%conf2E,cfgB%sop2E,&  ! bra confs and SOPs
+                        cfgB%n2h,cfgB%off2E,&     ! no. bra hole confs and offsets
+                        cfgB%csfs2E,cfgK%csfs2E,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+
+                ! Ket 2E - bra 1I1E matrix elements
+                if (cfgB%off1I1E(bn) /= cfgB%off1I1E(bn+1) &
+                     .and. cfgB%n1I1E /= 0) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1I1E,cfgK%n2E,&        ! no. bra and ket confs
+                        cfgB%conf1I1E,cfgB%sop1I1E,& ! bra confs and SOPs
+                        cfgB%n2h,cfgB%off1I1E,&      ! no. bra hole confs and offsets
+                        cfgB%csfs1I1E,cfgK%csfs2E,&  ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+                   
+             enddo
+             
+          endif
+
+          !
+          ! Bra: 2E
+          ! Ket: 1I1E
+          !
+          ! Work with elements < Ket | E_q^p | Bra >
+          transpose=.true.
+          if (cfgB%n2E > 0 .and. nac1 <= 5) then
+
+             ! Loop over ket 2E configurations
+             do ikconf=cfgB%off2E(bn),cfgB%off2E(bn+1)-1
+
+                ! Ket 2E configuration
+                kconf_full=cfgB%conf2E(:,:,ikconf)
+                ksop_full=cfgB%sop2E(:,:,ikconf)
+                kconf_int=0_ib
+                ksop_int=0_ib
+                kconf_int(1:n_int_I,:)=kconf_full(1:n_int_I,:)
+                ksop_int(1:n_int_I,:)=ksop_full(1:n_int_I,:)
+          
+                ! Number of creation and annihilation operators linking
+                ! the ket 2E and bra 2-hole configurations
+                nac=n_create_annihilate(kconf_full,kconf2h_full,n_int)
+
+                ! Cycle if the the bra 2-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 2E configuration
+                if (nac > 4) cycle
+
+                ! Number of open shells in the ket 2E configuration
+                knopen=sop_nopen(ksop_full,n_int)
+                
+                ! Number of ket 2E CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 2E - bra 1I1E matrix elements
+                if (cfgK%off1I1E(kn) /= cfgK%off1I1E(kn+1) &
+                     .and. cfgK%n1I1E /= 0) then
+                   call tdm_batch(&
+                        kn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgK%n1I1E,cfgB%n2E,&        ! no. bra and ket confs
+                        cfgK%conf1I1E,cfgK%sop1I1E,& ! bra confs and SOPs
+                        cfgK%n2h,cfgK%off1I1E,&      ! no. bra hole confs and offsets
+                        cfgK%csfs1I1E,cfgB%csfs2E,&  ! bra and ket CSF offsets
+                        csfdimK,csfdimB,nvecK,nvecB,&
+                        vecK,vecB,npairs,rhoij,Kmap,Bmap,&
+                        cfgK%m2c,transpose)
+                endif
+                
+             enddo
+
+          endif
+
+          !
+          ! Ket: 1I1E
+          ! Bra: 1I1E
+          !
+          ! Work with elements < Bra | E_p^q | Ket >
+          transpose=.false.
+          if (cfgK%n1I1E > 0) then
+          
+             ! Loop over ket 1I1E configurations
+             do ikconf=cfgK%off1I1E(kn),cfgK%off1I1E(kn+1)-1
+
+                ! Ket 1I1E configuration
+                kconf_full=cfgK%conf1I1E(:,:,ikconf)
+                ksop_full=cfgK%sop1I1E(:,:,ikconf)
+                kconf_int=0_ib
+                ksop_int=0_ib
+                kconf_int(1:n_int_I,:)=kconf_full(1:n_int_I,:)
+                ksop_int(1:n_int_I,:)=ksop_full(1:n_int_I,:)
+          
+                ! Number of creation and annihilation operators linking
+                ! the ket 2E and bra 2-hole configurations
+                nac=n_create_annihilate(kconf_full,bconf2h_full,n_int)
+
+                ! Cycle if the the bra 2-hole configuration cannot
+                ! generate configurations that interact with the
+                ! ket 1I1E configuration
+                if (nac > 4) cycle
+          
+                ! Number of open shells in the ket 1I1E configuration
+                knopen=sop_nopen(ksop_full,n_int)
+                
+                ! Number of ket 1I1E CSFs
+                knsp=ncsfs(knopen)
+
+                ! Get the number of open shells preceding each ket conf MO
+                call nobefore(ksop_full,nbefore)
+
+                ! Ket 1I1E - bra 1I1E contributions
+                if (cfgB%off1I1E(bn) /= cfgB%off1I1E(bn+1)) then
+                   call tdm_batch(&
+                        bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                        cfgB%n1I1E,cfgK%n1I1E,&       ! no. bra and ket confs
+                        cfgB%conf1I1E,cfgB%sop1I1E,&  ! bra confs and SOPs
+                        cfgB%n2h,cfgB%off1I1E,&       ! no. bra hole confs and offsets
+                        cfgB%csfs1I1E,cfgK%csfs1I1E,& ! bra and ket CSF offsets
+                        csfdimB,csfdimK,nvecB,nvecK,&
+                        vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                        cfgB%m2c,transpose)
+                endif
+                   
+             enddo
+
+          endif
+             
+       enddo
+
+    enddo
+       
+    return
+    
+  end subroutine tdm_2h_2h
     
 !######################################################################
 ! tdm_batch: Computes all the contributions to the 1-TDMs from a
@@ -805,7 +1811,7 @@ contains
   subroutine tdm_batch(bn,ikconf,kconf,ksop,knopen,knsp,knbefore,&
        nbconf,nkconf,bconfs,bsops,nh,boffset,bcsfs,kcsfs,&
        csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-       m2c,same_class,transpose)
+       m2c,transpose)
 
     use constants
     use bitglobal
@@ -851,10 +1857,11 @@ contains
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
 
-    ! Same bra and ket configuration class?
-    logical, intent(in)     :: same_class
-
     ! Fill in the transpose of rho_ij?
+    ! i.e., Are we working with
+    ! < Ket | E_q^p | Bra >
+    ! instead of
+    ! < Bra | E_q^p | Ket > ?
     logical, intent(in)     :: transpose
     
     ! Working arrays
@@ -920,9 +1927,6 @@ contains
                 komega=komega+1
                 kcoe=vecK(ikcsf,Kindx)
 
-                ! Cycle duplicate CSF pairs
-                if (same_class .and. ibcsf < ikcsf) cycle
-                
                 ! Contribution to the 1-TDM
                 prod=kcoe*bcoe*spincp(komega,bomega)
                 if (transpose) then
