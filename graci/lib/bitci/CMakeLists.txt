@@ -60,17 +60,13 @@ list(APPEND CMAKE_Fortran_FLAGS ${dialect})
 #
 # Add bitCI library target
 #
-file(GLOB_RECURSE CIsources
-  src/ci/* src/include/* src/io/* src/utils/* src/spin_coupling/*
-  src/slater_condon/* src/conftype/* ../integrals/src/*)
+file(GLOB_RECURSE CIsources src/ci/* src/common/* ../integrals/src/*)
 add_library(bitci SHARED ${CIsources})
 
 #
 # Add bitSI library target
 #
-file(GLOB_RECURSE SIsources
-  src/si/* src/include/* src/io/* src/utils/* src/spin_coupling/*
-  src/slater_condon/* src/conftype/* ../integrals/src/*)
+file(GLOB_RECURSE SIsources src/si/* src/common/* ../integrals/src/*)
 add_library(bitsi SHARED ${SIsources})
 
 # Link the targets to the HDF5 Fortran library

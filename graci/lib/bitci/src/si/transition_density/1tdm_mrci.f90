@@ -70,6 +70,12 @@ contains
          npairs,rhoij,Bmap,Kmap)
 
 !----------------------------------------------------------------------
+! (2) Ref - 1H contributions to the 1-RDMs
+!----------------------------------------------------------------------
+    call tdm_0h_1h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
+         npairs,rhoij,Bmap,Kmap)
+    
+!----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(spincp)
@@ -226,6 +232,259 @@ contains
     
   end subroutine tdm_0h_0h
 
+!######################################################################
+! tdm_mrci_0h_1h: Calculation of the Ref-1I and Ref-1E contributions
+!                 to the MRCI 1-TDMs
+!######################################################################
+  subroutine tdm_0h_1h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
+       vecK,npairs,rhoij,Bmap,Kmap)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! MRCI configuration derived types
+    type(mrcfg), intent(in) :: cfgB,cfgK
+
+    ! Dimensions
+    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+
+    ! 1-TDMs
+    real(dp), intent(inout) :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Number of open shells preceding each MO
+    integer(is)             :: nbefore(nmo)
+
+    ! Working arrays
+    integer(ib)             :: kconf_full(n_int,2)
+    integer(ib)             :: ksop_full(n_int,2)
+    integer(ib)             :: bconf_full(n_int,2)
+    integer(ib)             :: bsop_full(n_int,2)
+    
+    ! Everything else
+    integer(is)             :: ikconf,ibconf,n,nac,nexci,n_int_I
+    integer(is)             :: knsp,knopen,bnsp,bnopen
+
+!----------------------------------------------------------------------
+! Contributions of the ket reference and bra 1I & 1E CSFs
+!----------------------------------------------------------------------
+    n_int_I=cfgK%n_int_I
+
+    ! Loop over ket reference configurations
+    do ikconf=1,cfgK%n0h
+
+       ! Number of open shells in the ket configuration
+       knopen=sop_nopen(cfgK%sop0h(:,:,ikconf),n_int_I)
+       
+       ! Number of ket CSFs
+       knsp=ncsfs(knopen)
+
+       ! Ket configuration and SOP in the full MO space
+       kconf_full=0_ib
+       ksop_full=0_ib
+       kconf_full(1:n_int_I,:)=cfgK%conf0h(:,:,ikconf)
+       ksop_full(1:n_int_I,:)=cfgK%sop0h(:,:,ikconf)
+       
+       ! Get the number of open shells preceding each ket conf MO
+       call nobefore(ksop_full,nbefore)
+
+       ! Loop over bra 1-hole configurations
+       do n=1,cfgB%n1h
+
+          ! Number of creation and annihilation operators linking the
+          ! reference and 1-hole configurations
+          nac=n_create_annihilate(cfgK%conf0h(1:n_int_I,:,ikconf), &
+               cfgB%conf1h(1:n_int_I,:,n),n_int_I)
+
+          ! Ket Ref - bra 1I contributions
+          if (nac <= 3 .and. cfgB%n1I > 0 &
+               .and. cfgB%off1I(n) /= cfgB%off1I(n+1)) then
+             call tdm_batch(&
+                  n,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                  cfgB%n1I,cfgK%n0h,&       ! no. bra and ket confs
+                  cfgB%conf1I,cfgB%sop1I,&  ! bra confs and SOPs
+                  cfgB%n1h,cfgB%off1I,&     ! no. bra hole confs and offsets
+                  cfgB%csfs1I,cfgK%csfs0h,& ! bra and ket CSF offsets
+                  csfdimB,csfdimK,nvecB,nvecK,&
+                  vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                  cfgB%m2c,.false.)
+          endif
+
+          ! Ket Ref - bra 1E contributions
+          if (nac <= 1 .and. cfgB%n1E > 0 &
+               .and. cfgB%off1E(n) /= cfgB%off1E(n+1)) then
+             call tdm_batch(&
+                  n,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
+                  cfgB%n1E,cfgK%n0h,&       ! no. bra and ket confs
+                  cfgB%conf1E,cfgB%sop1E,&  ! bra confs and SOPs
+                  cfgB%n1h,cfgB%off1E,&     ! no. bra hole confs and offsets
+                  cfgB%csfs1E,cfgK%csfs0h,& ! bra and ket CSF offsets
+                  csfdimB,csfdimK,nvecB,nvecK,&
+                  vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+                  cfgB%m2c,.false.)
+          endif
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Contributions of the ket 1I & 1E and bra reference CSFs
+!----------------------------------------------------------------------
+    
+    return
+    
+  end subroutine tdm_0h_1h
+
+!######################################################################
+! tdm_batch: Computes all the contributions to the 1-TDMs from a
+!            ket conf and a single class (1I, 2I, etc.) of confs
+!            generated by a single bra hole conf
+!######################################################################
+  subroutine tdm_batch(bn,ikconf,kconf,ksop,knopen,knsp,knbefore,&
+       nbconf,nkconf,bconfs,bsops,nh,boffset,bcsfs,kcsfs,&
+       csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,npairs,rhoij,Bmap,Kmap,&
+       m2c,same_class)
+
+    use constants
+    use bitglobal
+    use mrciutils
+    
+    implicit none
+
+    ! Index of the bra hole configuration
+    integer(is), intent(in) :: bn
+
+    ! Index of the ket conf
+    integer(is), intent(in) :: ikconf
+    
+    ! Dimensions
+    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+    integer(is), intent(in) :: nbconf,nkconf
+    
+    ! Ket conf and SOP
+    integer(ib), intent(in) :: kconf(n_int,2),ksop(n_int,2)
+    integer(is), intent(in) :: knopen,knsp,knbefore(nmo)
+
+    ! Bra confs and SOPs
+    integer(ib), intent(in) :: bconfs(n_int,2,nbconf)
+    integer(ib), intent(in) :: bsops(n_int,2,nbconf)
+    
+    ! Bra configuration offset array
+    integer(is), intent(in) :: nh
+    integer(is), intent(in) :: boffset(nh+1)
+
+    ! CSF offsets
+    integer(is), intent(in) :: bcsfs(nbconf+1),kcsfs(nkconf+1)
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+    
+    ! 1-TDMs
+    real(dp), intent(inout) :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+    
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+
+    ! Same bra and ket configuration class?
+    logical, intent(in)     :: same_class
+    
+    ! Working arrays
+    integer(ib)             :: bconf(n_int,2),bsop(n_int,2)
+    integer(is), parameter  :: maxexci=1
+    integer(is)             :: hlist(maxexci),plist(maxexci)
+    
+    ! Everything else
+    integer(is)             :: ibconf,ipair,ibcsf,ikcsf,bomega,komega
+    integer(is)             :: Bindx,Kindx
+    integer(is)             :: nexci,bnopen,bnsp,i,a
+    real(dp)                :: bcoe,kcoe,prod
+
+    ! Loop over the bra confs generated by the hole conf
+    do ibconf=boffset(bn),boffset(bn+1)-1
+
+       ! Bra configuration in the full space
+       bconf=bconfs(:,:,ibconf)
+       bsop=bsops(:,:,ibconf)
+
+       ! Compute the excitation degree between the two
+       ! configurations
+       nexci=exc_degree_conf(kconf,bconf,n_int)
+       
+       ! Cycle if the excitation degree is not equal to 1
+       if (nexci /= 1) cycle
+
+       ! Number of open shells in the bra configuration
+       bnopen=sop_nopen(bsop,n_int)
+    
+       ! Number of bra CSFs
+       bnsp=ncsfs(bnopen)
+
+       ! Get the indices of the MOs involved in the excitation
+       hlist=0
+       plist=0
+       call get_exci_indices(kconf,bconf,n_int,hlist(1),plist(1),1)
+
+       ! Get the spin-coupling coefficients
+       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),&
+            hlist(1),knopen,knbefore)
+
+       ! Idices of the 1-RDM elements
+       i=m2c(hlist(1))
+       a=m2c(plist(1))
+
+       ! Loop over 1-TDMs
+       do ipair=1,npairs
+
+          ! Bra and ket eigenvector indices
+          Bindx=Bmap(ipair)
+          Kindx=Kmap(ipair)
+          
+          ! Loop over bra CSFs
+          bomega=0
+          do ibcsf=bcsfs(ibconf),bcsfs(ibconf+1)-1
+             bomega=bomega+1
+             bcoe=vecB(ibcsf,Bindx)
+
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=kcsfs(ikconf),kcsfs(ikconf+1)-1
+                komega=komega+1
+                kcoe=vecK(ikcsf,Kindx)
+
+                ! Cycle duplicate CSF pairs
+                if (same_class .and. ibcsf < ikcsf) cycle
+                
+                ! Contribution to the 1-TDM
+                prod=kcoe*bcoe*spincp(komega,bomega)
+                rhoij(a,i,ipair)=rhoij(a,i,ipair)+prod
+                                
+             enddo
+             
+          enddo
+          
+       enddo
+       
+    enddo
+       
+    return
+    
+  end subroutine tdm_batch
+    
 !######################################################################
 ! spincp_coeff: Given a SOP and pair of creation/annihilation operator
 !               indices, returns the complete set of spin-coupling
