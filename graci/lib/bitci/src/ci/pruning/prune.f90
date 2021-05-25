@@ -1,13 +1,12 @@
 !**********************************************************************
 ! Additional pruning of the MRCI configurations based on their
-! interaction with the reference space configurations
+! contributions to the ENPT2 1st-order corrected wave functions
 !**********************************************************************
 
 !######################################################################
-! mrci_prune: Pruning of the MRCI configuration space based on the
-!             Adaptive Sampling Configuration Interaction (ASCI)
-!             selection algorithm. For a description of this, see
-!             J. Chem. Phys., 145, 044112 (2016).
+! mrci_prune: Pruning of the MRCI configuration space using the
+!             Epstein-Nesbet 1st-order wave function corrections as
+!             the pruning metric.
 !######################################################################
 #ifdef CBINDING
 subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf) &
@@ -20,8 +19,8 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
   use bitglobal
   use conftype
   use hii
-  use asci_avec
-  use asci_trim
+  use epstein_nesbet
+  use trimconfs
   
   implicit none
 
@@ -53,9 +52,10 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
   ! averaged over spin couplings
   real(dp), allocatable      :: averageii(:)
 
-  ! A-vectors
+  ! ENPT2 energy and wavefunction corrections
   real(dp), allocatable      :: Avec(:,:)
-
+  real(dp), allocatable      :: E2(:)
+  
   ! Surviving configuration flags
   integer(is), allocatable   :: i1I(:),i2I(:),i1E(:),i2E(:),i1I1E(:)
   
@@ -95,6 +95,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
   allocate(Avec(cfg%csfdim,nroots(irrep)))
   Avec=0.0d0
 
+  allocate(E2(nroots(irrep)))
+  E2=0.0d0
+  
   allocate(i1I(cfg%n1I), i2I(cfg%n2I), i1E(cfg%n1E), i2E(cfg%n2E),&
        i1I1E(cfg%n1I1E))
   i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
@@ -111,23 +114,22 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
 !
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !----------------------------------------------------------------------
-  call asci_avectors(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,nroots(irrep))
+  call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+       vec0scr(irrep),Avec,E2,nroots(irrep))
 
 !----------------------------------------------------------------------
 ! Get the indices of the configurations that generate CSFs with
 ! A-vector elements above threshold
 !----------------------------------------------------------------------
-  call asci_conf_indices(cfg,Athrsh,Avec,cfg%csfdim,cfg%confdim,&
+  call trim_conf_indices(cfg,Athrsh,Avec,cfg%csfdim,cfg%confdim,&
        nroots(irrep),i1I,i2I,i1E,i2E,i1I1E,&
        cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E)
 
 !----------------------------------------------------------------------
 ! Fill in the surviving configuration information
 !----------------------------------------------------------------------
-  call asci_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,&
-       cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,confscr(irrep),&
-       nconf(irrep))
+  call trim_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,cfg%n1I,&
+       cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,confscr(irrep),nconf(irrep))
 
 !----------------------------------------------------------------------
 ! Output the new no. configurations
