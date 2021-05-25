@@ -9,10 +9,10 @@
 !             the pruning metric.
 !######################################################################
 #ifdef CBINDING
-subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf) &
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf) &
      bind(c,name="mrci_prune")
 #else
-subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
 #endif
     
   use constants
@@ -21,6 +21,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
   use hii
   use epstein_nesbet
   use trimconfs
+  use utils
+  use iomod
+  use timing
   
   implicit none
 
@@ -33,6 +36,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
   ! Number of roots requested
   integer(is), intent(in)    :: nroots(0:nirrep-1)
 
+  ! Number of extra roots to include in the ENPT2 calculation
+  integer(is), intent(in)    :: nextra
+    
   ! MRCI space configuration scratch file numbers
   integer(is), intent(in)    :: confscr(0:nirrep-1)
 
@@ -55,13 +61,29 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
   ! ENPT2 energy and wavefunction corrections
   real(dp), allocatable      :: Avec(:,:)
   real(dp), allocatable      :: E2(:)
+
+  ! Zeroth-order energies
+  real(dp), allocatable      :: E0(:)
+
+  ! 2nd-order corrected energies
+  real(dp), allocatable      :: EPT2(:)
   
   ! Surviving configuration flags
   integer(is), allocatable   :: i1I(:),i2I(:),i1E(:),i2E(:),i1I1E(:)
   
   ! Everything else
-  integer(is)                :: i
-  
+  integer(is)                :: i,nvec
+  integer(is), allocatable   :: indx(:)
+
+  ! Timing variables
+    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
+                                twall_end
+
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -86,22 +108,40 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
+  ! Total number of roots for which the ENPT2 corrections will be
+  ! calculated
+  nvec=nroots(irrep)+nextra
+
   allocate(hdiag(cfg%csfdim))
   hdiag=0.0d0
 
   allocate(averageii(cfg%confdim))
   averageii=0.0d0
 
-  allocate(Avec(cfg%csfdim,nroots(irrep)))
+  allocate(Avec(cfg%csfdim,nvec))
   Avec=0.0d0
 
-  allocate(E2(nroots(irrep)))
-  E2=0.0d0
+  allocate(E0(nvec))
+  E0=0.0d0
   
+  allocate(E2(nvec))
+  E2=0.0d0
+
+  allocate(EPT2(nvec))
+  EPT2=0.0d0
+
+  allocate(indx(nvec))
+  indx=0
+   
   allocate(i1I(cfg%n1I), i2I(cfg%n2I), i1E(cfg%n1E), i2E(cfg%n2E),&
        i1I1E(cfg%n1I1E))
   i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
-  
+
+!----------------------------------------------------------------------
+! Read in the zeroth-order (i.e., ref space) energies
+!----------------------------------------------------------------------
+  call read_energies(vec0scr(irrep),nvec,E0)
+
 !----------------------------------------------------------------------
 ! Compute the on-diagonal Hamiltonian matrix elements
 !----------------------------------------------------------------------
@@ -115,14 +155,21 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !----------------------------------------------------------------------
   call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nroots(irrep))
+       vec0scr(irrep),Avec,E2,nvec)
+
+!----------------------------------------------------------------------
+! Sort the 2nd-order corrected energies
+!----------------------------------------------------------------------
+  EPT2=E0+E2
+  
+  call dsortindxa1('A',nvec,EPT2,indx)
 
 !----------------------------------------------------------------------
 ! Get the indices of the configurations that generate CSFs with
 ! A-vector elements above threshold
 !----------------------------------------------------------------------
   call trim_conf_indices(cfg,Athrsh,Avec,cfg%csfdim,cfg%confdim,&
-       nroots(irrep),i1I,i2I,i1E,i2E,i1I1E,&
+       nroots(irrep),nvec,indx(1:nroots(irrep)),i1I,i2I,i1E,i2E,i1I1E,&
        cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E)
 
 !----------------------------------------------------------------------
@@ -136,6 +183,16 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
 !----------------------------------------------------------------------
   write(6,'(/,x,a,x,i0)') 'New number of MRCI configurations:',&
        nconf(irrep)
+
+!----------------------------------------------------------------------
+! Output the ENPT2 2nd-order corrected excitation energies
+!----------------------------------------------------------------------
+  write(6,'(/,x,a,/)') 'ENPT2 energies:'
+  do i=1,nroots(irrep)
+     write(6,'(3x,a,x,i3,a,2(2x,F12.6),x,a)') &
+          'State' ,i,':',EPT2(indx(i)), &
+          (EPT2(indx(i))-EPT2(indx(1)))*eh2ev,'eV' 
+  enddo
   
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -143,7 +200,18 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
   deallocate(hdiag)
   deallocate(averageii)
   deallocate(Avec)
+  deallocate(E0)
+  deallocate(E2)
+  deallocate(EPT2)
+  deallocate(indx)
   deallocate(i1I, i2I, i1E, i2E, i1I1E)
+
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+         'mrci_prune')
   
 !----------------------------------------------------------------------
 ! Flush stdout
@@ -154,4 +222,3 @@ subroutine mrci_prune(Athrsh,irrep,nroots,confscr,vec0scr,nconf)
     
 end subroutine mrci_prune
 
-!######################################################################

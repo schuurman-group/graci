@@ -41,8 +41,14 @@ def diag(ci_method):
         # Number of roots for the current irrep
         nroots = ci_method.n_states(irrep)
 
+        # Extra roots: only useful if pruning is turned on
+        if ci_method.prune == 'off':
+            nextra = 0
+        else:
+            nextra = ci_method.prune_extra
+
         # Call to the bitci reference space diagonalisation routine
-        args = (irrep, nroots, confunits, nconf, ciunit)
+        args = (irrep, nroots+nextra, confunits, nconf, ciunit)
         (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
 
         # Bitci eigenvector scratch number
@@ -51,7 +57,6 @@ def diag(ci_method):
         # If the number of reference space configurations for the
         # current irrep is less than the requested number of roots
         # then reset nstates accordingly
-
         if nroots < ci_method.n_states(irrep):
             ci_method.nstates[irrep] = nroots
     
@@ -65,10 +70,12 @@ def diag(ci_method):
             nroots = ci_method.n_states(irrep)
 
             # Retrieve the energies
-            args = (ciunits[irrep], nroots, ener[irrep, :nroots])
+            args = (ciunits[irrep], nroots, ener[irrep, :nroots],
+                    np.array([n+1 for n in range(nroots)], dtype=int))
+            
             (ener[irrep, :nroots]) = \
-                    libs.lib_func('retrieve_energies', args)
-        
+                    libs.lib_func('retrieve_some_energies', args)
+            
     # Stop timing
     timing.stop('ref_diag')
     

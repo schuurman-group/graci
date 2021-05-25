@@ -23,8 +23,8 @@ contains
 !######################################################################
 ! enpt2: Computes a batch of ENPT2 energy and wave function corrections
 !######################################################################
-  subroutine enpt2(cfg,hdiag,averageii,csfdim,confdim,vec0scr,Avec,E2,&
-       nroots)
+  subroutine enpt2(cfg,hdiag,averageii,csfdim,confdim,vec0scr,Avec,&
+       E2,nroots)
 
     use constants
     use bitglobal
@@ -1066,13 +1066,19 @@ contains
 
     ! ENPT2 wave function and energy corrections
     real(dp), intent(inout) :: Avec(csfdim,nroots)
-    real(dp), intent(inout) :: E2(nroots)
+    real(dp), intent(out)   :: E2(nroots)
     
     ! Reference space eigenvalues
     real(dp), intent(in)    :: e0(nroots)
 
     ! Everything else
     integer(is)             :: j,icsf
+
+!----------------------------------------------------------------------
+! ENPT2 energy and wave function corrections
+!----------------------------------------------------------------------
+    ! Initialisation
+    E2=0.0d0
 
     ! Loop over roots
     do j=1,nroots
@@ -1081,10 +1087,10 @@ contains
        do icsf=refdim+1,csfdim
 
           ! Energy correction
-          E2(j)=-Avec(icsf,j)**2/(hdiag(icsf)-e0(j))
-          
+          E2(j)=E2(j)+Avec(icsf,j)**2/(e0(j)-hdiag(icsf))
+
           ! A-vector element
-          Avec(icsf,j)=Avec(icsf,j)/(hdiag(icsf)-e0(j))
+          Avec(icsf,j)=Avec(icsf,j)/(e0(j)-hdiag(icsf))
 
        enddo
        

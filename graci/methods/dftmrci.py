@@ -42,6 +42,7 @@ class Dftmrci:
         self.ciorder        = 2
         self.refiter        = 3
         self.prune          = 'off'
+        self.prune_extra    = 10
         self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001
         self.diag_iter      = 50
