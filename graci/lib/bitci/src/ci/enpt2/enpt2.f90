@@ -1,11 +1,14 @@
 !**********************************************************************
-! Routines for the calculation of the ASCI A-vectors
+! Routines for the calculation of the ENPT2 energy and wave function
+! corrections:
+!
+! E_w,omega = -|<w omega|H|Psi^0_I>|^2/(H_{w omega,w omega} - E^0_I),
 !
 ! A_w,omega = <w omega|H|Psi^0_I>/(H_{w omega,w omega} - E^0_I),
 !
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !**********************************************************************
-module asci_avec
+module epstein_nesbet
 
   use constants
   
@@ -18,10 +21,10 @@ module asci_avec
 contains
 
 !######################################################################
-! asci_avectors: Computes a batch of ASCI A-vectors
+! enpt2: Computes a batch of ENPT2 energy and wave function corrections
 !######################################################################
-  subroutine asci_avectors(cfg,hdiag,averageii,csfdim,confdim,&
-       vec0scr,Avec,nroots)
+  subroutine enpt2(cfg,hdiag,averageii,csfdim,confdim,vec0scr,Avec,&
+       E2,nroots)
 
     use constants
     use bitglobal
@@ -46,9 +49,10 @@ contains
     ! Number of roots
     integer(is), intent(in) :: nroots
 
-    ! A-vectors
+    ! ENPT2 wave function and energy corrections
     real(dp), intent(out)   :: Avec(csfdim,nroots)
-
+    real(dp), intent(out)   :: E2(nroots)
+    
     ! Reference space eigenpairs
     integer(is)             :: refdim
     real(dp), allocatable   :: e0(:),vec0(:,:)
@@ -92,9 +96,9 @@ contains
     call avec_2h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots)
 
 !----------------------------------------------------------------------
-! Divide by (H_nn - E^0_I) to get the A-vector element values
+! Divide by (H_nn - E^0_I)
 !----------------------------------------------------------------------
-    call apply_denominator(cfg,Avec,hdiag,e0,csfdim,nroots,refdim)
+    call apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim)
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -105,7 +109,7 @@ contains
     
     return
     
-  end subroutine asci_avectors
+  end subroutine enpt2
     
 !######################################################################
 ! avec_1h: Calculation of the elements of the A-vector corresponding
@@ -1042,7 +1046,8 @@ contains
 ! apply_denominator: Application of the (H_nn - E^0_I) to get
 !                    the A-vector element values
 !######################################################################
-  subroutine apply_denominator(cfg,Avec,hdiag,e0,csfdim,nroots,refdim)
+  subroutine apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,&
+       refdim)
 
     use constants
     use bitglobal
@@ -1059,24 +1064,34 @@ contains
     ! On-diagonal Hamiltonian matrix elements
     real(dp), intent(in)    :: hdiag(csfdim)
 
-    ! A-vectors
+    ! ENPT2 wave function and energy corrections
     real(dp), intent(inout) :: Avec(csfdim,nroots)
-
+    real(dp), intent(out)   :: E2(nroots)
+    
     ! Reference space eigenvalues
     real(dp), intent(in)    :: e0(nroots)
 
     ! Everything else
     integer(is)             :: j,icsf
 
+!----------------------------------------------------------------------
+! ENPT2 energy and wave function corrections
+!----------------------------------------------------------------------
+    ! Initialisation
+    E2=0.0d0
+
     ! Loop over roots
     do j=1,nroots
 
        ! Loop over CSFs (excluding the reference space ones)
        do icsf=refdim+1,csfdim
-          
+
+          ! Energy correction
+          E2(j)=E2(j)+Avec(icsf,j)**2/(e0(j)-hdiag(icsf))
+
           ! A-vector element
-          Avec(icsf,j)=Avec(icsf,j)/(hdiag(icsf)-e0(j))
-          
+          Avec(icsf,j)=Avec(icsf,j)/(e0(j)-hdiag(icsf))
+
        enddo
        
     enddo
@@ -1087,4 +1102,4 @@ contains
 
 !######################################################################
   
-end module asci_avec
+end module epstein_nesbet

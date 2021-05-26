@@ -163,7 +163,7 @@ subroutine retrieve_energies(scrnum,nroots,ener)
   !
   read(iscratch) nroots1
   if (nroots /= nroots1) then
-     write(6,'(/,2x,a)') 'Error in read_energies: inconsistent '&
+     write(6,'(/,2x,a)') 'Error in retrieve_energies: inconsistent '&
           //'number of roots'
      stop
   endif
@@ -180,8 +180,82 @@ subroutine retrieve_energies(scrnum,nroots,ener)
   
   return
   
-end subroutine retrieve_energies  
+end subroutine retrieve_energies
 
+!######################################################################
+! retieve_some_energies: Returns a subset of the eigenvalues from the
+!                        scratch file numbered scrnum
+!######################################################################
+#ifdef CBINDING
+subroutine retrieve_some_energies(scrnum,nroots,ener,iroots) &
+     bind(c,name="retrieve_some_energies")
+#else
+subroutine retrieve_some_energies(scrnum,nroots,ener,iroots)
+#endif
+  
+  use constants
+  use bitglobal
+  
+  implicit none
+  
+  integer(is), intent(in) :: scrnum,nroots
+  integer(is), intent(in) :: iroots(nroots)
+  real(dp), intent(out)   :: ener(nroots)
+  integer(is)             :: iscratch,ndum,nentries,n,i
+  integer(is)             :: ipos(1)
+  real(dp), allocatable   :: ener1(:)
+  
+  !
+  ! Open the scratch file
+  !
+  iscratch=scrunit(scrnum)
+  open(iscratch,file=scrname(scrnum),form='unformatted',&
+       status='old')
+  
+  !
+  ! Read past the N-electron basis dimension
+  !
+  read(iscratch) ndum
+  
+  !
+  ! Number of roots on file
+  !
+  read(iscratch) nentries
+
+  !
+  ! Allocate working array
+  !
+  allocate(ener1(nentries))
+  
+  !
+  ! Read in the eigenvalues
+  !
+  read(iscratch) ener1
+
+  !
+  ! Save the requested eigenvalues
+  !
+  n=0
+  ! Loop over all eigenvalues
+  do i=1,nentries
+     ! Save the eigenvalue if it is in the subset of requested roots
+     ipos=findloc(iroots,value=i)
+     if (ipos(1) /= 0) then
+        n=n+1
+        ener(n)=ener1(i)
+     endif
+  enddo
+  
+  !
+  ! Close the scratch file
+  !
+  close(iscratch)
+  
+  
+  return
+  
+end subroutine retrieve_some_energies
+  
 !######################################################################
 ! retrieve_filename: given a scratch file number, returns the
 !                    associated filename

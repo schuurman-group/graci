@@ -20,53 +20,60 @@ hamiltonians   = ['canonical',
 
 # registry of bitci functions
 bitci_registry = {
-        'generate_ref_confs'  : ['int32','int32','int32','int32',
-                                 'int32','int32','int32','int32',
-                                 'int32','int32','int32','int32'],
-        'diag_dftcis'         : ['int32','int32','int32','int32','logical'],
-        'ras_guess_dftcis'    : ['int32','int32','int32','int32',
-                                 'int32'],
-        'ref_diag_mrci'       : ['int32','int32','int32','int32',
-                                 'int32'],
-        'retrieve_energies'   : ['int32','int32','double'],
-        'generate_mrci_confs' : ['int32','int32','int32','int32',
-                                 'int32', 'double','int32'],
-        'mrci_prune'          : ['double','int32','int32','int32',
-                                 'int32', 'int32'],
-        'retrieve_filename'   : ['int32','string'],
-        'diag_mrci'           : ['int32','int32','int32','int32',
-                                 'int32','double','int32','int32',
-                                 'logical'],
-        'print_mrci_states'   : ['int32','int32','int32'],
-        'refine_ref_space'    : ['int32','int32','int32','int32',
-                                 'double','double','int32'],
-        'density_mrci'        : ['int32','int32','int32','double',
-                                 'int32','int32']
-        }
+    'generate_ref_confs'     : ['int32','int32','int32','int32',
+                                'int32','int32','int32','int32',
+                                'int32','int32','int32','int32'],
+    'diag_dftcis'            : ['int32','int32','int32','int32','logical'],
+    'ras_guess_dftcis'       : ['int32','int32','int32','int32',
+                                'int32'],
+    'ref_diag_mrci'          : ['int32','int32','int32','int32',
+                                'int32'],
+    'retrieve_energies'      : ['int32','int32','double'],
+    'retrieve_some_energies' : ['int32','int32','double','int32'],
+    'generate_mrci_confs'    : ['int32','int32','int32','int32',
+                                'int32', 'double','int32'],
+    'mrci_prune'             : ['double','int32','int32','int32',
+                                'int32', 'int32','int32'],
+    'retrieve_filename'      : ['int32','string'],
+    'diag_mrci'              : ['int32','int32','int32','int32',
+                                'int32','double','int32','int32',
+                                'logical'],
+    'print_mrci_states'      : ['int32','int32','int32'],
+    'refine_ref_space'       : ['int32','int32','int32','int32',
+                                'double','double','int32'],
+    'density_mrci'           : ['int32','int32','int32','double',
+                                'int32','int32']
+}
 
 bitci_intent = {
-        'generate_ref_confs'  : ['in','in','in','in','in','in','in',
-                                 'in','in','in','out','out'],
-        'diag_dftcis'         : ['in','in','in','out','in'],
-        'ras_guess_dftcis'    : ['in','in','in','out','out'],
-        'ref_diag_mrci'       : ['in','out','in','in','out'],
-        'retrieve_energies'   : ['in','in','out'],
-        'generate_mrci_confs' : ['in','in','in','out','out','in','in'],
-        'mrci_prune'          : ['in','in','in','in','in','out'],
-        'retrieve_filename'   : ['in','out'],
-        'diag_mrci'           : ['in','in','in','out','in','in','in',
-                                 'in','in'],
-        'print_mrci_states'   : ['in','in','in'],
-        'refine_ref_space'    : ['in','out','in','in','in','out','out'],
-        'density_mrci'        : ['in','in','in','out','in','in']
-        }
+    'generate_ref_confs'     : ['in','in','in','in','in','in','in',
+                                'in','in','in','out','out'],
+    'diag_dftcis'            : ['in','in','in','out','in'],
+    'ras_guess_dftcis'       : ['in','in','in','out','out'],
+    'ref_diag_mrci'          : ['in','out','in','in','out'],
+    'retrieve_energies'      : ['in','in','out'],
+    'retrieve_some_energies' : ['in','in','out','in'],
+    'generate_mrci_confs'    : ['in','in','in','out','out','in','in'],
+    'mrci_prune'             : ['in','in','in','in','in','in','out'],
+    'retrieve_filename'      : ['in','out'],
+    'diag_mrci'              : ['in','in','in','out','in','in','in',
+                                'in','in'],
+    'print_mrci_states'      : ['in','in','in'],
+    'refine_ref_space'       : ['in','out','in','in','in','out','out'],
+    'density_mrci'           : ['in','in','in','out','in','in']
+}
 
 
 # registry of bitsi functions
-bitsi_registry = { }
+bitsi_registry = {
+    'transition_density_mrci' : ['int32','int32','int32','int32','int32',
+                                 'int32','double','string','string',
+                                 'string','string']
+}
 
 bitsi_intent   = {
-    
+    'transition_density_mrci' : ['in','in','in','in','in','in','out',
+                                 'in','in','in','in']
 }
 
 # list of existing library objects
@@ -84,7 +91,7 @@ def lib_func(name, args):
     elif name in bitsi_registry:
         arg_list   = bitsi_registry[name]
         arg_intent = bitsi_intent[name]
-
+        
     #arg_list   = bitci_registry[name]
     #arg_intent = bitci_intent[name]
 

@@ -1,20 +1,19 @@
 !**********************************************************************
-! Routines for the removal of configurations based on the ASCI
-! selection criterion
+! Routines for the contruction of the P-space of configurations
 !**********************************************************************
-module asci_trim
+module pspace
 
   implicit none
 
 contains
 
 !######################################################################
-! asci_conf_indices: Determination of the indices of the configurations
-!                    which generate CSFs corresponding above threshold
-!                    A-vector elements
+! pspace_conf_indices: Determination of the indices of the
+!                      configurations that generate CSFs corresponding
+!                      above threshold A-vector elements
 !######################################################################
-  subroutine asci_conf_indices(cfg,Athrsh,Avec,csfdim,confdim,nroots,&
-       i1I,i2I,i1E,i2E,i1I1E,n1I,n2I,n1E,n2E,n1I1E)
+  subroutine pspace_conf_indices(cfg,Athrsh,Avec,csfdim,confdim,nroots,&
+       nvec,vecmap,i1I,i2I,i1E,i2E,i1I1E,n1I,n2I,n1E,n2E,n1I1E)
 
     use constants
     use bitglobal
@@ -24,7 +23,7 @@ contains
     implicit none
 
     ! Dimensions
-    integer(is), intent(in)  :: csfdim,confdim,nroots
+    integer(is), intent(in)  :: csfdim,confdim,nroots,nvec
     integer(is), intent(in)  :: n1I,n2I,n1E,n2E,n1I1E
     
     ! MRCI configuration derived type
@@ -34,14 +33,17 @@ contains
     real(dp), intent(in)     :: Athrsh
     
     ! A-vectors
-    real(dp), intent(in)     :: Avec(csfdim,nroots)
+    real(dp), intent(in)     :: Avec(csfdim,nvec)
 
+    ! Indices of the A-vectors of interest
+    integer(is), intent(in)  :: vecmap(nroots)
+    
     ! Surviving configuration flags
     integer(is), intent(out) :: i1I(n1I),i2I(n2I),i1E(n1E),i2E(n2E),&
                                 i1I1E(n1I1E)
     
     ! Everything else
-    integer(is)              :: n,ioff,csf,root
+    integer(is)              :: n,n1,ioff,csf,root
 
     integer(is)              :: i
     integer(is), allocatable :: indx(:),iok(:)
@@ -60,8 +62,9 @@ contains
     iok=0
     
     ! Loop over roots
-    do n=1,nroots
-
+    do n1=1,nroots
+       n=vecmap(n1)
+       
        ! Sort the A-vector elements in order of decreasing absolute
        ! value
        call dsortindxa1('D',csfdim,abs(Avec(:,n)),indx)
@@ -73,9 +76,9 @@ contains
        ! desired squared A-vector norm
        sumsq=0.0d0
        do i=1,csfdim
-
+          
           sumsq=sumsq+Avec(indx(i),n)**2
-
+          
           iok(indx(i))=1
           
           if (sumsq > goal) exit
@@ -211,13 +214,13 @@ contains
 
     return
 
-  end subroutine asci_conf_indices
+  end subroutine pspace_conf_indices
 
 !######################################################################
-! asci_set_new_confs: Fills in an MRCI configuration derived type with
-!                     the surviving configuration information
+! pspace_set_new_confs: Fills in an MRCI configuration derived type
+!                       with the surviving configuration information
 !######################################################################
-  subroutine asci_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,&
+  subroutine pspace_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,&
        n1I,n2I,n1E,n2E,n1I1E,confscr,nconf)
 
     use constants
@@ -445,7 +448,7 @@ contains
 
     return
     
-  end subroutine asci_set_new_confs
+  end subroutine pspace_set_new_confs
     
 !######################################################################
 ! set_new_confs_1I: Fills in the new 1I conf informations
@@ -839,4 +842,4 @@ contains
   
 !######################################################################
   
-end module asci_trim
+end module pspace

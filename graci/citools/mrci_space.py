@@ -49,6 +49,9 @@ def generate(ci_method):
     ref_ciunits = np.array(ref_wfn.ci_units, dtype=int)
     nroots      = ci_method.n_states()
 
+    # Pruning: no. extra roots to include in the ENPT2 calculation
+    nextra = ci_method.prune_extra
+    
     # Loop over irreps
     for irrep in range(nirr):
 
@@ -59,7 +62,8 @@ def generate(ci_method):
         # Optional pruning of the configuration space
         if ci_method.prune != 'off':
             thrsh = ci_method.prune_thresh[ci_method.prune]
-            args = (thrsh, irrep, nroots, ci_confunits, ref_ciunits, nconf)
+            args = (thrsh, irrep, nroots, nextra, ci_confunits,
+                    ref_ciunits, nconf)
             nconf = libs.lib_func('mrci_prune', args)
 
     # Retrieve the MRCI configuration scratch file names
