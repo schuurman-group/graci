@@ -135,14 +135,15 @@ class Dftmrci:
             output.print_refdiag_summary(self)
 
             # generate the MRCI configurations
-            n_mrci_conf, mrci_conf_units, mrci_conf_files = \
+            n_mrci_conf, mrci_conf_units, mrci_conf_files, eq_units = \
                     mrci_space.generate(self)
             # set the number of mrci config, the mrci unit numbers and
-            # unit names
+            # unit names, and the Q-space energy correction unit numbers
             self.mrci_wfn.set_nconf(n_mrci_conf)
             self.mrci_wfn.set_confunits(mrci_conf_units)
             self.mrci_wfn.set_confname(mrci_conf_files)
-
+            self.mrci_wfn.set_equnits(eq_units)
+            
             # MRCI diagonalisation
             mrci_ci_units, mrci_ci_files, mrci_ener = \
                     mrci_diag.diag(self)
