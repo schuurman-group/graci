@@ -15,17 +15,17 @@ module chkpt
   use hdf5 
   use constants
 
-  public dataset_dims
-  public write_geometry
-  public write_energy
-  public write_orbitals
-  public write_transdip
-  public write_wfn
-  public read_geometry
-  public read_energy
-  public read_orbitals
-  public read_transdip
-  public read_wfn
+  public chkpt_dataset_dims
+  public chkpt_write_geometry
+  public chkpt_write_energy
+  public chkpt_write_orbitals
+  public chkpt_write_transdip
+  public chkpt_write_wfn
+  public chkpt_read_geometry
+  public chkpt_read_energy
+  public chkpt_read_orbitals
+  public chkpt_read_transdip
+  public chkpt_read_wfn
 
   interface write_dataset
      module procedure write_dataset_dble
