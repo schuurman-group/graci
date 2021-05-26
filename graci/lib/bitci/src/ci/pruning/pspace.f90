@@ -1,19 +1,18 @@
 !**********************************************************************
-! Routines for the removal of configurations based on their
-! contributions to the ENPT2 1st-order corrected wave functions
+! Routines for the contruction of the P-space of configurations
 !**********************************************************************
-module trimconfs
+module pspace
 
   implicit none
 
 contains
 
 !######################################################################
-! trim_conf_indices: Determination of the indices of the configurations
-!                    which generate CSFs corresponding above threshold
-!                    A-vector elements
+! pspace_conf_indices: Determination of the indices of the
+!                      configurations that generate CSFs corresponding
+!                      above threshold A-vector elements
 !######################################################################
-  subroutine trim_conf_indices(cfg,Athrsh,Avec,csfdim,confdim,nroots,&
+  subroutine pspace_conf_indices(cfg,Athrsh,Avec,csfdim,confdim,nroots,&
        nvec,vecmap,i1I,i2I,i1E,i2E,i1I1E,n1I,n2I,n1E,n2E,n1I1E)
 
     use constants
@@ -215,13 +214,13 @@ contains
 
     return
 
-  end subroutine trim_conf_indices
+  end subroutine pspace_conf_indices
 
 !######################################################################
-! trim_set_new_confs: Fills in an MRCI configuration derived type with
-!                     the surviving configuration information
+! pspace_set_new_confs: Fills in an MRCI configuration derived type
+!                       with the surviving configuration information
 !######################################################################
-  subroutine trim_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,&
+  subroutine pspace_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,&
        n1I,n2I,n1E,n2E,n1I1E,confscr,nconf)
 
     use constants
@@ -449,7 +448,7 @@ contains
 
     return
     
-  end subroutine trim_set_new_confs
+  end subroutine pspace_set_new_confs
     
 !######################################################################
 ! set_new_confs_1I: Fills in the new 1I conf informations
@@ -843,4 +842,4 @@ contains
   
 !######################################################################
   
-end module trimconfs
+end module pspace

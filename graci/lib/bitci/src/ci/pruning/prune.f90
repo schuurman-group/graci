@@ -20,7 +20,8 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
   use conftype
   use hii
   use epstein_nesbet
-  use trimconfs
+  use pspace
+  use qspace
   use utils
   use iomod
   use timing
@@ -61,7 +62,8 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
   ! ENPT2 energy and wavefunction corrections
   real(dp), allocatable      :: Avec(:,:)
   real(dp), allocatable      :: E2(:)
-
+  real(dp), allocatable      :: E2Q(:)
+  
   ! Zeroth-order energies
   real(dp), allocatable      :: E0(:)
 
@@ -130,6 +132,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
   allocate(EPT2(nvec))
   EPT2=0.0d0
 
+  allocate(E2Q(nvec))
+  E2Q=0.0d0
+  
   allocate(indx(nvec))
   indx=0
    
@@ -168,14 +173,23 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
 ! Get the indices of the configurations that generate CSFs with
 ! A-vector elements above threshold
 !----------------------------------------------------------------------
-  call trim_conf_indices(cfg,Athrsh,Avec,cfg%csfdim,cfg%confdim,&
+  call pspace_conf_indices(cfg,Athrsh,Avec,cfg%csfdim,cfg%confdim,&
        nroots(irrep),nvec,indx(1:nroots(irrep)),i1I,i2I,i1E,i2E,i1I1E,&
        cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E)
 
 !----------------------------------------------------------------------
+! Calculate the contributions of the discarded CSFs to the 2nd-order
+! energy corrections
+!----------------------------------------------------------------------
+! Important: this has to be done before calling pspace_set_new_confs
+!----------------------------------------------------------------------
+  call qspace_e2(cfg,cfg%csfdim,nvec,Avec,hdiag,E0,i1I,i2I,i1E,i2E,&
+       i1I1E,cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,E2Q)
+  
+!----------------------------------------------------------------------
 ! Fill in the surviving configuration information
 !----------------------------------------------------------------------
-  call trim_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,cfg%n1I,&
+  call pspace_set_new_confs(cfg,cfg_new,i1I,i2I,i1E,i2E,i1I1E,cfg%n1I,&
        cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,confscr(irrep),nconf(irrep))
 
 !----------------------------------------------------------------------
@@ -187,11 +201,19 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
 !----------------------------------------------------------------------
 ! Output the ENPT2 2nd-order corrected excitation energies
 !----------------------------------------------------------------------
+  ! Total ENPT2 energies
   write(6,'(/,x,a,/)') 'ENPT2 energies:'
   do i=1,nroots(irrep)
      write(6,'(3x,a,x,i3,a,2(2x,F12.6),x,a)') &
           'State' ,i,':',EPT2(indx(i)), &
           (EPT2(indx(i))-EPT2(indx(1)))*eh2ev,'eV' 
+  enddo
+
+  ! Q-space contributions to the ENPT2 energies
+  write(6,'(/,x,a,/)') 'E2Q:'
+  do i=1,nroots(irrep)
+     write(6,'(3x,a,x,i3,a,2x,F12.6)') &
+          'State' ,i,':',E2Q(indx(i))
   enddo
   
 !----------------------------------------------------------------------
