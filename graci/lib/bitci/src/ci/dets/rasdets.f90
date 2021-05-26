@@ -1014,7 +1014,6 @@ subroutine write_ras_dets_sorted(scrnum,detras_a,detras_b,ndet,nsym,&
   use constants
   use bitglobal
   use iomod
-  use chkpt
 
   implicit none
 
@@ -1102,7 +1101,6 @@ subroutine write_ras_dets_unsorted(scrnum,detras,ndet)
   use constants
   use bitglobal
   use iomod
-  use chkpt
 
   implicit none
 
