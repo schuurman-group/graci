@@ -9,10 +9,11 @@
 !             the pruning metric.
 !######################################################################
 #ifdef CBINDING
-subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf) &
-     bind(c,name="mrci_prune")
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
+     nconf,eqscr) bind(c,name="mrci_prune")
 #else
-subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
+     nconf,eqscr)
 #endif
     
   use constants
@@ -49,6 +50,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
   ! Number of MRCI configurations
   integer(is), intent(inout) :: nconf(0:nirrep-1)
 
+  ! Q-space energy correction scratch file numbers
+  integer(is), intent(out)   :: eqscr(0:nirrep-1)
+  
   ! MRCI configuration derived types
   type(mrcfg)                :: cfg,cfg_new
   
@@ -76,11 +80,14 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
   ! Everything else
   integer(is)                :: i,nvec
   integer(is), allocatable   :: indx(:)
-
+  integer(is)                :: iscratch
+  character(len=60)          :: eqfile
+  character(len=2)           :: amult,airrep
+  
   ! Timing variables
-    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
+  real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
-
+  
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -215,6 +222,30 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,nconf)
      write(6,'(3x,a,x,i3,a,2x,F12.6)') &
           'State' ,i,':',E2Q(indx(i))
   enddo
+
+!----------------------------------------------------------------------
+! Write the Q-space contributions to the ENPT2 energies to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('e2q.mult'//trim(amult)//&
+       '.sym'//trim(airrep),eqfile)
+  call register_scratch_file(eqscr(irrep),eqfile)
+
+  ! Open the scratch file
+  iscratch=scrunit(eqscr(irrep))
+  open(iscratch,file=scrname(eqscr(irrep)),form='unformatted',&
+       status='unknown')
+
+  ! No. vectors
+  write(iscratch) nvec
+
+  ! Q-space energy corrections
+  write(iscratch) E2Q
+
+  ! Close the scratch file
+  close(iscratch)
   
 !----------------------------------------------------------------------
 ! Deallocate arrays
