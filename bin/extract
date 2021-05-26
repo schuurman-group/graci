@@ -1,0 +1,197 @@
+#!/usr/bin/env python
+"""
+The main graci driver.
+"""
+import os
+import sys as sys
+import h5py
+
+#
+def main():
+    """Runs a GRaCI computation."""
+
+    # read command line options
+    chkpt_file, extract_list, cutoff = read_cmdline()
+
+    # parse the wfn file and pull out all 
+    # determinants with coefficients >= cutoff
+    parse_chkpt(chkpt_file, extract_list, cutoff)
+
+    return
+
+#
+def read_cmdline():
+    """
+    Read command line arguments
+    Set relevant global variables.
+    """
+
+    extract_list = {'geometry'   : False, 
+                    'energy'     : False, 
+                    'transition' : False, 
+                    'wfn'        : None}
+
+    chkpt_file  = sys.argv[1].strip()
+    cutoff      = 0.
+
+    if '-geometry' in sys.argv:
+        extract_list['geometry'] = True
+
+    if '-energy' in sys.argv:
+        extract_list['energy'] = True
+
+    if '-transition' in sys.argv:
+        extract_list['transition'] = True
+    
+    if '-wfn' in sys.argv:
+        if len(sys.argv) > sys.argv.index('-wfn')+1:
+            argval = sys.argv[sys.argv.index('-wfn')+1].strip()
+            # if an index is given, extract one state only
+            try:
+                indx = int(argval)
+            # if index not recognized, just extract all
+            except:
+                indx = -1
+        else:
+            indx = -1
+        extract_list['wfn'] = indx
+    
+    if '-cutoff' in sys.argv:
+        cutoff = sys.argv[sys.argv.index('-cutoff')+1].strip()
+        extract_list['wfn'] = True
+
+    return chkpt_file, extract_list, cutoff
+
+#
+def parse_chkpt(chkpt_file, extract_list, cutoff):
+    """read the the determinants from the h5 wfn file"""
+
+    # open chkpoint file
+    chkpt = h5py.File(chkpt_file, 'r', libver='latest')
+
+    if extract_list['geometry'] and 'geometry' in chkpt.keys():
+        print_geom(chkpt['geometry'][0,:])
+
+    if extract_list['energy'] and 'energy' in chkpt.keys():
+        print_ener(chkpt['ener'][0,:])
+
+    if extract_list['transition'] and 'transition' in chkpt.keys():
+        print_transition(chkpt['transition'])
+
+    if extract_list['wfn'] is not None:
+        wfn_indx = []
+
+        # first make a list of wfn objects 
+        for dset in chkpt.keys():
+            if 'wfn_det' in dset:
+                wfn_indx.append(int(dset.replace('wfn_det', '')))
+   
+        indx = extract_list['wfn']
+        # extract all wfns from chkpt file
+        if indx == -1:
+            for iwfn in wfn_indx:
+                print_wfn(chkpt, iwfn, cutoff)
+        # ...else jsut the wfn indicated
+        else:
+            if indx in wfn_inds:
+                print_wfn(chkpt, indx, cutoff)
+
+    chkpt.close()
+
+    return
+
+#
+def print_geom(geom):
+    """Print geometry to standard output"""
+
+    print(' '.join('{8.6f}'.format(geom[i]) 
+                        for i in range(len(geom))))
+
+    return
+
+#
+def print_energy(energy):
+    """Print the state energies"""
+
+    print(' '.join('{13.10f}'.format(energy[i]) 
+                      for i in range(len(energy))))
+
+    return
+
+#
+def print_transition(trans):
+    """Print the state labeld transition dipole moments"""
+
+    (nrows, ncols) = trans.shape
+
+    for itrn in range(nrows):
+        istate = int(trans[itrn,0])
+        fstate = int(trans[itrn,1])
+        tdip   = trans[itrn,2:4]
+        ostr   = '{5d} {5d}'.format(istate,fstate)
+        ostr   += ' '.join('{10.6f}'.format(tdip[i]) 
+                      for i in range(3))
+        print(ostr)
+    
+    return
+
+#
+def print_wfn(chkpt, indx, cutoff):
+    """Print the determinant list"""
+
+    # using 64-bit integers to store det occupations
+    STR_LEN = 64
+
+    # first extract the coefficient list up to a value of "cutoff"
+    cf_name  = 'wfn_cf'+str(indx)
+    det_name = 'wfn_det'+str(indx)
+
+    (ndet_wfn, n_tot) = chkpt[det_name].shape
+    (ndet_cf,   dum)  = chkpt[cf_name].shape
+     
+    if ndet_wfn != ndet_cf:
+        print("WARNING: determinant and coefficient lists are not"+
+                " the same length: "+str(ndet_wfn)+"!="+str(ndet_cf))
+
+    ndet  = min(ndet_wfn, ndet_cf)
+    n_int = int(n_tot / 2)
+    nmo   = int(chkpt[det_name].attrs['nmo'])
+
+    for idet in range(ndet):
+        cf  = float(chkpt[cf_name][idet,0])
+        if cf < cutoff:
+            break
+
+        det = chkpt[det_name][idet,:]
+
+        alpha = []
+        beta  = []
+
+        for i_int in range(n_int):       
+            alpha_i = list(reversed("{0:b}".format(det[i_int])))
+            alpha  += alpha_i + ['0' for i in range(STR_LEN - len(alpha_i))]
+
+            beta_i  = list(reversed("{0:b}".format(det[n_int + i_int])))
+            beta   += beta_i + ['0' for i in range(STR_LEN - len(beta_i))]
+
+        # only take first nmo entries -- the rest are padding
+        dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
+        rdet = []
+        for i in range(nmo):
+            if int(alpha[i]) == 0:
+                rdet.append(-dabs[i])
+            else:
+                rdet.append(dabs[i])
+
+        det_str  = '{:14.10f} '.format(cf)
+        det_str += ('%3d'*nmo) % tuple(rdet)
+        print(det_str)
+
+    return
+
+
+if __name__ == '__main__':
+
+    # run the main routine
+    main()
+

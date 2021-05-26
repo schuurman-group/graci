@@ -1014,7 +1014,8 @@ subroutine write_ras_dets_sorted(scrnum,detras_a,detras_b,ndet,nsym,&
   use constants
   use bitglobal
   use iomod
-  
+  use chkpt
+
   implicit none
 
   integer(is), intent(out) :: scrnum
@@ -1030,7 +1031,7 @@ subroutine write_ras_dets_sorted(scrnum,detras_a,detras_b,ndet,nsym,&
   integer(is)              :: iscratch
   character(len=60)        :: rasfile
   character(len=2)         :: amult
-  
+
   !
   ! Register a new scratch file
   !
@@ -1101,7 +1102,8 @@ subroutine write_ras_dets_unsorted(scrnum,detras,ndet)
   use constants
   use bitglobal
   use iomod
-  
+  use chkpt
+
   implicit none
 
   integer(is), intent(out) :: scrnum
@@ -1110,7 +1112,7 @@ subroutine write_ras_dets_unsorted(scrnum,detras,ndet)
   integer(is)              :: iscratch
   character(len=60)        :: rasfile
   character(len=2)         :: amult
-  
+
   !
   ! Register a new scratch file
   !
