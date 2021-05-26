@@ -1,6 +1,6 @@
 !######################################################################
-! wfn2file: a module to write csf and determinant lists to 
-!           hdf5 file format
+! chkpt: a module to write csf and determinant lists to 
+!        hdf5 file format
 !---------------------------------------------------------------------
 !           Reads and writes configurations/unique dets to hdf5 file, 
 !           sorted by decreasing coefficient magnitude.
@@ -14,18 +14,20 @@ module chkpt
 
   use hdf5 
   use constants
+  implicit none
 
-  public chkpt_dataset_dims
-  public chkpt_write_geometry
-  public chkpt_write_energy
-  public chkpt_write_orbitals
-  public chkpt_write_transdip
-  public chkpt_write_wfn
-  public chkpt_read_geometry
-  public chkpt_read_energy
-  public chkpt_read_orbitals
-  public chkpt_read_transdip
-  public chkpt_read_wfn
+!  private
+!  public chkpt_dataset_dims
+!  public chkpt_write_geometry
+!  public chkpt_write_energy
+!  public chkpt_write_orbitals
+!  public chkpt_write_transdip
+!  public chkpt_write_wfn
+!  public chkpt_read_geometry
+!  public chkpt_read_energy
+!  public chkpt_read_orbitals
+!  public chkpt_read_transdip
+!  public chkpt_read_wfn
 
   interface write_dataset
      module procedure write_dataset_dble
@@ -47,7 +49,6 @@ module chkpt
   !
   !
   subroutine chkpt_dset_dims(file_name, data_name, dims)
-    implicit none
 
     character(len=60), intent(in)  :: file_name
     character(len=10), intent(in)  :: data_name
@@ -101,14 +102,12 @@ module chkpt
     call h5sclose_f(space_id, hdferr)
     call h5fclose_f(file_id , hdferr)
 
-    return
   end subroutine chkpt_dset_dims
 
   !
   !
   !
   subroutine chkpt_write_geom(file_name, geom)
-    implicit none
     character(len=60), intent(in)    :: file_name
     real(dp), intent(in)             :: geom(:)
 
@@ -128,14 +127,12 @@ module chkpt
     call write_dataset(file_name, data_name, dims, data_set)
 
     deallocate(data_set)
-    return
   end subroutine chkpt_write_geom
 
   !
   !
   !
   subroutine chkpt_write_ener(file_name, energies)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     real(dp), intent(in)             :: energies(:)
@@ -156,14 +153,12 @@ module chkpt
     call write_dataset(file_name, data_name, dims, data_set)
 
     deallocate(data_set)
-    return
   end subroutine chkpt_write_ener
 
   !
   !
   !
   subroutine chkpt_write_orbs(file_name, orbs)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     real(dp), intent(in)             :: orbs(:, :)
@@ -184,14 +179,12 @@ module chkpt
     call write_dataset(file_name, data_name, dims, data_set)
 
     deallocate(data_set)
-    return
   end subroutine chkpt_write_orbs
 
   !
   !
   !
   subroutine chkpt_write_trans(file_name, st_lbls, trans)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     integer(is), intent(in)          :: st_lbls(:, :)
@@ -223,7 +216,6 @@ module chkpt
     ! write geometry to 'geometry' data set
     call write_dataset(file_name, data_name, dims, data_set)
 
-    return
   end subroutine chkpt_write_trans
 
   !
@@ -240,7 +232,6 @@ module chkpt
   !      cf_list: (double) array of coefficients (in)
   !    conf_list: (integer) array of bitci dets/confs (in)
   subroutine chkpt_write_wfn(file_name, nmo, wfn_indx, ndet, cf_list, det_list)
-    implicit none
 
     character(len=60), intent(in) :: file_name
     integer(is), intent(in)       :: nmo
@@ -280,14 +271,12 @@ module chkpt
     call write_dataset(file_name, data_name, dims, data_set_det)
     call write_attribute(file_name, data_name, 'nmo  ', nmo)
 
-    return
   end subroutine chkpt_write_wfn
 
   !
   !
   !
   subroutine chkpt_read_geom(file_name, n_atoms, geom)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     integer(is), intent(in)          :: n_atoms
@@ -314,14 +303,12 @@ module chkpt
     endif
 
     deallocate(data_set)
-    return
   end subroutine chkpt_read_geom
 
   !
   !
   !
   subroutine chkpt_read_ener(file_name, n_ener, energies)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     integer(is), intent(in)          :: n_ener
@@ -348,14 +335,12 @@ module chkpt
     endif
 
     deallocate(data_set)
-    return
   end subroutine chkpt_read_ener
 
   !
   !
   !
   subroutine chkpt_read_orbs(file_name, nmo, nao, orbs)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     integer(is), intent(in)          :: nmo
@@ -383,14 +368,12 @@ module chkpt
     endif
 
     deallocate(data_set)
-    return
   end subroutine chkpt_read_orbs
 
   !
   !
   !
   subroutine chkpt_read_trans(file_name, ntd, st_lbls, trans)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     integer(is), intent(in)          :: ntd
@@ -420,7 +403,6 @@ module chkpt
     endif
 
     deallocate(data_set)
-    return
   end subroutine chkpt_read_trans
 
 
@@ -430,7 +412,6 @@ module chkpt
   !           file
   ! 
   subroutine chkpt_read_wfn(file_name, wfn_indx, ndet, cf_list, det_list)
-    implicit none
 
     character(len=60), intent(in) :: file_name
     integer(is), intent(in)       :: wfn_indx
@@ -479,14 +460,12 @@ module chkpt
       det_list(:n_int, 2, :ndet) = data_set_det(n_int+1:2*n_int, :ndet)
     endif
 
-    return
   end subroutine chkpt_read_wfn
 
 !#########################################################################3
 
 ! # write a 2D array dataset to the specified file_name
   subroutine write_dataset_dble(file_name, data_name, dims, data_set)
-    implicit none
     character(len=60), intent(in)  :: file_name
     character(len=10), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
@@ -561,7 +540,6 @@ module chkpt
 
   ! # write a 2D array dataset to the specified file_name
   subroutine write_dataset_int64(file_name, data_name, dims, data_set)
-    implicit none
     character(len=60), intent(in)  :: file_name
     character(len=10), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
@@ -639,7 +617,6 @@ module chkpt
   !
   !
   subroutine read_dataset_dble(file_name, data_name, dims, data_set, dim_read)
-    implicit none
     character(len=60), intent(in)  :: file_name
     character(len=10), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
@@ -704,14 +681,12 @@ module chkpt
       call h5fclose_f(file_id , hdferr)
     endif
 
-    return
   end subroutine read_dataset_dble
 
   !
   !
   !
   subroutine read_dataset_int64(file_name, data_name, dims, data_set, dim_read)
-    implicit none
     character(len=60), intent(in)  :: file_name
     character(len=10), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
@@ -778,14 +753,12 @@ module chkpt
       call h5fclose_f(file_id , hdferr)
     endif
 
-    return
   end subroutine read_dataset_int64
 
   !
   !
   !
   subroutine write_attribute_int(file_name, data_name, attr_name, attr_val)
-    implicit none
 
     character(len=60), intent(in)    :: file_name
     character(len=10), intent(in)    :: data_name
@@ -859,8 +832,6 @@ module chkpt
       
     endif
 
-    return
   end subroutine write_attribute_int
-
 
 end module chkpt
