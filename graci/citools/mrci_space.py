@@ -51,6 +51,9 @@ def generate(ci_method):
 
     # Pruning: no. extra roots to include in the ENPT2 calculation
     nextra = ci_method.prune_extra
+
+    # Pruning: bitci Q-space energy correction scracth file numbers
+    eq_units = np.zeros(nirr, dtype=int)
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -63,9 +66,9 @@ def generate(ci_method):
         if ci_method.prune != 'off':
             thrsh = ci_method.prune_thresh[ci_method.prune]
             args = (thrsh, irrep, nroots, nextra, ci_confunits,
-                    ref_ciunits, nconf)
-            nconf = libs.lib_func('mrci_prune', args)
-
+                    ref_ciunits, nconf, eq_units)
+            (nconf, eq_units) = libs.lib_func('mrci_prune', args)
+            
     # Retrieve the MRCI configuration scratch file names
     confname = []
     name     = ' '
@@ -77,6 +80,6 @@ def generate(ci_method):
     # Stop timing
     timing.stop('mrci_space')
     
-    return nconf, ci_confunits, confname
+    return nconf, ci_confunits, confname, eq_units
 
  

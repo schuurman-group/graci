@@ -73,9 +73,17 @@ def diag(ci_method):
     # Print the report of the MRCI states
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states()
-    args = (ci_confunits, ciunits, nstates)
-    libs.lib_func('print_mrci_states', args)
-
+    if ci_method.prune == 'off':
+        args = (ci_confunits, ciunits, nstates)
+        libs.lib_func('print_mrci_states', args)
+    else:
+        ref_ciunits = np.array(ci_method.ref_wfn.ci_units,
+                               dtype=int)
+        equnits = np.array(ci_method.mrci_wfn.eq_units,
+                           dtype=int)
+        args = (ci_confunits, ciunits, ref_ciunits, equnits, nstates)
+        libs.lib_func('print_pmrci_states', args)
+        
     # Stop timing
     timing.stop('mrci_diag')
     

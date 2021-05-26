@@ -19,7 +19,10 @@ class Bitciwfn:
         self.ci_name     = None
         # List of bitci eigenvector scratch file numbers (one per irrep)
         self.ci_units    = None
-
+        # List of bitci Q-space energy correction scratch file numbers
+        # (one per irrep)
+        self.eq_units    = None
+        
     #
     def set_nconf(self, nconf):
         """Sets the numbers of configurations"""
@@ -50,4 +53,11 @@ class Bitciwfn:
         self.ci_name = ciname
         return
 
+    #
+    def set_equnits(self, equnits):
+        """Adds the list of bitci Q-space energy correction scratch
+        file numbers"""
+        self.eq_units = equnits
+        return
 
+    
