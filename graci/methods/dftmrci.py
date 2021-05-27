@@ -42,6 +42,7 @@ class Dftmrci:
         self.icvs           = []
         self.ciorder        = 2
         self.refiter        = 3
+        self.ref_prune      = False
         self.prune          = 'off'
         self.prune_extra    = 10
         self.diag_method    = 'gendav'
@@ -137,9 +138,9 @@ class Dftmrci:
             self.ref_ener = ref_ener
             output.print_refdiag_summary(self)
 
-            # if this is the first iteration, then remove any
-            # deadwood from the reference space
-            if self.niter == 0:
+            # optional removal of deadwood from the
+            # guess reference space
+            if self.ref_prune and self.niter == 0:
                 # remove the deadwood
                 n_ref_conf = ref_prune.prune(self)
                 # set the new no. ref confs
