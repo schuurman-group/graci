@@ -16,7 +16,7 @@ def prune(ci_method):
     nirr = ci_method.n_irrep()
 
     # number of ref space configurations after pruning
-    nconf_new = []
+    nconf_new = np.zeros(nirr, dtype=int)
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -36,14 +36,8 @@ def prune(ci_method):
         # Call to the bitci ref space pruning routine
         args = (irrep, nroots, confunit, nconf, ciunit)
         (nconf) = libs.lib_func('prune_ref_space',args)
+
+        # New number of ref confs
+        nconf_new[irrep] = nconf
         
-    
-    sys.exit()
-
-    # We need to return the new numbers of ref confs!
-    # (to be saved to the bitciwfn class in the dftmrci module)
-
-    # Should we be using nroots+nextra for *all* calculations if we
-    # are going to be removing ref space confs?
-    
-    return
+    return nconf_new

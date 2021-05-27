@@ -140,8 +140,17 @@ class Dftmrci:
             # if this is the first iteration, then remove any
             # deadwood from the reference space
             if self.niter == 0:
-                ref_prune.prune(self)
-            
+                # remove the deadwood
+                n_ref_conf = ref_prune.prune(self)
+                # set the new no. ref confs
+                self.ref_wfn.set_nconf(n_ref_conf)
+                # re-diagonalise
+                ref_ci_units, ref_ener = ref_diag.diag(self)
+                # set the ci files and reference energies
+                self.ref_wfn.set_ciunits(ref_ci_units)
+                self.ref_ener = ref_ener
+                output.print_refdiag_summary(self)
+                
             # generate the MRCI configurations
             n_mrci_conf, mrci_conf_units, mrci_conf_files, eq_units = \
                     mrci_space.generate(self)
