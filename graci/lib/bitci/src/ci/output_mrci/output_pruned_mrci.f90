@@ -399,8 +399,6 @@ contains
        call read_all_eigenpairs(vecscr(irrep),vec,ener,csfdim,&
             nroots(irrep))
 
-       print*,''
-       
        ! Loop over MRCI roots
        do i=1,nroots(irrep)
 

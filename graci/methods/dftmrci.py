@@ -9,6 +9,7 @@ import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
 import graci.citools.ref_space as ref_space
 import graci.citools.ref_diag as ref_diag
+import graci.citools.ref_prune as ref_prune
 import graci.citools.mrci_space as mrci_space
 import graci.citools.mrci_diag as mrci_diag
 import graci.citools.mrci_refine as mrci_refine
@@ -136,6 +137,11 @@ class Dftmrci:
             self.ref_ener = ref_ener
             output.print_refdiag_summary(self)
 
+            # if this is the first iteration, then remove any
+            # deadwood from the reference space
+            if self.niter == 0:
+                ref_prune.prune(self)
+            
             # generate the MRCI configurations
             n_mrci_conf, mrci_conf_units, mrci_conf_files, eq_units = \
                     mrci_space.generate(self)
