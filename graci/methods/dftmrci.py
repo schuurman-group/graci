@@ -55,9 +55,11 @@ class Dftmrci:
         self.scf            = None 
         # molecule object
         self.mol            = None
-        self.prune_thresh   = {'tight'  : 0.9950,
-                               'normal' : 0.9925,
-                               'loose'  : 0.9900}
+        # Pruning thresholds
+        self.prune_thresh   = {'tight'  : 0.9900,
+                               'normal' : 0.9500,
+                               'loose'  : 0.9000}
+        
         self.niter          = 0
         self.ref_wfn        = None
         self.mrci_wfn       = None
