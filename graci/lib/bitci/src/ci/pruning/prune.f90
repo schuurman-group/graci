@@ -208,16 +208,8 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 !----------------------------------------------------------------------
 ! Output the ENPT2 2nd-order corrected excitation energies
 !----------------------------------------------------------------------
-  ! Total ENPT2 energies
-  write(6,'(/,x,a,/)') 'ENPT2 energies:'
-  do i=1,nroots(irrep)
-     write(6,'(3x,a,x,i3,a,2(2x,F12.6),x,a)') &
-          'State' ,i,':',EPT2(indx(i)), &
-          (EPT2(indx(i))-EPT2(indx(1)))*eh2ev,'eV' 
-  enddo
-
   ! Q-space contributions to the ENPT2 energies
-  write(6,'(/,x,a,/)') 'E2Q:'
+  write(6,'(/,x,a,/)') 'Q-space energy corrections:'
   do i=1,nroots(irrep)
      write(6,'(3x,a,x,i3,a,2x,F12.6)') &
           'State' ,i,':',E2Q(indx(i))
