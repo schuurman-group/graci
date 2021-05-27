@@ -759,6 +759,7 @@ module chkpt
   !
   !
   subroutine write_attribute_int(file_name, data_name, attr_name, attr_val)
+    use iso_c_binding
 
     character(len=60), intent(in)    :: file_name
     character(len=10), intent(in)    :: data_name
@@ -819,7 +820,7 @@ module chkpt
         !
         call H5Acreate_f(dset_id, a_name, H5T_NATIVE_INTEGER, space_id, attr_id, hdferr)
 
-        f_ptr = C_LOC(attr)
+        f_ptr = c_loc(attr)
         call H5Awrite_f(attr_id, H5T_NATIVE_INTEGER, f_ptr, hdferr)
         !
         ! Close and release resources.
