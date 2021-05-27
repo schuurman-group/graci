@@ -820,7 +820,7 @@ module chkpt
         !
         call H5Acreate_f(dset_id, a_name, H5T_NATIVE_INTEGER, space_id, attr_id, hdferr)
 
-        f_ptr = c_loc(attr)
+        f_ptr = c_loc(attr(1))
         call H5Awrite_f(attr_id, H5T_NATIVE_INTEGER, f_ptr, hdferr)
         !
         ! Close and release resources.
