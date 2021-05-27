@@ -776,7 +776,7 @@ module chkpt
     integer(hid_t)                   :: file_id, dset_id
     integer(hid_t)                   :: space_id, attr_id 
     integer(is)                      :: hdferr
-    integer(is)                      :: attr(1)
+    integer(is),target               :: attr(1)
     type(c_ptr)                      :: f_ptr
 
 
