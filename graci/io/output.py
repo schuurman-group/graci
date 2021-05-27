@@ -116,7 +116,8 @@ def print_scf_summary(scf):
     global file_names
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write(' SCF energy = {:16.10f}\n\n'.format(scf.energy))
+        outfile.write(' REF energy        = {:16.10f}\n'.format(scf.energy))
+        outfile.write(' Nuclear Repulsion = {:16.10f}\n\n'.format(scf.mol.enuc))
         outfile.write(' Orbital Energies and Occupations\n')
         outfile.write(' --------------------------------\n')
         outfile.write(' {:>5}  {:>9}  {:>10}  {:>8}\n'.
@@ -208,11 +209,11 @@ def print_cleanup():
     return
 
 #
-def print_nos_molden(mol, irr, state, orb, occ, sym=None):
+def print_nos_molden(fname, mol, orb, occ, sym=None):
     """print out the orbitals, labeled and ordered by 'occ' array
        vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
     
-    file_name = 'orbs/natorb.'+str(mol.irreplbl[irr])+'.state'+str(state)
+    file_name = 'orbs/'+fname
 
     # if a file called 'orbs' exists, delete it
     if os.path.isfile('orbs'):
@@ -225,28 +226,6 @@ def print_nos_molden(mol, irr, state, orb, occ, sym=None):
     # dump the nos to file in the orbs directory
     molden.from_mo(mol.pymol(), file_name, orb, spin='Alpha', 
                    symm=sym, occ=occ, ignore_h=True)
-
-    return
-
-#
-def print_nos_wt_molden(fname, mol, b_st, b_irr, k_st, k_irr, orb, wt):
-    """print out the orbitals, labeled and ordered by 'occ' array
-       vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
-
-    file_name = 'orbs/'+str(fname)+'.state'+str(k_st)+"-"+str(k_irr)+ \
-                                   '.state'+str(b_st)+"-"+str(b_irr)
-
-    # if a file called 'orbs' exists, delete it
-    if os.path.isfile('orbs'):
-        os.remove('orbs')
-
-    # if orbs directory doesn't exist, create it
-    if not os.path.exists('orbs'):
-        os.mkdir('orbs')
-
-    # dump the nos to file in the orbs directory
-    molden.from_mo(mol.pymol(), file_name, orb, spin='Alpha',
-                   occ=wt, ignore_h=True)
 
     return
 

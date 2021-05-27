@@ -152,7 +152,7 @@ class Scf:
         for i in range(self.nmo):
             rdm_ao += self.orb_occ[i]*np.outer(self.orbs[:,i], \
                                                self.orbs[:,i])
-          
+
         # print the summary of the output to file
         output.print_scf_summary(self)
 

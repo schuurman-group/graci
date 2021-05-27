@@ -180,11 +180,13 @@ class Dftmrci:
         for irr in range(nirr):
             for st in range(self.nstates[irr]):
                 occ, orb = self.natural_orbs(irr, st)
-                sym      = self.natural_sym(irr, st)
-                sym_lbl  = [self.mol.irreplbl[sym[i]] 
-                            for i in range(len(sym))]
-                output.print_nos_molden(self.mol, irr, st, orb, 
-                                             occ, sym=sym_lbl)
+                syms     = self.natural_sym(irr, st)
+                sym_lbl  = [self.mol.irreplbl[syms[i]] 
+                            for i in range(len(syms))]
+                fname = 'nos.'+str(self.state_index(irr,st)+1)+ \
+                        '_'+str(self.mol.irreplbl[irr].lower())
+                output.print_nos_molden(fname, self.mol, orb, occ, 
+                                                       sym=sym_lbl)
 
         # we'll also compute 1-electron properties by
         # default.

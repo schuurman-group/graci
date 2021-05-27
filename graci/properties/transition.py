@@ -337,39 +337,65 @@ class Transition:
                     tdm = self.tdms[b_irr][k_irr][:,:,bra_ket]
                     rdm_bra = self.final_method.rdm1(b_irr, bra_st)
                     rdm_ket = self.final_method.rdm1(k_irr, ket_st)
-
+ 
                     # first perform SVD of 1TDMs to get hole and
-                    # particle orbitals and weights
-                    u_mo, s, v_mo = np.linalg.svd(tdm)
-                    
-                    if np.amin(s) < -1.e-3:
-                        sys.exit('ERROR: build_ntos -> wt < 0')
-                    else:
-                        s = np.absolute(s)
+                    # particle orbitals and weights and convert
+                    # orbitals to AO basis
+                    part, s, hole = np.linalg.svd(tdm)
+                    part_ao       = np.matmul(mos, part)
+                    hole_ao       = np.matmul(mos, hole.T)
+
+                    # normalize singular values
+                    s  = 0.5 * np.square(s)
 
                     # sort the NTO amplitudes by decreasing magnitude
-                    ordr     = np.flip(np.argsort(np.sqrt(s)))
-                    u_ao     = np.matmul(mos, u_mo)
-                    v_ao     = np.matmul(mos, v_mo.T)
-                    u_ao_srt = np.array([u_ao[:,ordr[i]] 
-                                for i in range(nmo)], dtype=float).T
-                    v_ao_srt = np.array([v_ao[:,ordr[i]]
-                                for i in range(nmo)], dtype=float).T
-                    s_srt    = np.array([np.sqrt(s[ordr[i]]) 
-                                for i in range(nmo)], dtype=float)
+                    ordr     = np.flip(np.argsort(s))
+                    hole_srt = hole_ao[:,ordr]
+                    part_srt = part_ao[:,ordr]
+                    s_srt    = s[ordr] 
 
-                    self.nto[b_irr][k_irr].append([u_ao_srt, v_ao_srt])
-                    self.nto_wt[b_irr][k_irr].append(s_srt)
+                    # find the number of particle/hole pairs with weight
+                    # greater than 0.01 (this should be a parameter), 
+                    # and only write these to file
+                    npairs = sum(chk > 0.01 for chk in s_srt)
+
+                    nto_pairs = np.empty((nmo, 2*npairs), dtype=float)
+                    wt_pairs  = np.empty((2*npairs), dtype=float)
+
+                    # save NTOs and weights (define hole wts as neg.)
+                    nto_pairs[:,0::2] =  hole_srt[:,:npairs]
+                    nto_pairs[:,1::2] =  part_srt[:,:npairs]
+                    wt_pairs[0::2]    = -s_srt[:npairs] 
+                    wt_pairs[1::2]    =  s_srt[:npairs]
+
+                    self.nto[b_irr][k_irr].append(nto_pairs)
+                    self.nto_wt[b_irr][k_irr].append(wt_pairs)
 
                     # next construct the natural difference densities
-                    delta       = rdm_bra - rdm_ket
-                    wts, ndo_mo = np.linalg.eigh(delta)
-                    ndo_ao      = np.matmul(mos, ndo_mo)
+                    delta   = rdm_bra - rdm_ket
+                    wt, ndo = np.linalg.eigh(delta)
 
-                    # sort NDO wts by decreasing magnitude
-                    ordr        = np.flip(np.argsort(wts))
-                    self.ndo[b_irr][k_irr].append(ndo_ao)
-                    self.ndo_wt[b_irr][k_irr].append(wts)
+                    # transform ndo to AO basis
+                    ndo_ao  = np.matmul(mos, ndo)
+
+                    # sort NDO wts by increasing magnitude (hole 
+                    # orbitals to start, then particle
+                    ordr    = np.argsort(wt)
+                    ndo_srt = ndo_ao[:,ordr]
+                    wt_srt  = wt[ordr]         
+     
+                    npairs  = sum(chk > 0.01 for chk in wt_srt)
+
+                    ndo_pairs = np.empty((nmo, 2*npairs), dtype=float)
+                    wt_pairs  = np.empty((2*npairs), dtype=float)
+
+                    ndo_pairs[:,0::2] = ndo_srt[:,:npairs]
+                    ndo_pairs[:,1::2] = ndo_srt[:,-1:-npairs-1:-1]
+                    wt_pairs[0::2]    = wt_srt[:npairs]
+                    wt_pairs[1::2]    = wt_srt[-1:-npairs-1:-1]
+
+                    self.ndo[b_irr][k_irr].append(ndo_pairs)
+                    self.ndo_wt[b_irr][k_irr].append(wt_pairs)
 
         return
 
@@ -469,19 +495,19 @@ class Transition:
                         sys.exit(' bra,ket=['+str(b_st)+','+str(k_st)+
                                  '] not found')
                         
+                    str_suffix ='.'+ str(bra_st_n+1)+'_' +          \
+                                       str(b_irrlbl[b_irr].lower()) + \
+                                '.'+ str(ket_st_n+1)+'_' +          \
+                                       str(k_irrlbl[k_irr].lower())
                     # print out the NTOs
-                    output.print_nos_wt_molden(
-                        'nto', self.final_method.mol,
-                        bra_st_n+1, b_irrlbl[b_irr],
-                        ket_st_n+1, k_irrlbl[k_irr],
-                        self.nto[b_irr][k_irr][bra_ket][0],
+                    output.print_nos_molden(
+                        'nto'+str_suffix, self.final_method.mol,
+                        self.nto[b_irr][k_irr][bra_ket],
                         self.nto_wt[b_irr][k_irr][bra_ket])
 
                     # print out the NDOs
-                    output.print_nos_wt_molden(
-                        'ndo', self.final_method.mol,
-                        bra_st_n+1, b_irrlbl[b_irr],
-                        ket_st_n+1, k_irrlbl[k_irr],
+                    output.print_nos_molden(
+                        'ndo'+str_suffix, self.final_method.mol,
                         self.ndo[b_irr][k_irr][bra_ket],
                         self.ndo_wt[b_irr][k_irr][bra_ket])
 
