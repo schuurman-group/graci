@@ -406,8 +406,7 @@ contains
     ! Open the scratch file
     !
     iscratch=scrunit(scrnum)
-    open(iscratch,file=scrname(scrnum),form='unformatted',&
-         status='old')
+    open(iscratch,file=scrname(scrnum),form='unformatted',status='old')
     
     !
     ! Number of reference space configurations
@@ -419,7 +418,7 @@ contains
     ! space configuration and SOP bit string
     !
     read(iscratch) n_int_I
-    
+
     !
     ! Number of internal and external MOs
     !
