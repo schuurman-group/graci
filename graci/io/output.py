@@ -287,11 +287,12 @@ def print_transition_table(init_state, final_states, exc_ener, osc_str):
         outfile.write(    '\n Transition Properties')
         outfile.write(    '\n ------------------------------------------')
 
-        header = '\n\n Init. State    Final State    Energy (eV) '+ \
-                 '   Osc Str     x        y        z'
-        fstr   = '\n {:6d}({:>3}) -> {:6d}({:>3})    {:11.2f}'+ \
-                 '{:11.4f} {:8.4f} {:8.4f} {:8.4f}'
+        header = '\n\n  Initial     Final    Exc Ener  Osc.     Osc.     Oscillator Strength (L)'
+        header += '\n  State       State      (eV)   Str (L)  Str (V)    x        y        z'
         undr_str = '-' * (len(header)-1)
+
+        fstr   = '\n {:3d}({:>3}) -> {:3d}({:>3}) {:7.2f}'+ \
+                    '{:9.4f}{:9.4f}{:9.4f}{:9.4f}{:9.4f}'
 
         outfile.write(header)
         outfile.write('\n '+undr_str)
@@ -302,8 +303,9 @@ def print_transition_table(init_state, final_states, exc_ener, osc_str):
                             *init_state, 
                             *final_states[i], 
                             exc_ener[i]*constants.au2ev, 
-                            np.linalg.norm(osc_str[i]), 
-                            *osc_str[i]))
+                            np.sum(osc_str[i][0])/3., 
+                            np.sum(osc_str[i][1])/3.,
+                            *osc_str[i][0]))
 
     return
 

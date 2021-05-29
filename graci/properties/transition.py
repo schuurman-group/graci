@@ -88,10 +88,16 @@ class Transition:
         libs.init_bitsi(self)
 
         # compute the dipole moment integrals
+        # mu_ao for length gauge determination of Osc str 
+        #       (and transition dipole vector)
+        # p_ao  for velocity gauge determination of Osc str
         mu_ao = mol_ket.pymol().intor('int1e_r')
-        
+        p_ao  = mol_ket.pymol().intor('int1e_ipovlp')       
+
         # contract with the MOs
         mu_mo = [np.matmul(np.matmul(scf_ket.orbs.T, mu_ao[i]), 
+                                    scf_ket.orbs) for i in range(3)]
+        p_mo  = [np.matmul(np.matmul(scf_ket.orbs.T, p_ao[i]), 
                                     scf_ket.orbs) for i in range(3)]
 
         # construct the trans_list array
@@ -101,8 +107,11 @@ class Transition:
         # grab the transition density matrices
         self.tdms = mrci_1tdm.tdm(self)
 
-        # compute transition dipole moments and oscillator strengths
-        self.build_trans_moments(mu_mo)
+        # compute transition dipole moments
+        self.build_trans_dipole(mu_mo, p_mo)
+
+        # compute oscillator strengths
+        self.build_osc_str()
 
         # print natural differnence and natural transition orbitals 
         # for each pair
@@ -141,7 +150,7 @@ class Transition:
         except:
             return None
 
-        return self.trans_dipole[b_irr][k_irr][ind][:]
+        return self.trans_dipole[b_irr][k_irr][ind][0][:]
 
     #
     def trans_dipole_sym(self, b_irr, b_st, k_irr, k_st):
@@ -154,7 +163,7 @@ class Transition:
         except:
             return None
 
-        return self.trans_dipole[bra_irrep][ket_irrep][ind][:]
+        return self.trans_dipole[bra_irrep][ket_irrep][ind][0][:]
 
     #
     def osc_strength(self, istate, fstate):
@@ -169,7 +178,7 @@ class Transition:
         except:
             return None
 
-        return self.osc_str[b_irr][k_irr][ind][:]
+        return self.osc_str[b_irr][k_irr][ind][0][:]
 
     # 
     def osc_strength_sym(self,  b_irr, b_st, k_irr, k_st):
@@ -184,7 +193,7 @@ class Transition:
         except:
             None
 
-        return self.osc_str[bra_irrep][ket_irrep][ind][:]
+        return self.osc_str[bra_irrep][ket_irrep][ind][0][:]
 
 #--------------------------------------------------------------------------
 
@@ -274,8 +283,8 @@ class Transition:
         return
 
     #
-    def build_trans_moments(self, mu_mo):
-        """builds the transition moment vector based on the based tdms"""
+    def build_trans_dipole(self, mu_mo, p_mo):
+        """builds the trans. dipole moment vector based on the tdms"""
 
         # loop over the state pairs and construct transition 
         # dipole moments
@@ -297,13 +306,46 @@ class Transition:
                     k_ener  = self.init_method.energy(k_irr, states[1])
 
                     tdm_mat = self.tdms[b_irr][k_irr][:,:,bra_ket]
-                    td_vec  = np.array([np.sum(tdm_mat*mu_mo[x])
+                    td_vecl = np.array([np.sum(tdm_mat*mu_mo[x])
                               for x in range(3)], dtype=float)
-                    osc_vec = (2./3.)*(b_ener-k_ener)*td_vec**2
+                    td_vecv = np.array([np.sum(tdm_mat*p_mo[x])
+                              for x in range(3)], dtype=float)
+                    
+                    self.trans_dipole[b_irr][k_irr].append([td_vecl,
+                                                            td_vecv])
 
-                    self.trans_dipole[b_irr][k_irr].append(td_vec)
-                    self.osc_str[b_irr][k_irr].append(osc_vec)
+        return
 
+    #
+    def build_osc_str(self):
+        """builds the trans. quad moment vector based on the tdms"""
+
+        # loop over the state pairs and construct transition 
+        # dipole moments
+        nirr_bra = self.final_method.n_irrep()
+        nirr_ket = self.init_method.n_irrep()
+
+        self.osc_str      = [[[] for irr_bra in range(nirr_bra)]
+                                 for irr_ket in range(nirr_ket)]
+
+        for b_irr in range(nirr_bra):
+            for k_irr in range(nirr_ket):
+                for bra_ket in range(len(self.trans_list[b_irr][k_irr])):
+
+                    states  = self.trans_list[b_irr][k_irr][bra_ket]
+                    td_vec  = self.trans_dipole[b_irr][k_irr][bra_ket]
+                    b_ener  = self.final_method.energy(b_irr, states[0])
+                    k_ener  = self.init_method.energy(k_irr, states[1])
+                    delta_e = b_ener - k_ener
+
+                    # dipole oscillator strength - length gauge
+                    osc_vecl = 2.*delta_e*td_vec[0]**2
+                    # dipole oscillator strength - velocity gauge
+                    osc_vecv = (2./delta_e)*td_vec[1]**2
+
+                    self.osc_str[b_irr][k_irr].append([osc_vecl, 
+                                                       osc_vecv])
+        
         return
 
     #
