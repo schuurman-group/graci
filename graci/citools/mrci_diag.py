@@ -32,7 +32,14 @@ def diag(ci_method):
     # numbers
     ciunit  = 0
     ciunits = []
-    
+
+    # Q-space energy corrections (only needed if pruning is being
+    # used)
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    equnits     = np.array(ci_method.mrci_wfn.eq_units, dtype=int)
+    nextra      = np.array([ci_method.prune_extra for n in range(nirr)],
+                           dtype=int)
+        
     # Loop over irreps
     for irrep in range(nirr):
 
@@ -61,7 +68,7 @@ def diag(ci_method):
             args = (ciunits[irrep], nroots, ener[irrep,:nroots])
             (ener[irrep,:nroots]) = \
                     libs.lib_func('retrieve_energies', args)
-
+            
     # Retrieve the MRCI eigenvector scratch file names
     ciname = []
     name    = ''
@@ -70,6 +77,26 @@ def diag(ci_method):
         name = libs.lib_func('retrieve_filename', args)
         ciname.append(name)
 
+    # Apply the Q-space energy corrections
+    if ci_method.prune != 'off':
+        for irrep in range(nirr):
+            nstates  = ci_method.n_states()
+            qcorr    = np.zeros(nstates[irrep], dtype=float)
+            maxovrlp = np.zeros(nstates[irrep], dtype=float)
+
+            args = (irrep,
+                    ciunits[irrep],
+                    ref_ciunits[irrep],
+                    ci_confunits[irrep],
+                    equnits[irrep],
+                    nstates[irrep],
+                    nextra[irrep],
+                    qcorr,
+                    maxovrlp)
+            (qcorr, maxovrlp) = libs.lib_func('retrieve_qcorr', args)
+
+            ener[irrep,:nroots] += qcorr
+            
     # Print the report of the MRCI states
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states()
@@ -77,11 +104,8 @@ def diag(ci_method):
         args = (ci_confunits, ciunits, nstates)
         libs.lib_func('print_mrci_states', args)
     else:
-        ref_ciunits = np.array(ci_method.ref_wfn.ci_units,
-                               dtype=int)
-        equnits = np.array(ci_method.mrci_wfn.eq_units,
-                           dtype=int)
-        args = (ci_confunits, ciunits, ref_ciunits, equnits, nstates)
+        args = (ci_confunits, ciunits, ref_ciunits, equnits, nstates,
+                nextra)
         libs.lib_func('print_pmrci_states', args)
         
     # Stop timing
