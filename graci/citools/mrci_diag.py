@@ -95,7 +95,7 @@ def diag(ci_method):
                     maxovrlp)
             (qcorr, maxovrlp) = libs.lib_func('retrieve_qcorr', args)
 
-            ener[irrep,:nroots] += qcorr
+            ener[irrep,:nstates[irrep]] += qcorr
             
     # Print the report of the MRCI states
     ciunits = np.array(ciunits, dtype=int)
