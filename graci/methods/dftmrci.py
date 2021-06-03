@@ -45,6 +45,7 @@ class Dftmrci:
         self.ref_prune      = False
         self.prune          = 'off'
         self.prune_extra    = 10
+        self.diag_guess     = 'subdiag'
         self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001
         self.diag_iter      = 50
@@ -61,11 +62,17 @@ class Dftmrci:
         self.prune_thresh   = {'tight'  : 0.9900,
                                'normal' : 0.9500,
                                'loose'  : 0.9000}
-        
+        # No. extra ref space roots needed
+        # for various tasks
+        self.nextra         = None
+        # Max no. iterations of the ref space refinement 
         self.niter          = 0
+        # ref space bitci wave function object
         self.ref_wfn        = None
+        # MRCI bitci wave function object
         self.mrci_wfn       = None
-        self.print_quad     = False 
+        # print quadrupoles
+        self.print_quad     = False
         # reference space energies
         self.ref_ener       = None
         # ci energies, by irrep and root index
@@ -120,6 +127,9 @@ class Dftmrci:
         self.ref_wfn  = bitciwfn.Bitciwfn()
         self.mrci_wfn = bitciwfn.Bitciwfn()
 
+        # determine the no. extra ref space roots needed
+        self.nextra = ref_diag.n_extra(self)
+        
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
         # set the number of configurations and the scratch file numbers

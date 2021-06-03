@@ -884,5 +884,166 @@ contains
   end subroutine write_guess_vectors
   
 !######################################################################
+! mrci_guess_enpt2: Generation of guess vectors from the ENPT2
+!                   1st-order corrected wave functions
+!######################################################################
+  subroutine mrci_guess_enpt2(guessscr,nguess,cfg,dim,hdiag,&
+       averageii,confdim,vec0scr)
+
+    use constants
+    use bitglobal
+    use conftype
+    use epstein_nesbet
+    use iomod
+    
+    implicit none
+
+    ! Guess vector scratch file number
+    integer(is), intent(out) :: guessscr
+
+    ! Number of guess vectors
+    integer(is), intent(in)  :: nguess
+    
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in)  :: cfg
+
+    ! No. CSFs
+    integer(is), intent(in)  :: dim
+
+    ! On-diagonal Hamiltonian matrix elements
+    real(dp), intent(in)     :: hdiag(dim)
+
+    ! On-diagonal Hamiltonian matrix elements
+    ! averaged over spin couplings
+    integer(is), intent(in)  :: confdim
+    real(dp), intent(in)     :: averageii(confdim)
+
+    ! Ref space eigenvectors scratch file number
+    integer(is), intent(in)  :: vec0scr
+
+    ! Ref space eigenpairs
+    integer(is)              :: dim0
+    integer(is), allocatable :: iroots(:)
+    real(dp), allocatable    :: vec0(:,:),E0(:)
+    
+    ! ENPT2 wave function and energy corrections
+    real(dp), allocatable    :: Avec(:,:)
+    real(dp), allocatable    :: E2(:)
+
+    ! I/O variables
+    integer(is)              :: iscratch
+    character(len=60)        :: guessfile
+    
+    ! Everything else
+    integer(is)              :: i,j,info
+    real(dp)                 :: inner_prod
+    real(dp), allocatable    :: work(:),tau(:)
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    ! No. ref space CSFs
+    dim0=cfg%csfs0h(cfg%n0h+1)-1
+
+    allocate(vec0(dim0,nguess))
+    vec0=0.0d0
+
+    allocate(E0(nguess))
+    E0=0.0d0
+    
+    allocate(Avec(dim,nguess))
+    Avec=0.0d0
+
+    allocate(E2(nguess))
+    E2=0.0d0
+
+    allocate(iroots(nguess))
+    iroots=0
+
+    allocate(work(nguess))
+    work=0.0d0
+
+    allocate(tau(nguess))
+    tau=0.0d0
+    
+!----------------------------------------------------------------------
+! Compute the ENPT2 wave function corrections
+!----------------------------------------------------------------------
+    call enpt2(cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,nguess)
+
+!----------------------------------------------------------------------
+! Read in the reference space eigenpairs
+! Note that we have to use read_som_eigenpairs here as the no. extra
+! ref space roots needed for the guess vector generation may be
+! different to that needed for other tasks
+!----------------------------------------------------------------------
+    ! Ref space roots required
+    do i=1,nguess
+       iroots(i)=i
+    enddo
+
+    ! Read in the ref space eigenpairs
+    call read_some_eigenpairs(vec0scr,vec0,e0,dim0,nguess,iroots)
+
+!----------------------------------------------------------------------    
+! Construct the (non-orthonormal) 1st-order corrected wave functions
+!----------------------------------------------------------------------
+    do i=1,nguess
+       Avec(1:dim0,i)=vec0(:,i)
+    enddo
+
+!----------------------------------------------------------------------
+! Orthonormalise the 1st-order corrected wave functions via a QR
+! factorisation
+!----------------------------------------------------------------------
+! We should perhaps be using symmetric orthogonalisation here as it
+! has the property of generating orthogonalised vectors that are the
+! closest possible to the original one's in the least squares sense
+!----------------------------------------------------------------------
+    call dgeqrf(dim,nguess,Avec,dim,tau,work,nguess,info)
+
+    if (info /= 0) then
+       errmsg='dqerf failed in subroutine mrci_guess_enpt2'
+       call error_control
+    endif
+    
+    call dorgqr(dim,nguess,nguess,Avec,dim,tau,work,nguess,info)
+
+    if (info /= 0) then
+       errmsg='dorgqr failed in subroutine mrci_guess_enpt2'
+       call error_control
+    endif
+
+!----------------------------------------------------------------------
+! Register the guess vector scratch file
+!----------------------------------------------------------------------
+    call scratch_name('guessvecs',guessfile)
+    call register_scratch_file(guessscr,guessfile)
+    
+!----------------------------------------------------------------------
+! Write the guess vectors to disk
+!----------------------------------------------------------------------
+    ! Open the scratch file
+    iscratch=scrunit(guessscr)
+    open(iscratch,file=scrname(guessscr),form='unformatted',&
+         status='unknown')
+    
+    ! Dimensions
+    write(iscratch) dim
+    write(iscratch) nguess
+    
+    ! Guess vectors
+    do i=1,nguess
+       write(iscratch) Avec(:,i)
+    enddo
+    
+    ! Close the scratch file
+    close(iscratch)
+    
+    return
+    
+  end subroutine mrci_guess_enpt2
+  
+!######################################################################
   
 end module mrci_guess

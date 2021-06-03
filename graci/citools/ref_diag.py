@@ -41,11 +41,8 @@ def diag(ci_method):
         # Number of roots for the current irrep
         nroots = ci_method.n_states(irrep)
 
-        # Extra roots: only useful if pruning is turned on
-        if ci_method.prune == 'off':
-            nextra = 0
-        else:
-            nextra = ci_method.prune_extra
+        # Number of extra roots
+        nextra = ci_method.nextra['max'][irrep]
 
         # Call to the bitci reference space diagonalisation routine
         args = (irrep, nroots+nextra, confunits, nconf, ciunit)
@@ -80,3 +77,46 @@ def diag(ci_method):
     timing.stop('ref_diag')
     
     return ciunits, ener 
+
+def n_extra(ci_method):
+    """Determination of the number of extra reference space
+    eigenvectors needed"""
+
+    # Initialisation
+    nextra = {'prune' : None,
+              'guess' : None,
+              'max'   : None}
+
+    # length of nstates vector is the number of irreps
+    nirr    = ci_method.n_irrep()
+    
+    # If pruning is off and ENPT2 guess vectors are not being used,
+    # then nextra = 0
+    if ci_method.prune == 'off' and ci_method.diag_guess != 'enpt2':
+        for key in nextra:
+            nextra[key] = [0 for n in range(nirr)]
+        return nextra
+            
+    # Number of extra ref space roots needed for pruning
+    if ci_method.prune != 'off':
+        nextra['prune'] = [ci_method.prune_extra for n in range(nirr)]
+    else:
+        nextra['prune'] = [0 for n in range(nirr)]
+    
+    # Number of extra ref space roots needed for guess vector generation
+    if ci_method.diag_guess == 'enpt2':
+        if len(ci_method.diag_blocksize) == 0:
+            nextra['guess'] = [int(round(max(n+5, n*1.3)) - n) 
+                                        for n in ci_method.nstates]
+        else:
+            nextra['guess'] = ci_method.diag_blocksize - ci_method.nstates
+    else:
+        nextra['guess'] = [0 for n in range(nirr)]
+
+    # Number of extra ref space roots to be calculated
+    nextra['max'] = []
+    for n in range(nirr):
+        nextra['max'].append(max([nextra[key][n] for key in nextra
+                                  if key != 'max']))
+            
+    return nextra

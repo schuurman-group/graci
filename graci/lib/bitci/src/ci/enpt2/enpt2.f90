@@ -54,8 +54,12 @@ contains
     real(dp), intent(out)   :: E2(nroots)
     
     ! Reference space eigenpairs
-    integer(is)             :: refdim
-    real(dp), allocatable   :: e0(:),vec0(:,:)
+    integer(is)              :: refdim
+    integer(is), allocatable :: iroots(:)
+    real(dp), allocatable    :: e0(:),vec0(:,:)
+
+    ! Everything else
+    integer(is)              :: i
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -68,7 +72,9 @@ contains
     e0=0.0d0
 
     ! Reference space eigenvectors
+    allocate(iroots(nroots))
     allocate(vec0(refdim,nroots))
+    iroots=0
     vec0=0.0d0
 
     ! Hij working array
@@ -78,8 +84,16 @@ contains
 !----------------------------------------------------------------------
 ! Reference space eigenpairs
 !----------------------------------------------------------------------
+! Note that we have to use read_some_eigenpairs here as different
+! numbers of extra ref space eigenvectors may be used for
+! different tasks. We will, however, assume for now that the 1st
+! nroots ref space eigenvectors are needed.
+!----------------------------------------------------------------------
     ! Read in the eigenpairs
-    call read_all_eigenpairs(vec0scr,vec0,e0,refdim,nroots)
+    do i=1,nroots
+       iroots(i)=i
+    enddo
+    call read_some_eigenpairs(vec0scr,vec0,e0,refdim,nroots,iroots)
 
     ! Subtract off E_SCF and E_nuc from the energies to get the
     ! true eigenvalues
@@ -104,6 +118,7 @@ contains
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(e0)
+    deallocate(iroots)
     deallocate(vec0)
     deallocate(harr2)
     
