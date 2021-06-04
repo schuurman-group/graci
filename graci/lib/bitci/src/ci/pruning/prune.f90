@@ -267,3 +267,53 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
     
 end subroutine mrci_prune
 
+!######################################################################
+! retrieve_qcorr: Returns the Q-space energy corrections for a pruned
+!                 MRCI calculation. Note that this is simply a publicly
+!                 available gateway to the get_qcorr subroutine of the
+!                 qspace module.
+!######################################################################
+#ifdef CBINDING
+subroutine retrieve_qcorr(irrep,vecscr,vec0scr,confscr,eqscr,nroots,&
+     nextra,qcorr,max_overlap) bind(c,name="retrieve_qcorr")
+#else
+subroutine retrieve_qcorr(irrep,vecscr,vec0scr,confscr,eqscr,nroots,&
+     nextra,qcorr,max_overlap)
+#endif
+  
+  use constants
+  use bitglobal
+  use qspace
+  
+  implicit none
+  
+  ! Irrep number
+  integer(is), intent(in)  :: irrep
+  
+  ! MRCI and ref space eigenvector scratch file numbers
+  integer(is), intent(in)  :: vecscr,vec0scr
+  
+  ! MRCI configuration scratch file number
+  integer(is), intent(in)  :: confscr
+  
+  ! Q-space energy correction scratch file number
+  integer(is), intent(in)  :: eqscr
+
+  ! No. MRCI roots
+  integer(is), intent(in)  :: nroots
+
+  ! No. extra ref space roots
+  integer(is), intent(in)  :: nextra
+
+  ! Q-space energy corrections
+  real(dp), intent(out)    :: qcorr(nroots)
+  
+  ! <Ref|MRCI> overlaps
+  real(dp), intent(out)    :: max_overlap(nroots)
+  
+  call get_qcorr(irrep,vecscr,vec0scr,confscr,eqscr,nroots,&
+       nextra,qcorr,max_overlap)
+  
+  return
+  
+end subroutine retrieve_qcorr

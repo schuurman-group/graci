@@ -1,6 +1,5 @@
 !**********************************************************************
-! Helper routines that return system information and determinants
-! written to disk
+! Helper routines that return information about a bitci calculation
 !**********************************************************************
 
 !######################################################################
@@ -308,3 +307,4 @@ subroutine retrieve_filename(scrnum,filename1)
   return
   
 end subroutine retrieve_filename
+

@@ -5,7 +5,7 @@
 module qspace
 
   implicit none
-  
+
 contains
 
 !######################################################################
@@ -239,6 +239,185 @@ contains
     
   end subroutine qspace_e2
 
+!######################################################################
+! get_qcorr: Given a set of MRCI eigenvectors, determines the
+!            corresponding Q-space energy corrections for a single
+!            irrep
+!######################################################################
+  subroutine get_qcorr(irrep,vecscr,vec0scr,confscr,eqscr,nroots,&
+       nextra,qcorr,max_overlap)
+    
+    use constants
+    use bitglobal
+    use conftype
+    use iomod
+    
+    implicit none
+
+    ! Irrep number
+    integer(is), intent(in)  :: irrep
+    
+    ! MRCI and ref space eigenvector scratch file numbers
+    integer(is), intent(in)  :: vecscr,vec0scr
+
+    ! MRCI configuration scratch file number
+    integer(is), intent(in)  :: confscr
+
+    ! Q-space energy correction scratch file number
+    integer(is), intent(in)  :: eqscr
+
+    ! No. MRCI roots
+    integer(is), intent(in)  :: nroots
+
+    ! No. extra ref space roots
+    integer(is), intent(in)  :: nextra
+
+    ! Q-space energy corrections
+    real(dp), intent(out)    :: qcorr(nroots)
+    real(dp), allocatable    :: qcorr_all(:)
+
+    ! <Ref|MRCI> overlaps
+    real(dp), intent(out)    :: max_overlap(nroots)
+    
+    ! MRCI configuration derived type
+    type(mrcfg)              :: cfg
+
+    ! Reference space eigenpairs
+    integer(is)              :: csfdim0
+    real(dp), allocatable    :: vec0(:,:),E0(:)
+
+    ! MRCI eigenpairs
+    integer(is)              :: csfdim
+    real(dp), allocatable    :: vec(:,:),E(:)
+
+    ! Ref-to-MRCI state mapping
+    integer(is), allocatable :: r2m(:)
+    real(dp)                 :: overlap
+    
+    ! Everything else
+    integer(is)              :: nvec,n,i,j
+    integer(is)              :: iscratch
+    
+!----------------------------------------------------------------------
+! Set up the MRCI configuration derived type
+!----------------------------------------------------------------------
+    call cfg%initialise(irrep,confscr)
+
+!----------------------------------------------------------------------
+! No. ref space CSFs
+!----------------------------------------------------------------------
+    csfdim0=0
+    do n=1,cfg%n0h
+       csfdim0=csfdim0+cfg%csfs0h(n+1)-cfg%csfs0h(n)
+    enddo
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    ! Total no. ref space roots
+    nvec=nroots+nextra
+
+    ! Ref space eigenpairs
+    allocate(vec0(csfdim0,nvec))
+    allocate(E0(nvec))
+    vec0=0.0d0
+    E0=0.0d0
+
+    ! MRCI eigenpairs
+    csfdim=cfg%csfdim
+    allocate(vec(csfdim,nroots))
+    allocate(E(nroots))
+    vec=0.0d0
+    E=0.0d0
+
+    ! Ref-to-MRCI state mapping
+    allocate(r2m(nroots))
+    r2m=0
+
+    ! Q-space energy corrections (all ref space roots)
+    allocate(qcorr_all(nvec))
+    qcorr_all=0.0d0
+    
+!----------------------------------------------------------------------
+! Read in all the ref space and MRCI eigenpairs
+!----------------------------------------------------------------------
+    ! Ref space
+    call read_all_eigenpairs(vec0scr,vec0,E0,csfdim0,nvec)
+
+    ! MRCI
+    call read_all_eigenpairs(vecscr,vec,E,csfdim,nroots)
+    
+!----------------------------------------------------------------------
+! Determine which Q-space energy corrections to use based on the
+! overlaps of the reference and MRCI eigenvectors
+!----------------------------------------------------------------------
+    ! Initialisation
+    r2m=0
+    max_overlap=0.0d0
+
+    ! Loop over MRCI roots
+    do i=1,nroots
+
+       ! Loop over ref space roots
+       do j=1,nvec
+
+          ! Overlap between the MRCI and ref space eigenvectors
+          overlap=abs(dot_product(vec(1:csfdim0,i),vec0(:,j)))
+
+          ! Update the maximim overlap and mapping arrays
+          if (overlap > max_overlap(i)) then
+             max_overlap(i)=overlap
+             r2m(i)=j
+          endif
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Read in the Q-space energy corrections for all ref space roots
+!----------------------------------------------------------------------
+    ! Open the E2Q file
+    iscratch=scrunit(eqscr)
+    open(iscratch,file=scrname(eqscr),form='unformatted',status='old')
+
+    ! Number vectors
+    read(iscratch) n
+
+    ! Consistency check
+    if (n /= nvec) then
+       errmsg='Error in get_qcorr: inconsistent numbers of ref '&
+            //'space vectors'
+       call error_control
+    endif
+    
+    ! Q-space energy corrections
+    read(iscratch) qcorr_all
+    
+    ! Close the eigenvector file
+    close(iscratch)
+
+!----------------------------------------------------------------------
+! Fill in the array of Q-space energy corrections
+!----------------------------------------------------------------------
+    do i=1,nroots
+       qcorr(i)=qcorr_all(r2m(i))
+    enddo
+    
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(vec0)
+    deallocate(E0)
+    deallocate(vec)
+    deallocate(E)
+    deallocate(r2m)
+    deallocate(qcorr_all)
+    
+    return
+    
+  end subroutine get_qcorr
+  
 !######################################################################
   
 end module qspace

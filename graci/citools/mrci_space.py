@@ -49,9 +49,6 @@ def generate(ci_method):
     ref_ciunits = np.array(ref_wfn.ci_units, dtype=int)
     nroots      = ci_method.n_states()
 
-    # Pruning: no. extra roots to include in the ENPT2 calculation
-    nextra = ci_method.prune_extra
-
     # Pruning: bitci Q-space energy correction scracth file numbers
     eq_units = np.zeros(nirr, dtype=int)
     
@@ -64,7 +61,8 @@ def generate(ci_method):
         
         # Optional pruning of the configuration space
         if ci_method.prune != 'off':
-            thrsh = ci_method.prune_thresh[ci_method.prune]
+            thrsh  = ci_method.prune_thresh[ci_method.prune]
+            nextra = ci_method.nextra['prune'][irrep]            
             args = (thrsh, irrep, nroots, nextra, ci_confunits,
                     ref_ciunits, nconf, eq_units)
             (nconf, eq_units) = libs.lib_func('mrci_prune', args)

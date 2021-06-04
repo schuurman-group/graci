@@ -8,10 +8,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
-     blocksize,ldeflate) bind(c,name="diag_mrci")
+     blocksize,ldeflate,iguess,vec0scr) bind(c,name="diag_mrci")
 #else
 subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
-     blocksize,ldeflate)
+     blocksize,ldeflate,iguess,vec0scr)
 #endif
 
   use constants
@@ -38,11 +38,14 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   ! Array of MRCI configuration scratch file numbers
   integer(is), intent(in)  :: confscr(0:nirrep-1)
 
+  ! Array of reference space eigenvector scratch file numbers
+  integer(is), intent(in)  :: vec0scr(0:nirrep-1)
+
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
 
   ! Davidson parameters
-  integer(is), intent(in)  :: ialg,blocksize,niter
+  integer(is), intent(in)  :: ialg,blocksize,niter,iguess
   real(dp), intent(in)     :: tol
   logical, intent(in)      :: ldeflate
   integer(is)              :: maxvec
@@ -68,7 +71,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   ! Dimension of the CSF basis past which full diagonalisation
   ! will not be used
   integer(is), parameter   :: full_lim=1000
-    
+  
   ! Subspace dimension to be used in the generation of the
   ! guess vectors
   integer(is)              :: guessdim
@@ -170,10 +173,19 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
      ! Dimension of the subspace used to generate the guess vectors
      guessdim=750
      if (guessdim > cfg%csfdim) guessdim=int(cfg%csfdim*0.9d0)
-     
+
      ! Generate the guess vectors
-     call mrci_guess_subspace(guessscr,blocksize,cfg,cfg%csfdim,&
-          guessdim,hdiag,averageii,cfg%confdim)
+     select case(iguess)
+     case(1) ! Diagonalisation within a small subspace
+        call mrci_guess_subspace(guessscr,blocksize,cfg,cfg%csfdim,&
+             guessdim,hdiag,averageii,cfg%confdim)
+     case(2) ! ENPT2 1st-order corrected wave functions
+        call mrci_guess_enpt2(guessscr,blocksize,cfg,cfg%csfdim,&
+             hdiag,averageii,cfg%confdim,vec0scr(irrep))
+     case default
+        errmsg='Error in diag_mrci: unrecognised value of iguess'
+        call error_control
+     end select
      
      ! Set the sigma-vector algorithm information
      if (direct) then
@@ -198,6 +210,10 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
         endif
      endif
 
+     ! ENPT2 guess vectors and the generalised Davidson preconditioner
+     ! are not yet available due to laziness
+     if (iguess == 2 .and. ipre == 2) ipre=1
+     
      ! Perform the iterative diagonalisation
      select case(ialg)
      case(1)
@@ -213,7 +229,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
      end select
         
   endif
-  
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------

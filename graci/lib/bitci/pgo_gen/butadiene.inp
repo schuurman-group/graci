@@ -29,8 +29,6 @@
  nstates      = 5
  hamiltonian  = grimme_standard
  autoras      = True
- nhole1       = 2
- nelec3       = 2
  refiter      = 1
  $end
 
