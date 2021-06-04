@@ -276,7 +276,8 @@ def print_quad(irr, st, qtensor):
     return
 
 #
-def print_transition_table(init_state, final_states, exc_ener, osc_str): 
+def print_transition_table(init_st, init_sym, final_st, final_sym, 
+                                   exc_ener, f0l, f2l, f0v, f2v, f0xyz): 
     """print out the summary files for the transition moments"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
@@ -287,25 +288,31 @@ def print_transition_table(init_state, final_states, exc_ener, osc_str):
         outfile.write(    '\n Transition Properties')
         outfile.write(    '\n ------------------------------------------')
 
-        header = '\n\n  Initial     Final    Exc Ener  Osc.     Osc.     Oscillator Strength (L)'
-        header += '\n  State       State      (eV)   Str (L)  Str (V)    x        y        z'
-        undr_str = '-' * (len(header)-1)
+        header  = '\n\n  Initial     Final    Exc Ener                  '
+        header += '                        Oscillator Strength (V)\n'
+        undr_str = '-' * (len(header))
+        header += '  State       State      (eV)      f0(L)    f2(L)'
+        header += '    f0(V)    f2(V)       x        y        z'
 
         fstr   = '\n {:3d}({:>3}) -> {:3d}({:>3}) {:7.2f}'+ \
-                    '{:9.4f}{:9.4f}{:9.4f}{:9.4f}{:9.4f}'
+                    ' {:9.4f}{:9.4f}{:9.4f}{:9.4f}  {:9.4f}{:9.4f}{:9.4f}'
 
         outfile.write(header)
         outfile.write('\n '+undr_str)
         outfile.write('\n')
 
-        for i in range(len(final_states)):
+        for i in range(len(final_st)):
             outfile.write(fstr.format(
-                            *init_state, 
-                            *final_states[i], 
-                            exc_ener[i]*constants.au2ev, 
-                            np.sum(osc_str[i][0])/3., 
-                            np.sum(osc_str[i][1])/3.,
-                            *osc_str[i][0]))
+                             init_st,
+                             init_sym,
+                             final_st[i],
+                             final_sym[i],
+                             exc_ener[i]*constants.au2ev, 
+                             f0l[i], 
+                             f2l[i], 
+                             f0v[i], 
+                             f2v[i],
+                             *f0xyz[:,i]))
 
     return
 

@@ -30,6 +30,7 @@ class Scf:
         self.orb_irrep = []
         self.orb_sym   = []
         self.nmo       = 0
+        self.nao       = 0
         self.naux      = 0
         self.rdm       = None
         self.stsym     = None
@@ -142,7 +143,9 @@ class Scf:
         self.orb_irrep = orb_sym
         # orb_sym is the irrep index
         self.orb_sym   = orb_id
+        # number of MOs
         self.nmo       = len(mf.mo_occ)
+
         if (self.mol.use_df):
             self.naux      = int(mf.with_df.auxmol.nao_nr())
 

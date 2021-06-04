@@ -16,3 +16,7 @@ ang2bohr  = 1. / bohr2ang
 
 #CHARGE CONVERSIONS
 au2debye  = 2.541580
+
+#MISC CONSTANTS
+fine_str = 1. / 137.036
+c_spd    = 1. / fine_str

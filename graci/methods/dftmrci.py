@@ -5,6 +5,7 @@ import sys as sys
 import graci.io.convert as convert
 import ctypes as ctypes
 import numpy as np
+import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
 import graci.citools.ref_space as ref_space
@@ -108,6 +109,9 @@ class Dftmrci:
 
         if self.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
+
+        timing.start('dftmrci.run')
+
 
         # run the KS-DFT computation 
         self.scf.set_mol(self.mol)
@@ -223,6 +227,9 @@ class Dftmrci:
                             self.mol.irreplbl[irr], 
                             st, 
                             momts.quadrupole(irr,st))
+
+        timing.stop('dftmrci.run')
+
         return 
 
     # 
@@ -269,7 +276,10 @@ class Dftmrci:
         """return the irrep and state index of the root corresponding
            to the energy of the nth root"""
 
-        return self.state_sorted[n]
+        if n < len(self.state_sorted):
+            return self.state_sorted[n]
+        else:
+            return None
 
     #
     def rdm1(self, irrep, state):

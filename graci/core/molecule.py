@@ -70,6 +70,9 @@ class Molecule:
         self.full_sym = self.mol_obj.topgroup.lower()
         # point group to be used for computation
         self.comp_sym = self.mol_obj.groupname.lower()
+        # number of atomic orbitals
+        self.nao      = self.mol_obj.nao_nr()
+
         if self.mol_obj.symmetry:
             self.sym_indx = point_grps.index(self.comp_sym)
             self.irreplbl = self.mol_obj.irrep_name
