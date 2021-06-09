@@ -11,7 +11,7 @@ class Parameterize:
         # (or subject to user input) -- these are keywords
         # in params module
         self.algorithm = None
-        self.label     = 'default'
+        self.label     = 'parameterize'
 
 
     def run(self):

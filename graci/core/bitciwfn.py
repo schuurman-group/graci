@@ -22,7 +22,9 @@ class Bitciwfn:
         # List of bitci Q-space energy correction scratch file numbers
         # (one per irrep)
         self.eq_units    = None
-        
+        # class label
+        self.label       = 'bitciwfn'
+
     #
     def set_nconf(self, nconf):
         """Sets the numbers of configurations"""

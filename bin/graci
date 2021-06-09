@@ -22,9 +22,6 @@ def main():
     # parse input
     job_array = parse.parse_input()
 
-    # print output file header
-    output.print_header(job_array)
-
     # build and run computation
     drive_obj = driver.Driver()
     drive_obj.run(job_array)
@@ -44,8 +41,6 @@ def read_cmdline():
     output.file_names['input_file'] = sys.argv[1].strip()
     job_stub  = output.file_names['input_file'].split('.inp')[0]
     pyscf_out = job_stub+'.pyscf.out'
-    two_int   = '2e_int.h5'
-    one_int   = '1e_int.h5'
 
     if '-o' in sys.argv:
         out_file = sys.argv[sys.argv.index('-o')+1].strip()
@@ -56,8 +51,6 @@ def read_cmdline():
 
     output.file_names['out_file']  = out_file
     output.file_names['pyscf_out'] = pyscf_out
-    output.file_names['2ei']       = two_int
-    output.file_names['1ei']       = one_int
     return
 
 if __name__ == '__main__':

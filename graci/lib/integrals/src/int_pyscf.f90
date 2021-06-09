@@ -41,10 +41,6 @@ module int_pyscf
   logical                                     :: ri_int
   logical                                     :: use_hash
 
-  ! names of the one and two-electron integral files
-  character(len=100), parameter               :: one_name='1e_int.h5'
-  character(len=100), parameter               :: two_name='2e_int.h5'
-
   type(map_type)                              :: int_table
   
   contains
@@ -56,7 +52,8 @@ module int_pyscf
   !
   ! Routine to load MO integrals from HDF5 file format.
   ! Arguments:
-  !     two_name: Name of integral file (character string)
+  !     f1e:     Name of one-electron integral file (character string)
+  !     f2eri:   name of two-electron ERI integral file (character string)
   !     n_bra:   If full 4 index integral transformation is 
   !              performed, this will be the lower triangle 
   !              of the ij indicies, i.e. n_mo * (n_mo+1)/2
@@ -71,12 +68,15 @@ module int_pyscf
   !     rr_fac:  Rank reduced DF compression factor  
   !
 #ifdef CBINDING
-    subroutine intpyscf_initialise(n_mo1, n_aux1, use_ri, use_rr, rr_fac, thresh, max_memory) &
+    subroutine intpyscf_initialise(f1e, f2eri, n_mo1, n_aux1, use_ri, use_rr, rr_fac, thresh, max_memory) &
          bind(c,name="intpyscf_initialise")
 #else
-      subroutine intpyscf_initialise(n_mo, n_aux, use_ri, use_rr, rr_fac, thresh, max_memory)
+      subroutine intpyscf_initialise(f1e, f2eri, n_mo, n_aux, use_ri, use_rr, rr_fac, thresh, max_memory)
 #endif
+    use iomod
     use rrdf
+    use iso_c_binding, only: C_CHAR
+
     integer(ik), intent(in)                   :: n_mo1           ! number of MOs
     integer(ik), intent(in)                   :: n_aux1          ! number of auxility basis functions, if using DF, else
                                                                  ! it's the dimension of the AO space
@@ -84,9 +84,20 @@ module int_pyscf
     logical, intent(in)                       :: use_rr          ! whether or not to use rank density fitting
     integer(ik), intent(in)                   :: rr_fac          ! rank reduced DF compression factor
     real(drk), intent(in)                     :: thresh          ! threshold for zero integrals
-    integer(ik), intent(in), optional         :: max_memory      ! maximum memory that can be used by integral arrays 
-                                                                 ! (in double precision numbers). If < 0, no limit is
-                                                                 ! enforced
+    integer(ik), intent(in), optional         :: max_memory      ! maximum memory that can be used by integral arrays     
+                                                                 ! (in double precision numbers). If < 0, no limit is enforced
+#ifdef CBINDING
+    character(kind=C_CHAR), intent(in)       :: f1e(*)          ! file name, one electron integrals
+    character(kind=C_CHAR), intent(in)       :: f2eri(*)        ! flie name, two-e ERI integrals
+    character(len=255)                       :: f1name
+    character(len=255)                       :: f2name
+    integer(ik)                              :: length
+#else
+    character(len=*), intent(in)             :: f1e
+    character(len=*), intent(in)             :: f2eri 
+    character(len=255)                       :: f1name
+    character(len=255)                       :: f2name
+#endif
 
     ! H5 file variables
     integer(HID_T)                            :: data_type       ! data_type (i.e. NATIVE_DOUBLE)
@@ -113,6 +124,20 @@ module int_pyscf
     integer(ik)                               :: nd_ket, nd_bra
     real(drk), allocatable                    :: int_buffer(:,:)
 
+    !----------------------------------------------------------------------
+    ! If C bindings are on, then convert the calculation label from the
+    ! C char type to the Fortran character type
+    !----------------------------------------------------------------------
+#ifdef CBINDING
+    length=cstrlen(f1e)
+    call c2fstr(f1e, f1name, length)
+    length=cstrlen(f2eri)
+    call c2fstr(f2eri, f2name, length)
+#else
+    f1name = adjustl(trim(f1e))
+    f2name = adjustl(trim(f2eri))
+#endif
+
     ! set module variables
     ri_int = use_ri
     n_aux  = n_aux1
@@ -125,7 +150,7 @@ module int_pyscf
     allocate(h_core(n_mo, n_mo))
 
     dset_name = 'hcore_mo'
-    call open_dataset(one_name, dset_name, data_type, file_id, dset_id,&
+    call open_dataset(f1name, dset_name, data_type, file_id, dset_id,&
          data_space, rank, dims)
 
     if(rank /= 2 .or. any(dims /= int_dims))then
@@ -183,7 +208,7 @@ module int_pyscf
     ! open the dataset
     !
     dset_name = 'eri_mo'
-    call open_dataset(two_name, dset_name, data_type, file_id, dset_id, data_space, rank, dims)
+    call open_dataset(f2name, dset_name, data_type, file_id, dset_id, data_space, rank, dims)
     
     if(rank /= 2 .or. any(dims /= int_dims))then
       print *,'Error in 2ERI file: read status=',error,' rank=',rank, &
@@ -266,13 +291,15 @@ module int_pyscf
   ! deallocates all the memory structures associated with integral
   ! integral storage
   !
-  subroutine destroy_mo_integrals()
+  subroutine intpyscf_finalise()
     implicit none
 
-
+    if(allocated(mo_sym))deallocate(mo_sym)
+    deallocate(h_core)
+    deallocate(integrals)
 
     return
-  end subroutine destroy_mo_integrals
+  end subroutine intpyscf_finalise
 
 
   !-------------------------------------------------------------------------------------
@@ -336,7 +363,7 @@ module int_pyscf
   ! 
   subroutine open_dataset(file_name, dset_name, data_type, file_id, dset_id, data_space, rank, dims)
     implicit none
-    character(len=100), intent(in)      :: file_name   ! name of integral file
+    character(len=255), intent(in)      :: file_name   ! name of integral file
     character(len=8),intent(in)         :: dset_name   ! name of data set (i.e. h_core, eri) 
     integer(HID_T),intent(out)          :: data_type   ! data_type (i.e. NATIVE_DOUBLE)
     integer(HID_T),intent(out)          :: file_id     ! file identifier

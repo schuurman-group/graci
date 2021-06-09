@@ -22,18 +22,20 @@ class Scf:
         self.label     = 'scf'
 
         # computed quantities
-        self.mol       = None 
-        self.energy    = None
-        self.orbs      = None
-        self.orb_occ   = None
-        self.orb_ener  = None
-        self.orb_irrep = []
-        self.orb_sym   = []
-        self.nmo       = 0
-        self.nao       = 0
-        self.naux      = 0
-        self.rdm       = None
-        self.stsym     = None
+        self.mol          = None 
+        self.energy       = None
+        self.orbs         = None
+        self.orb_occ      = None
+        self.orb_ener     = None
+        self.orb_irrep    = []
+        self.orb_sym      = []
+        self.nmo          = 0
+        self.nao          = 0
+        self.naux         = 0
+        self.rdm          = None
+        self.stsym        = None
+        self.moint_1e     = None
+        self.moint_2e_eri = None
 
 
 # Required functions #######################################################
@@ -41,6 +43,13 @@ class Scf:
     def set_mol(self, mol):
         """set the mol object for the scf object"""
         self.mol = mol
+
+    def mol_exists(self):
+        """return True is self.mol is not None"""
+        try:
+            return self.mol.name() is 'molecule'
+        except:
+            return False
 
     def name(self):
         """ return the name of the class object as a string"""
@@ -83,12 +92,16 @@ class Scf:
             # set the XC functional to BHLYP
             mf.xc = self.xc
         
-        # save integrals
+        # save integrals -- tie them to the mol object for
+        # this file
+        self.moint_1e     = '1e_'+str(self.mol.label).strip()+'.h5'
+        self.moint_2e_eri = '2e_eri_'+str(self.mol.label).strip()+'.h5'
+
         if self.mol.use_df:
             mf.with_df.auxbasis       = self.mol.ri_basis
             # this will be generated during the calculation,
             # saved upon completion
-            mf.with_df._cderi_to_save = output.file_names['2ei']
+            mf.with_df._cderi_to_save = self.moint_2e_eri
         else:
             if self.xc != 'hf':
                 mf.with_df = False    
@@ -113,12 +126,13 @@ class Scf:
         # Do the AO -> MO transformation
         if self.mol.use_df:
             ij_trans = np.concatenate(([mf.mo_coeff], [mf.mo_coeff]))
-            df.outcore.general(pymol, ij_trans, output.file_names['2ei'], 
-                     self.mol.ri_basis, dataname='eri_mo')        
+            df.outcore.general(pymol, ij_trans, 
+                    self.moint_2e_eri, 
+                    self.mol.ri_basis, dataname='eri_mo')        
         else:
             eri_ao = pymol.intor('int2e_sph', aosym='s8')
             eri_mo = ao2mo.incore.full(eri_ao, mf.mo_coeff)        
-            with h5py.File(output.file_names['2ei'], 'w') as f:
+            with h5py.File(self.moint_2e_eri, 'w') as f:
                 f['eri_mo'] = eri_mo
     
         # Construct the core Hamiltonian
@@ -130,7 +144,7 @@ class Scf:
         # and write to file
         ref_orbs   = mf.mo_coeff
         h1_mo      = np.matmul(np.matmul(ref_orbs.T, hcore_ao), ref_orbs)
-        with h5py.File(output.file_names['1ei'], 'w') as f:
+        with h5py.File(self.moint_1e, 'w') as f:
             f['hcore_mo'] = h1_mo
 
         # extract orbitals, occupations and energies

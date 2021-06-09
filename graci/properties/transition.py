@@ -26,6 +26,11 @@ class Transition:
         self.final_method     = None
 
         # global variables
+        # method object for the bra states
+        self.bra_obj      = None
+        # method object for the ket states
+        self.ket_obj      = None
+        # the tdms
         self.tdms         = None
         # comprehensive list of all transition pairs
         self.trans_list   = None
@@ -50,16 +55,42 @@ class Transition:
         return 'transition'
 
     #
-    def set_final_method(self, final_method):
+    def set_ket(self, ket_method):
         """set the method used to compute the ket state(s)"""
-        self.final_method = final_method
+
+        try:
+            self.init_method = ket_method.label
+        except:
+            self.init_method = None
+            return
+
+        self.ket_obj = ket_method
+        return
+ 
+    # 
+    def ket_exists(self):
+        """return True is self.ket_obj is not None"""
+
+        return self.ket_obj is not None
+
+    #
+    def set_bra(self, bra_method):
+        """set the method used to compute the bra state(s)"""
+
+        try:
+            self.final_method = bra_method.label
+        except:
+            self.final_method = None
+            return
+
+        self.bra_obj = bra_method
         return
 
     #
-    def set_init_method(self, init_method):
-        """set the method used to compute the bra state(s)"""
-        self.init_method = init_method
-        return
+    def bra_exists(self):
+        """return True if self.bra_obj is not None"""
+
+        return self.bra_obj is not None
 
     #
     def run(self):
@@ -70,11 +101,11 @@ class Transition:
 
         timing.start('transition.run')
 
-        mol_bra = self.final_method.mol
-        mol_ket = self.init_method.mol
+        mol_bra = self.bra_obj.mol
+        mol_ket = self.ket_obj.mol
 
-        scf_bra = self.final_method.scf
-        scf_ket = self.init_method.scf
+        scf_bra = self.bra_obj.scf
+        scf_ket = self.ket_obj.scf
         
         # sanity check that orbitals and geometry are the same
         if np.any(scf_bra.orbs != scf_ket.orbs):
@@ -157,14 +188,14 @@ class Transition:
         # make the tdm list
         nbra = len(self.bra_list)
         nket = len(self.ket_list)
-        nmo  = self.final_method.scf.nmo
+        nmo  = self.bra_obj.scf.nmo
 
         self.tdms = np.zeros((nmo, nmo, nbra, nket), dtype=float)
 
         for ik in range(nket):
-            [kirr,kst] = self.init_method.state_n(self.ket_list[ik])
+            [kirr,kst] = self.ket_obj.state_n(self.ket_list[ik])
             for ib in range(nbra):
-                [birr,bst] = self.final_method.state_n(self.bra_list[ib])
+                [birr,bst] = self.bra_obj.state_n(self.bra_list[ib])
                 indx       = self.trans_index(birr,kirr,bst,kst)
                 self.tdms[:,:,ib,ik] = tdm_list[birr][kirr][:,:,indx]
 
@@ -229,7 +260,7 @@ class Transition:
         # iterate through the initial states, adding roots
         # to various irreps as needed -- these states are 
         # ordered by adiabatic energy
-        ninit_total = sum(self.init_method.n_states())
+        ninit_total = sum(self.ket_obj.n_states())
         if self.init_states is not None:
             # iterate through the initial states, adding roots
             # to various irreps as nee
@@ -243,12 +274,12 @@ class Transition:
             for state in self.init_states_sym:
                 irrep   = int(state)
                 st      = int(10*state) - 10*irrep
-                istate  = self.init_method.state_index(irrep,st)
+                istate  = self.ket_obj.state_index(irrep,st)
                 if istate is not None:
                     state_list.append(istate)
 
         self.ket_list = sorted(list(set(state_list)))
-        self.ket_sym  = [self.init_method.state_n(self.ket_list[i])[0] 
+        self.ket_sym  = [self.ket_obj.state_n(self.ket_list[i])[0] 
                                     for i in range(len(self.ket_list))]
 
         if len(self.ket_list) == 0:
@@ -262,7 +293,7 @@ class Transition:
         # iterate through the final states, adding roots
         # to various irreps as needed -- these states are 
         # ordered by adiabatic energy
-        nfinal_total = sum(self.final_method.n_states())
+        nfinal_total = sum(self.bra_obj.n_states())
         if self.final_states is not None:
             # iterate through the final states, adding roots
             # to various irreps as nee
@@ -276,12 +307,12 @@ class Transition:
             for state in self.final_states_sym:
                 irrep   = int(state)
                 st      = int(10*state) - 10*irrep
-                fstate  = self.final_method.state_index(irrep,st)
+                fstate  = self.bra_obj.state_index(irrep,st)
                 if fstate is not None:
                     state_list.append(fstate)
 
         self.bra_list = sorted(list(set(state_list)))
-        self.bra_sym  = [self.final_method.state_n(self.bra_list[i])[0]
+        self.bra_sym  = [self.bra_obj.state_n(self.bra_list[i])[0]
                                     for i in range(len(self.bra_list))]
 
         # create the pair list -- we build the list this way 
@@ -289,18 +320,18 @@ class Transition:
         # which computes tmds for pairs of states in particular
         # irreps.
 
-        nirr_bra = self.final_method.n_irrep()
-        nirr_ket = self.init_method.n_irrep()
+        nirr_bra = self.bra_obj.n_irrep()
+        nirr_ket = self.ket_obj.n_irrep()
 
         self.trans_list = [[[] for irr_bra in range(nirr_bra)]
                                for irr_ket in range(nirr_ket)]
 
         for k_ind in range(len(self.ket_list)):
-            kst  = self.init_method.state_n(self.ket_list[k_ind])[1]
+            kst  = self.ket_obj.state_n(self.ket_list[k_ind])[1]
             ksym = self.ket_sym[k_ind]
 
             for b_ind in range(len(self.bra_list)):
-                bst  = self.final_method.state_n(self.bra_list[b_ind])[1]
+                bst  = self.bra_obj.state_n(self.bra_list[b_ind])[1]
                 bsym = self.bra_sym[b_ind]
 
                 self.trans_list[bsym][ksym].append([bst, kst])
@@ -464,8 +495,8 @@ class Transition:
             for ik in range(nket):
 
                 # set up state and energy info
-                b_ener = self.final_method.energy_n(self.bra_list[ib])
-                k_ener = self.init_method.energy_n(self.ket_list[ik])
+                b_ener = self.bra_obj.energy_n(self.bra_list[ib])
+                k_ener = self.ket_obj.energy_n(self.ket_list[ik])
                 alpha  = constants.fine_str
                 de     = b_ener - k_ener
                 de2    = de**2
@@ -483,7 +514,6 @@ class Transition:
                 f0_l[:, ib, ik] = (2.*de)*mu**2
                 # isotropically averaged value
                 f0_iso[ib, ik]  = np.sum(f0_l[:, ib, ik])/3.
-                print("init="+str(ik)+" final="+str(ib)+" osc_l="+str(f0_iso[ib, ik]))
 
                 # compute second-order contributions
                 # electric quadrupole contribution
@@ -540,8 +570,8 @@ class Transition:
             for ik in range(nket):
 
                 # set up state and energy info
-                b_ener = self.final_method.energy_n(self.bra_list[ib])
-                k_ener = self.init_method.energy_n(self.ket_list[ik])
+                b_ener = self.bra_obj.energy_n(self.bra_list[ib])
+                k_ener = self.ket_obj.energy_n(self.ket_list[ik])
                 alpha  = constants.fine_str
                 de     = b_ener - k_ener
                 de2    = de**2
@@ -605,9 +635,9 @@ class Transition:
 
         nbra = len(self.bra_list)
         nket = len(self.ket_list)
-        nmo  = self.final_method.scf.nmo
-        nao  = self.final_method.mol.nao
-        mos  = self.final_method.scf.orbs
+        nmo  = self.bra_obj.scf.nmo
+        nao  = self.bra_obj.mol.nao
+        mos  = self.bra_obj.scf.orbs
 
         nto    = np.zeros((nao, nmo, nbra, nket), dtype=float)
         ndo    = np.zeros((nao, nmo, nbra, nket), dtype=float)
@@ -617,14 +647,14 @@ class Transition:
         for ik in range(nket):
             for ib in range(nbra):
 
-                [birr, bst] = self.final_method.state_n(
+                [birr, bst] = self.bra_obj.state_n(
                                                       self.bra_list[ib])
-                [kirr, kst] = self.init_method.state_n(
+                [kirr, kst] = self.ket_obj.state_n(
                                                       self.ket_list[ik])
               
                 tdm = self.tdm1(ib, ik)
-                rdm_bra = self.final_method.rdm1(birr, bst)
-                rdm_ket = self.init_method.rdm1(kirr, kst)
+                rdm_bra = self.bra_obj.rdm1(birr, bst)
+                rdm_ket = self.ket_obj.rdm1(kirr, kst)
 
                 # first perform SVD of 1TDMs to get hole and
                 # particle orbitals and weights and convert
@@ -759,8 +789,8 @@ class Transition:
         nbra = len(self.bra_list)
         nket = len(self.ket_list)
 
-        k_irrlbl = self.init_method.mol.irreplbl
-        b_irrlbl = self.final_method.mol.irreplbl
+        k_irrlbl = self.ket_obj.mol.irreplbl
+        b_irrlbl = self.bra_obj.mol.irreplbl
 
         # print a 'transition table' for each initial state
         for ik in range(nket):
@@ -770,8 +800,8 @@ class Transition:
             final_st  = self.bra_list
             final_sym = [b_irrlbl[self.bra_sym[ib]] 
                          for ib in range(nbra)]
-            exc_ener  = [self.final_method.energy_n(self.bra_list[i]) - 
-                        self.init_method.energy_n(self.ket_list[ik]) 
+            exc_ener  = [self.bra_obj.energy_n(self.bra_list[i]) - 
+                        self.ket_obj.energy_n(self.ket_list[ik]) 
                          for i in range(nbra)]
 
             # print a 'transition table' for each initial state
@@ -796,8 +826,8 @@ class Transition:
         nbra = len(self.bra_list)
         nket = len(self.ket_list)
 
-        k_irrlbl = self.init_method.mol.irreplbl
-        b_irrlbl = self.final_method.mol.irreplbl
+        k_irrlbl = self.ket_obj.mol.irreplbl
+        b_irrlbl = self.bra_obj.mol.irreplbl
 
         for ik in range(nket):
             kst  = self.ket_list[ik]
@@ -816,7 +846,7 @@ class Transition:
                 ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
                 output.print_nos_molden(
                     'nto'+str_suffix, 
-                    self.final_method.mol,
+                    self.bra_obj.mol,
                     self.nos['nto'][:,:ncols, ib, ik], 
                     wts[:ncols])
 
@@ -826,7 +856,7 @@ class Transition:
                 ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
                 output.print_nos_molden(
                     'ndo'+str_suffix,
-                    self.final_method.mol,
+                    self.bra_obj.mol,
                     self.nos['ndo'][:,:ncols, ib, ik],
                     wts[:ncols])
 

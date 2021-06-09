@@ -22,7 +22,7 @@ class Geometry:
         # in params module
         self.xyz_file  = None
         self.units     = 'angstrom'
-        self.label     = 'default'
+        self.label     = 'geometry'
 
         # the following are determined from a combination
         # of user input

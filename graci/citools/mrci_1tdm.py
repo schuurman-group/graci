@@ -13,17 +13,17 @@ def tdm(si_method):
     """Calculation of the MRCI 1-TDMs for all states"""
 
     # number of irreps
-    nirr_ket = si_method.init_method.n_irrep()
-    nirr_bra = si_method.final_method.n_irrep()
+    nirr_ket = si_method.ket_obj.n_irrep()
+    nirr_bra = si_method.bra_obj.n_irrep()
 
     # number of molecular orbitals
-    nmo = si_method.final_method.scf.nmo
+    nmo = si_method.bra_obj.scf.nmo
 
     # bitci bra mrci wfn object
-    bra_wfn = si_method.final_method.bitci_mrci()
+    bra_wfn = si_method.bra_obj.bitci_mrci()
    
     # bitci ket mrci wfn object
-    ket_wfn = si_method.init_method.bitci_mrci()
+    ket_wfn = si_method.ket_obj.bitci_mrci()
 
     # 1-TDMs for all irreps
     rho = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
@@ -43,8 +43,8 @@ def tdm(si_method):
                 continue
 
             # total number of bra and ket roots for this irrep
-            bra_tot = si_method.final_method.n_states(bra_irr)
-            ket_tot = si_method.init_method.n_states(ket_irr)
+            bra_tot = si_method.bra_obj.n_states(bra_irr)
+            ket_tot = si_method.ket_obj.n_states(ket_irr)
 
             # 1-TDM array
             rhoij = np.zeros((nmo*nmo*npairs), dtype=np.float64)

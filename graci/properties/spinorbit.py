@@ -11,7 +11,7 @@ class Spinorbit:
         self.ket_states = None
         self.bra_wfn    = None
         self.ket_wfn    = None
-        self.label      = 'default'
+        self.label      = 'spinorbit'
 
 
     def name(self):

@@ -13,9 +13,7 @@ import graci.core.params as params
 #
 file_names = {'input_file'   : '',
               'out_file'     : '',
-              'pyscf_out'    : '',
-              '1ei'          : '',
-              '2ei'          : ''}
+              'pyscf_out'    : ''}
 
 @contextmanager
 def output_file(file_name, mode):
@@ -70,13 +68,13 @@ def print_header(run_list):
                 atm = calc_obj.atoms()
 
                 for iatm in range(len(atm)):
-                    cstr = '   '.join(['{:10.4f}'.format(gm[iatm,j]) 
+                    cstr = '   '.join(['{:12.8f}'.format(gm[iatm,j]) 
                                for j in range(3)])
                     ostr = ' ' + str(atm[iatm]) + cstr
-                    outfile.write(ostr+'\n\n')
+                    outfile.write(ostr+'\n')
 
             # outfile.write the keyword input
-            ostr = ''
+            ostr = '\n'
             for kword in params.kwords[calc_name].keys():
                 ostr += ' '+kword.ljust(12,' ')+\
                         ' = '+str(getattr(calc_obj,kword))+'\n'
@@ -134,6 +132,23 @@ def print_scf_summary(scf):
                          scf.orb_irrep[iorb],
                          scf.orb_ener[iorb],
                          scf.orb_occ[iorb]))
+        outfile.flush()
+
+    return
+
+#
+def print_dftmrci_header(label):
+    global file_names
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n **************************************'+
+                           '**************************************')
+        outfile.write('\n\n DFT-MRCI computation\n')
+        outfile.write('\n')
+        outfile.write(' Section label: '+str(label))
+        outfile.write('\n')
+        outfile.write('\n\n **************************************'+
+                           '**************************************')
         outfile.flush()
 
     return

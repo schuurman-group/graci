@@ -3,6 +3,8 @@ module that determines what types of calculations run
 and in what order
 """
 import graci.core.params as params
+import graci.core.libs as libs
+import graci.io.output as output
 
 class Driver:
     def __init__(self):
@@ -18,79 +20,149 @@ class Driver:
         """Determine how to run the calculation given the array
            of method objects in the array argument"""
 
-
-        # this is currently a very simple implementation of this method.
-        # eventually there will have to be a lot of logic involved in 
-        # determining how to run the various sections.
-
-        # right now, it just looks for a mol and scf objects, and then
-        # runs each (non-scf) method using the mol and scf objects 
-        # in the list
-        gm_grp     = []
-        mol_grp    = []
-        scf_grp    = []
-        method_grp = []
-        si_grp     = []
+        # the first step is to match geometries to molecule sections
+        gm_objs      = []
+        mol_objs     = []
+        scf_objs     = []
+        postscf_objs = []
+        si_objs      = []
         for obj in calc_array:
             # identify the geometries in the run_list
             if obj.name() == 'geometry':
-                gm_grp.extend([obj])
+                gm_objs.append(obj)
             elif obj.name() == 'molecule':
-                mol_grp.extend([obj])
+                mol_objs.append(obj)
             elif obj.name() == 'scf':
-                scf_grp.extend([obj])
+                scf_objs.append(obj)
             elif obj.name() in params.method_objs:
-                method_grp.extend([obj])
+                postscf_objs.append(obj)
             elif obj.name() in params.si_objs:
-                si_grp.extend([obj])
+                si_objs.append(obj)
 
-        # initialize each of the molecule objects with
-        # the appropriate geometry object if they don't
-        # already exit
-        for mol_obj in mol_grp:
-            if mol_obj.pymol_exists() is False:
-                for gm_obj in gm_grp:
-                    if mol_obj.label == gm_obj.label:
-                        mol_obj.set_pymol(gm_obj)
-                        break
+        # Molecle sections 
+        # ----------------------------------------------------
+
+        # match geometry objects to molecule objects
+        for mol_obj in mol_objs:
+
+            for gm_obj in gm_objs:
+                # if labels match -- set the geometry
+                # to the molecule object
+                if mol_obj.label == gm_obj.label:
+                    mol_obj.set_pymol(gm_obj)
+                    break
+
+            # if we didn't match labels, but there is a single
+            # geometry object, 
+            if mol_obj.pymol_exists() is False and len(gm_objs)==1:
+                mol_obj.set_pymol(gm_obj)
+
+            # if we have a label problem, then we should exit
+            # with an error
             if mol_obj.pymol_exists() is False:
                 output.print_message('molecule section, label='+
                         str(mol_obj.label)+
-                        ' has no geometry set. Removing from run list')
-                mol_grp.remove(mol_obj)
+                        ' has no geometry set. Please check input')
+                sys.exit(1)
 
-        # run each of the methods in turn
-        for mol in mol_grp:
-            for scf in scf_grp:
-                for method in method_grp:
-                    method.set_mol(mol)
-                    method.set_scf(scf)
-                    method.run()
+        # print output file header
+        output.print_header(calc_array)
 
-        # run the state interaction computations
-        for si in si_grp:
+        # SCF Sections 
+        # -----------------------------------------------------
 
-            final_method = None
-            init_method  = None
+        # match geometry objects to molecule objects
+        for scf_obj in scf_objs:
 
-            if len(method_grp) == 1:
-                final_method = method_grp[0]
-                init_method  = method_grp[0]
+            for mol_obj in mol_objs:
+                # if labels match -- set the geometry
+                # to the molecule object
+                if scf_obj.label == mol_obj.label:
+                    scf_obj.set_mol(mol_obj)
+                    break
 
+            # if we didn't match labels, but there is a single
+            # molecule object, 
+            if scf_obj.mol_exists() is False and len(mol_objs)==1:
+                scf_obj.set_mol(mol_obj)
+
+            # if we have a label problem, then we should exit
+            # with an error
+            if scf_obj.mol_exists() is False:
+                output.print_message('scf section, label='+
+                        str(scf_obj.label)+
+                        ' has no molecule section. Please check input')
+                sys.exit(1)
+        
+            scf_obj.run()
+
+            # initialize the MO integrals following the SCF run, but
+            # finalise previous integrals if they exist
+            if libs.lib_exists('bitci'):
+                libs.finalise_intpyscf()
+            libs.init_intpyscf(scf_obj.mol, scf_obj)
+
+            # Post-SCF Sections 
+            #-----------------------------------------------------
+            # run all the post-scf routines that map to the current
+            # scf object.
+
+            for postscf in postscf_objs:
+
+                # if labels match -- set the geometry
+                # to the molecule object
+                if postscf.label == scf_obj.label:
+                    postscf.set_scf(scf_obj)
+                    break
+
+                # if we didn't match labels, but there is a single
+                # molecule object, 
+                if postscf.scf_exists() is False and len(scf_objs)==1:
+                    postscf.set_scf(scf_obj)
+
+                # if we have a label problem, then we should exit
+                # with an error
+                if postscf.scf_exists() is False:
+                    output.print_message(postscf.name() +
+                            ' section, label=' + str(postscf.label) +
+                            ' has no scf section. Please check input')
+                    sys.exit(1)
+
+                postscf.run()
+
+        # State interaction Sections 
+        # ----------------------------------------------------
+
+        for si_obj in si_objs:
+
+            # first check if init/final_method is set. If not
+            # and there is a single postscf method, we can
+            # determine a sensible default
+            if (si_obj.init_method is None and si_obj.final_method 
+                    is None and len(postscf_objs) == 1):
+                si_obj.set_bra(postscf_objs[0])
+                si_obj.set_ket(postscf_objs[0])
+
+            # else, we use the label names to determine bra
+            # and ket states. If things don't match up, fail
+            # with an error message
             else:
-                # if there's only one method, set the default values
-                # of si.final_method and si.init_method to be the same
-                for method in method_grp:
-                    if method.label == si.final_method:
-                        final_method = method
-                    if method.label == si.init_method:
-                        init_method = method
+                for postscf in postscf_objs:
+                    if si_obj.init_method == postscf.label:
+                        si_obj.set_ket(postscf)
+                    if si_obj.final_method == postscf.label:
+                        si_obj.set_bra(postscf)
 
-            if final_method is not None and init_method is not None:
-                si.set_init_method(init_method)
-                si.set_final_method(final_method)
-                si.run()
+            if (si_obj.bra_exists() is False or 
+                si_obj.ket_exists() is False):
+                output.print_message(si_obj.name()+' section, label='+
+                        str(si_obj.label)+
+                        ' has no bra/ket defined. Please check input')
+                sys.exit(1)
+
+            si_obj.run()
 
 
-#######################################################
+        return
+
 

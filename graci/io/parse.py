@@ -30,20 +30,6 @@ def parse_input():
     # check the input
     check_input(run_list)
 
-    # create the pyscf molecule objects
-    for run_obj in run_list:
-        if run_obj.name() == 'molecule':
- 
-            # loop over geom objects and link a geometry
-            # to a molecule object via the label
-            for obj in run_list:
-
-                if obj.name() == 'geometry':
-
-                    # generate the pymol object
-                    if obj.label == run_obj.label:
-                        run_obj.set_pymol(obj)
-
     return run_list
 
 #
@@ -251,9 +237,13 @@ def parse_value(valstr):
 #
 def check_input(run_list):
     """Checks on the user-supplied input"""
-    
+   
+    # if any section label names are repeated, append a number to 
+    # ensure that each section label is unique
+    section_lbls = []
+
     for obj in run_list:
-        
+    
         # Make sure that nstates is an array - in the case of C1
         # symmetry this will be a single integer, but it needs
         # to be a numpy array for use later on
@@ -311,7 +301,20 @@ def check_input(run_list):
                     obj.final_states_sym = [obj.final_states_sym]
                 obj.final_states_sym = [obj.final_states_sym[i] - 1.1
                                for i in range(len(obj.final_states_sym))]
-            
+
+        # save section labels -- make sure all our unique
+        section_lbls.append(obj.label)
+
+    for obj_indx in range(len(section_lbls)):
+        # save section labels -- make sure all our unique
+        lbl_tst = run_list[obj_indx].label
+        indices = [index for index,lbl in enumerate(section_lbls) 
+                                                  if lbl == lbl_tst]
+        # if multiple identical sections -- rename
+        if len(indices) > 1:
+            for suffix in range(len(indices)):
+                run_list[indices[suffix]].label += str(suffix+1)
+
     return
     
 #

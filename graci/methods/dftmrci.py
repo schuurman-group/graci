@@ -97,15 +97,18 @@ class Dftmrci:
 
 # Required functions #############################################################
 
-    def set_mol(self, mol):
-        """set the mol object for the dftmrci class object"""
-        self.mol = mol
-        return
-
     def set_scf(self, scf):
         """set the scf object for the dftmrci class object"""
         self.scf = scf
+        self.mol = self.scf.mol
         return
+
+    def scf_exists(self):
+        """return true if scf object is not None"""
+        try:
+            return self.scf.name() is 'scf'
+        except:
+            return False
 
     def name(self):
         """ return the name of the class object as a string"""
@@ -119,10 +122,8 @@ class Dftmrci:
 
         timing.start('dftmrci.run')
 
-
-        # run the KS-DFT computation 
-        self.scf.set_mol(self.mol)
-        self.scf.run()
+        # write the output logfile header for this run
+        output.print_dftmrci_header(self.label)
 
         # initialize bitci
         libs.init_bitci(self)

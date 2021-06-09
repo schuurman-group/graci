@@ -19,7 +19,7 @@ class Moments:
         self.dipole_vec  = None
         self.quad_tensor = None
         self.second_momt = None
-        self.label       = 'default'
+        self.label       = 'moments'
 
     #
     def name(self):

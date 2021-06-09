@@ -23,7 +23,7 @@ class Molecule:
         self.use_df   = False
         self.use_rrdf = False
         self.rrdf_fac = 3
-        self.label    = 'default'
+        self.label    = 'molecule'
 
         # the following are determined based on user
         # input
