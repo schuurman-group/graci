@@ -1,6 +1,7 @@
 """
 The Molecule object and its associated functions.
 """
+import os as os
 import numpy as np
 
 atom_name  = ['X', 'H', 'D', 'T', 'He', 
@@ -22,17 +23,49 @@ class Geometry:
         # in params module
         self.xyz_file  = None
         self.units     = 'angstrom'
-        self.label     = 'geometry'
+        self.label     = 'Geometry'
 
         # the following are determined from a combination
         # of user input
         self.cartesian = None
-        self.asym     = None
+        self.asym      = None
         self.masses    = None
 
-    def name(self):
-        """return the name of the class type as a string"""
-        return 'geometry'
+    #
+    def read_xyz():
+        """read the xyz_file specified by 'xyz_file'"""
+
+        # parse contents of xyz file
+        try:
+            with open(self.xyz_file, 'r') as xyzfile:
+                xyz_gm = xyzfile.readlines()
+        except:
+            output.print_message('xyz_file: '
+                  +str(self.xyz_file)+' not found.')
+            sys.exit()
+
+        # use the number of atoms rather than number of lines in file
+        natm       = int(xyz_gm[0].strip())
+        atoms      = []
+        cartesian  = []
+
+        for i in range(2, natm+2):
+            line = xyz_gm[i]
+            try:
+                atm_indx = self.atom_name.index(line[0].upper())
+                atoms.append(self.atom_name[atm_indx])
+            except ValueError:
+                sys.exit('atom '+str(line[0])+' not found.')
+            try:
+                cartesian.append([float(line[i] * conv)
+                    for i in range(1,4)])
+            except:
+                sys.exit('Cannot interpret input as a geometry')
+
+        self.set_atoms(atoms)
+        self.set_geom(cartesian)
+
+        return
 
     #
     def set_geom(self, geom):

@@ -42,7 +42,7 @@ def parse_section(obj_name, input_file):
     # find the start of the section
     iline = 0
     while iline < nlines:
-        if '$'+str(obj_name) in input_file[iline]:
+        if '$'+str(obj_name).lower() in input_file[iline].lower():
             iline += 1
             
             # section exists, create class object
@@ -50,7 +50,7 @@ def parse_section(obj_name, input_file):
 
             # if this is a geometry section, initialize cart and atoms
             # arrays. This is a bit of a hack..
-            if obj_name == 'geometry':
+            if obj_name == 'Geometry':
                 cart = []
                 atom = []
 
@@ -63,7 +63,7 @@ def parse_section(obj_name, input_file):
 
                     # if this is geometry section and xyz file was 
                     # specified, let's load this now:
-                    if obj_name == 'geometry':
+                    if obj_name == 'Geometry':
                         set_geometry(obj, cart, atom)
 
                     section_objs.extend([obj])
@@ -84,7 +84,7 @@ def parse_section(obj_name, input_file):
                               +str(expected), flush=True)
 
                 # ...else, try to parse an a cartesian structure
-                elif obj_name == 'geometry' and \
+                elif obj_name == 'Geometry' and \
                         len(input_file[iline].strip()) > 0:
 
                     line = input_file[iline].split()
@@ -111,14 +111,6 @@ def set_geometry(gm_obj, cart, atm):
     """parse xyz file, return the list of atoms and cartesian
        coordinates as lists"""
 
-    atoms     = []
-    cartesian = []
-
-    #if gm_obj.units == 'angstrom':
-    #    conv = constants.ang2bohr
-    #else:
-    #    conv = 1.
-
     # if no xyz_file is specified, use the contents of of th cart 
     # and atm arrays. If those are empty, quit since no geometry
     # is found
@@ -129,37 +121,10 @@ def set_geometry(gm_obj, cart, atm):
 
     # if no xyz file specified, use contents of cart/atm arguments
     if gm_obj.xyz_file is None:
-        atoms     = atm
-        cartesian = cart
-
+        gm_obj.set_atoms(atm)
+        gm_obj.set_geom(cart)
     else:
-        # parse contents of xyz file
-        try:
-            with open(gm_obj.xyz_file, 'r') as xyzfile:
-                xyz_gm = xyzfile.readlines()
-        except:
-            output.print_message('xyz_file: '
-                  +str(gm_obj.xyz_file)+' not found.')
-            sys.exit()
-
-        # use the number of atoms rather than number of lines in file
-        natm = int(xyz_gm[0].strip())
-
-        for i in range(2, natm+2):
-            line = xyz_gm[i]
-            try:
-                atm_indx = geometry.atom_name.index(line[0].upper())
-                atoms.append(geometry.atom_name[atm_indx])
-            except ValueError:
-                sys.exit('atom '+str(line[0])+' not found.')
-            try:
-                cartesian.append([float(line[i] * conv) 
-                    for i in range(1,4)])
-            except:
-                sys.exit('Cannot interpret input as a geometry')
-
-    gm_obj.set_atoms(atoms)
-    gm_obj.set_geom(cartesian)
+        gm_obj.read_xyz()
 
     return
 
@@ -247,14 +212,14 @@ def check_input(run_list):
         # Make sure that nstates is an array - in the case of C1
         # symmetry this will be a single integer, but it needs
         # to be a numpy array for use later on
-        if 'nstates' in params.kwords[obj.name()].keys():
+        if 'nstates' in params.kwords[type(obj).__name__].keys():
             if isinstance(obj.nstates, int):
                 obj.nstates = np.array([obj.nstates], dtype=int)
 
         # Make sure that all the RAS entries are numpy arrays.
         ras_key = ['ras1','ras2','ras3']
         for key in ras_key:
-            if key in params.kwords[obj.name()].keys():
+            if key in params.kwords[type(obj).__name__].keys():
                 if isinstance(getattr(obj, key), int):
                     setattr(obj, key, 
                             np.array([getattr(obj, key)], dtype=int))
@@ -263,19 +228,19 @@ def check_input(run_list):
                             np.array(getattr(obj, key), dtype=int))
 
         # Make sure that the icvs entry is a numpy array
-        if 'icvs' in params.kwords[obj.name()].keys():
+        if 'icvs' in params.kwords[type(obj).__name__].keys():
             if isinstance(obj.icvs, int):
                 obj.icvs = np.array([obj.icvs], dtype=int)
 
         # If RR-DF is enabled, make sure that the DF flag is
         # set to True
-        if 'use_rrdf' in params.kwords[obj.name()].keys():
+        if 'use_rrdf' in params.kwords[type(obj).__name__].keys():
             if (obj.use_rrdf and not obj.use_df):
                 obj.use_df = True
      
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
-        if obj.name() == 'transition':
+        if type(obj).__name__ == 'Transition':
             if obj.init_states is not None:
                 if not isinstance(obj.init_states, (list, np.ndarray)):
                     obj.init_states = [obj.init_states]

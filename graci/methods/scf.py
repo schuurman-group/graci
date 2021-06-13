@@ -19,7 +19,7 @@ class Scf:
     def __init__(self):
         # user defined input paramaters
         self.xc        = 'hf'
-        self.label     = 'scf'
+        self.label     = 'Scf'
 
         # computed quantities
         self.mol          = None 
@@ -32,8 +32,7 @@ class Scf:
         self.nmo          = 0
         self.nao          = 0
         self.naux         = 0
-        self.rdm          = None
-        self.stsym        = None
+        self.rdm_ao       = None
         self.moint_1e     = None
         self.moint_2e_eri = None
 
@@ -47,13 +46,9 @@ class Scf:
     def mol_exists(self):
         """return True is self.mol is not None"""
         try:
-            return self.mol.name() is 'molecule'
+            return type(self.mol).__name__ is 'Molecule'
         except:
             return False
-
-    def name(self):
-        """ return the name of the class object as a string"""
-        return 'scf'
 
     def run(self):
         """compute the DFT energy and KS orbitals"""
@@ -103,7 +98,7 @@ class Scf:
             # saved upon completion
             mf.with_df._cderi_to_save = self.moint_2e_eri
         else:
-            if self.xc != 'hf':
+            if self.xc != 'hf' and hasattr(mf, 'with_df'):
                 mf.with_df = False    
 
         # run the dft computation
@@ -164,11 +159,10 @@ class Scf:
             self.naux      = int(mf.with_df.auxmol.nao_nr())
 
         # construct density matrix
-        rdm_mo = np.diag(self.orb_occ)
-        rdm_ao = np.zeros((self.nmo, self.nmo), dtype=float)
+        self.rdm_ao = np.zeros((self.nmo, self.nmo), dtype=float)
         for i in range(self.nmo):
-            rdm_ao += self.orb_occ[i]*np.outer(self.orbs[:,i], \
-                                               self.orbs[:,i])
+            self.rdm_ao += self.orb_occ[i]*np.outer(self.orbs[:,i], \
+                                                    self.orbs[:,i])
 
         # print the summary of the output to file
         output.print_scf_summary(self)
@@ -203,9 +197,9 @@ class Scf:
         """return the density matrix for state i"""
         
         if basis == 'mo':
-            return rdm_mo
+            return np.diag(self.orb_occ) 
         else:
-            return rdm_ao
+            return self.rdm_ao
 
     #
     def natural_orbs(self, basis='ao'):

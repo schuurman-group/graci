@@ -73,14 +73,16 @@ transition_kword = {'init_states'      : int,
                     'init_states_sym'  : float,
                     'final_states_sym' : float,
                     'all_final_states' : bool,
-                    'init_method'      : str,
-                    'final_method'     : str
+                    'init_label'       : str,
+                    'final_label'     : str
                    }
 
 # molecule section input keywords and data typess
 spinorbit_kword = {'bra_states' : int,
-                   'ket_states' : int
-                  }
+                   'ket_states' : int,
+                   'bra_label'  : str,
+                   'ket_label'  : str
+                   }
 
 #----------------------------------------------------
 
@@ -94,23 +96,25 @@ parameterize_kword = {'algorithm' : str,
 ######################################################################
 
 def name2obj(name):
-    if name == 'geometry':
+    if name == 'Geometry':
         return geometry.Geometry()
-    elif name == 'molecule':
+    elif name == 'Molecule':
         return molecule.Molecule()
-    elif name == 'parameterize':
+    elif name == 'Bitciwfn':
+        return bitciwfn.Bitciwfn()
+    elif name == 'Parameterize':
         return parameterize.Parameterize()
-    elif name == 'scf':
+    elif name == 'Scf':
         return scf.Scf()
-    elif name == 'dftcis':
+    elif name == 'Dftcis':
         return dftcis.Dftcis()
-    elif name == 'dftmrci':
+    elif name == 'Dftmrci':
         return dftmrci.Dftmrci()
-    elif name == 'moments':
+    elif name == 'Moments':
         return moments.Moments()
-    elif name == 'transition':
+    elif name == 'Transition':
         return transition.Transition()
-    elif name == 'spinorbit':
+    elif name == 'Spinorbit':
         return spinorbit.Spinorbit()
     else:
         print('obj: '+str(name)+' not recognized')
@@ -118,20 +122,20 @@ def name2obj(name):
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_objs = ['geometry', 'molecule', 'parameterize', 
-              'scf', 'dftmrci', 'dftmrcis', 
-              'transition', 'spinorbit']
-method_objs = ['dftmrci', 'dftmrcis']
-si_objs     = ['transition', 'spinorbit']
+valid_objs = ['Geometry', 'Molecule', 'Bitciwfn', 'Parameterize', 
+              'Scf', 'Dftmrci', 'Dftmrcis', 
+              'Transition', 'Spinorbit']
+method_objs = ['Scf', 'Dftmrci', 'Dftmrcis']
+si_objs     = ['Transition', 'Spinorbit']
 
 ##############################################
-kwords = {'geometry'     : geometry_kword,
-          'molecule'     : molecule_kword,
-          'parameterize' : parameterize_kword,
-          'scf'          : scf_kword,
-          'dftcis'       : dftcis_kword,
-          'dftmrci'      : dftmrci_kword,
-          'transition'   : transition_kword,
-          'spinorbit'    : spinorbit_kword
+kwords = {'Geometry'     : geometry_kword,
+          'Molecule'     : molecule_kword,
+          'Parameterize' : parameterize_kword,
+          'Scf'          : scf_kword,
+          'Dftcis'       : dftcis_kword,
+          'Dftmrci'      : dftmrci_kword,
+          'Transition'   : transition_kword,
+          'Spinorbit'    : spinorbit_kword
          }
 

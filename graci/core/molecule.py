@@ -23,7 +23,7 @@ class Molecule:
         self.use_df   = False
         self.use_rrdf = False
         self.rrdf_fac = 3
-        self.label    = 'molecule'
+        self.label    = 'Molecule'
 
         # the following are determined based on user
         # input
@@ -35,10 +35,6 @@ class Molecule:
         self.irreplbl = None
         self.enuc     = 0.
         self.mol_obj  = None
-
-    def name(self):
-        """ return the name of the class object as a string"""
-        return 'molecule'
 
     def set_pymol(self, gm_obj):
         """return a gto.Molecule object: 
@@ -116,4 +112,33 @@ class Molecule:
         self.charge = charge
         return
 
-    
+    #
+    def sph2cart(mos):
+        """Converts orbitals from spherical to cartesian AO basis. 
+        Assumes input orbitals are numpy array. If underlying basis 
+        is already in cartesians, return the orbitals unchanged"""
+
+        if self.mol_obj.cart:
+            return mos
+
+        nao_sph, nmo = mos.shape
+        l_cart, l_sph = basis.ang_mom_lst()
+
+        orb_trans = [[] for i in range(nmo)]
+        iao_sph   = 0
+        while(iao_sph < nao_sph):
+            lval = l_sph[iao_sph]
+            for imo in range(nmo):
+                cart_orb = [sum([mo_sph[iao_sph+
+                        s2c[lval][j][0][k],imo]*s2c[lval][j][1][k]
+                        for k in range(len(s2c[lval][j][0]))])
+                        for j in range(nfunc_cart[lval])]
+                orb_trans[imo].extend(cart_orb)
+            iao_sph += nfunc_sph[lval]
+
+        if iao_sph != basis.n_bf_sph:
+            raise ValueError('Error in sph2cart: {:d} '.format(iao_sph)+
+                         '!= {:d}'.format(basis.n_bf_sph))
+
+        return np.array(orb_trans).T
+  

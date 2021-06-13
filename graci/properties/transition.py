@@ -22,8 +22,8 @@ class Transition:
         self.init_states_sym  = None
         self.final_states_sym = None
         self.all_final_states = False
-        self.init_method      = None
-        self.final_method     = None
+        self.init_label      = None
+        self.final_label     = None
 
         # global variables
         # method object for the bra states
@@ -59,9 +59,9 @@ class Transition:
         """set the method used to compute the ket state(s)"""
 
         try:
-            self.init_method = ket_method.label
+            self.init_label = ket_method.label
         except:
-            self.init_method = None
+            self.init_label = None
             return
 
         self.ket_obj = ket_method
@@ -78,9 +78,9 @@ class Transition:
         """set the method used to compute the bra state(s)"""
 
         try:
-            self.final_method = bra_method.label
+            self.final_label = bra_method.label
         except:
-            self.final_method = None
+            self.final_label = None
             return
 
         self.bra_obj = bra_method
@@ -122,7 +122,8 @@ class Transition:
         self.build_trans_list()
 
         # grab the transition density matrices
-        tdm_list = mrci_1tdm.tdm(self)
+        tdm_list = mrci_1tdm.tdm(self.bra_obj, self.ket_obj, 
+                                 self.trans_list)
         self.build_tdms()
 
         # build the multipole moments  -- easier to just do this once

@@ -49,8 +49,9 @@ def read_cmdline():
         #out_file  = job_stub+'.out'
 
 
-    output.file_names['out_file']  = out_file
-    output.file_names['pyscf_out'] = pyscf_out
+    output.file_names['out_file']   = out_file
+    output.file_names['pyscf_out']  = pyscf_out
+    output.file_names['chkpt_file'] = job_stub+'.chkpt.h5'
     return
 
 if __name__ == '__main__':

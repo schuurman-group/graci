@@ -23,7 +23,7 @@ class Bitciwfn:
         # (one per irrep)
         self.eq_units    = None
         # class label
-        self.label       = 'bitciwfn'
+        self.label       = 'Bitciwfn'
 
     #
     def set_nconf(self, nconf):

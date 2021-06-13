@@ -9,17 +9,17 @@ class Moments:
     """Moment class for determing permanent and transition moments, right now
        it will only accept calculations for which the 'Molecule' and 'Scf' 
        objects are the same"""
-    def __init__(self, mol, scf, method):
+    def __init__(self, mol, natocc, natorb_ao):
         # user defined quantities
         self.mol         = mol
-        self.scf         = scf
-        self.method      = method
+        self.natocc      = natocc
+        self.natorb      = natorb_ao
         
         # these variables are set internally
         self.dipole_vec  = None
         self.quad_tensor = None
         self.second_momt = None
-        self.label       = 'moments'
+        self.label       = 'Moments'
 
     #
     def name(self):
@@ -38,55 +38,50 @@ class Moments:
         q2_ao = self.mol.pymol().intor('int1e_r2')
 
         # load the dipole vector and quadrupole arrays
-        nirr = len(self.method.nstates)
-        nmax = max(self.method.nstates)
-        mu_shape = (nirr, nmax, 3) 
-        q_shape  = (nirr, nmax, 3, 3)
-        q2_shape = (nirr, nmax)
+        (nst, nmo1, nmo2) = self.natorb.shape
+        self.dipole_vec  = np.zeros((nst, 3), dtype=float)
+        self.quad_tensor = np.zeros((nst, 3, 3), dtype=float)
+        self.second_momt = np.zeros((nst,), dtype=float)
 
-        self.nstates     = self.method.nstates
-        self.dipole_vec  = np.zeros(mu_shape, dtype=float)
-        self.quad_tensor = np.zeros(q_shape, dtype=float)
-        self.second_momt = np.zeros(q2_shape, dtype=float)
+        for ist in range(nst):
+            no_ao = self.natorb[ist, :, :]
+            occ   = self.natocc[ist, :]
+            rdm_ao = np.matmul(np.matmul(no_ao, np.diag(occ)), no_ao.T)
+            self.second_momt[ist]  = np.sum(rdm_ao*q2_ao)
+            self.dipole_vec[ist,:] = np.einsum('xij,ij->x',mu_ao, rdm_ao)
+            
+            qtens = np.einsum('xij,ij->x',q_ao.reshape((9,nmo1,nmo2)), 
+                                                                  rdm_ao)
+            self.quad_tensor[ist,:,:]  = qtens.reshape((3,3))
 
-        for irr in range(nirr):
-            for st in range(self.method.n_states(irr)):
-                occ, no_ao = self.method.natural_orbs(irr, st, basis='ao')
-                rdm_ao = np.matmul(np.matmul(no_ao, np.diag(occ)), no_ao.T)
-                self.second_momt[irr, st] = np.sum(rdm_ao*q2_ao)
-                for i in range(3):
-                    self.dipole_vec[irr,st,i]  = np.sum(rdm_ao*mu_ao[i])
-                    for j in range(3):
-                        ij = 3*i + j
-                        self.quad_tensor[irr,st,i,j] = np.sum(rdm_ao*q_ao[ij])
         return
 
     #
-    def dipole(self, irrep, state):
+    def dipole(self, ist):
         """return the dipole array"""
 
         if self.dipole_vec is None:
             print("Must call moments.run() to populate dipole vector")
             return None
 
-        return self.dipole_vec[irrep, state, :]
+        return self.dipole_vec[ist, :]
 
     #
-    def quadrupole(self, irrep, state):
+    def quadrupole(self, ist):
         """return the quadrupole tensor"""
 
         if self.quad_tensor is None:
             print("Must call moments.run() to populate quad tensor")
             return None
 
-        return self.quad_tensor[irrep, state, :, :]
+        return self.quad_tensor[ist, :, :]
 
     #
-    def second_moment(self, irrep, state):
+    def second_moment(self, ist):
         """return the second moment"""
 
         if self.second_momt is None:
             print("Must call moments.run() to determine second moment")
             return None
 
-        return self.second_momt[irrep, state]
+        return self.second_momt[ist]

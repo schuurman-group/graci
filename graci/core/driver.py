@@ -2,9 +2,11 @@
 module that determines what types of calculations run
 and in what order
 """
+import sys as sys
 import graci.core.params as params
 import graci.core.libs as libs
 import graci.io.output as output
+import graci.io.chkpt as chkpt
 
 class Driver:
     def __init__(self):
@@ -12,13 +14,9 @@ class Driver:
            will be needed to be passed to the driver at the moment"""
         self.label = 'default'
 
-    def name(self):
-        """ return the name of the class object as a string"""
-        return 'driver'
-
     def run(self, calc_array):
         """Determine how to run the calculation given the array
-           of method objects in the array argument"""
+           of postscf objects in the array argument"""
 
         # the first step is to match geometries to molecule sections
         gm_objs      = []
@@ -28,15 +26,15 @@ class Driver:
         si_objs      = []
         for obj in calc_array:
             # identify the geometries in the run_list
-            if obj.name() == 'geometry':
+            if type(obj).__name__ == 'Geometry':
                 gm_objs.append(obj)
-            elif obj.name() == 'molecule':
+            elif type(obj).__name__ == 'Molecule':
                 mol_objs.append(obj)
-            elif obj.name() == 'scf':
+            elif type(obj).__name__ == 'Scf':
                 scf_objs.append(obj)
-            elif obj.name() in params.method_objs:
+            elif type(obj).__name__ in params.method_objs:
                 postscf_objs.append(obj)
-            elif obj.name() in params.si_objs:
+            elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
 
         # Molecle sections 
@@ -64,6 +62,9 @@ class Driver:
                         str(mol_obj.label)+
                         ' has no geometry set. Please check input')
                 sys.exit(1)
+
+            chkpt.write_chkpt(output.file_names['chkpt_file'], 
+                              mol_obj)
 
         # print output file header
         output.print_header(calc_array)
@@ -95,6 +96,8 @@ class Driver:
                 sys.exit(1)
         
             scf_obj.run()
+            chkpt.write_chkpt(output.file_names['chkpt_file'],
+                              scf_obj)
 
             # initialize the MO integrals following the SCF run, but
             # finalise previous integrals if they exist
@@ -123,12 +126,15 @@ class Driver:
                 # if we have a label problem, then we should exit
                 # with an error
                 if postscf.scf_exists() is False:
-                    output.print_message(postscf.name() +
+                    output.print_message(type(postscf).__name__ +
                             ' section, label=' + str(postscf.label) +
                             ' has no scf section. Please check input')
                     sys.exit(1)
 
                 postscf.run()
+                chkpt.write_chkpt(output.file_names['chkpt_file'],
+                                  postscf)
+
 
         # State interaction Sections 
         # ----------------------------------------------------
@@ -138,7 +144,7 @@ class Driver:
             # first check if init/final_method is set. If not
             # and there is a single postscf method, we can
             # determine a sensible default
-            if (si_obj.init_method is None and si_obj.final_method 
+            if (si_obj.init_label is None and si_obj.final_label
                     is None and len(postscf_objs) == 1):
                 si_obj.set_bra(postscf_objs[0])
                 si_obj.set_ket(postscf_objs[0])
@@ -148,19 +154,21 @@ class Driver:
             # with an error message
             else:
                 for postscf in postscf_objs:
-                    if si_obj.init_method == postscf.label:
+                    if si_obj.init_label == postscf.label:
                         si_obj.set_ket(postscf)
-                    if si_obj.final_method == postscf.label:
+                    if si_obj.final_label == postscf.label:
                         si_obj.set_bra(postscf)
 
             if (si_obj.bra_exists() is False or 
                 si_obj.ket_exists() is False):
-                output.print_message(si_obj.name()+' section, label='+
-                        str(si_obj.label)+
+                output.print_message(type(si_obj).__name__+' section, '+
+                        'label='+str(si_obj.label)+
                         ' has no bra/ket defined. Please check input')
                 sys.exit(1)
 
             si_obj.run()
+            chkpt.write_chkpt(output.file_names['chkpt_file'],
+                              si_obj)
 
 
         return

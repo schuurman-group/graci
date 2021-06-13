@@ -9,21 +9,21 @@ import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
 
-def tdm(si_method):
+def tdm(bra, ket, trans_list):
     """Calculation of the MRCI 1-TDMs for all states"""
 
     # number of irreps
-    nirr_ket = si_method.ket_obj.n_irrep()
-    nirr_bra = si_method.bra_obj.n_irrep()
+    nirr_ket = ket.n_irrep()
+    nirr_bra = bra.n_irrep()
 
     # number of molecular orbitals
-    nmo = si_method.bra_obj.scf.nmo
+    nmo = bra.scf.nmo
 
     # bitci bra mrci wfn object
-    bra_wfn = si_method.bra_obj.bitci_mrci()
+    bra_wfn = bra.bitci_mrci()
    
     # bitci ket mrci wfn object
-    ket_wfn = si_method.ket_obj.bitci_mrci()
+    ket_wfn = ket.bitci_mrci()
 
     # 1-TDMs for all irreps
     rho = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
@@ -34,17 +34,17 @@ def tdm(si_method):
 
             # pairs of states for this bra irrep and ket irrep
             # bitsi uses Fortran indexing for these, hence the +1
-            npairs = len(si_method.trans_list[bra_irr][ket_irr])
+            npairs = len(trans_list[bra_irr][ket_irr])
             tdm_pairs = 1 + np.reshape(
-                np.array(si_method.trans_list[bra_irr][ket_irr], dtype=int),
+                np.array(trans_list[bra_irr][ket_irr], dtype=int),
                 (2*npairs), order='F')
             
             if npairs == 0:
                 continue
 
             # total number of bra and ket roots for this irrep
-            bra_tot = si_method.bra_obj.n_states(bra_irr)
-            ket_tot = si_method.ket_obj.n_states(ket_irr)
+            bra_tot = bra.n_states(bra_irr)
+            ket_tot = ket.n_states(ket_irr)
 
             # 1-TDM array
             rhoij = np.zeros((nmo*nmo*npairs), dtype=np.float64)

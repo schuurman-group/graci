@@ -28,6 +28,7 @@ def read_cmdline():
 
     extract_list = {'geometry'   : False, 
                     'energy'     : False, 
+                    'orbitals'   : None,
                     'transition' : False, 
                     'wfn'        : None}
 
@@ -39,6 +40,18 @@ def read_cmdline():
 
     if '-energy' in sys.argv:
         extract_list['energy'] = True
+
+    if '-orbs' in sys.argv:
+        if len(sys.argv) > sys.argv.index('-orbs')+1:
+            argval = sys.argv[sys.argv.index('-orbs')+1].strip()
+            # if a format is given, ensure it's a supported format
+            if argval in orb_supported:
+                orb_fmt = argval
+            else:
+                # if format not given, or supported, default is orbitals 
+                # in GAMESS format
+                orb_fmt = 'gamess'
+        extract_list['orbitals'] = orb_fmt
 
     if '-transition' in sys.argv:
         extract_list['transition'] = True
@@ -74,6 +87,9 @@ def parse_chkpt(chkpt_file, extract_list, cutoff):
 
     if extract_list['energy'] and 'energy' in chkpt.keys():
         print_ener(chkpt['ener'][0,:])
+
+    if extract_list['orbitals'] is not None:
+        print_orbitals(chkpt['orbitals'][:,:])
 
     if extract_list['transition'] and 'transition' in chkpt.keys():
         print_transition(chkpt['transition'])
@@ -115,6 +131,13 @@ def print_energy(energy):
 
     print(' '.join('{13.10f}'.format(energy[i]) 
                       for i in range(len(energy))))
+
+    return
+
+#
+def print_orbitals(orbs):
+    """Print orbitals to the specified format"""
+
 
     return
 

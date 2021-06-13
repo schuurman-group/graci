@@ -46,7 +46,8 @@ module chkpt
   contains
 
   !
-  !
+  ! query the dimensions (dims) of that dataset 'data_name'
+  ! in the chkpt file 'file_name'
   !
   subroutine chkpt_dset_dims(file_name, data_name, dims)
 
@@ -72,10 +73,8 @@ module chkpt
     ! initialize the fortran interface
     call h5open_f(hdferr)
 
-    ! if file exists, append, else create a new one
     inquire(file=file_name, exist=file_exists)
 
-    ! open and change geom dataset if file exists, else create
     if(file_exists) then
       call h5fopen_f(file_name, H5F_ACC_RDWR_F, file_id, hdferr)
 
@@ -105,7 +104,7 @@ module chkpt
   end subroutine chkpt_dset_dims
 
   !
-  !
+  ! write a geometry to checkpiont file
   !
   subroutine chkpt_write_geom(file_name, geom)
     character(len=60), intent(in)    :: file_name
@@ -130,7 +129,7 @@ module chkpt
   end subroutine chkpt_write_geom
 
   !
-  !
+  ! write an array of energies to file
   !
   subroutine chkpt_write_ener(file_name, energies)
 
@@ -156,7 +155,7 @@ module chkpt
   end subroutine chkpt_write_ener
 
   !
-  !
+  ! write a set of orbitals to file
   !
   subroutine chkpt_write_orbs(file_name, orbs)
 
@@ -182,7 +181,7 @@ module chkpt
   end subroutine chkpt_write_orbs
 
   !
-  !
+  ! write a set of transition moments (with labels) to file
   !
   subroutine chkpt_write_trans(file_name, st_lbls, trans)
 

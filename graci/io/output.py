@@ -13,6 +13,7 @@ import graci.core.params as params
 #
 file_names = {'input_file'   : '',
               'out_file'     : '',
+              'chkpt_file'   : '',
               'pyscf_out'    : ''}
 
 @contextmanager
@@ -58,7 +59,7 @@ def print_header(run_list):
 
         for calc_obj in run_list:
 
-            calc_name = calc_obj.name() 
+            calc_name = type(calc_obj).__name__
             outfile.write('\n $'+calc_name+' section\n ------------\n')
 
             # if geometry object, we need to pull out the 
@@ -84,7 +85,7 @@ def print_header(run_list):
         for calc_obj in run_list:
             # pull out the molecule objets and print symmetry
             # information for each molecule
-            if calc_obj.name() == 'molecule':
+            if type(calc_obj).__name__ == 'Molecule':
 
                 outfile.write(' $molecule '+str(calc_obj.label)+'\n')
                 outfile.write(' Full symmetry:     '+
@@ -147,8 +148,8 @@ def print_dftmrci_header(label):
         outfile.write('\n')
         outfile.write(' Section label: '+str(label))
         outfile.write('\n')
-        outfile.write('\n\n **************************************'+
-                           '**************************************')
+        outfile.write('\n **************************************'+
+                         '**************************************')
         outfile.flush()
 
     return
@@ -245,38 +246,38 @@ def print_nos_molden(fname, mol, orb, occ, sym=None):
     return
 
 #
-def print_moments_header(irr):
+def print_moments_header():
     """prints out header for moments section"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         ostr =    '\n\n\n --------------------------------------------'
-        ostr = ostr + '\n Dipole and Quadrupole Moments, Symmetry: '+\
-                str(irr)
+        ostr = ostr + '\n Dipole and Quadrupole Moments'
         ostr = ostr + '\n --------------------------------------------'
         outfile.write(ostr)
 
     return
 
 #
-def print_moments(irr, st, mu, q2):
+def print_moments(st, irr, mu, q2):
     """prints out the dipole moment vector"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n state: '+str(st+1))
+        st_str = str(st+1)+' ('+str(irr)+')'
+
+        outfile.write('\n state: '+st_str)
         outfile.write(  '\n ----------')
         ostr = '\n dipole vector[au]: {:10.6f} {:10.6f} {:10.6f} '+\
                 'total: {:10.6f} D'
         outfile.write(ostr.format(mu[0],mu[1],mu[2],
                         np.linalg.norm(mu)*constants.au2debye))
 
-        st_str = str(irr)+'('+str(st+1)+')'
         ostr = '\n <'+st_str+' | r^2 | '+st_str+'> (a.u.): {:10.6f}\n'
         outfile.write(ostr.format(q2))
 
     return
 
 #
-def print_quad(irr, st, qtensor):
+def print_quad(st, irr, qtensor):
     """prints out the quadrupole moment tensor"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
@@ -285,9 +286,6 @@ def print_quad(irr, st, qtensor):
         for i in range(3):
             outfile.write(ostr.format(qtensor[i,0],qtensor[i,1],qtensor[i,2]))
         
-        output.print_transition_table(k_sym_st, b_sym_st,
-                                        exc_ordr, td_ordr, osc_ordr)
-
     return
 
 #
