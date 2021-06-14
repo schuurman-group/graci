@@ -46,10 +46,8 @@ contains
 ! Rearrange the bra and ket configuration bit strings to correspond
 ! to the new internal-external partitioning
 !----------------------------------------------------------------------
-    
-    
-    STOP
-
+    errmsg='The ref space merging routine needs finishing...'
+    call error_control
     
     return
     
