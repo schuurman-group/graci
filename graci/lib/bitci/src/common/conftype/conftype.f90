@@ -91,7 +91,8 @@ module conftype
      integer(is), allocatable :: csfs1I1E(:)
 
      ! Complete sets of confs, SOPs and CSF offsets
-     ! Not filled in by default, but very useful for debugging
+     ! Not filled in by default, but very useful for ref space
+     ! merging
      integer(ib), allocatable :: confall(:,:,:)
      integer(ib), allocatable :: sopall(:,:,:)
      integer(is), allocatable :: csfsall(:)

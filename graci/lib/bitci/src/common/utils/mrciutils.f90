@@ -890,10 +890,11 @@ contains
   end function n_create_annihilate
   
 !######################################################################
-! canonical_ordering: puts an input array of configuration bit strings
-!                     into canonical MO order
+! reorder_confs: puts an input array of configuration bit strings
+!                into a new MO ordering corresponding to the mapping
+!                array imap
 !######################################################################
-  subroutine canonical_ordering(m2c,conf,nconf)
+  subroutine reorder_confs(imap,conf,nconf)
 
     use constants
     use bitglobal
@@ -901,7 +902,7 @@ contains
     implicit none
 
     ! MO mapping array
-    integer(is), intent(in)    :: m2c(nmo)
+    integer(is), intent(in)    :: imap(nmo)
 
     ! Configuration bit strings
     integer(is), intent(in)    :: nconf
@@ -937,7 +938,7 @@ contains
           do n=1,2
              
              ! New MO index
-             imo1=m2c(imo)
+             imo1=imap(imo)
              
              ! New block index
              k1=(imo1-1)/64+1
@@ -960,7 +961,7 @@ contains
        
     return
     
-  end subroutine canonical_ordering
+  end subroutine reorder_confs
 
 !######################################################################
 ! get_internal_external_mos: Constructs the lists of internal and
