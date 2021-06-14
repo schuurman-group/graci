@@ -811,12 +811,15 @@ contains
 !----------------------------------------------------------------------
 ! Allocation and initialisation
 !----------------------------------------------------------------------
+    if (allocated(cfg%confall)) deallocate(cfg%confall)
     allocate(cfg%confall(n_int,2,cfg%confdim))
     cfg%confall=0_ib
 
+    if (allocated(cfg%sopall)) deallocate(cfg%sopall)
     allocate(cfg%sopall(n_int,2,cfg%confdim))
     cfg%sopall=0_ib
 
+    if (allocated(cfg%csfsall)) deallocate(cfg%csfsall)
     allocate(cfg%csfsall(cfg%confdim+1))
     cfg%csfsall=0
     

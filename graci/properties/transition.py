@@ -22,8 +22,8 @@ class Transition:
         self.init_states_sym  = None
         self.final_states_sym = None
         self.all_final_states = False
-        self.init_label      = None
-        self.final_label     = None
+        self.init_label       = None
+        self.final_label      = None
 
         # global variables
         # method object for the bra states
