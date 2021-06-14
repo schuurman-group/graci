@@ -184,7 +184,8 @@ class Transition:
            TDMs into a more usable format"""
 
         # grab the tdms
-        tdm_list = mrci_1tdm.tdm(self)
+        tdm_list = mrci_1tdm.tdm(self.bra_obj, self.ket_obj, 
+                                                     self.trans_list)
 
         # make the tdm list
         nbra = len(self.bra_list)
@@ -194,9 +195,9 @@ class Transition:
         self.tdms = np.zeros((nmo, nmo, nbra, nket), dtype=float)
 
         for ik in range(nket):
-            [kirr,kst] = self.ket_obj.state_n(self.ket_list[ik])
+            [kirr,kst] = self.ket_obj.state_sym(self.ket_list[ik])
             for ib in range(nbra):
-                [birr,bst] = self.bra_obj.state_n(self.bra_list[ib])
+                [birr,bst] = self.bra_obj.state_sym(self.bra_list[ib])
                 indx       = self.trans_index(birr,kirr,bst,kst)
                 self.tdms[:,:,ib,ik] = tdm_list[birr][kirr][:,:,indx]
 
@@ -280,7 +281,7 @@ class Transition:
                     state_list.append(istate)
 
         self.ket_list = sorted(list(set(state_list)))
-        self.ket_sym  = [self.ket_obj.state_n(self.ket_list[i])[0] 
+        self.ket_sym  = [self.ket_obj.state_sym(self.ket_list[i])[0] 
                                     for i in range(len(self.ket_list))]
 
         if len(self.ket_list) == 0:
@@ -313,7 +314,7 @@ class Transition:
                     state_list.append(fstate)
 
         self.bra_list = sorted(list(set(state_list)))
-        self.bra_sym  = [self.bra_obj.state_n(self.bra_list[i])[0]
+        self.bra_sym  = [self.bra_obj.state_sym(self.bra_list[i])[0]
                                     for i in range(len(self.bra_list))]
 
         # create the pair list -- we build the list this way 
@@ -328,11 +329,11 @@ class Transition:
                                for irr_ket in range(nirr_ket)]
 
         for k_ind in range(len(self.ket_list)):
-            kst  = self.ket_obj.state_n(self.ket_list[k_ind])[1]
+            kst  = self.ket_obj.state_sym(self.ket_list[k_ind])[1]
             ksym = self.ket_sym[k_ind]
 
             for b_ind in range(len(self.bra_list)):
-                bst  = self.bra_obj.state_n(self.bra_list[b_ind])[1]
+                bst  = self.bra_obj.state_sym(self.bra_list[b_ind])[1]
                 bsym = self.bra_sym[b_ind]
 
                 self.trans_list[bsym][ksym].append([bst, kst])
@@ -496,8 +497,8 @@ class Transition:
             for ik in range(nket):
 
                 # set up state and energy info
-                b_ener = self.bra_obj.energy_n(self.bra_list[ib])
-                k_ener = self.ket_obj.energy_n(self.ket_list[ik])
+                b_ener = self.bra_obj.energy(self.bra_list[ib])
+                k_ener = self.ket_obj.energy(self.ket_list[ik])
                 alpha  = constants.fine_str
                 de     = b_ener - k_ener
                 de2    = de**2
@@ -571,8 +572,8 @@ class Transition:
             for ik in range(nket):
 
                 # set up state and energy info
-                b_ener = self.bra_obj.energy_n(self.bra_list[ib])
-                k_ener = self.ket_obj.energy_n(self.ket_list[ik])
+                b_ener = self.bra_obj.energy(self.bra_list[ib])
+                k_ener = self.ket_obj.energy(self.ket_list[ik])
                 alpha  = constants.fine_str
                 de     = b_ener - k_ener
                 de2    = de**2
@@ -648,14 +649,9 @@ class Transition:
         for ik in range(nket):
             for ib in range(nbra):
 
-                [birr, bst] = self.bra_obj.state_n(
-                                                      self.bra_list[ib])
-                [kirr, kst] = self.ket_obj.state_n(
-                                                      self.ket_list[ik])
-              
                 tdm = self.tdm1(ib, ik)
-                rdm_bra = self.bra_obj.rdm1(birr, bst)
-                rdm_ket = self.ket_obj.rdm1(kirr, kst)
+                rdm_bra = self.bra_obj.rdm1(self.bra_list[ib])
+                rdm_ket = self.ket_obj.rdm1(self.ket_list[ik])
 
                 # first perform SVD of 1TDMs to get hole and
                 # particle orbitals and weights and convert
@@ -801,8 +797,8 @@ class Transition:
             final_st  = self.bra_list
             final_sym = [b_irrlbl[self.bra_sym[ib]] 
                          for ib in range(nbra)]
-            exc_ener  = [self.bra_obj.energy_n(self.bra_list[i]) - 
-                        self.ket_obj.energy_n(self.ket_list[ik]) 
+            exc_ener  = [self.bra_obj.energy(self.bra_list[i]) - 
+                        self.ket_obj.energy(self.ket_list[ik]) 
                          for i in range(nbra)]
 
             # print a 'transition table' for each initial state

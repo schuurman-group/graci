@@ -49,11 +49,13 @@ def write_chkpt(file_name, graci_obj):
 
         # if we're here, need to create a new dataset
         try:
-            obj_grp.create_dataset(name, data=dset, dtype=dset.dtype)
+            obj_grp.create_dataset(name, data=dset, dtype=dset.dtype, 
+                                                   compression="gzip")
             # if non-native HDf5 type, just convert to a string
         except TypeError:
             dset_str = str(dset)
-            obj_grp.create_dataset(name, data=dset_str)
+            obj_grp.create_dataset(name, data=dset_str, 
+                                                   compression="gzip")
 
     # next write the attributes
     for name, attr in attrs.items():
