@@ -1029,7 +1029,7 @@ contains
   end subroutine concatenate_arrays
     
 !######################################################################
-! finalise: Deallocates all arrays
+! finalise: Deallocates all arrays and zeros all scalar variables
 !######################################################################
   subroutine finalise(cfg)
 
@@ -1039,37 +1039,62 @@ contains
 
     class(mrcfg), intent(inout) :: cfg
 
-    if (allocated(cfg%conf0h)) deallocate(cfg%conf0h)  
-    if (allocated(cfg%conf1h)) deallocate(cfg%conf1h)  
-    if (allocated(cfg%conf2h)) deallocate(cfg%conf2h)  
-    if (allocated(cfg%a1E)) deallocate(cfg%a1E)     
-    if (allocated(cfg%off1E)) deallocate(cfg%off1E)   
-    if (allocated(cfg%a2E)) deallocate(cfg%a2E)     
-    if (allocated(cfg%off2E)) deallocate(cfg%off2E)   
-    if (allocated(cfg%a1I)) deallocate(cfg%a1I)     
-    if (allocated(cfg%off1I)) deallocate(cfg%off1I)   
-    if (allocated(cfg%a2I)) deallocate(cfg%a2I)     
-    if (allocated(cfg%off2I)) deallocate(cfg%off2I)   
-    if (allocated(cfg%a1I1E)) deallocate(cfg%a1I1E)   
-    if (allocated(cfg%off1I1E)) deallocate(cfg%off1I1E) 
-    if (allocated(cfg%m2c)) deallocate(cfg%m2c)     
-    if (allocated(cfg%c2m)) deallocate(cfg%c2m)     
-    if (allocated(cfg%csfs0h)) deallocate(cfg%csfs0h)  
-    if (allocated(cfg%csfs1I)) deallocate(cfg%csfs1I)  
-    if (allocated(cfg%csfs2I)) deallocate(cfg%csfs2I)  
-    if (allocated(cfg%csfs1E)) deallocate(cfg%csfs1E)  
-    if (allocated(cfg%csfs2E)) deallocate(cfg%csfs2E)  
+    !
+    ! Zero all scalar variables
+    !
+    cfg%irrep=0
+    cfg%n_int_I=0
+    cfg%nmoI=0
+    cfg%nmoE=0
+    cfg%confdim=0
+    cfg%nR=0
+    cfg%n1h=0
+    cfg%n2h=0
+    cfg%n0h=0
+    cfg%n1I=0
+    cfg%n2I=0
+    cfg%n1E=0
+    cfg%n2E=0
+    cfg%n1I1E=0
+
+    !
+    ! Deallocate all arrays
+    !
+    if (allocated(cfg%confR)) deallocate(cfg%confR)
+    if (allocated(cfg%off1h)) deallocate(cfg%off1h)
+    if (allocated(cfg%off2h)) deallocate(cfg%off2h)
+    if (allocated(cfg%conf0h)) deallocate(cfg%conf0h)
+    if (allocated(cfg%conf1h)) deallocate(cfg%conf1h)
+    if (allocated(cfg%conf2h)) deallocate(cfg%conf2h)
+    if (allocated(cfg%a1E)) deallocate(cfg%a1E)
+    if (allocated(cfg%off1E)) deallocate(cfg%off1E)
+    if (allocated(cfg%a2E)) deallocate(cfg%a2E)
+    if (allocated(cfg%off2E)) deallocate(cfg%off2E)
+    if (allocated(cfg%a1I)) deallocate(cfg%a1I)
+    if (allocated(cfg%off1I)) deallocate(cfg%off1I)
+    if (allocated(cfg%a2I)) deallocate(cfg%a2I)
+    if (allocated(cfg%off2I)) deallocate(cfg%off2I)
+    if (allocated(cfg%a1I1E)) deallocate(cfg%a1I1E)
+    if (allocated(cfg%off1I1E)) deallocate(cfg%off1I1E)
+    if (allocated(cfg%m2c)) deallocate(cfg%m2c)
+    if (allocated(cfg%c2m)) deallocate(cfg%c2m)
+    if (allocated(cfg%csfs0h)) deallocate(cfg%csfs0h)
+    if (allocated(cfg%csfs1I)) deallocate(cfg%csfs1I)
+    if (allocated(cfg%csfs2I)) deallocate(cfg%csfs2I)
+    if (allocated(cfg%csfs1E)) deallocate(cfg%csfs1E)
+    if (allocated(cfg%csfs2E)) deallocate(cfg%csfs2E)
     if (allocated(cfg%csfs1I1E)) deallocate(cfg%csfs1I1E)
-    if (allocated(cfg%sop0h)) deallocate(cfg%sop0h)   
-    if (allocated(cfg%sop1I)) deallocate(cfg%sop1I)   
-    if (allocated(cfg%sop2I)) deallocate(cfg%sop2I)   
-    if (allocated(cfg%sop1E)) deallocate(cfg%sop1E)   
-    if (allocated(cfg%sop2E)) deallocate(cfg%sop2E)   
-    if (allocated(cfg%sop1I1E)) deallocate(cfg%sop1I1E) 
-    if (allocated(cfg%conf1I)) deallocate(cfg%conf1I)  
-    if (allocated(cfg%conf2I)) deallocate(cfg%conf2I)  
-    if (allocated(cfg%conf1E)) deallocate(cfg%conf1E)  
-    if (allocated(cfg%conf2E)) deallocate(cfg%conf2E)  
+    if (allocated(cfg%sopR)) deallocate(cfg%sopR)
+    if (allocated(cfg%sop0h)) deallocate(cfg%sop0h)
+    if (allocated(cfg%sop1I)) deallocate(cfg%sop1I)
+    if (allocated(cfg%sop2I)) deallocate(cfg%sop2I)
+    if (allocated(cfg%sop1E)) deallocate(cfg%sop1E)
+    if (allocated(cfg%sop2E)) deallocate(cfg%sop2E)
+    if (allocated(cfg%sop1I1E)) deallocate(cfg%sop1I1E)
+    if (allocated(cfg%conf1I)) deallocate(cfg%conf1I)
+    if (allocated(cfg%conf2I)) deallocate(cfg%conf2I)
+    if (allocated(cfg%conf1E)) deallocate(cfg%conf1E)
+    if (allocated(cfg%conf2E)) deallocate(cfg%conf2E)
     if (allocated(cfg%conf1I1E)) deallocate(cfg%conf1I1E)
     if (allocated(cfg%confall)) deallocate(cfg%confall)
     if (allocated(cfg%sopall)) deallocate(cfg%sopall)
