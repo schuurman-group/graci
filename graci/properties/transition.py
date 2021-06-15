@@ -101,8 +101,8 @@ class Transition:
 
         timing.start('transition.run')
 
-        mol_bra = self.bra_obj.mol
-        mol_ket = self.ket_obj.mol
+        mol_bra = self.bra_obj.scf.mol
+        mol_ket = self.ket_obj.scf.mol
 
         scf_bra = self.bra_obj.scf
         scf_ket = self.ket_obj.scf
@@ -641,7 +641,7 @@ class Transition:
         nbra = len(self.bra_list)
         nket = len(self.ket_list)
         nmo  = self.bra_obj.scf.nmo
-        nao  = self.bra_obj.mol.nao
+        nao  = self.bra_obj.scf.mol.nao
         mos  = self.bra_obj.scf.orbs
 
         nto    = np.zeros((nao, nmo, nbra, nket), dtype=float)
@@ -789,8 +789,8 @@ class Transition:
         nbra = len(self.bra_list)
         nket = len(self.ket_list)
 
-        k_irrlbl = self.ket_obj.mol.irreplbl
-        b_irrlbl = self.bra_obj.mol.irreplbl
+        k_irrlbl = self.ket_obj.scf.mol.irreplbl
+        b_irrlbl = self.bra_obj.scf.mol.irreplbl
 
         # print a 'transition table' for each initial state
         for ik in range(nket):
@@ -826,8 +826,8 @@ class Transition:
         if bra not in self.bra_list or ket not in self.ket_list:
             return False
 
-        k_irrlbl = self.ket_obj.mol.irreplbl
-        b_irrlbl = self.bra_obj.mol.irreplbl
+        k_irrlbl = self.ket_obj.scf.mol.irreplbl
+        b_irrlbl = self.bra_obj.scf.mol.irreplbl
 
         b_ind = self.bra_list.index(bra)
         b_sym = b_irrlbl[self.bra_sym[b_ind]]
@@ -846,7 +846,7 @@ class Transition:
             ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
             output.print_nos_molden(
                 'nto'+str_suffix,
-                 self.bra_obj.mol,
+                 self.bra_obj.scf.mol,
                  self.nos['nto'][:,:ncols, b_ind, k_ind],
                  wts[:ncols])
 
@@ -857,7 +857,7 @@ class Transition:
             ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
             output.print_nos_molden(
                 'ndo'+str_suffix,
-                self.bra_obj.mol,
+                self.bra_obj.scf.mol,
                 self.nos['ndo'][:,:ncols, b_ind, k_ind],
                 wts[:ncols])
 
