@@ -129,8 +129,6 @@ contains
 ! (4) Ket: 1-hole configurations -> 1I and 1E configurations
 !     Bra: 1-hole configurations -> 1I and 1E configurations
 !----------------------------------------------------------------------
-    ! 1I - 1I OK
-
     call save_hij_1h_1h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
 

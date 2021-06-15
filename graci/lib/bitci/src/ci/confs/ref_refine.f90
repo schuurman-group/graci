@@ -187,7 +187,7 @@ contains
     m2c_old=cfg(0)%m2c
 
     ! Put the configurations into canonical ordering
-    call canonical_ordering(m2c_old,dconf,ndconf_tot)
+    call reorder_confs(m2c_old,dconf,ndconf_tot)
     
 !----------------------------------------------------------------------
 ! Update the internal-external MO spaces
