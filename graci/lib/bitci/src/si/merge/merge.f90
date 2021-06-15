@@ -330,9 +330,18 @@ contains
          n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K,iKclass)
 
 !----------------------------------------------------------------------
+! Save some memory by deallocating the concatenated configuration
+! arrays now that we are done with them
+!----------------------------------------------------------------------
+    deallocate(cfgB%confall, cfgB%sopall, cfgB%csfsall)
+    deallocate(cfgK%confall, cfgK%sopall, cfgK%csfsall)
+    
+!----------------------------------------------------------------------
 ! Fill in the new configuration and offset arrays
 !----------------------------------------------------------------------
-    
+    ! Bra
+    call refill_cfg(cfgB,cfgB%confdim,n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B,&
+         iBclass,nmoI,nmoE,m2c,c2m)
     
     return
     
@@ -581,6 +590,450 @@ contains
     return
     
   end function nexternal
+  
+!######################################################################
+! refill_cfg: refills a given MRCI configuration derived type with
+!             the confs, SOPs, offsets, and creation operator indices
+!             corresponding to the new, merged MO indexing
+!######################################################################
+  subroutine refill_cfg(cfg,confdim,n1I,n2I,n1E,n2E,n1I1E,iclass,&
+       nmoI,nmoE,m2c,c2m)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    use iomod
+    
+    implicit none
+
+    ! MRCI configuration derived types
+    type(mrcfg), intent(inout) :: cfg
+    
+    ! Dimensions
+    integer(is), intent(in)    :: confdim,n1I,n2I,n1E,n2E,n1I1E
+
+    ! Configuration class integer labels
+    integer(is), intent(in)    :: iclass(confdim)
+
+    ! Merged internal & external MO information
+    integer(is), intent(in)    :: nmoI,nmoE
+    integer(is), intent(in)    :: m2c(nmo),c2m(nmo)
+    
+    ! I/O
+    integer(is)                :: iscratch
+    character(len=255)         :: filename
+
+    ! Working arrays
+    integer(ib), allocatable   :: conf(:,:,:)
+    integer(is), allocatable   :: ngen(:)
+    integer(is), allocatable   :: offset(:)
+    integer(is), allocatable   :: a1(:),a2(:,:)
+    
+    ! Everything else
+    integer(is)                :: n_int_I
+    integer(is)                :: n,ioff,counter,k,i
+    
+!----------------------------------------------------------------------
+! Open the new configuration scratch file
+!----------------------------------------------------------------------
+    call scratch_name('mrciconf.merged',filename)
+    call freeunit(iscratch)
+    open(iscratch,file=filename,form='unformatted',status='unknown')
+    
+!----------------------------------------------------------------------
+! Subspace dimensions
+!----------------------------------------------------------------------
+    n_int_I=(nmoI-1)/64+1
+
+    write(iscratch) n_int_I
+    write(iscratch) nmoI
+    write(iscratch) nmoE
+    write(iscratch) confdim
+    write(iscratch) cfg%nR
+    write(iscratch) cfg%n1h
+    write(iscratch) cfg%n2h
+    write(iscratch) cfg%n0h
+    write(iscratch) n1I
+    write(iscratch) n2I
+    write(iscratch) n1E
+    write(iscratch) n2E
+    write(iscratch) n1I1E
+
+!----------------------------------------------------------------------
+! Ref confs across all irreps
+!----------------------------------------------------------------------
+    ! Fill in the work array
+    allocate(conf(n_int,2,cfg%nR))
+    conf=0_ib
+    conf(1:cfg%n_int_I,:,:)=cfg%confR(:,:,:)
+
+    ! Re-order to correspond to the new internal-external MO
+    ! partitioning
+    call reorder_confs(cfg%m2c,conf,cfg%nR)
+    call reorder_confs(c2m,conf,cfg%nR)
+
+    ! Write to disk
+    write(iscratch) conf(1:n_int_I,:,:)
+
+    ! Deallocate the work array
+    deallocate(conf)
+
+!----------------------------------------------------------------------
+! 1-hole confs
+!----------------------------------------------------------------------
+    ! Fill in the work array
+    allocate(conf(n_int,2,cfg%n1h))
+    conf=0_ib
+    conf(1:cfg%n_int_I,:,:)=cfg%conf1h(:,:,:)
+    
+    ! Re-order to correspond to the new internal-external MO
+    ! partitioning
+    call reorder_confs(cfg%m2c,conf,cfg%n1h)
+    call reorder_confs(c2m,conf,cfg%n1h)
+    
+    ! Write to disk
+    write(iscratch) conf(1:n_int_I,:,:)
+
+    ! Deallocate the work array
+    deallocate(conf)
+
+!----------------------------------------------------------------------
+! 1-hole offsets
+!----------------------------------------------------------------------
+    write(iscratch) cfg%off1h
+    
+!----------------------------------------------------------------------
+! 2-hole confs
+!----------------------------------------------------------------------
+    ! Fill in the work array
+    allocate(conf(n_int,2,cfg%n2h))
+    conf=0_ib
+    conf(1:cfg%n_int_I,:,:)=cfg%conf2h(:,:,:)
+
+    ! Re-order to correspond to the new internal-external MO
+    ! partitioning
+    call reorder_confs(cfg%m2c,conf,cfg%n2h)
+    call reorder_confs(c2m,conf,cfg%n2h)
+
+    ! Write to disk
+    write(iscratch) conf(1:n_int_I,:,:)
+
+    ! Deallocate the work array
+    deallocate(conf)
+
+!----------------------------------------------------------------------
+! 2-hole offsets
+!----------------------------------------------------------------------
+    write(iscratch) cfg%off2h
+
+!----------------------------------------------------------------------
+! Ref confs for this irrep
+!----------------------------------------------------------------------
+    ! Fill in the work array    
+    allocate(conf(n_int,2,cfg%n0h))
+    conf=0_ib
+    conf(1:cfg%n_int_I,:,:)=cfg%conf0h(:,:,:)
+    
+    ! Re-order to correspond to the new internal-external MO
+    ! partitioning
+    call reorder_confs(cfg%m2c,conf,cfg%n0h)
+    call reorder_confs(c2m,conf,cfg%n0h)
+
+    ! Write to disk
+    write(iscratch) conf(1:n_int_I,:,:)
+
+    ! Deallocate the work array
+    deallocate(conf)
+    
+!----------------------------------------------------------------------
+! 1I confs: these can arise due to old 1I and 1E confs
+!----------------------------------------------------------------------
+    if (n1I > 0) then
+    
+       ! Allocate work arrays
+       allocate(a1(n1I), ngen(cfg%n1h), offset(cfg%n1h+1))
+       a1=0; offset=0
+    
+       ! New 1I conf counter
+       k=0
+
+       !
+       ! New 1I confs arising from old 1I confs
+       !
+       if (cfg%n1I > 0) then
+          ! Initialise the conf counter
+          counter=cfg%n0h
+
+          ! Loop over 1-hole confs    
+          do n=1,cfg%n1h
+          
+             ! Loop over old 1I confs generated by the 1-hole conf
+             do ioff=cfg%off1I(n),cfg%off1I(n+1)-1
+             
+                ! Increment the conf counter
+                counter=counter+1
+                
+                ! Are we at a new 1I conf?
+                if (iclass(counter) == 1) then
+
+                   ! Increment the new 1I conf counter
+                   k=k+1
+
+                   ! No. new 1I confs generated by the 1-hole conf
+                   ngen(n)=ngen(n)+1
+                
+                   ! Creation operator index
+                   a1(k)=cfg%a1I(ioff)
+                   
+                endif
+          
+             enddo
+          
+          enddo
+
+       endif
+          
+       !
+       ! New 1I confs arising from old 1E confs
+       !
+       if (cfg%n1E > 0) then
+          ! Initialise the conf counter
+          counter=cfg%n0h+cfg%n1I+cfg%n2I
+          
+          ! Loop over 1-hole confs
+          do n=1,cfg%n1h
+             
+             ! Loop over old 1E confs generated by the 1-hole conf
+             do ioff=cfg%off1E(n),cfg%off1E(n+1)-1
+             
+                ! Increment the conf counter
+                counter=counter+1
+             
+                ! Are we at a new 1I conf?
+                if (iclass(counter) == 1) then
+                   
+                   ! Increment the new 1I conf counter
+                   k=k+1
+                
+                   ! No. new 1I confs generated by the 1-hole conf
+                   ngen(n)=ngen(n)+1
+                
+                   ! Creation operator index
+                   a1(k)=cfg%a1E(ioff)
+                   
+                endif
+             
+             enddo
+       
+          enddo
+
+       endif
+          
+       ! Convert the creation operator indices to the new MO ordering
+       do k=1,n1I
+          i=cfg%m2c(a1(k))
+          a1(k)=c2m(i)
+       enddo
+    
+       ! Fill in the new 1I offset array
+       offset(1)=1
+       do n=2,cfg%n1h+1
+          offset(n)=offset(n-1)+ngen(n-1)
+       enddo
+    
+       ! Write the creation operator indices and conf offsets to disk
+       write(iscratch) a1
+       write(iscratch) offset
+
+       ! Deallocate work arrays
+       deallocate(a1, ngen, offset)
+       
+    endif
+       
+!----------------------------------------------------------------------
+! 2I confs: these can arise due to old 2I, 2E and 1I1E confs
+!----------------------------------------------------------------------
+    if (n2I > 0) then
+
+       ! Allocate work arrays
+       allocate(a2(2,n2I), ngen(cfg%n2h), offset(cfg%n2h+1))
+       a2=0; offset=0
+
+       ! New 2I conf counter
+       k=0
+
+       !
+       ! New 2I confs arising from old 2I confs
+       !
+       if (cfg%n2I > 0) then
+          ! Initialise the conf counter
+          counter=cfg%n0h+cfg%n1I
+       
+          ! Loop over 2-hole confs    
+          do n=1,cfg%n2h
+          
+             ! Loop over old 2I confs generated by the 2-hole conf
+             do ioff=cfg%off2I(n),cfg%off2I(n+1)-1
+                
+                ! Increment the conf counter
+                counter=counter+1
+
+                ! Are we at a new 2I conf?
+                if (iclass(counter) == 2) then
+                   
+                   ! Increment the new 2I conf counter
+                   k=k+1
+
+                   ! No. new 2I confs generated by the 2-hole conf
+                   ngen(n)=ngen(n)+1
+                
+                   ! Creation operator indices
+                   a2(:,k)=cfg%a2I(:,ioff)
+                   
+                endif
+             
+             enddo
+
+          enddo
+
+       endif
+          
+       !
+       ! New 2I confs arising from old 2E confs
+       !
+       if (cfg%n2E > 0) then
+          ! Initialise the conf counter
+          counter=cfg%n0h+cfg%n1I+cfg%n2I+cfg%n1E
+
+          ! Loop over 2-hole confs    
+          do n=1,cfg%n2h
+             
+             ! Loop over old 2E confs generated by the 2-hole conf
+             do ioff=cfg%off2E(n),cfg%off2E(n+1)-1
+                
+                ! Increment the conf counter
+                counter=counter+1
+             
+                ! Are we at a new 2I conf?
+                if (iclass(counter) == 2) then
+             
+                   ! Increment the new 2I conf counter
+                   k=k+1
+             
+                   ! No. new 2I confs generated by the 2-hole conf
+                   ngen(n)=ngen(n)+1
+                   
+                   ! Creation operator indices
+                   a2(:,k)=cfg%a2E(:,ioff)
+                   
+                endif
+                
+             enddo
+             
+          enddo
+
+       endif
+          
+       !
+       ! New 2I confs arising from old 1I1E confs
+       !
+       if (cfg%n1I1E > 0) then
+          ! Initialise the conf counter
+          counter=cfg%n0h+cfg%n1I+cfg%n2I+cfg%n1E+cfg%n2E
+       
+          ! Loop over 2-hole confs    
+          do n=1,cfg%n2h
+          
+             ! Loop over old 1I1E confs generated by the 2-hole conf
+             do ioff=cfg%off1I1E(n),cfg%off1I1E(n+1)-1
+             
+                ! Increment the conf counter
+                counter=counter+1
+
+                ! Are we at a new 2I conf?
+                if (iclass(counter) == 2) then
+
+                   ! Increment the new 2I conf counter
+                   k=k+1
+
+                   ! No. new 2I confs generated by the 2-hole conf
+                   ngen(n)=ngen(n)+1
+                
+                   ! Creation operator indices
+                   a2(:,k)=cfg%a1I1E(:,ioff)
+                
+                endif
+             
+             enddo
+
+          enddo
+
+       endif
+
+       ! Convert the creation operator indices to the new MO ordering
+       do k=1,n2I
+          i=cfg%m2c(a2(1,k))
+          a2(1,k)=c2m(i)
+          i=cfg%m2c(a2(2,k))
+          a2(2,k)=c2m(i)
+       enddo
+
+       ! Fill in the new 2I offset array
+       offset(1)=1
+       do n=2,cfg%n2h+1
+          offset(n)=offset(n-1)+ngen(n-1)
+       enddo
+    
+       ! Write the creation operator indices and conf offsets to disk
+       write(iscratch) a2
+       write(iscratch) offset
+              
+       ! Deallocate work arrays
+       deallocate(a2, ngen, offset)
+       
+    endif
+    
+!----------------------------------------------------------------------
+! 1E confs: these can arise due to old 1E confs only
+!----------------------------------------------------------------------
+    if (n1E > 0) then
+
+    endif
+
+!----------------------------------------------------------------------
+! 2E confs: these can arise due to old 2E confs only
+!----------------------------------------------------------------------
+    if (n2E > 0) then
+
+    endif
+
+!----------------------------------------------------------------------
+! 1I1E confs: these can arise due to old 2E and 1I1E confs
+!----------------------------------------------------------------------
+    if (n1I1E > 0) then
+
+    endif
+    
+!----------------------------------------------------------------------
+! MO mapping arrays
+!----------------------------------------------------------------------
+    write(iscratch) m2c
+    write(iscratch) c2m
+    
+!----------------------------------------------------------------------
+! Close the new configuration scratch file
+!----------------------------------------------------------------------
+    close(iscratch)
+
+!----------------------------------------------------------------------
+! Delete and refill the MRCI configuration derived type
+!----------------------------------------------------------------------
+    
+    
+    return
+    
+  end subroutine refill_cfg
   
 !######################################################################
   

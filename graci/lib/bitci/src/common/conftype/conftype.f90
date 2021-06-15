@@ -90,7 +90,8 @@ module conftype
      integer(is), allocatable :: csfs2E(:)
      integer(is), allocatable :: csfs1I1E(:)
 
-     ! Complete sets of confs, SOPs and CSF offsets
+     ! Complete sets of confs, SOPs, CSF offsets and
+     ! creation operator indices
      ! Not filled in by default, but very useful for ref space
      ! merging
      integer(ib), allocatable :: confall(:,:,:)
@@ -792,8 +793,9 @@ contains
   end subroutine compute_confs_sops
 
 !######################################################################
-! concatenate_arrays: Concatenates all the confs, SOPs and CSF offsets
-!                     into the confall, sopall and csfsall arrays
+! concatenate_arrays: Concatenates all the confs, SOPs, CSF offsets
+!                     and creation operator indices into the confall,
+!                     sopall and csfsall
 !######################################################################
   subroutine concatenate_arrays(cfg)
 
@@ -812,20 +814,25 @@ contains
 !----------------------------------------------------------------------
 ! Allocation and initialisation
 !----------------------------------------------------------------------
+    ! Confs
     if (allocated(cfg%confall)) deallocate(cfg%confall)
     allocate(cfg%confall(n_int,2,cfg%confdim))
     cfg%confall=0_ib
 
+    ! SOPs
     if (allocated(cfg%sopall)) deallocate(cfg%sopall)
     allocate(cfg%sopall(n_int,2,cfg%confdim))
     cfg%sopall=0_ib
 
+    ! CSF offsets
     if (allocated(cfg%csfsall)) deallocate(cfg%csfsall)
     allocate(cfg%csfsall(cfg%confdim+1))
     cfg%csfsall=0
-    
+
+    ! Conf counter
     counter=0
-    
+
+    ! CSF sum
     sum=1
 
 !----------------------------------------------------------------------
@@ -877,7 +884,7 @@ contains
              ! CSF offset
              cfg%csfsall(counter)=sum
              sum=sum+ncsfs(nopen)
-           
+
           enddo
            
        enddo
@@ -909,7 +916,7 @@ contains
              ! CSF offset
              cfg%csfsall(counter)=sum
              sum=sum+ncsfs(nopen)
-           
+
           enddo
            
        enddo
@@ -941,7 +948,7 @@ contains
              ! CSF offset
              cfg%csfsall(counter)=sum
              sum=sum+ncsfs(nopen)
-           
+
           enddo
            
        enddo
@@ -973,7 +980,7 @@ contains
              ! CSF offset
              cfg%csfsall(counter)=sum
              sum=sum+ncsfs(nopen)
-           
+
           enddo
            
        enddo
@@ -1005,7 +1012,7 @@ contains
              ! CSF offset
              cfg%csfsall(counter)=sum
              sum=sum+ncsfs(nopen)
-           
+
           enddo
            
        enddo
