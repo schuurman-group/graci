@@ -47,7 +47,7 @@ def generate(ci_method):
         cvsflag[i-1] = 1
     
     ref_ciunits = np.array(ref_wfn.ci_units, dtype=int)
-    nroots      = ci_method.n_states()
+    nroots      = ci_method.n_state_sym()
 
     # Pruning: bitci Q-space energy correction scracth file numbers
     eq_units = np.zeros(nirr, dtype=int)

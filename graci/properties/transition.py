@@ -24,6 +24,8 @@ class Transition:
         self.all_final_states = False
         self.init_label      = None
         self.final_label     = None
+        self.print_orbitals  = False
+        self.label           = 'Transition'
 
         # global variables
         # method object for the bra states
@@ -45,8 +47,6 @@ class Transition:
         # oscillator strengths -- all gauges
         self.oscstr       = {}
        
-        self.label         = 'transition'
-
     #-----------------------------------------------------------
 
     #
@@ -133,13 +133,16 @@ class Transition:
         # compute oscillator strengths
         self.build_osc_str()
 
-        # print natural differnence and natural transition orbitals 
+        # build natural differnence and natural transition orbitals 
         # for each pair
         self.build_natural_orbs()
 
-        # print the transition and difference densities and print
-        # excitations energies/osc. strengths to file
-        self.print_orbitals()
+        # print orbitals if requested
+        if self.print_orbitals:
+            for bst in bra_list:
+                for kst in ket_list:
+                    export_orbitals(bst, kst, orb_type='nto')
+                    export_orbitals(bst, kst, orb_type='ndo')
 
         # print the summary output
         self.print_log()
@@ -262,7 +265,7 @@ class Transition:
         # iterate through the initial states, adding roots
         # to various irreps as needed -- these states are 
         # ordered by adiabatic energy
-        ninit_total = sum(self.ket_obj.n_states())
+        ninit_total = self.ket_obj.n_state()
         if self.init_states is not None:
             # iterate through the initial states, adding roots
             # to various irreps as nee
@@ -295,7 +298,7 @@ class Transition:
         # iterate through the final states, adding roots
         # to various irreps as needed -- these states are 
         # ordered by adiabatic energy
-        nfinal_total = sum(self.bra_obj.n_states())
+        nfinal_total = self.bra_obj.n_state()
         if self.final_states is not None:
             # iterate through the final states, adding roots
             # to various irreps as nee
@@ -816,45 +819,46 @@ class Transition:
         return
 
     #
-    def print_orbitals(self):
+    def export_orbitals(self, bra, ket, orb_type='nto'):
         """print the natural transition orbitals and difference
            densities to file"""
 
-        nbra = len(self.bra_list)
-        nket = len(self.ket_list)
+        if bra not in self.bra_list or ket not in self.ket_list:
+            return False
 
         k_irrlbl = self.ket_obj.mol.irreplbl
         b_irrlbl = self.bra_obj.mol.irreplbl
 
-        for ik in range(nket):
-            kst  = self.ket_list[ik]
-            ksym = k_irrlbl[self.ket_sym[ik]]
+        b_ind = self.bra_list.index(bra)
+        b_sym = b_irrlbl[self.bra_sym[b_ind]]
 
-            for ib in range(nbra):
-                bst  = self.bra_list[ib]
-                bsym = b_irrlbl[self.bra_sym[ib]]
+        k_ind = self.ket_list.index(ket)
+        ksym = k_irrlbl[self.ket_sym[k_ind]]
 
-                str_suffix ='.'+ str(kst+1)+'_' +str(ksym.lower()) + \
-                            '.'+ str(bst+1)+'_' +str(bsym.lower())
-           
-                # print out the NTOs
-                # determine number of pairs
-                wts = self.nos['nto_wt'][:, ib, ik]
-                ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
-                output.print_nos_molden(
-                    'nto'+str_suffix, 
-                    self.bra_obj.mol,
-                    self.nos['nto'][:,:ncols, ib, ik], 
-                    wts[:ncols])
+        str_suffix ='.'+ str(ket+1)+'_' +str(ksym.lower()) + \
+                    '.'+ str(bra+1)+'_' +str(bsym.lower()) + \
+                    '_molden'
 
-                # print out the NDOs
-                # determine number of pairs
-                wts = self.nos['ndo_wt'][:, ib, ik]
-                ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
-                output.print_nos_molden(
-                    'ndo'+str_suffix,
-                    self.bra_obj.mol,
-                    self.nos['ndo'][:,:ncols, ib, ik],
-                    wts[:ncols])
+        if orb_type == 'nto':
+            # print out the NTOs
+            # determine number of pairs
+            wts = self.nos['nto_wt'][:, b_ind, k_ind]
+            ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
+            output.print_nos_molden(
+                'nto'+str_suffix,
+                 self.bra_obj.mol,
+                 self.nos['nto'][:,:ncols, b_ind, k_ind],
+                 wts[:ncols])
+
+        elif orb_type == 'ndo':
+            # print out the NDOs
+            # determine number of pairs
+            wts = self.nos['ndo_wt'][:, b_ind, k_ind]
+            ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
+            output.print_nos_molden(
+                'ndo'+str_suffix,
+                self.bra_obj.mol,
+                self.nos['ndo'][:,:ncols, b_ind, k_ind],
+                wts[:ncols])
 
         return

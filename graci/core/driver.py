@@ -7,6 +7,7 @@ import graci.core.params as params
 import graci.core.libs as libs
 import graci.io.output as output
 import graci.io.chkpt as chkpt
+import graci.core.molecule as molecule
 
 class Driver:
     def __init__(self):
@@ -19,16 +20,13 @@ class Driver:
            of postscf objects in the array argument"""
 
         # the first step is to match geometries to molecule sections
-        gm_objs      = []
         mol_objs     = []
         scf_objs     = []
         postscf_objs = []
         si_objs      = []
         for obj in calc_array:
             # identify the geometries in the run_list
-            if type(obj).__name__ == 'Geometry':
-                gm_objs.append(obj)
-            elif type(obj).__name__ == 'Molecule':
+            if type(obj).__name__ == 'Molecule':
                 mol_objs.append(obj)
             elif type(obj).__name__ == 'Scf':
                 scf_objs.append(obj)
@@ -37,34 +35,14 @@ class Driver:
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
 
-        # Molecle sections 
+        # Molecule sections 
         # ----------------------------------------------------
 
-        # match geometry objects to molecule objects
+        # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
 
-            for gm_obj in gm_objs:
-                # if labels match -- set the geometry
-                # to the molecule object
-                if mol_obj.label == gm_obj.label:
-                    mol_obj.set_pymol(gm_obj)
-                    break
-
-            # if we didn't match labels, but there is a single
-            # geometry object, 
-            if mol_obj.pymol_exists() is False and len(gm_objs)==1:
-                mol_obj.set_pymol(gm_obj)
-
-            # if we have a label problem, then we should exit
-            # with an error
-            if mol_obj.pymol_exists() is False:
-                output.print_message('molecule section, label='+
-                        str(mol_obj.label)+
-                        ' has no geometry set. Please check input')
-                sys.exit(1)
-
-            chkpt.write_chkpt(output.file_names['chkpt_file'], 
-                              mol_obj)
+            mol_obj.run()
+            chkpt.write(output.file_names['chkpt_file'], mol_obj)
 
         # print output file header
         output.print_header(calc_array)
@@ -72,7 +50,7 @@ class Driver:
         # SCF Sections 
         # -----------------------------------------------------
 
-        # match geometry objects to molecule objects
+        # match scf objects to molecule objects
         for scf_obj in scf_objs:
 
             for mol_obj in mol_objs:
@@ -96,8 +74,10 @@ class Driver:
                 sys.exit(1)
         
             scf_obj.run()
-            chkpt.write_chkpt(output.file_names['chkpt_file'],
-                              scf_obj)
+            chkpt.write(output.file_names['chkpt_file'], scf_obj)
+
+            #TESTING
+            #scf_test = chkpt.read(output.file_names['chkpt_file'], scf_obj, build_objs=True)
 
             # initialize the MO integrals following the SCF run, but
             # finalise previous integrals if they exist
@@ -132,9 +112,7 @@ class Driver:
                     sys.exit(1)
 
                 postscf.run()
-                chkpt.write_chkpt(output.file_names['chkpt_file'],
-                                  postscf)
-
+                chkpt.write(output.file_names['chkpt_file'], postscf)
 
         # State interaction Sections 
         # ----------------------------------------------------
@@ -167,9 +145,7 @@ class Driver:
                 sys.exit(1)
 
             si_obj.run()
-            chkpt.write_chkpt(output.file_names['chkpt_file'],
-                              si_obj)
-
+            chkpt.write(output.file_names['chkpt_file'], si_obj)
 
         return
 

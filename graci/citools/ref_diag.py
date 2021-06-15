@@ -39,7 +39,7 @@ def diag(ci_method):
     for irrep in range(nirr):
     
         # Number of roots for the current irrep
-        nroots = ci_method.n_states(irrep)
+        nroots = ci_method.n_state_sym(irrep)
 
         # Number of extra roots
         nextra = ci_method.nextra['max'][irrep]
@@ -54,17 +54,17 @@ def diag(ci_method):
         # If the number of reference space configurations for the
         # current irrep is less than the requested number of roots
         # then reset nstates accordingly
-        if nroots < ci_method.n_states(irrep):
+        if nroots < ci_method.n_state_sym(irrep):
             ci_method.nstates[irrep] = nroots
     
     # Retrieve the reference space energies
-    maxroots = max(ci_method.n_states())
+    maxroots = max(ci_method.n_state_sym())
     ener = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
-        if ci_method.n_states(irrep) > 0:
+        if ci_method.n_state_sym(irrep) > 0:
     
             # Number of roots for the current irrep
-            nroots = ci_method.n_states(irrep)
+            nroots = ci_method.n_state_sym(irrep)
 
             # Retrieve the energies
             args = (ciunits[irrep], nroots, ener[irrep, :nroots],

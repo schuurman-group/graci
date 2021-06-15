@@ -22,7 +22,7 @@ def prune(ci_method):
     for irrep in range(nirr):
 
         # Number of roots for the current irrep
-        nroots = ci_method.n_states(irrep)
+        nroots = ci_method.n_state_sym(irrep)
 
         # Bitci ref conf scratch file number
         confunit = ci_method.ref_wfn.conf_units[irrep]

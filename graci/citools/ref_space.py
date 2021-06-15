@@ -123,7 +123,7 @@ def autoras(ci_method):
     for irrep in range(nirr):
 
         # Number of roots for the current irrep
-        nroots = ci_method.n_states(irrep) + n_extra
+        nroots = ci_method.n_state_sym(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
         args = (irrep, nroots, cvsflag, dftcis_vec, loose)
@@ -143,7 +143,7 @@ def autoras(ci_method):
     for irrep in range(nirr):
 
         # Number of roots for the current irrep
-        nroots = ci_method.n_states(irrep) + n_extra
+        nroots = ci_method.n_state_sym(irrep) + n_extra
 
         # Eigenpair scratch file number
         dftcis_vec = dftcis_unit[irrep]

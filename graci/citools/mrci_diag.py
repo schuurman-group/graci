@@ -44,7 +44,7 @@ def diag(ci_method):
     for irrep in range(nirr):
 
         # Number of roots for the current irrep
-        nroots = ci_method.n_states(irrep)
+        nroots = ci_method.n_state_sym(irrep)
 
         # Block size for the current irrep
         nblock = blocksize[irrep]
@@ -57,13 +57,13 @@ def diag(ci_method):
         ciunits.append(ciunit)
 
     # Retrieve the MRCI energies
-    maxroots = max(ci_method.n_states())
+    maxroots = max(ci_method.n_state_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
-        if ci_method.n_states(irrep) > 0:
+        if ci_method.n_state_sym(irrep) > 0:
 
             # Number of roots for the current irrep
-            nroots = ci_method.n_states(irrep)
+            nroots = ci_method.n_state_sym(irrep)
 
             args = (ciunits[irrep], nroots, ener[irrep,:nroots])
             (ener[irrep,:nroots]) = \
@@ -80,7 +80,7 @@ def diag(ci_method):
     # Apply the Q-space energy corrections
     if ci_method.prune != 'off':
         for irrep in range(nirr):
-            nstates  = ci_method.n_states()
+            nstates  = ci_method.n_state_sym()
             qcorr    = np.zeros(nstates[irrep], dtype=float)
             maxovrlp = np.zeros(nstates[irrep], dtype=float)
             nextra = ci_method.nextra['prune'][irrep]
@@ -100,7 +100,7 @@ def diag(ci_method):
             
     # Print the report of the MRCI states
     ciunits = np.array(ciunits, dtype=int)
-    nstates = ci_method.n_states()
+    nstates = ci_method.n_state_sym()
     if ci_method.prune == 'off':
         args = (ci_confunits, ciunits, nstates)
         libs.lib_func('print_mrci_states', args)

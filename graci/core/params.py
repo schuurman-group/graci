@@ -1,7 +1,6 @@
 """Module for storing global parameters"""
 
 import graci.core.molecule as molecule
-import graci.core.geometry as geometry
 import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
@@ -10,13 +9,10 @@ import graci.properties.moments as moments
 import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit
 
-# geometry section, input keywords and data types
-geometry_kword =     {'xyz_file' : str,
-                      'units'    : str,
-                      'label'    : str}
-
 # molecule section input keywords and data types
-molecule_kword =     {'charge'   : int,
+molecule_kword =     {'xyz_file' : str,
+                      'units'    : str,
+                      'charge'   : int,
                       'mult'     : int,
                       'basis'    : str,
                       'ri_basis' : str,
@@ -30,8 +26,9 @@ molecule_kword =     {'charge'   : int,
 #----------------------------------------------
 
 # DFT section input keywords and data types
-scf_kword      = {'xc'          : str,
-                  'label'       : str}
+scf_kword      = {'xc'             : str,
+                  'print_orbitals' : bool,
+                  'label'          : str}
 
 # MRCI section input keywords and data types
 dftmrci_kword  = {'nstates'        : int,
@@ -55,6 +52,7 @@ dftmrci_kword  = {'nstates'        : int,
                   'diag_iter'      : int,
                   'diag_blocksize' : int,
                   'diag_deflate'   : bool,
+                  'print_orbitals' : bool,
                   'label'          : str
                  }
 
@@ -74,14 +72,17 @@ transition_kword = {'init_states'      : int,
                     'final_states_sym' : float,
                     'all_final_states' : bool,
                     'init_label'       : str,
-                    'final_label'     : str
+                    'final_label'      : str,
+                    'print_orbitals'   : bool,
+                    'label'            : str
                    }
 
 # molecule section input keywords and data typess
 spinorbit_kword = {'bra_states' : int,
                    'ket_states' : int,
                    'bra_label'  : str,
-                   'ket_label'  : str
+                   'ket_label'  : str,
+                   'label'      : str
                    }
 
 #----------------------------------------------------
@@ -90,47 +91,19 @@ spinorbit_kword = {'bra_states' : int,
 parameterize_kword = {'algorithm' : str,
                       'label'     : str}
 
-
 ######################################################################
 ## only the following are directly accessed from outside the module ##
 ######################################################################
 
-def name2obj(name):
-    if name == 'Geometry':
-        return geometry.Geometry()
-    elif name == 'Molecule':
-        return molecule.Molecule()
-    elif name == 'Bitciwfn':
-        return bitciwfn.Bitciwfn()
-    elif name == 'Parameterize':
-        return parameterize.Parameterize()
-    elif name == 'Scf':
-        return scf.Scf()
-    elif name == 'Dftcis':
-        return dftcis.Dftcis()
-    elif name == 'Dftmrci':
-        return dftmrci.Dftmrci()
-    elif name == 'Moments':
-        return moments.Moments()
-    elif name == 'Transition':
-        return transition.Transition()
-    elif name == 'Spinorbit':
-        return spinorbit.Spinorbit()
-    else:
-        print('obj: '+str(name)+' not recognized')
-        return None
-
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_objs = ['Geometry', 'Molecule', 'Bitciwfn', 'Parameterize', 
-              'Scf', 'Dftmrci', 'Dftmrcis', 
+valid_objs = ['Molecule', 'Parameterize','Scf', 'Dftmrci', 'Dftcis', 
               'Transition', 'Spinorbit']
-method_objs = ['Scf', 'Dftmrci', 'Dftmrcis']
+method_objs = ['Scf', 'Dftmrci', 'Dftcis']
 si_objs     = ['Transition', 'Spinorbit']
 
 ##############################################
-kwords = {'Geometry'     : geometry_kword,
-          'Molecule'     : molecule_kword,
+kwords = {'Molecule'     : molecule_kword,
           'Parameterize' : parameterize_kword,
           'Scf'          : scf_kword,
           'Dftcis'       : dftcis_kword,

@@ -5,29 +5,17 @@
 !           Reads and writes configurations/unique dets to hdf5 file, 
 !           sorted by decreasing coefficient magnitude.
 !           This module defines the file format (i.e. group/dataset names)
-!           and should be kept consistent with the GRaCI python utility: 
-!           extractWfn, which simply extracts the det/csf information
-!           from the hdf5 file and writes the results to an 
-!           ASCII text file. 
+!           and should be kept consistent with the GRaCI python module
+!           chkpt.py. The python module is responsible for writing majority 
+!           of information in the checkpoint -- and so 'write' capacity here
+!           is limited to det/csf lists. However, It may prove useful to add extensive
+!           read capabilities to this module.
 !---------------------------------------------------------------------
 module chkpt 
 
   use hdf5 
   use constants
   implicit none
-
-!  private
-!  public chkpt_dataset_dims
-!  public chkpt_write_geometry
-!  public chkpt_write_energy
-!  public chkpt_write_orbitals
-!  public chkpt_write_transdip
-!  public chkpt_write_wfn
-!  public chkpt_read_geometry
-!  public chkpt_read_energy
-!  public chkpt_read_orbitals
-!  public chkpt_read_transdip
-!  public chkpt_read_wfn
 
   interface write_dataset
      module procedure write_dataset_dble
@@ -104,120 +92,6 @@ module chkpt
   end subroutine chkpt_dset_dims
 
   !
-  ! write a geometry to checkpiont file
-  !
-  subroutine chkpt_write_geom(file_name, geom)
-    character(len=60), intent(in)    :: file_name
-    real(dp), intent(in)             :: geom(:)
-
-    character(len=10)                :: data_name
-    integer(is)                      :: dims(2)
-    real(dp), allocatable            :: data_set(:, :)
-
-    ! name of data_set
-    data_name = 'geometry'
-    dims      = (/ 1, size(geom) /)
-    allocate(data_set(dims(1), dims(2)))
-
-    !set data_set to geom
-    data_set(1,:) = geom
-
-    ! write geometry to 'geometry' data set
-    call write_dataset(file_name, data_name, dims, data_set)
-
-    deallocate(data_set)
-  end subroutine chkpt_write_geom
-
-  !
-  ! write an array of energies to file
-  !
-  subroutine chkpt_write_ener(file_name, energies)
-
-    character(len=60), intent(in)    :: file_name
-    real(dp), intent(in)             :: energies(:)
-
-    character(len=10)                :: data_name
-    integer(is)                      :: dims(2)
-    real(dp),allocatable             :: data_set( :, : )
-
-    ! name of data_set
-    data_name = 'energy'
-    dims      = (/ 1, size(energies) /)
-    allocate(data_set(dims(1), dims(2)))
-
-    !set data_set to geom
-    data_set(1,:) = energies
-
-    ! write geometry to 'geometry' data set
-    call write_dataset(file_name, data_name, dims, data_set)
-
-    deallocate(data_set)
-  end subroutine chkpt_write_ener
-
-  !
-  ! write a set of orbitals to file
-  !
-  subroutine chkpt_write_orbs(file_name, orbs)
-
-    character(len=60), intent(in)    :: file_name
-    real(dp), intent(in)             :: orbs(:, :)
-
-    character(len=10)                :: data_name
-    integer(is)                      :: dims(2)
-    real(dp), allocatable            :: data_set(:, :)
-
-    ! name of data_set
-    data_name = 'orbitals'
-    dims      = (/ size(orbs,1), size(orbs,2) /)
-    allocate(data_set(dims(1), dims(2)))
-
-    !set data_set to geom
-    data_set = orbs
-
-    ! write geometry to 'geometry' data set
-    call write_dataset(file_name, data_name, dims, data_set)
-
-    deallocate(data_set)
-  end subroutine chkpt_write_orbs
-
-  !
-  ! write a set of transition moments (with labels) to file
-  !
-  subroutine chkpt_write_trans(file_name, st_lbls, trans)
-
-    character(len=60), intent(in)    :: file_name
-    integer(is), intent(in)          :: st_lbls(:, :)
-    real(dp), intent(in)             :: trans(:, :)
-
-    character(len=10)                :: data_name
-    integer(is)                      :: dims(2)
-    real(dp), allocatable            :: data_set( :, :)
-
-    integer(is)                      :: ntd
-
-
-    ! name of data_set
-    data_name = 'trans'
-    ntd       = size(trans,2)
-    dims      = (/ 5, ntd /)
-    allocate(data_set(dims(1), dims(2)))
-
-    if (size(st_lbls, 1) /= 2 .or. size(st_lbls, 2) /= ntd &
-            .or. size(trans,1) /=3 ) then
-      print *,'inappropriate size of st_lbls/trans array sin chkpt_write_trans'
-      call exit(1)
-    endif
-
-    !set data_set to labels + transition dipoles
-    data_set( :2, :ntd) = dble(st_lbls) 
-    data_set(3:5, :ntd) = trans
-
-    ! write geometry to 'geometry' data set
-    call write_dataset(file_name, data_name, dims, data_set)
-
-  end subroutine chkpt_write_trans
-
-  !
   ! externally callable routine to write a batch
   ! of csfs or dets to hdf5 file. 
   !  - If the file doesn't exist, it is create
@@ -275,134 +149,134 @@ module chkpt
   !
   !
   !
-  subroutine chkpt_read_geom(file_name, n_atoms, geom)
-
-    character(len=60), intent(in)    :: file_name
-    integer(is), intent(in)          :: n_atoms
-    real(dp), intent(out)            :: geom(3*n_atoms)
-
-    character(len=10)                :: data_name
-    integer(is)                      :: dims(2)
-    integer(is)                      :: dim_read(2)
-    real(dp), allocatable            :: data_set(:, :)
-
+  !subroutine chkpt_read_geom(file_name, n_atoms, geom)
+  !
+  !  character(len=60), intent(in)    :: file_name
+  !  integer(is), intent(in)          :: n_atoms
+  !  real(dp), intent(out)            :: geom(3*n_atoms)
+  !
+  !  character(len=10)                :: data_name
+  !  integer(is)                      :: dims(2)
+  !  integer(is)                      :: dim_read(2)
+  !  real(dp), allocatable            :: data_set(:, :)
+  
     ! name of data_set
-    data_name = 'geometry'
-    geom      = 0.
-    dims      = (/ 1, 3*n_atoms /)
-    allocate(data_set( dims(1), dims(2) ))
+  !  data_name = 'geometry'
+  !  geom      = 0.
+  !  dims      = (/ 1, 3*n_atoms /)
+  !  allocate(data_set( dims(1), dims(2) ))
 
     ! write geometry to 'geometry' data set
-    call read_dataset(file_name, data_name, dims, data_set, dim_read)
+  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
 
-    if (any(dims /= dim_read)) then
-      print *,'error reading geometry'
-    else
-      geom = data_set(1,1:3*n_atoms)
-    endif
+  !  if (any(dims /= dim_read)) then
+  !    print *,'error reading geometry'
+  !  else
+  !    geom = data_set(1,1:3*n_atoms)
+  !  endif
 
-    deallocate(data_set)
-  end subroutine chkpt_read_geom
+  !  deallocate(data_set)
+  !end subroutine chkpt_read_geom
 
   !
   !
   !
-  subroutine chkpt_read_ener(file_name, n_ener, energies)
+  !subroutine chkpt_read_ener(file_name, n_ener, energies)
 
-    character(len=60), intent(in)    :: file_name
-    integer(is), intent(in)          :: n_ener
-    real(dp), intent(out)            :: energies(n_ener)
+  !  character(len=60), intent(in)    :: file_name
+  !  integer(is), intent(in)          :: n_ener
+  !  real(dp), intent(out)            :: energies(n_ener)
 
-    character(len=10)                :: data_name
-    integer(is)                      :: dims(2)
-    integer(is)                      :: dim_read(2)
-    real(dp), allocatable            :: data_set(:, :)
+  !  character(len=10)                :: data_name
+  !  integer(is)                      :: dims(2)
+  !  integer(is)                      :: dim_read(2)
+  !  real(dp), allocatable            :: data_set(:, :)
 
     ! name of data_set
-    data_name = 'energy'
-    energies  = 0.
-    dims      = (/ 1, n_ener /)
-    allocate(data_set( dims(1), dims(2)))
+  !  data_name = 'energy'
+  !  energies  = 0.
+  !  dims      = (/ 1, n_ener /)
+  !  allocate(data_set( dims(1), dims(2)))
 
     ! write geometry to 'geometry' data set
-    call read_dataset(file_name, data_name, dims, data_set, dim_read)
+  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
 
-    if (any(dims /= dim_read)) then
-      print *,'error reading energy'
-    else
-      energies = data_set(1,1:n_ener)
-    endif
+  !  if (any(dims /= dim_read)) then
+  !    print *,'error reading energy'
+  !  else
+  !    energies = data_set(1,1:n_ener)
+  !  endif
 
-    deallocate(data_set)
-  end subroutine chkpt_read_ener
+  !  deallocate(data_set)
+  !end subroutine chkpt_read_ener
 
   !
   !
   !
-  subroutine chkpt_read_orbs(file_name, nmo, nao, orbs)
+  !subroutine chkpt_read_orbs(file_name, nmo, nao, orbs)
 
-    character(len=60), intent(in)    :: file_name
-    integer(is), intent(in)          :: nmo
-    integer(is), intent(in)          :: nao
-    real(dp), intent(out)            :: orbs(nao, nmo)
+  !  character(len=60), intent(in)    :: file_name
+  !  integer(is), intent(in)          :: nmo
+  !  integer(is), intent(in)          :: nao
+  !  real(dp), intent(out)            :: orbs(nao, nmo)
 
-    character(len=10)                :: data_name
-    integer(is)                      :: dims(2)
-    integer(is)                      :: dim_read(2)
-    real(dp), allocatable            :: data_set(:, :)
+  !  character(len=10)                :: data_name
+  !  integer(is)                      :: dims(2)
+  !  integer(is)                      :: dim_read(2)
+  !  real(dp), allocatable            :: data_set(:, :)
+
+  !  ! name of data_set
+  !  data_name = 'orbitals'
+  !  orbs      = 0.
+  !  dims      = (/ nao, nmo /)
+  !  allocate(data_set( dims(1), dims(2)))
+
+    ! write geometry to 'geometry' data set
+  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
+
+  !  if (any(dims /= dim_read)) then
+  !    print *,'error reading orbitals'
+  !  else
+  !    orbs = data_set(1:nao, 1:nmo)
+  !  endif
+
+  !  deallocate(data_set)
+  !end subroutine chkpt_read_orbs
+
+  !
+  !
+  !
+  !subroutine chkpt_read_trans(file_name, ntd, st_lbls, trans)
+
+  !  character(len=60), intent(in)    :: file_name
+  !  integer(is), intent(in)          :: ntd
+  !  integer(is), intent(out)          :: st_lbls(2, ntd)
+  !  real(dp), intent(out)             :: trans(3, ntd)
+
+  !  character(len=10)                :: data_name
+  !  integer(is)                      :: dim_read(2)
+  !  integer(is)                      :: dims(2)
+  !  real(dp), allocatable            :: data_set(:, :)
 
     ! name of data_set
-    data_name = 'orbitals'
-    orbs      = 0.
-    dims      = (/ nao, nmo /)
-    allocate(data_set( dims(1), dims(2)))
+  !  data_name = 'trans'
+  !  trans     = 0.
+  !  st_lbls   = 0
+  !  dims      = (/ 5, ntd /)
+  !  allocate(data_set(dims(1), dims(2)))
 
     ! write geometry to 'geometry' data set
-    call read_dataset(file_name, data_name, dims, data_set, dim_read)
+  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
 
-    if (any(dims /= dim_read)) then
-      print *,'error reading orbitals'
-    else
-      orbs = data_set(1:nao, 1:nmo)
-    endif
+  !  if (any(dims /= dim_read)) then
+  !    print *,'error reading transition dipoles'
+  !  else
+  !    st_lbls = nint(data_set(1:2, :ntd))
+  !    trans   = data_set(3:5, :ntd)
+  !  endif
 
-    deallocate(data_set)
-  end subroutine chkpt_read_orbs
-
-  !
-  !
-  !
-  subroutine chkpt_read_trans(file_name, ntd, st_lbls, trans)
-
-    character(len=60), intent(in)    :: file_name
-    integer(is), intent(in)          :: ntd
-    integer(is), intent(out)          :: st_lbls(2, ntd)
-    real(dp), intent(out)             :: trans(3, ntd)
-
-    character(len=10)                :: data_name
-    integer(is)                      :: dim_read(2)
-    integer(is)                      :: dims(2)
-    real(dp), allocatable            :: data_set(:, :)
-
-    ! name of data_set
-    data_name = 'trans'
-    trans     = 0.
-    st_lbls   = 0
-    dims      = (/ 5, ntd /)
-    allocate(data_set(dims(1), dims(2)))
-
-    ! write geometry to 'geometry' data set
-    call read_dataset(file_name, data_name, dims, data_set, dim_read)
-
-    if (any(dims /= dim_read)) then
-      print *,'error reading transition dipoles'
-    else
-      st_lbls = nint(data_set(1:2, :ntd))
-      trans   = data_set(3:5, :ntd)
-    endif
-
-    deallocate(data_set)
-  end subroutine chkpt_read_trans
+  !  deallocate(data_set)
+  !end subroutine chkpt_read_trans
 
 
   !

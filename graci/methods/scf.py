@@ -18,9 +18,10 @@ class Scf:
     """Class constructor for SCF object"""
     def __init__(self):
         # user defined input paramaters
-        self.xc        = 'hf'
-        self.label     = 'Scf'
-
+        self.xc             = 'hf'
+        self.print_orbitals = False
+        self.label          = 'Scf'
+ 
         # computed quantities
         self.mol          = None 
         self.energy       = None
@@ -35,7 +36,7 @@ class Scf:
         self.rdm_ao       = None
         self.moint_1e     = None
         self.moint_2e_eri = None
-
+ 
 
 # Required functions #######################################################
 
@@ -167,18 +168,24 @@ class Scf:
         # print the summary of the output to file
         output.print_scf_summary(self)
 
-        # write the Molden file
-        with open('mos.molden', 'w') as f1:
-            molden.header(pymol, f1)
-            molden.orbital_coeff(pymol, f1, ref_orbs, ene=mf.mo_energy,
-                                 occ=mf.mo_occ, symm=self.orb_irrep)
+        # write the Molden file if requested
+        if self.print_orbitals:
+            with open('scf.molden', 'w') as f1:
+                molden.header(pymol, f1)
+                molden.orbital_coeff(pymol, f1, ref_orbs, ene=mf.mo_energy,
+                                     occ=mf.mo_occ, symm=self.orb_irrep)
 
         timing.stop('scf.run')
 
         return
 
     #
-    def n_states(self, irrep):
+    def n_state(self):
+        """return number of states optmizied, i.e. 1"""
+        return 1
+
+    #
+    def n_state_sym(self, irrep):
         """number of states computed"""
 
         if irrep == self.state_sym:

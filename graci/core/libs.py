@@ -224,9 +224,9 @@ def init_bitci(ci_method):
 
     # set all variable that have to be passed to bitci_initialise
     # (note that the pgrp and iham variables use Fortran indexing)
-    imult = convert.convert_ctypes(ci_method.mol.mult,               
+    imult = convert.convert_ctypes(ci_method.scf.mol.mult,               
             dtype='int32')
-    nel   = convert.convert_ctypes(ci_method.mol.nel,                
+    nel   = convert.convert_ctypes(ci_method.scf.mol.nel,                
             dtype='int32')
     nmo   = convert.convert_ctypes(ci_method.scf.nmo, 
             dtype='int32')
@@ -235,14 +235,14 @@ def init_bitci(ci_method):
     moen  = convert.convert_ctypes(np.array(ci_method.scf.orb_ener), 
             dtype='double')
 
-    if ci_method.mol.sym_indx <= 0:
+    if ci_method.scf.mol.sym_indx <= 0:
         isym = 1
     else:
-        isym = ci_method.mol.sym_indx + 1
+        isym = ci_method.scf.mol.sym_indx + 1
 
     pgrp  = convert.convert_ctypes(isym,                   
             dtype='int32')
-    enuc  = convert.convert_ctypes(ci_method.mol.enuc,               
+    enuc  = convert.convert_ctypes(ci_method.scf.mol.enuc,               
             dtype='double')
     iham  = convert.convert_ctypes(hamiltonians.index(ci_method.hamiltonian)+1,
             dtype='int32')
@@ -292,17 +292,17 @@ def init_bitsi(si_method):
     
     # set all variables that have to be passed to bitsi_initialise
     # (note that the pgrp uses Fortran indexing)
-    imultBra = convert.convert_ctypes(bra.mol.mult,dtype='int32')
-    imultKet = convert.convert_ctypes(ket.mol.mult,dtype='int32')
-    nelBra   = convert.convert_ctypes(bra.mol.nel, dtype='int32')
-    nelKet   = convert.convert_ctypes(ket.mol.nel, dtype='int32')
+    imultBra = convert.convert_ctypes(bra.scf.mol.mult,dtype='int32')
+    imultKet = convert.convert_ctypes(ket.scf.mol.mult,dtype='int32')
+    nelBra   = convert.convert_ctypes(bra.scf.mol.nel, dtype='int32')
+    nelKet   = convert.convert_ctypes(ket.scf.mol.nel, dtype='int32')
     nmo      = convert.convert_ctypes(bra.scf.nmo, dtype='int32')
 
     # not sure what this is about...
-    if bra.mol.sym_indx <= 0:
+    if bra.scf.mol.sym_indx <= 0:
         isym = 1
     else:
-        isym = bra.mol.sym_indx + 1
+        isym = bra.scf.mol.sym_indx + 1
     pgrp  = convert.convert_ctypes(isym, dtype='int32')
     
     # call to bitsi_initialise

@@ -52,20 +52,19 @@ class Dftmrci:
         self.diag_iter      = 50
         self.diag_blocksize = []
         self.diag_deflate   = False
+        self.print_orbitals = False
         self.label          = 'Dftmrci'
 
         # class variables
         # KS SCF object
         self.scf            = None 
-        # molecule object
-        self.mol            = None
         # Pruning thresholds
         self.prune_thresh   = {'tight'  : 0.9900,
                                'normal' : 0.9500,
                                'loose'  : 0.9000}
         # No. extra ref space roots needed
         # for various tasks
-        self.nextra         = None
+        self.nextra         = {} 
         # Max no. iterations of the ref space refinement 
         self.niter          = 0
         # ref space bitci wave function object
@@ -102,7 +101,6 @@ class Dftmrci:
     def set_scf(self, scf):
         """set the scf object for the dftmrci class object"""
         self.scf = scf
-        self.mol = self.scf.mol
         return
 
     def scf_exists(self):
@@ -115,7 +113,7 @@ class Dftmrci:
     def run(self):
         """ compute the DFT/MRCI eigenpairs for all irreps """
 
-        if self.mol is None or self.scf is None:
+        if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
 
         timing.start('dftmrci.run')
@@ -208,23 +206,20 @@ class Dftmrci:
             irr, st = self.state_sym(istate)
             self.dmat[istate, :, :] = dmat_sym[irr][:, :, st]
 
+        # build the natural orbitals
+        self.build_nos()
+
         # Finalise the bitCI library
         libs.finalise_bitci()
 
-        for ist in range(n_tot):
-            [irr, st_sym] = self.state_sym(ist) 
-            occ, orb      = self.natural_orbs(ist)
-            syms          = self.natural_sym(ist)
-            sym_lbl       = [self.mol.irreplbl[syms[i]] 
-                            for i in range(len(syms))]
-            fname = 'nos.'+str(ist+1)+ \
-                    '_'+str(self.mol.irreplbl[irr].lower())
-            output.print_nos_molden(fname, self.mol, orb, occ, 
-                                                   sym=sym_lbl)
+        # print orbitals if requested
+        if self.print_orbitals:
+            for ist in range(n_tot):
+                self.export_natorb(ist, file_format='molden')
 
         # we'll also compute 1-electron properties by
         # default.
-        momts = moments.Moments(self.mol, self.natocc, self.natorb_ao)
+        momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)
         momts.run()
  
         output.print_moments_header()
@@ -232,14 +227,14 @@ class Dftmrci:
             [irr, st_sym] = self.state_sym(ist)
             output.print_moments(
                         ist,
-                        self.mol.irreplbl[irr],
+                        self.scf.mol.irreplbl[irr],
                         momts.dipole(ist),
                         momts.second_moment(ist))
   
             if self.print_quad:
                 output.print_quad(
                         ist,
-                        self.mol.irreplbl[irr],
+                        self.scf.mol.irreplbl[irr],
                         momts.quadrupole(ist))
 
         timing.stop('dftmrci.run')
@@ -252,7 +247,13 @@ class Dftmrci:
         return len(self.nstates)
  
     #
-    def n_states(self, irrep=None):
+    def n_state(self):
+        """total number of states"""
+
+        return sum(self.n_state_sym())
+
+    #
+    def n_state_sym(self, irrep=None):
         """number of states to compute"""
  
         if irrep is None:
@@ -318,50 +319,57 @@ class Dftmrci:
                   "but density does not exist")
             return self.dmat
 
-
     #
-    def natural_orbs(self, istate, basis='ao'):
+    def build_nos(self):
         """print the natural orbitals for irrep 
            'irr' and state 'state'"""
 
-        # if natural orbitals don't exist, create them --
-        # we might as well create all of them, unless a truly
-        # crazy of number of states have been computed
-        if (self.natorb_mo is None and self.natorb_ao is None):
-            # if the 1RDMs don't exist, then we have a problem
-            if self.dmat is None:
-                print("can't return natural orbitals: "+
-                      "1RDMs don't exist")
-                return None
+        # if the 1RDMs don't exist, then we have a problem
+        if self.dmat is None:
+            print("can't return natural orbitals: "+
+                  "1RDMs don't exist")
+            return None
             
-            # check that istate is less than the total number of states:
-            (n_tot, nmo1, nmo2) = self.dmat.shape
-            if istate >= n_tot:
-                print("istate >= n_tot: "+str(istate)+">="+str(n_tot))
-                return None
+        # check that istate is less than the total number of states:
+        (n_tot, nmo1, nmo2) = self.dmat.shape
+        self.natocc     = np.zeros((n_tot, nmo2), dtype=float)
+        self.natorb_mo  = np.zeros((n_tot, nmo1, nmo2), dtype=float)
+        self.natorb_ao  = np.zeros((n_tot, nmo1, nmo2), dtype=float)
+        self.natorb_sym = np.zeros((n_tot, nmo2), dtype=int)
 
-            self.natocc     = np.zeros((n_tot, nmo2), dtype=float)
-            self.natorb_mo  = np.zeros((n_tot, nmo1, nmo2), dtype=float)
-            self.natorb_ao  = np.zeros((n_tot, nmo1, nmo2), dtype=float)
-            self.natorb_sym = np.zeros((n_tot, nmo2), dtype=int)
+        # by default, compute the natural orbitals for all states
+        # requested
+        for ist in range(n_tot):
+            rdm        = self.rdm1(ist)
+            occ,nos_mo = np.linalg.eigh(rdm)
+            nos_ao     = np.matmul(self.scf.orbs, nos_mo)
 
-            # by default, compute the natural orbitals for all states
-            # requested
-            for ist in range(n_tot):
-                rdm        = self.rdm1(ist)
-                occ,nos_mo = np.linalg.eigh(rdm)
-                nos_ao     = np.matmul(self.scf.orbs, nos_mo)
+            sort_ordr = self.order_orbs(occ)
+            occ       = occ[sort_ordr]
+            nos_mo    = nos_mo[:,sort_ordr]
+            nos_ao    = nos_ao[:,sort_ordr]
+            syms      = self.get_orb_sym(nos_ao)
 
-                sort_ordr = self.order_orbs(occ)
-                occ       = occ[sort_ordr]
-                nos_mo    = nos_mo[:,sort_ordr]
-                nos_ao    = nos_ao[:,sort_ordr]
-                syms      = self.get_orb_sym(nos_ao)
+            self.natocc[ist, :]        = occ
+            self.natorb_mo[ist, :, :]  = nos_mo
+            self.natorb_ao[ist, :, :]  = nos_ao
+            self.natorb_sym[ist, :]    = syms
 
-                self.natocc[ist, :]        = occ
-                self.natorb_mo[ist, :, :]  = nos_mo
-                self.natorb_ao[ist, :, :]  = nos_ao
-                self.natorb_sym[ist, :]    = syms
+        return
+  
+    # 
+    def natural_orb(self, istate, basis='ao'):
+        """return natural orbitals and occupations for state 'istate' """
+
+        if basis == 'ao' and self.natorb_ao is None:
+            return None
+
+        if basis == 'mo' and self.natorb_mo is None:
+            return None
+
+        (nst, nmo) = self.natocc.shape
+        if istate >= nst:
+            return None
 
         # always return the contents of the natorb/natocc arrays in wfn
         occ = self.natocc[istate, :]
@@ -371,7 +379,7 @@ class Dftmrci:
             nos = self.natorb_mo[istate, :, :]
 
         return occ, nos
-   
+
     #
     def natural_sym(self, istate):
         """return the symmetry of the natural orbitals"""
@@ -416,7 +424,7 @@ class Dftmrci:
 
         nirr    = self.n_irrep()
         istate  = np.zeros((nirr), dtype=int)
-        n_tot   = sum(self.n_states())
+        n_tot   = self.n_state()
 
         self.mrci_ener  = np.zeros((n_tot), dtype=float)
         self.sym_sorted = []
@@ -480,4 +488,29 @@ class Dftmrci:
         #    sys.exit('ERROR: cannot assign symmetry of natural orbs')
 
         return sym_indx
+
+    #
+    def export_natorb(self, state, file_format='molden'):
+        """export orbitals to molden or cube format"""
+
+        if state >= self.n_state():
+            return
+
+        [irr, st_sym] = self.state_sym(state)
+        occ, orb      = self.natural_orbs(state)
+        syms          = self.natural_sym(state)
+        sym_lbl       = [self.scf.mol.irreplbl[syms[i]]
+                        for i in range(len(syms))]
+        fname = 'nos.'+str(ist+1)+ \
+                '_'+str(self.scf.mol.irreplbl[irr].lower())+ \
+                '_'+str(file_format)
+
+        if file_format == 'molden':
+            output.print_nos_molden(fname, self.scf.mol, orb, occ,
+                                                   sym=sym_lbl)
+        else:
+            print("export_natorb: file format "+str(file_format)+
+                  " not recognized")
+
+        return
 

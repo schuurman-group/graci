@@ -5,9 +5,16 @@ import re as re
 import numpy as np 
 import graci.utils.timing as timing
 import graci.utils.constants as constants
-import graci.core.geometry as geometry
 import graci.core.params as params
 import graci.io.output as output
+
+import graci.core.molecule as molecule
+import graci.methods.scf as scf
+import graci.methods.dftmrci as dftmrci
+import graci.methods.dftcis as dftcis
+import graci.properties.transition as transition
+import graci.properties.spinorbit as spinorbit
+
 from pyscf import gto
 
 #valid input sections
@@ -33,24 +40,25 @@ def parse_input():
     return run_list
 
 #
-def parse_section(obj_name, input_file):
+def parse_section(class_name, input_file):
     """extract keywords from section"""
 
     nlines       = len(input_file)
     section_objs = []
+    mod_name     = str(class_name.lower())
 
     # find the start of the section
     iline = 0
     while iline < nlines:
-        if '$'+str(obj_name).lower() in input_file[iline].lower():
+        if '$'+mod_name in input_file[iline].lower():
             iline += 1
             
             # section exists, create class object
-            obj = params.name2obj(obj_name)
+            sec_obj = getattr(globals()[mod_name], class_name)()
 
-            # if this is a geometry section, initialize cart and atoms
-            # arrays. This is a bit of a hack..
-            if obj_name == 'Geometry':
+            # if this is a molecule section, look for an xyz geometry
+            # input format
+            if class_name == 'Molecule':
                 cart = []
                 atom = []
 
@@ -61,43 +69,44 @@ def parse_section(obj_name, input_file):
                     # add object to return list and continue parsing 
                     # the input
 
-                    # if this is geometry section and xyz file was 
-                    # specified, let's load this now:
-                    if obj_name == 'Geometry':
-                        set_geometry(obj, cart, atom)
+                    # if this is molecule section and we're exiting,
+                    # set the cart/atm arrays to the cart/atom lists.
+                    # Molecule will check it when run() is called. 
+                    if class_name == 'Molecule':
+                        sec_obj.set_geometry(atom, cart)
 
-                    section_objs.extend([obj])
+                    section_objs.extend([sec_obj])
                     break
 
                 elif '=' in input_file[iline]:
                     (kword,value) = input_file[iline].split('=')
                     kword = kword.strip().lower()
 
-                    if kword in params.kwords[obj_name].keys():
+                    if kword in params.kwords[class_name].keys():
                         val      = parse_value(value)
-                        expected = params.kwords[obj_name][kword]
+                        expected = params.kwords[class_name][kword]
 
                         if correct_type(val, expected):
-                            setattr(obj, kword, val)
+                            setattr(sec_obj, kword, val)
                         else:
                             print(kword+" is wrong type, expected: "
                               +str(expected), flush=True)
 
-                # ...else, try to parse an a cartesian structure
-                elif obj_name == 'Geometry' and \
+                elif class_name == 'Molecule' and \
                         len(input_file[iline].strip()) > 0:
+                    # try to interpret as a cartesian atom definition
 
                     line = input_file[iline].split()
-                    try:
-                        atm_indx = geometry.atom_name.index(line[0].upper())
-                        atom.append(geometry.atom_name[atm_indx])
-                    except ValueError:
-                        sys.exit('atom '+str(line[0])+' not found.')
-                    try:
-                        cart.append([float(line[i]) for i in range(1,4)])
-                    except:
-                        sys.exit('Cannot interpret input as a geometry')
 
+                    # if line is length 4 and comprised of one string 
+                    # followed by 3 numbers, we'll take it for now and
+                    # check it later
+                    if len(line) == 4:
+                        crds = convert_array(line[1:])
+                        if crds.dtype==np.int or crds.dtype==np.float:
+                            cart.append(crds.tolist())
+                            atom.append(line[0])
+                        
                 # iterate section loop
                 iline += 1
 
@@ -105,28 +114,6 @@ def parse_section(obj_name, input_file):
         iline += 1
 
     return section_objs
-
-#
-def set_geometry(gm_obj, cart, atm):
-    """parse xyz file, return the list of atoms and cartesian
-       coordinates as lists"""
-
-    # if no xyz_file is specified, use the contents of of th cart 
-    # and atm arrays. If those are empty, quit since no geometry
-    # is found
-    if gm_obj.xyz_file is None and len(cart)==0 and len(atm)==0:
-        output.print_message('No geometry file specified and no '+
-             'cartesian structure found in input file. Exiting..\n')
-        sys.exit()
-
-    # if no xyz file specified, use contents of cart/atm arguments
-    if gm_obj.xyz_file is None:
-        gm_obj.set_atoms(atm)
-        gm_obj.set_geom(cart)
-    else:
-        gm_obj.read_xyz()
-
-    return
 
 #
 def correct_type(value, keyword_type):

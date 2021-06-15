@@ -179,11 +179,11 @@ def print_refdiag_summary(ci_method):
     
         nirr = len(ci_method.nstates)
         for i in range(nirr):
-            if ci_method.n_states(i) > 0:
+            if ci_method.n_state_sym(i) > 0:
                 outfile.write('\n')
-                for n in range(ci_method.n_states(i)):
+                for n in range(ci_method.n_state_sym(i)):
                     outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
-                        .format(n+1, ci_method.mol.irreplbl[i],
+                        .format(n+1, ci_method.scf.mol.irreplbl[i],
                         ci_method.ref_ener[i,n],
                         (ci_method.ref_ener[i,n]-mine)*constants.au2ev))
         outfile.write('\n')
@@ -229,7 +229,7 @@ def print_nos_molden(fname, mol, orb, occ, sym=None):
     """print out the orbitals, labeled and ordered by 'occ' array
        vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
     
-    file_name = 'orbs/'+fname
+    file_name = fname
 
     # if a file called 'orbs' exists, delete it
     if os.path.isfile('orbs'):

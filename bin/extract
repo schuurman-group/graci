@@ -5,6 +5,7 @@ The main graci driver.
 import os
 import sys as sys
 import h5py
+import graci.io.chkpt as chkpt
 
 #
 def main():
@@ -26,22 +27,19 @@ def read_cmdline():
     Set relevant global variables.
     """
 
-    extract_list = {'geometry'   : False, 
-                    'energy'     : False, 
-                    'orbitals'   : None,
-                    'transition' : False, 
-                    'wfn'        : None}
+    extract_list = {'scf'     : False,
+                    'nos'     : False,
+                    'nto'     : False, 
+                    'ndo'     : False,
+                    'wfn'     : None}
 
     chkpt_file  = sys.argv[1].strip()
     cutoff      = 0.
 
-    if '-geometry' in sys.argv:
-        extract_list['geometry'] = True
+    if '-scf' in sys.argv:
+        extract_list['scf'] = True
 
-    if '-energy' in sys.argv:
-        extract_list['energy'] = True
-
-    if '-orbs' in sys.argv:
+    if '-nos' in sys.argv:
         if len(sys.argv) > sys.argv.index('-orbs')+1:
             argval = sys.argv[sys.argv.index('-orbs')+1].strip()
             # if a format is given, ensure it's a supported format
@@ -53,9 +51,6 @@ def read_cmdline():
                 orb_fmt = 'gamess'
         extract_list['orbitals'] = orb_fmt
 
-    if '-transition' in sys.argv:
-        extract_list['transition'] = True
-    
     if '-wfn' in sys.argv:
         if len(sys.argv) > sys.argv.index('-wfn')+1:
             argval = sys.argv[sys.argv.index('-wfn')+1].strip()
