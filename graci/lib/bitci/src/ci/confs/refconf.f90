@@ -40,6 +40,7 @@ contains
     use constants
     use bitglobal
     use dethash
+    use mrciutils
     use timing
   
     implicit none
@@ -354,124 +355,6 @@ contains
     return
     
   end subroutine get_ref_confs
-
-!######################################################################
-! get_internal_external_mos: Constructs the lists of internal and
-!                            external MOs. That is, the lists of MOs
-!                            that are and are not occupied in at least
-!                            one reference space configuration.
-!######################################################################
-  subroutine get_internal_external_mos(conf,ntot,nmoI,nmoE,Ilist,Elist)
-
-    use constants
-    use bitglobal
-    use bitutils
-    
-    implicit none
-
-    integer(is), intent(in)  :: ntot
-    integer(ib), intent(in)  :: conf(n_int,2,ntot)
-    integer(is), intent(out) :: nmoI,nmoE
-    integer(is), intent(out) :: Ilist(nmo),Elist(nmo)
-    integer(ib)              :: iset(n_int),iunset(n_int)
-    integer(is)              :: i,k,n
-  
-!----------------------------------------------------------------------
-! Compute the bit string encoding of the internal MOs, iset
-! Here, a set bit indicates an internal MO
-!----------------------------------------------------------------------
-    ! Initialisation
-    iset=0_ib
-    
-    ! Loop over configurations
-    do i=1,ntot
-
-       ! Fill in the iset bit string
-       do k=1,n_int
-          iset(k)=ior(iset(k),conf(k,1,i))
-          iset(k)=ior(iset(k),conf(k,2,i))
-       enddo
-       
-    enddo
-
-!----------------------------------------------------------------------
-! Compute the bit string encoding of the external MOs, iunset
-! Here, a set bit indicates an external MO
-!----------------------------------------------------------------------
-    ! Flip all the bits in iset
-    do k=1,n_int
-       iunset(k)=not(iset(k))
-    enddo
-
-    ! Unset any unused bits at the end of the array
-    n=mod(nmo,64)
-    if (n /= 0) iunset(n_int)=ibits(iunset(n_int),0,n)
-
-!----------------------------------------------------------------------
-! Numbers of internal and external MOs
-!----------------------------------------------------------------------
-    ! Internal MOs
-    nmoI=0
-    do k=1,n_int
-       nmoI=nmoI+popcnt(iset(k))
-    enddo
-    
-    ! External MOs
-    nmoE=nmo-nmoI
-
-!----------------------------------------------------------------------
-! Get the lists of internal and external MOs
-!----------------------------------------------------------------------
-    ! Internal MOs
-    Ilist=0
-    call list_from_bitstring(iset,Ilist,nmo)
-    
-    ! External MOs
-    Elist=0
-    call list_from_bitstring(iunset,Elist,nmo)
-    
-    return
-  
-  end subroutine get_internal_external_mos
-
-!######################################################################
-! get_mo_mapping: Fills in the canonical-to-MRCI MO mapping array
-!######################################################################
-!                 Note that m2c(i) gives the index of the canonical
-!                 MO corresponding to the ith MRCI MO, while the c2m
-!                 array gives the reverse mapping
-!######################################################################
-  subroutine get_mo_mapping(nmoI,nmoE,Ilist,Elist,m2c,c2m)
-
-    use constants
-    use bitglobal
-  
-    implicit none
-
-    integer(is), intent(in)  :: nmoI,nmoE
-    integer(is), intent(in)  :: Ilist(nmo),Elist(nmo)
-    integer(is), intent(out) :: m2c(nmo),c2m(nmo)
-    integer(is)              :: i
-    
-    ! Initialisation
-    m2c=0
-    c2m=0
-    
-    ! Internal MOs
-    do i=1,nmoI
-       m2c(i)=Ilist(i)
-       c2m(Ilist(i))=i
-    enddo
-
-    ! External MOs
-    do i=1,nmoE
-       m2c(i+nmoI)=Elist(i)
-       c2m(Elist(i))=i+nmoI
-    enddo
-    
-    return
-    
-  end subroutine get_mo_mapping
 
 !######################################################################
 ! rearrange_ref_confs: Rearranges the reference configurations to be
