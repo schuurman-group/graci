@@ -40,7 +40,6 @@ class Driver:
 
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
-
             mol_obj.run()
             chkpt.write(output.file_names['chkpt_file'], mol_obj)
 
