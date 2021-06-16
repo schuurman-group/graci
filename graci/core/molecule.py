@@ -27,7 +27,7 @@ class Molecule:
         # (or subject to user input) -- these are keywords
         # in params module
         self.xyz_file = None
-        self.units    = 'Bohr'
+        self.units    = 'Angstrom'
         self.mult     = 1
         self.charge   = 0.
         self.use_sym  = False
