@@ -2,12 +2,15 @@
 module for compute moments of the dipole operator
 for a given electronic state
 """
+import os as os
 import numpy as np
 from sympy import LeviCivita
+from pyscf.tools import molden
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.citools.mrci_1tdm as mrci_1tdm
 import graci.io.output as output
+import graci.io.gamess as gamess
 import graci.utils.constants as constants
 import sys as sys
 
@@ -818,11 +821,20 @@ class Transition:
         return
 
     #
-    def export_orbitals(self, bra, ket, orb_type='nto'):
+    def export_orbitals(self, bra, ket, orb_type='nto', 
+                                    file_format='molden', orb_dir=True):
         """print the natural transition orbitals and difference
            densities to file"""
+        orb_types = ['nto', 'ndo']
+        otype     = str(orb_type).lower()
 
         if bra not in self.bra_list or ket not in self.ket_list:
+            print("bra="+str(bra)+" ket="+str(ket)+
+                    " not in list of transitions")
+            return False
+
+        if otype not in orb_types:
+            print("orbital format: "+orb_type+" not recognized.")
             return False
 
         k_irrlbl = self.ket_obj.scf.mol.irreplbl
@@ -834,30 +846,31 @@ class Transition:
         k_ind = self.ket_list.index(ket)
         k_sym = k_irrlbl[self.ket_sym[k_ind]]
 
-        str_suffix ='.'+ str(ket+1)+'_' +str(k_sym.lower()) + \
-                    '.'+ str(bra+1)+'_' +str(b_sym.lower()) + \
-                    '_molden'
+        fname = otype.lower() + \
+                  '.'+ str(ket+1)+'_' +str(k_sym.lower()) + \
+                  '.'+ str(bra+1)+'_' +str(b_sym.lower()) + \
+                  '_'+ str(file_format).lower() + str(self.label)
 
-        if orb_type == 'nto':
-            # print out the NTOs
-            # determine number of pairs
-            wts = self.nos['nto_wt'][:, b_ind, k_ind]
-            ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
-            output.print_nos_molden(
-                'orbs/nto'+str_suffix,
-                 self.bra_obj.scf.mol,
-                 self.nos['nto'][:,:ncols, b_ind, k_ind],
-                 wts[:ncols])
+        if orb_dir:
+            fname = 'orbs/'+str(fname)
+            if not os.path.exists('orbs'):
+                os.mkdir('orbs')
 
-        elif orb_type == 'ndo':
-            # print out the NDOs
-            # determine number of pairs
-            wts = self.nos['ndo_wt'][:, b_ind, k_ind]
-            ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
-            output.print_nos_molden(
-                'orbs/ndo'+str_suffix,
-                self.bra_obj.scf.mol,
-                self.nos['ndo'][:,:ncols, b_ind, k_ind],
-                wts[:ncols])
+        # if a file called fname exists, delete it
+        if os.path.isfile(fname):
+            os.remove(fname)
+
+        wts = self.nos[otype+'_wt'][:, b_ind, k_ind]
+        ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
+
+        if str(file_format).lower() == 'molden':
+            molden.from_mo(self.bra_obj.scf.mol.pymol(), fname,
+                self.nos[otype][:,:ncols, b_ind, k_ind],
+                spin='Alpha', occ=wts[:ncols], ignore_h=True)
+
+        elif str(file_format).lower() == 'gamess':
+            gamess.write_orbitals(fname, self.bra_obj.scf.mol,
+                                  self.nos[otype][:,:ncols, b_ind, k_ind],
+                                  wts[:ncols])
 
         return

@@ -7,6 +7,7 @@ import sys as sys
 import h5py
 import graci.io.chkpt as chkpt
 
+valid_formats = ['molden','gamess']
 #
 def main():
     """Runs a GRaCI computation."""
@@ -27,43 +28,29 @@ def read_cmdline():
     Set relevant global variables.
     """
 
-    extract_list = {'scf'     : False,
-                    'nos'     : False,
-                    'nto'     : False, 
-                    'ndo'     : False,
-                    'wfn'     : None}
+    extract_list = {'-scf'     : None,
+                    '-nos'     : None,
+                    '-nto'     : None, 
+                    '-ndo'     : None,
+                    '-dets'    : None,
+                    '-format'  : 'molden'}
 
     chkpt_file  = sys.argv[1].strip()
     cutoff      = 0.
 
-    if '-scf' in sys.argv:
-        extract_list['scf'] = True
-
-    if '-nos' in sys.argv:
-        if len(sys.argv) > sys.argv.index('-orbs')+1:
-            argval = sys.argv[sys.argv.index('-orbs')+1].strip()
-            # if a format is given, ensure it's a supported format
-            if argval in orb_supported:
-                orb_fmt = argval
+    for arg in extract_list.keys():
+        if arg in sys.argv:
+            # what follows scf is the name of the scf
+            # section
+            sec_name = get_next_arg(arg)
+            # section name is not absolutely necessary: if a single 
+            # appropriate section is present, pull quantities from that
+            if sec_name not in extract_list.keys() and sec_name not None:
+                extract_list[arg] = sec_name
+            # if name not given, use default name: Class_name.Class_name
             else:
-                # if format not given, or supported, default is orbitals 
-                # in GAMESS format
-                orb_fmt = 'gamess'
-        extract_list['orbitals'] = orb_fmt
+                extract_list[arg] = 'default'
 
-    if '-wfn' in sys.argv:
-        if len(sys.argv) > sys.argv.index('-wfn')+1:
-            argval = sys.argv[sys.argv.index('-wfn')+1].strip()
-            # if an index is given, extract one state only
-            try:
-                indx = int(argval)
-            # if index not recognized, just extract all
-            except:
-                indx = -1
-        else:
-            indx = -1
-        extract_list['wfn'] = indx
-    
     if '-cutoff' in sys.argv:
         cutoff = sys.argv[sys.argv.index('-cutoff')+1].strip()
         extract_list['wfn'] = True
@@ -74,83 +61,25 @@ def read_cmdline():
 def parse_chkpt(chkpt_file, extract_list, cutoff):
     """read the the determinants from the h5 wfn file"""
 
-    # open chkpoint file
-    chkpt = h5py.File(chkpt_file, 'r', libver='latest')
+    # get the contents of the checkpoint file
+    chkpt_objs = chkpt.contents(chkpt_file)
 
-    if extract_list['geometry'] and 'geometry' in chkpt.keys():
-        print_geom(chkpt['geometry'][0,:])
-
-    if extract_list['energy'] and 'energy' in chkpt.keys():
-        print_ener(chkpt['ener'][0,:])
-
-    if extract_list['orbitals'] is not None:
-        print_orbitals(chkpt['orbitals'][:,:])
-
-    if extract_list['transition'] and 'transition' in chkpt.keys():
-        print_transition(chkpt['transition'])
-
-    if extract_list['wfn'] is not None:
-        wfn_indx = []
-
-        # first make a list of wfn objects 
-        for dset in chkpt.keys():
-            if 'wfn_det' in dset:
-                wfn_indx.append(int(dset.replace('wfn_det', '')))
-   
-        indx = extract_list['wfn']
-        # extract all wfns from chkpt file
-        if indx == -1:
-            for iwfn in wfn_indx:
-                print_wfn(chkpt, iwfn, cutoff)
-        # ...else jsut the wfn indicated
-        else:
-            if indx in wfn_inds:
-                print_wfn(chkpt, indx, cutoff)
-
-    chkpt.close()
-
-    return
-
-#
-def print_geom(geom):
-    """Print geometry to standard output"""
-
-    print(' '.join('{8.6f}'.format(geom[i]) 
-                        for i in range(len(geom))))
-
-    return
-
-#
-def print_energy(energy):
-    """Print the state energies"""
-
-    print(' '.join('{13.10f}'.format(energy[i]) 
-                      for i in range(len(energy))))
-
-    return
-
-#
-def print_orbitals(orbs):
-    """Print orbitals to the specified format"""
-
-
-    return
-
-#
-def print_transition(trans):
-    """Print the state labeld transition dipole moments"""
-
-    (nrows, ncols) = trans.shape
-
-    for itrn in range(nrows):
-        istate = int(trans[itrn,0])
-        fstate = int(trans[itrn,1])
-        tdip   = trans[itrn,2:4]
-        ostr   = '{5d} {5d}'.format(istate,fstate)
-        ostr   += ' '.join('{10.6f}'.format(tdip[i]) 
-                      for i in range(3))
-        print(ostr)
+    # determine the GRaCI object(s) that need to be created,
+    # or if requests are ambiguous (multiple objects of same
+    # type exist)
     
+    # first scf object(s)
+    if extract_list['-scf'] is not None:
+
+        # get list of scf objects in chkpt file
+        chkpt_scf = [scf_obj for scf_obj in chkpt_objs 
+                                        if 'Scf' in scf_obj]
+        if extract_list['-scf'] == 'default' and len(chkpt_scf) == 1:
+            scf_name = chkpt_scf[0]
+        else:
+            scf_name = extract_list['-scf']
+
+
     return
 
 #
@@ -207,6 +136,15 @@ def print_wfn(chkpt, indx, cutoff):
 
     return
 
+#
+def get_next_arg(arg):
+    """get the next argument in the comment line that follows
+       argument 'arg'"""
+
+    if len(sys.argv) > sys.argv.index(arg)+1:
+        return sys.argv[sys.argv.index(arg)+1].strip()
+    else:
+        return None
 
 if __name__ == '__main__':
 

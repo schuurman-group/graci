@@ -1,10 +1,12 @@
 """
 Module for computing DFT/MRCI energies
 """
+import os as os
 import sys as sys
 import graci.io.convert as convert
 import ctypes as ctypes
 import numpy as np
+from pyscf.tools import molden
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
@@ -16,6 +18,7 @@ import graci.citools.mrci_diag as mrci_diag
 import graci.citools.mrci_refine as mrci_refine
 import graci.citools.mrci_1rdm as mrci_1rdm
 import graci.io.output as output
+import graci.io.gamess as gamess
 import graci.properties.moments as moments
 
 # MRCI and DFT/MRCI Hamiltonian labels
@@ -217,7 +220,7 @@ class Dftmrci:
         # print orbitals if requested
         if self.print_orbitals:
             for ist in range(n_tot):
-                self.export_natorb(ist, file_format='molden')
+                self.export_orbitals(ist, file_format='molden')
 
         # we'll also compute 1-electron properties by
         # default.
@@ -492,7 +495,7 @@ class Dftmrci:
         return sym_indx
 
     #
-    def export_natorb(self, state, file_format='molden'):
+    def export_orbitals(self, state, file_format='molden', orb_dir=True):
         """export orbitals to molden or cube format"""
 
         if state >= self.n_state():
@@ -503,16 +506,26 @@ class Dftmrci:
         syms          = self.natural_sym(state)
         sym_lbl       = [self.scf.mol.irreplbl[syms[i]]
                         for i in range(len(syms))]
-        fname = 'orbs/nos.'+str(state+1)+ \
+        fname = 'nos.'+str(state+1)+ \
                 '_'+str(self.scf.mol.irreplbl[irr].lower())+ \
-                '_'+str(file_format)
+                '_'+str(file_format).lower()+"_"+str(self.label)
 
-        if file_format == 'molden':
-            output.print_nos_molden(fname, self.scf.mol, orb, occ,
-                                                   sym=sym_lbl)
-        else:
-            print("export_natorb: file format "+str(file_format)+
-                  " not recognized")
+        if orb_dir:
+            fname = 'orbs/'+fname
+            # if dir_name directory doesn't exist, create it
+            if not os.path.exists('orbs'):
+                os.mkdir('orbs')
+
+        # if a file called fname exists, delete it
+        if os.path.isfile(fname):
+            os.remove(fname)
+
+        if file_format.lower() == 'molden':
+            molden.from_mo(self.scf.mol.pymol(), fname, orb, 
+                spin='Alpha', symm=sym_lbl, occ=occ, ignore_h=True)
+
+        elif file_format.lower() == 'gamess':
+            gamess.write_orbitals(fname, self.mol, orb, occ)
 
         return
 

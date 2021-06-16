@@ -9,6 +9,7 @@ import h5py
 import math
 import numpy as np
 import graci.io.output as output
+import graci.io.gamess as gamess
 import graci.utils.timing as timing
 from pyscf.lib import logger
 from pyscf import gto, scf, dft, symm, ao2mo, df
@@ -171,9 +172,7 @@ class Scf:
 
         # write the Molden file if requested
         if self.print_orbitals:
-            if not os.path.exists('orbs'):
-                os.mkdir('orbs')
-            molden.dump_scf(mf, 'orbs/mos.scf.molden')
+            self.export_orbitals()
 
         timing.stop('scf.run')
 
@@ -216,6 +215,33 @@ class Scf:
             return self.orbs
         else:
             return np.identity(self.nmo)
+
+    # 
+    def export_orbitals(self, file_format='molden', orb_dir=True):
+        """export orbitals to molden format"""
+
+        # append the file_format label to file name
+        fname = 'mos_' + str(file_format).lower() + '_' + str(self.label)
+
+        if orb_dir:
+            fname = 'orbs/'+str(fname)
+            if not os.path.exists('orbs'):
+                os.mkdir('orbs')
+
+        # if a file called fname exists, delete it
+        if os.path.isfile(fname):
+            os.remove(fname)
+
+        if file_format.lower() == 'molden':
+            molden.from_mo(self.mol.pymol(), fname, self.orbs, 
+                symm=self.orb_irrep, spin='Alpha', ene=self.orb_ener, 
+                ignore_h=True)
+
+        elif file_format.lower() == 'gamess':
+            gamess.write_orbitals(fname, self.mol, self.orbs, 
+                                                         self.orb_ener)
+
+        return
 
     #
     def slater_dets(self, state):

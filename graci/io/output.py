@@ -225,32 +225,6 @@ def print_cleanup():
     return
 
 #
-def print_nos_molden(fname, mol, orb, occ, sym=None):
-    """print out the orbitals, labeled and ordered by 'occ' array
-       vlaid fstubs are current 'natorb', 'ndo', or 'nto' """
-    
-    file_name = os.path.basename(fname)
-    dirs      = fname.split('/')
-    if len(dirs) > 1:
-        dir_name = '/'.join([sdir for sdir in dirs[:-1]])
-    else:
-        dir_name = ''
-
-    # if a file called fname exists, delete it
-    if os.path.isfile(fname):
-        os.remove(fname)
-
-    # if dir_name directory doesn't exist, create it
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
-
-    # dump the nos to file in the orbs directory
-    molden.from_mo(mol.pymol(), fname, orb, spin='Alpha', 
-                   symm=sym, occ=occ, ignore_h=True)
-
-    return
-
-#
 def print_moments_header():
     """prints out header for moments section"""
 
