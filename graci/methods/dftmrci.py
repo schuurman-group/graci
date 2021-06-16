@@ -15,6 +15,7 @@ import graci.citools.mrci_space as mrci_space
 import graci.citools.mrci_diag as mrci_diag
 import graci.citools.mrci_refine as mrci_refine
 import graci.citools.mrci_1rdm as mrci_1rdm
+import graci.citools.mrci_wf as mrci_wf
 import graci.io.output as output
 import graci.properties.moments as moments
 
@@ -53,6 +54,7 @@ class Dftmrci:
         self.diag_blocksize = []
         self.diag_deflate   = False
         self.print_orbitals = False
+        self.save_wf        = False
         self.label          = 'Dftmrci'
 
         # class variables
@@ -196,6 +198,11 @@ class Dftmrci:
                 print('\n * Reference Space Converged *', flush=True)
                 break
 
+        # save the determinant expansions of the wave functions
+        # if requested
+        if self.save_wf:
+            mrci_wf.extract_wf(self)
+        
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
 

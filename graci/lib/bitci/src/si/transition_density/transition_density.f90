@@ -10,15 +10,16 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
      npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
      vecfileK_in) bind(c,name='transition_density_mrci')
 #else
-  subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
+subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
      npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
      vecfileK_in)
 #endif
 
+  use iso_c_binding, only: C_CHAR
   use constants
   use bitglobal
   use iomod
-  use iso_c_binding, only: C_CHAR
+  
   use conftype
   use merge
   use tdm

@@ -53,6 +53,7 @@ dftmrci_kword  = {'nstates'        : int,
                   'diag_blocksize' : int,
                   'diag_deflate'   : bool,
                   'print_orbitals' : bool,
+                  'save_wf'        : bool,
                   'label'          : str
                  }
 
