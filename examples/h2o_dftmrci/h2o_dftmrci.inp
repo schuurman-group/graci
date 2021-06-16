@@ -1,10 +1,7 @@
- $geometry section
+ $molecule section
  O   0.0000   0.0000   0.1191
  H   0.0000   0.7555  -0.4764
  H   0.0000  -0.7555  -0.4764
- $end
-
- $molecule section
  charge       = 0
  mult         = 1
  basis        = aug-cc-pvtz
