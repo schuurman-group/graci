@@ -200,7 +200,9 @@ class Dftmrci:
         dmat_sym = mrci_1rdm.rdm(self)
 
         # store them in adiabatic energy order
-        (nmo1, nmo2, n_tot) = dmat_sym[0].shape  
+        n_tot = self.n_state()
+        (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
+
         self.dmat = np.zeros((n_tot, nmo1, nmo2), dtype=float)
         for istate in range(n_tot):
             irr, st = self.state_sym(istate)
@@ -386,7 +388,7 @@ class Dftmrci:
 
         # if natural orbitals haven't been generated, generate them now
         if self.natorb_sym is None:
-            occ, nos = self.natural_orbs(istate)
+            occ, nos = self.natural_orb(istate)
 
         return self.natorb_sym[istate, :]
 
@@ -497,11 +499,11 @@ class Dftmrci:
             return
 
         [irr, st_sym] = self.state_sym(state)
-        occ, orb      = self.natural_orbs(state)
+        occ, orb      = self.natural_orb(state)
         syms          = self.natural_sym(state)
         sym_lbl       = [self.scf.mol.irreplbl[syms[i]]
                         for i in range(len(syms))]
-        fname = 'nos.'+str(ist+1)+ \
+        fname = 'orbs/nos.'+str(state+1)+ \
                 '_'+str(self.scf.mol.irreplbl[irr].lower())+ \
                 '_'+str(file_format)
 

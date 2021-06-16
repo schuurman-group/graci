@@ -3,6 +3,7 @@ Module for computing HF or KS-DFT orbitals and energies
 Initial pass, at least, will employ PySCF
 """
 
+import os
 import sys
 import h5py
 import math
@@ -170,10 +171,9 @@ class Scf:
 
         # write the Molden file if requested
         if self.print_orbitals:
-            with open('scf.molden', 'w') as f1:
-                molden.header(pymol, f1)
-                molden.orbital_coeff(pymol, f1, ref_orbs, ene=mf.mo_energy,
-                                     occ=mf.mo_occ, symm=self.orb_irrep)
+            if not os.path.exists('orbs'):
+                os.mkdir('orbs')
+            molden.dump_scf(mf, 'orbs/mos.scf.molden')
 
         timing.stop('scf.run')
 

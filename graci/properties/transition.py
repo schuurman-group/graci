@@ -119,11 +119,13 @@ class Transition:
 
         # construct the trans_list array
         # currently store them as [initial state, final state]
+        print('building transition list')
         self.build_trans_list()
 
+        print('self.bra_list = '+str(self.bra_list), flush=True)
+        print('self.ket_list = '+str(self.ket_list), flush=True)
+        print('self.trans_list='+str(self.trans_list), flush=True)
         # grab the transition density matrices
-        tdm_list = mrci_1tdm.tdm(self.bra_obj, self.ket_obj, 
-                                 self.trans_list)
         self.build_tdms()
 
         # build the multipole moments  -- easier to just do this once
@@ -845,7 +847,7 @@ class Transition:
             wts = self.nos['nto_wt'][:, b_ind, k_ind]
             ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
             output.print_nos_molden(
-                'nto'+str_suffix,
+                'orbs/nto'+str_suffix,
                  self.bra_obj.scf.mol,
                  self.nos['nto'][:,:ncols, b_ind, k_ind],
                  wts[:ncols])
@@ -856,7 +858,7 @@ class Transition:
             wts = self.nos['ndo_wt'][:, b_ind, k_ind]
             ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
             output.print_nos_molden(
-                'ndo'+str_suffix,
+                'orbs/ndo'+str_suffix,
                 self.bra_obj.scf.mol,
                 self.nos['ndo'][:,:ncols, b_ind, k_ind],
                 wts[:ncols])

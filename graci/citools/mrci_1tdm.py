@@ -35,12 +35,13 @@ def tdm(bra, ket, trans_list):
             # pairs of states for this bra irrep and ket irrep
             # bitsi uses Fortran indexing for these, hence the +1
             npairs = len(trans_list[bra_irr][ket_irr])
-            tdm_pairs = 1 + np.reshape(
-                np.array(trans_list[bra_irr][ket_irr], dtype=int),
-                (2*npairs), order='F')
             
             if npairs == 0:
                 continue
+
+            tdm_pairs = 1 + np.reshape(
+                np.array(trans_list[bra_irr][ket_irr], dtype=int),
+                (2*npairs), order='F')
 
             # total number of bra and ket roots for this irrep
             bra_tot = bra.n_state_sym(bra_irr)
