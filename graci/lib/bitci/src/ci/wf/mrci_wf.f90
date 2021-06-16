@@ -49,8 +49,9 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   type(mrcfg)              :: cfg
 
   ! Eigenpairs
-  real(dp), allocatable    :: vec(:,:),ener(:)
-
+  integer(is)              :: detdim
+  real(dp), allocatable    :: vec_csf(:,:),vec_det(:,:),ener(:)
+  
   ! Everything else
   integer(is)              :: i
   
@@ -78,32 +79,52 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
 !----------------------------------------------------------------------
   call cfg%initialise(irrep,confscr(irrep))
 
-  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
+!----------------------------------------------------------------------
+! Determine the dimension of the determinant basis
+!----------------------------------------------------------------------
+  call get_detdim(cfg,detdim)
+
+  ndet=detdim
+  
+!----------------------------------------------------------------------  
+! Output the basis dimensions
+!----------------------------------------------------------------------
+  write(6,'(/,x,a,9x,i0)') 'CSF basis dimension:',cfg%csfdim
+  write(6,'(x,a,x,i0)') 'Determinant basis dimension:',detdim
 
 !----------------------------------------------------------------------
-! Read in the eigenvectors
+! Allocate arrays
 !----------------------------------------------------------------------
-  ! Allocate arrays
-  allocate(vec(cfg%csfdim,nroots))
+  allocate(vec_csf(cfg%csfdim,nroots))
+  allocate(vec_det(detdim,nroots))
   allocate(ener(nroots))
   
+!----------------------------------------------------------------------
+! Read in the eigenvectors in the CSF basis
+!----------------------------------------------------------------------
   ! Read in the eigenvectors
-  call read_some_eigenpairs(vecscr(irrep),vec,ener,cfg%csfdim,&
+  call read_some_eigenpairs(vecscr(irrep),vec_csf,ener,cfg%csfdim,&
        nroots,iroots)
 
 !----------------------------------------------------------------------
-! Compute the determinant expansion of the MRCI wave functions and
-! save them to disk
+! Compute the eigenvectors in the determinant basis
 !----------------------------------------------------------------------
-  call csf2det_mrci(cfg,nroots,cfg%csfdim,vec,ndet)
+  call csf2det_mrci(cfg,nroots,cfg%csfdim,detdim,vec_csf,vec_det)
+
+!----------------------------------------------------------------------
+! Get the determinant bit strings
+!----------------------------------------------------------------------
+  
+  STOP
   
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
   call cfg%finalise
-  deallocate(vec)
+  deallocate(vec_csf)
+  deallocate(vec_det)
   deallocate(ener)
-  
+
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------
