@@ -119,12 +119,8 @@ class Transition:
 
         # construct the trans_list array
         # currently store them as [initial state, final state]
-        print('building transition list')
         self.build_trans_list()
 
-        print('self.bra_list = '+str(self.bra_list), flush=True)
-        print('self.ket_list = '+str(self.ket_list), flush=True)
-        print('self.trans_list='+str(self.trans_list), flush=True)
         # grab the transition density matrices
         self.build_tdms()
 
@@ -141,10 +137,10 @@ class Transition:
 
         # print orbitals if requested
         if self.print_orbitals:
-            for bst in bra_list:
-                for kst in ket_list:
-                    export_orbitals(bst, kst, orb_type='nto')
-                    export_orbitals(bst, kst, orb_type='ndo')
+            for bst in self.bra_list:
+                for kst in self.ket_list:
+                    self.export_orbitals(bst, kst, orb_type='nto')
+                    self.export_orbitals(bst, kst, orb_type='ndo')
 
         # print the summary output
         self.print_log()
@@ -797,9 +793,10 @@ class Transition:
         # print a 'transition table' for each initial state
         for ik in range(nket):
 
-            init_st   = self.ket_list[ik]
+            # shift state indices from 0..n-1 to 1..n
+            init_st   = self.ket_list[ik]+1
             init_sym  = k_irrlbl[self.ket_sym[ik]]
-            final_st  = self.bra_list
+            final_st  = [bra+1 for bra in self.bra_list]
             final_sym = [b_irrlbl[self.bra_sym[ib]] 
                          for ib in range(nbra)]
             exc_ener  = [self.bra_obj.energy(self.bra_list[i]) - 
@@ -835,10 +832,10 @@ class Transition:
         b_sym = b_irrlbl[self.bra_sym[b_ind]]
 
         k_ind = self.ket_list.index(ket)
-        ksym = k_irrlbl[self.ket_sym[k_ind]]
+        k_sym = k_irrlbl[self.ket_sym[k_ind]]
 
-        str_suffix ='.'+ str(ket+1)+'_' +str(ksym.lower()) + \
-                    '.'+ str(bra+1)+'_' +str(bsym.lower()) + \
+        str_suffix ='.'+ str(ket+1)+'_' +str(k_sym.lower()) + \
+                    '.'+ str(bra+1)+'_' +str(b_sym.lower()) + \
                     '_molden'
 
         if orb_type == 'nto':
