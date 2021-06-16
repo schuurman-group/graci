@@ -54,7 +54,7 @@ contains
 ! Start timing
 !----------------------------------------------------------------------
     call get_times(twall_start,tcpu_start)  
-    
+
 !----------------------------------------------------------------------
 ! Allocate and initialise arrays
 !----------------------------------------------------------------------
@@ -62,7 +62,7 @@ contains
 
     allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
     spincp=0.0d0
-
+    
 !----------------------------------------------------------------------
 ! (1) Ref - Ref contributions to the 1-TDMs
 !----------------------------------------------------------------------
@@ -74,7 +74,7 @@ contains
 !----------------------------------------------------------------------
     call tdm_0h_1h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
          npairs,rhoij,Bmap,Kmap)
-
+    
 !----------------------------------------------------------------------
 ! (3) Ref - 2H contributions to the 1-TDMs
 !----------------------------------------------------------------------
@@ -98,19 +98,19 @@ contains
 !----------------------------------------------------------------------
     call tdm_2h_2h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
          npairs,rhoij,Bmap,Kmap)
-    
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(spincp)
-    
+
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
     call get_times(twall_end,tcpu_end)
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'tdm_mrci')
-    
+
     return
     
   end subroutine tdm_mrci
@@ -1469,7 +1469,7 @@ contains
              
              ! Loop over ket 2I configurations
              do ikconf=cfgK%off2I(kn),cfgK%off2I(kn+1)-1
-
+          
                 ! Ket 2I configuration
                 kconf_int=cfgK%conf2I(1:n_int_I,:,ikconf)
                 ksop_int=cfgK%sop2I(1:n_int_I,:,ikconf)
@@ -1487,16 +1487,16 @@ contains
                 ! generate configurations that interact with the
                 ! ket 2I configuration
                 if (nac > 4) cycle
-
+          
                 ! Number of open shells in the ket 2I configuration
                 knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
                 
                 ! Number of ket 2I CSFs
                 knsp=ncsfs(knopen)
-
+          
                 ! Get the number of open shells preceding each ket conf MO
                 call nobefore(ksop_full,nbefore)
-
+          
                 ! Ket 2I - bra 2I contributions
                 if (nac <= 4 .and. &
                      cfgB%off2I(bn) /= cfgB%off2I(bn+1)) then
@@ -1510,7 +1510,7 @@ contains
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
                         cfgB%m2c,transpose)
                 endif
-
+          
                 ! Ket 2I - bra 2E contributions
                 if (nac == 0 &
                      .and. cfgB%n2E > 0 &
@@ -1525,7 +1525,7 @@ contains
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
                         cfgB%m2c,transpose)
                 endif
-
+          
                 ! Ket 2I - bra 1I1E contributions
                 if (nac <= 2 &
                      .and. cfgB%n1I1E > 0 &
@@ -1542,9 +1542,9 @@ contains
                 endif
                    
              enddo
-
+          
           endif
-
+          
           !
           ! Bra: 2I
           ! Ket: 2E and 1I1E
@@ -1555,7 +1555,7 @@ contains
              
              ! Loop over ket 2I configurations
              do ikconf=cfgB%off2I(bn),cfgB%off2I(bn+1)-1
-
+          
                 ! Ket 2I configuration
                 kconf_int=cfgB%conf2I(1:n_int_I,:,ikconf)
                 ksop_int=cfgB%sop2I(1:n_int_I,:,ikconf)
@@ -1568,21 +1568,21 @@ contains
                 ! the ket 2I and bra 2-hole configurations
                 nac=n_create_annihilate(kconf_int,&
                      cfgK%conf2h(1:n_int_I,:,kn),n_int_I)
-
+          
                 ! Cycle if the the bra 2-hole configuration cannot
                 ! generate configurations that interact with the
                 ! ket 2I configuration
                 if (nac > 4) cycle
-
+          
                 ! Number of open shells in the ket 2I configuration
                 knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
                 
                 ! Number of ket 2I CSFs
                 knsp=ncsfs(knopen)
-
+          
                 ! Get the number of open shells preceding each ket conf MO
                 call nobefore(ksop_full,nbefore)
-
+          
                 ! Ket 2I - bra 2E contributions
                 if (nac == 0 &
                      .and. cfgK%n2E > 0 &
@@ -1597,7 +1597,7 @@ contains
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
                         cfgK%m2c,transpose)
                 endif
-
+          
                 ! Ket 2I - bra 1I1E contributions
                 if (nac <= 2 &
                      .and. cfgK%n1I1E > 0 &
@@ -1614,7 +1614,7 @@ contains
                 endif
                    
              enddo
-
+          
           endif
 
           !
@@ -1624,10 +1624,10 @@ contains
           ! Work with elements < Bra | E_p^q | Ket >
           transpose=.false.
           if (cfgK%n2E > 0 .and. nac1 <= 5) then
-
+          
              ! Loop over ket 2E configurations
              do ikconf=cfgK%off2E(kn),cfgK%off2E(kn+1)-1
-
+          
                 ! Ket 2E configuration
                 kconf_full=cfgK%conf2E(:,:,ikconf)
                 ksop_full=cfgK%sop2E(:,:,ikconf)
@@ -1644,19 +1644,19 @@ contains
                 ! generate configurations that interact with the
                 ! ket 2E configuration
                 if (nac > 4) cycle
-
+          
                 ! Number of open shells in the ket 2E configuration
                 knopen=sop_nopen(ksop_full,n_int)
                 
                 ! Number of ket 2E CSFs
                 knsp=ncsfs(knopen)
-
+          
                 ! Get the number of open shells preceding each ket conf MO
                 call nobefore(ksop_full,nbefore)
-
+          
                 ! Ket 2E - bra 2E contributions
                 if (cfgB%off2E(bn) /= cfgB%off2E(bn+1) .and. &
-                     nac1 <= 2) then
+                     nac1 <= 2 .and. cfgB%n2E /= 0) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n2E,cfgK%n2E,&       ! no. bra and ket confs
@@ -1667,7 +1667,7 @@ contains
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
                         cfgB%m2c,transpose)
                 endif
-
+          
                 ! Ket 2E - bra 1I1E matrix elements
                 if (cfgB%off1I1E(bn) /= cfgB%off1I1E(bn+1) &
                      .and. cfgB%n1I1E /= 0) then
@@ -1685,7 +1685,7 @@ contains
              enddo
              
           endif
-
+          
           !
           ! Bra: 2E
           ! Ket: 1I1E
@@ -1693,10 +1693,10 @@ contains
           ! Work with elements < Ket | E_q^p | Bra >
           transpose=.true.
           if (cfgB%n2E > 0 .and. nac1 <= 5) then
-
+          
              ! Loop over ket 2E configurations
              do ikconf=cfgB%off2E(bn),cfgB%off2E(bn+1)-1
-
+          
                 ! Ket 2E configuration
                 kconf_full=cfgB%conf2E(:,:,ikconf)
                 ksop_full=cfgB%sop2E(:,:,ikconf)
@@ -1708,21 +1708,21 @@ contains
                 ! Number of creation and annihilation operators linking
                 ! the ket 2E and bra 2-hole configurations
                 nac=n_create_annihilate(kconf_full,kconf2h_full,n_int)
-
+          
                 ! Cycle if the the bra 2-hole configuration cannot
                 ! generate configurations that interact with the
                 ! ket 2E configuration
                 if (nac > 4) cycle
-
+          
                 ! Number of open shells in the ket 2E configuration
                 knopen=sop_nopen(ksop_full,n_int)
                 
                 ! Number of ket 2E CSFs
                 knsp=ncsfs(knopen)
-
+          
                 ! Get the number of open shells preceding each ket conf MO
                 call nobefore(ksop_full,nbefore)
-
+          
                 ! Ket 2E - bra 1I1E matrix elements
                 if (cfgK%off1I1E(kn) /= cfgK%off1I1E(kn+1) &
                      .and. cfgK%n1I1E /= 0) then
@@ -1738,9 +1738,9 @@ contains
                 endif
                 
              enddo
-
+          
           endif
-
+          
           !
           ! Ket: 1I1E
           ! Bra: 1I1E
@@ -1751,7 +1751,7 @@ contains
           
              ! Loop over ket 1I1E configurations
              do ikconf=cfgK%off1I1E(kn),cfgK%off1I1E(kn+1)-1
-
+          
                 ! Ket 1I1E configuration
                 kconf_full=cfgK%conf1I1E(:,:,ikconf)
                 ksop_full=cfgK%sop1I1E(:,:,ikconf)
@@ -1763,7 +1763,7 @@ contains
                 ! Number of creation and annihilation operators linking
                 ! the ket 2E and bra 2-hole configurations
                 nac=n_create_annihilate(kconf_full,bconf2h_full,n_int)
-
+          
                 ! Cycle if the the bra 2-hole configuration cannot
                 ! generate configurations that interact with the
                 ! ket 1I1E configuration
@@ -1774,10 +1774,10 @@ contains
                 
                 ! Number of ket 1I1E CSFs
                 knsp=ncsfs(knopen)
-
+          
                 ! Get the number of open shells preceding each ket conf MO
                 call nobefore(ksop_full,nbefore)
-
+          
                 ! Ket 1I1E - bra 1I1E contributions
                 if (cfgB%off1I1E(bn) /= cfgB%off1I1E(bn+1)) then
                    call tdm_batch(&
@@ -1792,7 +1792,7 @@ contains
                 endif
                    
              enddo
-
+          
           endif
              
        enddo
