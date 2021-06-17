@@ -49,7 +49,9 @@ bitci_registry = {
     'refine_ref_space'       : ['int32','int32','int32','int32',
                                 'double','double','int32'],
     'density_mrci'           : ['int32','int32','int32','double',
-                                'int32','int32']
+                                'int32','int32'],
+    'wf_mrci'                : ['int32','int32','int32','int32',
+                                'int32','string','int32']
 }
 
 bitci_intent = {
@@ -72,7 +74,8 @@ bitci_intent = {
     'print_mrci_states'      : ['in','in','in'],
     'print_pmrci_states'     : ['in','in','in','in','in','in'],
     'refine_ref_space'       : ['in','out','in','in','in','out','out'],
-    'density_mrci'           : ['in','in','in','out','in','in']
+    'density_mrci'           : ['in','in','in','out','in','in'],
+    'wf_mrci'                : ['in','in','in','in','in','in','out']
 }
 
 
