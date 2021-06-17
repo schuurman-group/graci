@@ -48,9 +48,13 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
 
-  ! Eigenpairs
+  ! Eigenpairs in the CSF basis
+  real(dp), allocatable    :: vec_csf(:,:),ener(:)
+
+  ! Determinants and eigenvectors in the determinat basis
   integer(is)              :: detdim
-  real(dp), allocatable    :: vec_csf(:,:),vec_det(:,:),ener(:)
+  integer(ib), allocatable :: det(:,:,:)
+  real(dp), allocatable    :: vec_det(:,:)
   
   ! Everything else
   integer(is)              :: i
@@ -98,6 +102,7 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   allocate(vec_csf(cfg%csfdim,nroots))
   allocate(vec_det(detdim,nroots))
   allocate(ener(nroots))
+  allocate(det(n_int,2,detdim))
   
 !----------------------------------------------------------------------
 ! Read in the eigenvectors in the CSF basis
@@ -109,13 +114,21 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
 !----------------------------------------------------------------------
 ! Compute the eigenvectors in the determinant basis
 !----------------------------------------------------------------------
-  call csf2det_mrci(cfg,nroots,cfg%csfdim,detdim,vec_csf,vec_det)
+  call eigenvectors_detbas(cfg,nroots,cfg%csfdim,detdim,vec_csf,&
+       vec_det)
 
 !----------------------------------------------------------------------
 ! Get the determinant bit strings
 !----------------------------------------------------------------------
+  call bitstrings_detbas(cfg,detdim,det)
   
-  STOP
+!----------------------------------------------------------------------
+! Debugging: check that the determinant expansions are spin
+! eigenfunctions
+!----------------------------------------------------------------------
+  print*,''
+  print*,'The <S^2> checking routine needs writing...'
+  stop
   
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -124,6 +137,7 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   deallocate(vec_csf)
   deallocate(vec_det)
   deallocate(ener)
+  deallocate(det)
 
 !----------------------------------------------------------------------
 ! Flush stdout
