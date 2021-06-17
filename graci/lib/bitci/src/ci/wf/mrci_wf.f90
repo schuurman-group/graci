@@ -17,9 +17,11 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   use iso_c_binding, only: C_CHAR
   use constants
   use bitglobal
-  use iomod
   use conftype
   use csf2det
+  use det_expec
+  use iomod
+  use timing
   
   implicit none
 
@@ -55,9 +57,21 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   integer(is)              :: detdim
   integer(ib), allocatable :: det(:,:,:)
   real(dp), allocatable    :: vec_det(:,:)
+
+  ! Timing variables
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
   
   ! Everything else
   integer(is)              :: i
+  real(dp), allocatable    :: S2expec(:)
+  real(dp)                 :: S,S2
+  real(dp), parameter      :: tiny=5e-12_dp
+
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+  call get_times(twall_start,tcpu_start)
   
 !----------------------------------------------------------------------
 ! Output what we are doing
@@ -103,6 +117,7 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   allocate(vec_det(detdim,nroots))
   allocate(ener(nroots))
   allocate(det(n_int,2,detdim))
+  allocate(S2expec(nroots))
   
 !----------------------------------------------------------------------
 ! Read in the eigenvectors in the CSF basis
@@ -112,24 +127,37 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
        nroots,iroots)
 
 !----------------------------------------------------------------------
-! Compute the eigenvectors in the determinant basis
-!----------------------------------------------------------------------
-  call eigenvectors_detbas(cfg,nroots,cfg%csfdim,detdim,vec_csf,&
-       vec_det)
-
-!----------------------------------------------------------------------
 ! Get the determinant bit strings
 !----------------------------------------------------------------------
   call bitstrings_detbas(cfg,detdim,det)
   
 !----------------------------------------------------------------------
+! Compute the eigenvectors in the determinant basis
+!----------------------------------------------------------------------
+  call eigenvectors_detbas(cfg,nroots,cfg%csfdim,detdim,vec_csf,&
+       vec_det)
+  
+!----------------------------------------------------------------------
 ! Debugging: check that the determinant expansions are spin
 ! eigenfunctions
 !----------------------------------------------------------------------
-  print*,''
-  print*,'The <S^2> checking routine needs writing...'
-  stop
-  
+! This should be commented back in if, e.g., nomax is increased
+!----------------------------------------------------------------------
+!  ! Compute the S^2 expectation values
+!  call s2expec_detbas(detdim,nroots,det,vec_det,S2expec)
+!
+!  ! Correct value
+!  S=dble(imult-1)/2.0d0
+!  S2=S*(S+1.0d0)
+!
+!  ! Check the expectation values
+!  do i=1,nroots
+!     if (abs(S2-S2expec(i)) > 5e-12_dp) then
+!        errmsg='Error in wf_mrci: incorrect <S^2> value found'
+!        call error_control
+!     endif
+!  enddo
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -138,7 +166,15 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   deallocate(vec_det)
   deallocate(ener)
   deallocate(det)
+  deallocate(S2expec)
 
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+  call get_times(twall_end,tcpu_end)
+  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+       'wf_mrci')
+  
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------

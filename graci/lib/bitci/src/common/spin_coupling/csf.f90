@@ -133,9 +133,9 @@ contains
 ! This could become problematic if very large numbers of open shells
 ! are considered.
 !----------------------------------------------------------------------
-!    call check_csfs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
-!         csfvec,detvec)
-    
+    !call check_csfs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
+    !     csfvec,detvec)
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -990,7 +990,7 @@ contains
     do idet=1,ndets(nopen)
        s2mat(idet,idet)=s2ii(d(:,idet))
     enddo
-
+    
 !----------------------------------------------------------------------
 ! Off-diagonal elements
 !----------------------------------------------------------------------
@@ -1025,7 +1025,7 @@ contains
           ! Compute the S^2 matrix element
           s2mat(ibra,iket)=s2ij(phase,hlist,plist)
           s2mat(iket,ibra)=s2mat(ibra,iket)
-          
+
        enddo
        
     enddo
