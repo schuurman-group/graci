@@ -39,6 +39,10 @@ contains
     case(2:3)
        ! Grimme's parameterisation
        call hii_dftmrci_grimme(harr,nsp,Dw,ndiff,nopen,m2c)
+
+    case(4:5)
+       ! Lyskov's parameterisation
+       call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c)
        
     case default
        print*,'Your Hamiltonian choice has not been implemented yet'
@@ -216,6 +220,227 @@ contains
     
   end subroutine hii_dftmrci_grimme
 
+!######################################################################
+! hii_dftmrci_lyskov: applies Lyskov's DFT/MRCI correction to a batch
+!                     of on-diagonal Hamiltonian matrix elements
+!######################################################################
+  subroutine hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c)
+    
+    use constants
+    use bitglobal
+    use hparam
+
+    implicit none
+
+    ! Array of on-diagonal Hamiltonian matrix elements
+    integer(is), intent(in) :: nsp
+    real(dp), intent(inout) :: harr(nsp)
+
+    ! Difference configuration information
+    integer(is), intent(in) :: ndiff
+    integer(is), intent(in) :: Dw(nmo,2)
+
+    ! Number of open shells
+    integer(is), intent(in) :: nopen
+    
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! Everything else
+    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos
+    real(dp)                :: Viijj,Vijji
+    real(dp)                :: contrib
+    real(dp)                :: pJ,pF
+    
+!----------------------------------------------------------------------
+! Return if we are at the base configuration
+!----------------------------------------------------------------------
+    if (ndiff == 0) return
+
+!----------------------------------------------------------------------
+! Parameter values
+!----------------------------------------------------------------------
+    pJ=hpar(1)
+    pF=hpar(2)
+
+!----------------------------------------------------------------------
+! Sum_i F_ii^KS - F_ii^HF Delta w_i
+!----------------------------------------------------------------------
+    ! Loop over non-zero Delta w_i values
+    do i=1,ndiff
+    
+       ! MO index
+       i1=m2c(Dw(i,1))
+    
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+    
+       ! Sum the contribution
+       harr=harr+(moen(i1)-Fii(i1))*Dwi
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Find the start of the postive Delta w_i values
+!----------------------------------------------------------------------
+    do i=1,ndiff
+       if (Dw(i,2) > 0) then
+          ipos=i
+          exit
+       endif
+    enddo
+    
+!----------------------------------------------------------------------
+! Coulomb correction 1
+!----------------------------------------------------------------------
+! -pJ Sum_i Sum_j V_iijj , Delta w_i > 0, Delta w_j > 0, j > i
+!----------------------------------------------------------------------
+    contrib=0.0d0
+
+    ! Loop over positive Delta w_i values
+    do i=ipos,ndiff-1
+       
+       ! MO index
+       i1=m2c(Dw(i,1))
+       
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+
+       ! Loop over positive Delta w_j values
+       do j=ipos+1,ndiff
+          
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! V_iijj
+          Viijj=Vc(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib-pJ*Viijj
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Coulomb correction 2
+!----------------------------------------------------------------------
+! -pJ Sum_i Sum_j V_iijj , Delta w_i < 0, Delta w_j < 0, j > i
+!----------------------------------------------------------------------
+    ! Loop over negative Delta w_i values
+    do i=1,ipos-2
+       
+       ! MO index
+       i1=m2c(Dw(i,1))
+       
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+
+       ! Loop over negative Delta w_j values
+       do j=i+1,ipos-1
+          
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! V_iijj
+          Viijj=Vc(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib-pJ*Viijj
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Coulomb correction 3
+!----------------------------------------------------------------------
+! pJ Sum_i Sum_j V_iijj , Delta w_i < 0, Delta w_j > 0
+!----------------------------------------------------------------------
+    ! Loop over negative Delta w_i values
+    do i=1,ipos-1
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+    
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       ! Loop over positive Delta w_j values
+       do j=ipos,ndiff
+
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! V_iijj
+          Viijj=Vc(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib+pJ*Viijj
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 1
+!----------------------------------------------------------------------
+! -pF/2 Sum_i Sum_j V_ijji , Delta w_i < 0, Delta w_j > 0
+!----------------------------------------------------------------------
+    ! Loop over negative Delta w_i values
+    do i=1,ipos-1
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+    
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       ! Loop over positive Delta w_j values
+       do j=ipos,ndiff
+
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! V_ijij
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib-0.5d0*pF*Vijji
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 2
+!----------------------------------------------------------------------
+! -pF Sum_i Sum_j V_ijji <w omega|E_i^j E_j^i|w omega>,
+!
+! j > i, i and j singly-occupied
+!----------------------------------------------------------------------
+    print*,'sort this out...'
+    stop
+
+    ! Here we need the indices of the singly-occupied MOs, i.e., the
+    ! socc array
+    
+    return
+    
+  end subroutine hii_dftmrci_lyskov
+    
 !######################################################################
 ! damping_grimme: for two CSF-averaged on-diagonal matrix element
 !                 values, returns the value of Grimme's original
