@@ -82,11 +82,6 @@ module bitglobal
   real(dp), allocatable    :: moen(:)
 
   !
-  ! Nuclear repulsion energy
-  !
-  real(dp) :: enuc
-  
-  !
   ! Symmetry
   !
   integer(is)      :: ipg             ! Index of the point group
@@ -128,6 +123,11 @@ module bitglobal
   real(dp), allocatable :: Vx(:,:)   ! Exchange integrals V_ijji
   real(dp)              :: Escf      ! SCF energy
 
+  !
+  ! Nuclear repulsion energy
+  !
+  real(dp)              :: Enuc
+    
   !
   ! DFT/MRCI logical flag
   !

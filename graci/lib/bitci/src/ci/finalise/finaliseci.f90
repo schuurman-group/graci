@@ -52,7 +52,6 @@ subroutine bitci_finalise()
   nel_alpha=0
   nel_beta=0
   nel_spin(2)=0
-  enuc=0.0d0
   ipg=0
   nirrep=0
   pgdim=0

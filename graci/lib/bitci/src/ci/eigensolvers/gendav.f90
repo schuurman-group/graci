@@ -333,7 +333,7 @@ contains
        read(iscratch) s2f
        read(iscratch) subeig
        read(iscratch) subvec
-       subeig=subeig-enuc-escf
+       subeig=subeig-escf
     endif
        
     !
@@ -1007,9 +1007,9 @@ contains
     enddo
 
 !----------------------------------------------------------------------
-! Add on E_SCF and E_nuc to the eigenvalues
+! Add on E_SCF to the eigenvalues
 !----------------------------------------------------------------------
-    rho=rho+escf+enuc
+    rho=rho+escf
     
 !----------------------------------------------------------------------
 ! Register the scratch file

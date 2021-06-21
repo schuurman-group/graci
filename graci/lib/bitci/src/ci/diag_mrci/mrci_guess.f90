@@ -758,8 +758,8 @@ contains
 !----------------------------------------------------------------------
     call diag_matrix_real(subhmat,subeig,subvec,subdim)
     
-    ! Add on E_SCF + E_nuc
-    subeig=subeig+escf+enuc
+    ! Add on E_SCF
+    subeig=subeig+escf
 
     return
     

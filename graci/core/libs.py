@@ -245,7 +245,7 @@ def init_bitci(ci_method):
 
     pgrp  = convert.convert_ctypes(isym,                   
             dtype='int32')
-    enuc  = convert.convert_ctypes(ci_method.scf.mol.enuc,               
+    escf = convert.convert_ctypes(ci_method.scf.energy,
             dtype='double')
     iham  = convert.convert_ctypes(hamiltonians.index(ci_method.hamiltonian)+1,
             dtype='int32')
@@ -259,7 +259,7 @@ def init_bitci(ci_method):
                                mosym,
                                moen,
                                ctypes.byref(pgrp),
-                               ctypes.byref(enuc),
+                               ctypes.byref(escf),     
                                ctypes.byref(iham),
                                label)
     

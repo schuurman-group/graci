@@ -95,9 +95,8 @@ contains
     enddo
     call read_some_eigenpairs(vec0scr,vec0,e0,refdim,nroots,iroots)
 
-    ! Subtract off E_SCF and E_nuc from the energies to get the
-    ! true eigenvalues
-    e0=e0-escf-enuc
+    ! Subtract off E_SCF from the energies to get the true eigenvalues
+    e0=e0-escf
     
 !----------------------------------------------------------------------
 ! (1) 1-hole configurations -> 1I and 1E configurations

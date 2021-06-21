@@ -107,24 +107,24 @@ contains
        enddo
     enddo
 
-!----------------------------------------------------------------------
-! E_SCF
-!----------------------------------------------------------------------
-    Escf=0.0d0
-    do i=1,nmo
-       
-       if (iocc(i) == 0) cycle
-       
-       ! Fock matrix contribution
-       Escf=Escf+fii(i)*iocc(i)
-
-       ! Two electon-integral contribution
-       Escf=Escf-0.25d0*Vc(i,i)*iocc(i)**2
-       do j=i+1,nmo
-          Escf=Escf-(Vc(i,j)-0.5d0*Vx(i,j))*iocc(i)*iocc(j)
-       enddo
-       
-    enddo
+!!----------------------------------------------------------------------
+!! E_SCF
+!!----------------------------------------------------------------------
+!    Escf=0.0d0
+!    do i=1,nmo
+!       
+!       if (iocc(i) == 0) cycle
+!       
+!       ! Fock matrix contribution
+!       Escf=Escf+fii(i)*iocc(i)
+!
+!       ! Two electon-integral contribution
+!       Escf=Escf-0.25d0*Vc(i,i)*iocc(i)**2
+!       do j=i+1,nmo
+!          Escf=Escf-(Vc(i,j)-0.5d0*Vx(i,j))*iocc(i)*iocc(j)
+!       enddo
+!       
+!    enddo
 
     return
     
