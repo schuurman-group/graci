@@ -763,6 +763,7 @@ contains
     use constants
     use bitglobal
     use pattern_indices
+    use dftmrci
     
     implicit none
 
@@ -787,7 +788,7 @@ contains
     integer(is)             :: nsp,nsp2b,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
     integer(is)             :: bomega,komega,indx
-    integer(is)             :: count
+    integer(is)             :: count,n
     real(dp)                :: Vijji,product
 
 !----------------------------------------------------------------------
@@ -856,6 +857,11 @@ contains
 
     enddo
 
+!----------------------------------------------------------------------
+! DFT/MRCI corrections
+!----------------------------------------------------------------------
+    if (ldftmrci) call hij_same_dftmrci(harr,nsp)
+       
     return
     
   end subroutine hij_same_mrci

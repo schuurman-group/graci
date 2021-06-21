@@ -112,7 +112,7 @@ contains
        ! Apply any DFT/MRCI corrections to the on-diagonal
        ! matrix elements
        if (ldftmrci) call hii_dftmrci(harr(1:nsp),nsp,Dw,ndiff,&
-            nopen,m2c)
+            nopen,m2c,sop_full,socc,nsocc,nbefore)
        
        ! Fill in the hii array
        iomega=0

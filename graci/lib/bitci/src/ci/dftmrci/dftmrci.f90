@@ -12,7 +12,8 @@ contains
 ! hii_dftmrci: applies DFT/MRCI corrections to a batch of on-diagonal
 !              Hamiltonian matrix elements
 !######################################################################
-  subroutine hii_dftmrci(harr,nsp,Dw,ndiff,nopen,m2c)
+  subroutine hii_dftmrci(harr,nsp,Dw,ndiff,nopen,m2c,&
+       sop,socc,nsocc,nbefore)
     
     use constants
     use bitglobal
@@ -33,6 +34,16 @@ contains
     
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
+
+    ! SOP characterising the spatial occupation
+    integer(ib), intent(in) :: sop(n_int,2)
+
+    ! Indices of the singly-occupied MOs
+    integer(is), intent(in) :: nsocc
+    integer(is), intent(in) :: socc(nmo)
+
+    ! Numbers of open shells preceding each MO
+    integer(is), intent(in) :: nbefore(nmo)
     
     select case(ihamiltonian)
        
@@ -42,7 +53,8 @@ contains
 
     case(4:5)
        ! Lyskov's parameterisation
-       call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c)
+       call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
+            nsocc,nbefore)
        
     case default
        print*,'Your Hamiltonian choice has not been implemented yet'
@@ -55,8 +67,8 @@ contains
   end subroutine hii_dftmrci
 
 !######################################################################
-! hij_dftmrci: applies DFT/MRCI corrections to a batch of off-diagonal
-!              Hamiltonian matrix element
+! hij_dftmrci_batch: applies DFT/MRCI corrections to a batch of
+!                    off-diagonal Hamiltonian matrix elements
 !######################################################################
   subroutine hij_dftmrci_batch(hij,bdim,kdim,bav,kav)
 
@@ -80,6 +92,10 @@ contains
     case(2:3)
        ! Grimme's parameterisation
        damp=damping_grimme(bav,kav)
+
+    case(4:5)
+       ! Lyskov's parameterisation
+       damp=damping_lyskov(bav,kav)
        
     case default
        print*,'Your Hamiltonian choice has not been implemented yet'
@@ -95,7 +111,49 @@ contains
     return
     
   end subroutine hij_dftmrci_batch
+
+!######################################################################
+! hij_same_dftmrci: applies DFT/MRCI corrections to a batch of
+!                   off-diagonal Hamiltonian matrix elements with the
+!                   same spatial part but different spin couplings
+!######################################################################
+  subroutine hij_same_dftmrci(hij,nsp)
+
+    use constants
+    use bitglobal
+    use hparam
+
+    implicit none
+
+    ! Hamiltonian matrix elements
+    integer(is), intent(in) :: nsp
+    real(dp), intent(inout) :: hij(:)
+
+    ! Everything else
+    integer(is)             :: nij
+        
+    select case(ihamiltonian)
+       
+    case(2:3)
+       ! Grimme's parameterisation: do nothing
+       return
+
+    case(4:5)
+       ! Lyskov's parameterisation
+       nij=nsp*(nsp-1)/2
+       hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
+       return
+       
+    case default
+       print*,'Your Hamiltonian choice has not been implemented yet'
+       stop
+       
+    end select
     
+    return
+    
+  end subroutine hij_same_dftmrci
+  
 !######################################################################
 ! hii_dftmrci_grimme: applies Grimme's DFT/MRCI correction to a batch
 !                     of on-diagonal Hamiltonian matrix elements
@@ -224,10 +282,12 @@ contains
 ! hii_dftmrci_lyskov: applies Lyskov's DFT/MRCI correction to a batch
 !                     of on-diagonal Hamiltonian matrix elements
 !######################################################################
-  subroutine hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c)
+  subroutine hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
+       nsocc,nbefore)
     
     use constants
     use bitglobal
+    use pattern_indices
     use hparam
 
     implicit none
@@ -245,13 +305,25 @@ contains
     
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
+
+    ! SOP characterising the spatial occupation
+    integer(ib), intent(in) :: sop(n_int,2)
+
+    ! Indices of the singly-occupied MOs
+    integer(is), intent(in) :: nsocc
+    integer(is), intent(in) :: socc(nmo)
+
+    ! Numbers of open shells preceding each MO
+    integer(is), intent(in) :: nbefore(nmo)
     
     ! Everything else
-    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos
+    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,nsp2b
+    integer(is)             :: ic,ja,omega,indx
     real(dp)                :: Viijj,Vijji
-    real(dp)                :: contrib
+    real(dp)                :: contrib(nsp)
+    real(dp)                :: product
     real(dp)                :: pJ,pF
-    
+
 !----------------------------------------------------------------------
 ! Return if we are at the base configuration
 !----------------------------------------------------------------------
@@ -428,14 +500,56 @@ contains
 ! Exchange correction 2
 !----------------------------------------------------------------------
 ! -pF Sum_i Sum_j V_ijji <w omega|E_i^j E_j^i|w omega>,
-!
 ! j > i, i and j singly-occupied
 !----------------------------------------------------------------------
-    print*,'sort this out...'
-    stop
+    ! Numbers of 'intermediate' CSFs entering into the contractions of
+    ! the fibers of the spin-coupling coefficient tensor
+    if (nopen > 1) then
+       nsp2b=ncsfs(nopen-2)
+    else
+       nsp2b=0
+    endif
 
-    ! Here we need the indices of the singly-occupied MOs, i.e., the
-    ! socc array
+    ! Loop over singly-occupied MOs (creation operator)
+    do i=1,nsocc-1
+       
+       ! Creation operator index
+       ic=socc(i)
+       
+       ! DFT/HF MO index
+       i1=m2c(ic)
+
+       ! Loop over singly-occupied MOs (annihilation operator)
+       do j=i+1,nsocc
+          
+          ! Annihilation operator index
+          ja=socc(j)
+          
+          ! DFT/HF MO index
+          j1=m2c(ja)
+
+          ! Get the spin coupling coefficient pattern index
+          indx=pattern_index_case2b(sop,ic,ja,nbefore(ic),nbefore(ja),&
+               nopen)
+
+          ! V_ijji
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contributions
+          do omega=1,nsp
+             product=dot_product(spincp2(1:nsp2b,omega,indx),&
+                  spincp2(1:nsp2b,omega,indx))
+             contrib(omega)=contrib(omega)-pF*Vijji*product
+          enddo
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Add the Coulomb and exchange corrections
+!----------------------------------------------------------------------
+    harr=harr+contrib
     
     return
     
@@ -473,6 +587,39 @@ contains
     
   end function damping_grimme
 
+!######################################################################
+! damping_lyskov: for two CSF-averaged on-diagonal matrix element
+!                 values, returns the value of Lyskov's redesigned
+!                 DFT/MRCI damping function
+!######################################################################
+  function damping_lyskov(av1,av2) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+    
+    implicit none
+
+    ! Function result
+    real(dp)             :: func
+
+    ! CSF-averaged on-diagonal matrix elements
+    real(dp), intent(in) :: av1,av2
+
+    ! Everything else
+    real(dp)             :: p2DE5
+
+    !
+    ! p1 / {1 + (p2 DeltaE)^5 arctan([p2 DeltaE]^5)}
+    !
+    p2DE5=hpar(4)*abs(av1-av2)
+    p2DE5=p2DE5**5
+    func=hpar(3)/(1.0d0+p2DE5*atan(p2DE5))
+        
+    return
+    
+  end function damping_lyskov
+  
 !######################################################################
   
 end module dftmrci
