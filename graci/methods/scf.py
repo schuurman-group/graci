@@ -151,8 +151,9 @@ class Scf:
         self.orb_occ   = mf.mo_occ
         # orb_ener is the array of MO energies
         self.orb_ener  = mf.mo_energy
-        # orb_irrep is the irrep label
-        self.orb_irrep = orb_sym
+        # orb_irrep is the irrep label -- this dirty: easier for
+        # checkpointing if this is NOT a numpy array of strings
+        self.orb_irrep = [orb_sym[i] for i in range(len(orb_sym))]
         # orb_sym is the irrep index
         self.orb_sym   = orb_id
         # number of MOs

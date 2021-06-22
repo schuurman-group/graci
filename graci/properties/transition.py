@@ -140,10 +140,8 @@ class Transition:
 
         # print orbitals if requested
         if self.print_orbitals:
-            for bst in self.bra_list:
-                for kst in self.ket_list:
-                    self.export_orbitals(bst, kst, orb_type='nto')
-                    self.export_orbitals(bst, kst, orb_type='ndo')
+            self.export_orbitals(orb_type='nto')
+            self.export_orbitals(orb_type='ndo')
 
         # print the summary output
         self.print_log()
@@ -821,7 +819,21 @@ class Transition:
         return
 
     #
-    def export_orbitals(self, bra, ket, orb_type='nto', 
+    def export_orbitals(self, orb_type='nto', file_format='molden', 
+                                                          orb_dir=True):
+        """export all transition/difference density orbitals that
+           in the object"""
+        for bst in self.bra_list:
+            for kst in self.ket_list:
+                self.export_orbitals_tran(bst, kst, 
+                                          orb_type=orb_type, 
+                                          file_format=file_format, 
+                                          orb_dir=orb_dir)
+        return
+
+
+    #
+    def export_orbitals_tran(self, bra, ket, orb_type='nto', 
                                     file_format='molden', orb_dir=True):
         """print the natural transition orbitals and difference
            densities to file"""

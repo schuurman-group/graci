@@ -6,8 +6,15 @@ import os
 import sys as sys
 import h5py
 import graci.io.chkpt as chkpt
+import graci.core.params
 
 valid_formats = ['molden','gamess']
+orb_objs      = {'-scf' : ['Scf'],
+                 '-nos' : ['Dftmrci','Dftcis'],
+                 '-nto' : ['Transition'],
+                 '-ndo' : ['Transition']}
+wfn_objs      = {'-dets' : ['Dftmrci','Dftcis']}                
+
 #
 def main():
     """Runs a GRaCI computation."""
@@ -17,7 +24,10 @@ def main():
 
     # parse the wfn file and pull out all 
     # determinants with coefficients >= cutoff
-    parse_chkpt(chkpt_file, extract_list, cutoff)
+    extract_orbitals(chkpt_file, extract_list)
+   
+    # extract det/csf lists if requested
+    extract_wfns(chkpt_file, extract_list)
 
     return
 
@@ -33,7 +43,8 @@ def read_cmdline():
                     '-nto'     : None, 
                     '-ndo'     : None,
                     '-dets'    : None,
-                    '-format'  : 'molden'}
+                    '-format'  : 'molden',
+                    '-cutoff'  : 0}
 
     chkpt_file  = sys.argv[1].strip()
     cutoff      = 0.
@@ -42,23 +53,25 @@ def read_cmdline():
         if arg in sys.argv:
             # what follows scf is the name of the scf
             # section
-            sec_name = get_next_arg(arg)
+            arg_val = get_next_arg(arg)
             # section name is not absolutely necessary: if a single 
             # appropriate section is present, pull quantities from that
-            if sec_name not in extract_list.keys() and sec_name not None:
-                extract_list[arg] = sec_name
-            # if name not given, use default name: Class_name.Class_name
+            if arg_val not in extract_list.keys() and arg_val is not None:
+                extract_list[arg] = arg_val
+            # if argument not given, define default behavior
             else:
                 extract_list[arg] = 'default'
 
-    if '-cutoff' in sys.argv:
-        cutoff = sys.argv[sys.argv.index('-cutoff')+1].strip()
-        extract_list['wfn'] = True
+    # do some sanity checking on the format argument
+    if extract_list['-format'] not in valid_formats:
+        print("File format: "+str(extract_list['-format'])+
+                                       " not a known file format")
+        sys.exit(1)
 
     return chkpt_file, extract_list, cutoff
 
 #
-def parse_chkpt(chkpt_file, extract_list, cutoff):
+def extract_orbitals(chkpt_file, extract_list):
     """read the the determinants from the h5 wfn file"""
 
     # get the contents of the checkpoint file
@@ -69,72 +82,98 @@ def parse_chkpt(chkpt_file, extract_list, cutoff):
     # type exist)
     
     # first scf object(s)
-    if extract_list['-scf'] is not None:
+    for key, value in extract_list.items():
 
-        # get list of scf objects in chkpt file
-        chkpt_scf = [scf_obj for scf_obj in chkpt_objs 
-                                        if 'Scf' in scf_obj]
-        if extract_list['-scf'] == 'default' and len(chkpt_scf) == 1:
-            scf_name = chkpt_scf[0]
+        # skip this item if not requested
+        if value is None:
+            continue
+
+        # these are not orbital related 
+        if key=='-dets' or key=='-cutoff' or key=='-format':
+            continue
+
+        # figure out which object to extract:
+        # 1. if -scf, either go with name provided, or, if only
+        #    one Scf object present, extract that. Else: fail
+        # 2. if -nos, either go with name provided, or, if only
+        #    one Postscf object present, extract that. Else: fail
+        # 3. if -nto/-ndo, either go with name provided, or, if only
+        #    one Transitoin object present, extract that. Else: fail
+        valid_objs = orb_objs[key]
+
+        # names in chkpt file given by ClassName.label
+        obj_names = [name for name in chkpt_objs if 
+                                  name.split('.')[0]  in valid_objs]
+        if value == 'default' and len(obj_names) == 1:
+            obj2extract = obj_names[0]
         else:
-            scf_name = extract_list['-scf']
+            obj2extract = str(value)
 
+        if obj2extract not in obj_names:
+            print("Section: "+str(obj2extract)+" not found "+
+                    "in chkpt file")
+            sys.exit(1)
+
+        # extract objects and write to current directory
+        chkpt_obj = chkpt.read(chkpt_file, obj2extract)
+        chkpt_obj.export_orbitals(file_format=extract_list['-format'], 
+                                orb_dir=False)
 
     return
 
 #
-def print_wfn(chkpt, indx, cutoff):
+def extract_wfns(chkpt, extract_list):
     """Print the determinant list"""
 
     # using 64-bit integers to store det occupations
     STR_LEN = 64
 
     # first extract the coefficient list up to a value of "cutoff"
-    cf_name  = 'wfn_cf'+str(indx)
-    det_name = 'wfn_det'+str(indx)
+#    cf_name  = 'wfn_cf'+str(indx)
+#    det_name = 'wfn_det'+str(indx)
 
-    (ndet_wfn, n_tot) = chkpt[det_name].shape
-    (ndet_cf,   dum)  = chkpt[cf_name].shape
+#    (ndet_wfn, n_tot) = chkpt[det_name].shape
+#    (ndet_cf,   dum)  = chkpt[cf_name].shape
      
-    if ndet_wfn != ndet_cf:
-        print("WARNING: determinant and coefficient lists are not"+
-                " the same length: "+str(ndet_wfn)+"!="+str(ndet_cf))
+#    if ndet_wfn != ndet_cf:
+#        print("WARNING: determinant and coefficient lists are not"+
+#                " the same length: "+str(ndet_wfn)+"!="+str(ndet_cf))
 
-    ndet  = min(ndet_wfn, ndet_cf)
-    n_int = int(n_tot / 2)
-    nmo   = int(chkpt[det_name].attrs['nmo'])
+#    ndet  = min(ndet_wfn, ndet_cf)
+#    n_int = int(n_tot / 2)
+#    nmo   = int(chkpt[det_name].attrs['nmo'])
 
-    for idet in range(ndet):
-        cf  = float(chkpt[cf_name][idet,0])
-        if cf < cutoff:
-            break
+#    for idet in range(ndet):
+#        cf  = float(chkpt[cf_name][idet,0])
+#        if cf < cutoff:
+#            break
 
-        det = chkpt[det_name][idet,:]
+#        det = chkpt[det_name][idet,:]
 
-        alpha = []
-        beta  = []
+#        alpha = []
+#        beta  = []
 
-        for i_int in range(n_int):       
-            alpha_i = list(reversed("{0:b}".format(det[i_int])))
-            alpha  += alpha_i + ['0' for i in range(STR_LEN - len(alpha_i))]
+#        for i_int in range(n_int):       
+#            alpha_i = list(reversed("{0:b}".format(det[i_int])))
+#            alpha  += alpha_i + ['0' for i in range(STR_LEN - len(alpha_i))]
 
-            beta_i  = list(reversed("{0:b}".format(det[n_int + i_int])))
-            beta   += beta_i + ['0' for i in range(STR_LEN - len(beta_i))]
+#            beta_i  = list(reversed("{0:b}".format(det[n_int + i_int])))
+#            beta   += beta_i + ['0' for i in range(STR_LEN - len(beta_i))]
 
         # only take first nmo entries -- the rest are padding
-        dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
-        rdet = []
-        for i in range(nmo):
-            if int(alpha[i]) == 0:
-                rdet.append(-dabs[i])
-            else:
-                rdet.append(dabs[i])
+#        dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
+#        rdet = []
+#        for i in range(nmo):
+#            if int(alpha[i]) == 0:
+#                rdet.append(-dabs[i])
+#            else:
+#                rdet.append(dabs[i])
 
-        det_str  = '{:14.10f} '.format(cf)
-        det_str += ('%3d'*nmo) % tuple(rdet)
-        print(det_str)
+#        det_str  = '{:14.10f} '.format(cf)
+#        det_str += ('%3d'*nmo) % tuple(rdet)
+#        print(det_str)
 
-    return
+#    return
 
 #
 def get_next_arg(arg):

@@ -219,8 +219,7 @@ class Dftmrci:
 
         # print orbitals if requested
         if self.print_orbitals:
-            for ist in range(n_tot):
-                self.export_orbitals(ist, file_format='molden')
+            self.export_orbitals(orb_format='molden')
 
         # we'll also compute 1-electron properties by
         # default.
@@ -494,9 +493,19 @@ class Dftmrci:
 
         return sym_indx
 
+    # 
+    def export_orbitals(self, orb_format='molden', orb_dir=True):
+        """export natural orbitals for all states to file"""
+
+        for ist in range(self.n_state()):
+            self.export_orbitals_state(ist, orb_format=orb_format, 
+                                                   orb_dir=orb_dir)
+        return
+
     #
-    def export_orbitals(self, state, file_format='molden', orb_dir=True):
-        """export orbitals to molden or cube format"""
+    def export_orbitals_state(self, state, orb_format='molden', 
+                                                      orb_dir=True):
+        """export orbitals of a single state to various file formats"""
 
         if state >= self.n_state():
             return
@@ -508,7 +517,7 @@ class Dftmrci:
                         for i in range(len(syms))]
         fname = 'nos.'+str(state+1)+ \
                 '_'+str(self.scf.mol.irreplbl[irr].lower())+ \
-                '_'+str(file_format).lower()+"_"+str(self.label)
+                '_'+str(orb_format).lower()+"_"+str(self.label)
 
         if orb_dir:
             fname = 'orbs/'+fname
@@ -520,11 +529,11 @@ class Dftmrci:
         if os.path.isfile(fname):
             os.remove(fname)
 
-        if file_format.lower() == 'molden':
+        if orb_format.lower() == 'molden':
             molden.from_mo(self.scf.mol.pymol(), fname, orb, 
                 spin='Alpha', symm=sym_lbl, occ=occ, ignore_h=True)
 
-        elif file_format.lower() == 'gamess':
+        elif orb_format.lower() == 'gamess':
             gamess.write_orbitals(fname, self.mol, orb, occ)
 
         return
