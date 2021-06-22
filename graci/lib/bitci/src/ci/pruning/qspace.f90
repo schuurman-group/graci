@@ -49,10 +49,10 @@ contains
     real(dp)                 :: f
 
 !----------------------------------------------------------------------
-! Subtract off E_SCF and E_nuc from the energies to get the true
-! reference space eigenvalues
+! Subtract off E_SCF from the energies to get the true reference space
+! eigenvalues
 !----------------------------------------------------------------------    
-    eig0=E0-escf-enuc
+    eig0=E0-escf
     
 !----------------------------------------------------------------------
 ! Initialisation

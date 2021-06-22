@@ -51,7 +51,7 @@ contains
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)  
+    call get_times(twall_start,tcpu_start)
     
 !----------------------------------------------------------------------
 ! Allocate and initialise arrays

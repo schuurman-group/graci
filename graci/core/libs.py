@@ -49,7 +49,9 @@ bitci_registry = {
     'refine_ref_space'       : ['int32','int32','int32','int32',
                                 'double','double','int32'],
     'density_mrci'           : ['int32','int32','int32','double',
-                                'int32','int32']
+                                'int32','int32'],
+    'wf_mrci'                : ['int32','int32','int32','int32',
+                                'int32','string','int32']
 }
 
 bitci_intent = {
@@ -72,7 +74,8 @@ bitci_intent = {
     'print_mrci_states'      : ['in','in','in'],
     'print_pmrci_states'     : ['in','in','in','in','in','in'],
     'refine_ref_space'       : ['in','out','in','in','in','out','out'],
-    'density_mrci'           : ['in','in','in','out','in','in']
+    'density_mrci'           : ['in','in','in','out','in','in'],
+    'wf_mrci'                : ['in','in','in','in','in','in','out']
 }
 
 
@@ -242,7 +245,7 @@ def init_bitci(ci_method):
 
     pgrp  = convert.convert_ctypes(isym,                   
             dtype='int32')
-    enuc  = convert.convert_ctypes(ci_method.scf.mol.enuc,               
+    escf = convert.convert_ctypes(ci_method.scf.energy,
             dtype='double')
     iham  = convert.convert_ctypes(hamiltonians.index(ci_method.hamiltonian)+1,
             dtype='int32')
@@ -256,7 +259,7 @@ def init_bitci(ci_method):
                                mosym,
                                moen,
                                ctypes.byref(pgrp),
-                               ctypes.byref(enuc),
+                               ctypes.byref(escf),     
                                ctypes.byref(iham),
                                label)
     

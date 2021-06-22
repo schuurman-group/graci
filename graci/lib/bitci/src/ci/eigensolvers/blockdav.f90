@@ -770,10 +770,10 @@ contains
        
        if (i.eq.1) then
           write(6,'(i4,10x,F12.7,3x,E13.7,2x,a1)') &
-               k,reigval(i)+escf+enuc,norm(i),aconv
+               k,reigval(i)+escf,norm(i),aconv
        else
           write(6,'(14x,F12.7,3x,E13.7,2x,a1)') &
-               reigval(i)+escf+enuc,norm(i),aconv
+               reigval(i)+escf,norm(i),aconv
        endif
     enddo
 
@@ -1277,9 +1277,9 @@ contains
     endif
 
 !----------------------------------------------------------------------
-! Add on E_SCF and E_nuc
+! Add on E_SCF
 !----------------------------------------------------------------------
-    reigval=reigval+escf+enuc
+    reigval=reigval+escf
 
 !----------------------------------------------------------------------
 ! Register the scratch file

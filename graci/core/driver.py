@@ -3,6 +3,7 @@ module that determines what types of calculations run
 and in what order
 """
 import sys as sys
+import os as os
 import graci.core.params as params
 import graci.core.libs as libs
 import graci.io.output as output
@@ -41,6 +42,8 @@ class Driver:
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
             mol_obj.run()
+            if os.path.exists(output.file_names['chkpt_file']):
+                os.remove(output.file_names['chkpt_file'])
             chkpt.write(output.file_names['chkpt_file'], mol_obj)
 
         # print output file header

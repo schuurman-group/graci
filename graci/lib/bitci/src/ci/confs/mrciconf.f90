@@ -90,10 +90,10 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   write(6,'(72a)') ('-',i=1,52)
 
 !----------------------------------------------------------------------
-! Subtract E_SCF and E_nuc from the highest reference space energy
-! to obtain the true DFT/MRCI Hamiltonian eigenvalue
+! Subtract E_SCF from the highest reference space energy to obtain the
+! true DFT/MRCI Hamiltonian eigenvalue
 !----------------------------------------------------------------------
-  E0max=E0max1-Escf-Enuc
+  E0max=E0max1-Escf
 
 !----------------------------------------------------------------------
 ! Read the reference configurations for all irreps from disk

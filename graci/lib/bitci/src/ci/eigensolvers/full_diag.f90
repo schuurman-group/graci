@@ -113,8 +113,8 @@ contains
     ! Diagonalisation
     call diag_matrix_real(hmat,heig,hvec,csfdim)
   
-    ! Add on E_SCF + E_nuc
-    heig=heig+escf+enuc
+    ! Add on E_SCF
+    heig=heig+escf
 
 !----------------------------------------------------------------------
 ! Save the eigenpairs to disk

@@ -4,11 +4,11 @@
 !                   a CI calculation.
 !######################################################################
 #ifdef CBINDING
-subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
-     iham,label1) bind(c,name="bitci_initialise")
+subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
+     escf1,iham,label1) bind(c,name="bitci_initialise")
 #else
-subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
-     iham,label1)
+subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
+     escf1,iham,label1)
 #endif
 
   use constants
@@ -29,7 +29,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   integer(ib), intent(in)            :: mosym1(nmo1)
   integer(is), intent(in)            :: iham
   real(dp), intent(in)               :: moen1(nmo1)
-  real(dp), intent(in)               :: enuc1
+  real(dp), intent(in)               :: escf1
   real(dp)                           :: s,smax
   logical                            :: verbose
   
@@ -131,9 +131,11 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,enuc1,&
   nirrep=pgdim(ipg)
 
 !----------------------------------------------------------------------
-! Nuclear repulsion energy
+! E_SCF: note that this is the SCF energy if this is an MRCI
+!        calculation but is the DFT energy if we are performing a
+!        DFT/MRCI calculation
 !----------------------------------------------------------------------
-  enuc=enuc1
+  escf=escf1
   
 !----------------------------------------------------------------------
 ! Set the bitstring integer array lengths
