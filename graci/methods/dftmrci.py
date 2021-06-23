@@ -491,7 +491,7 @@ class Dftmrci:
             maxo = olap.index(max(olap))
             sym_indx[orb] = self.scf.orb_sym[maxo]
  
-        # max sure the symmetry orbital counts match up
+        # make sure the symmetry orbital counts match up
         oval, ocnts = np.unique(sym_indx, return_counts=True)
         val,  cnts  = np.unique(self.scf.orb_sym, return_counts=True)
 

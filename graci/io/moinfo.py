@@ -3,7 +3,9 @@ A set of standard structures to store basis set
 of MO information
 """
 
+import sys as sys
 import numpy as np
+from pyscf.gto import mole
 
 a_symbols   = ['H','HE',
                'LI','BE','B','C','N','O','F','NE',
@@ -19,17 +21,78 @@ nfunc_cart  = [1, 3, 6, 10]
 
 nfunc_sph   = [1, 3, 5, 7]
 
-ao_ordr = [['s'],
-           ['px','py','pz'],
-           ['dxx','dxy','dxz','dyy','dyz','dzz'],
-           ['fxxx','fxxy','fxxz','fxyy','fxyz',
-            'fxzz','fyyy','fyyz','fyzz','fzzz']]
+# this is the standard ao ordering scheme used by libcint/pyscf
+cart_ao_ordr = [['s'],
+                ['px','py','pz'],
+                ['dxx','dxy','dxz','dyy','dyz','dzz'],
+                ['fxxx','fxxy','fxxz','fxyy','fxyz',
+                 'fxzz','fyyy','fyyz','fyzz','fzzz']]
 
-ao_norm = [[1.],
-           [1.,1.,1.],
-           [1.,1.,1.,np.sqrt(3.),np.sqrt(3.),np.sqrt(3.)],
-           [1.,1.,1.,np.sqrt(5.),np.sqrt(5.),np.sqrt(5.),
-                     np.sqrt(5.),np.sqrt(5.),np.sqrt(5.),np.sqrt(15.)]]
+sph_ao_ordr  =  [['s'],
+                 ['px','py','pz'],
+                 ['dxy','dyz','dz2','dxz','dx2-y2'],
+                 ['f3x2y-y3','fxyz','fyz2','fz3','fxz2',
+                                   'fx2z-y2z','fx3-xy2']]
+
+cart_ao_norm = [[1.],
+                [1.,1.,1.],
+                [1.,1.,1.,1.,1.,1],
+                [1.,1.,1.,1.,1.,1.,1.,1.,1.,1.]]
+
+sph_ao_norm = [[1.],
+               [1.,1.,1.],
+               [1.,1.,1.,1.,1.],
+               [1.,1.,1.,1.,1.,1.,1]]
+
+# generate geom, basis objects from GRaCI molecule object
+def create_geom(mol):
+    """create a Geometry object from a GRaCI molecule object"""
+
+    new_geom = Geom()
+    atms     = mol.atoms()
+    carts    = mol.cart()
+    for iatm in range(mol.n_atoms()):
+        new_atom = Atom(atms[iatm], carts[iatm,:])
+        new_geom.add_atom(new_atom)
+
+    return new_geom
+
+# generate a basis function object from GRaCI molecule object
+def create_basis(mol, geom):
+    """create a BasisSet object from a GRaCI molecule object"""
+
+    new_basis = BasisSet(mol, geom)
+
+    return new_basis
+
+# create orbital object
+def create_orbitals(mol, orbs, occ, cart):
+    """create an Orbitals object from input orbitals"""
+
+    pymol = mol.pymol()
+
+    # if AOs already cartesian and we want cartesian orbitals,
+    # do nothing
+    if cart and pymol.cart:
+        orb_out   = orbs
+    elif cart and pymol.cart is False:
+        # this generates (nmo, nao) transformation matrix
+        s2c = np.linalg.pinv(pymol.cart2sph_coeff(normalized='sp'))
+        orb_out = np.matmul(s2c.T, orbs)
+    elif cart is False and pymol.cart is False:
+        orb_out = orbs
+    elif cart is False and pymol.cart:
+        c2s = pymol.cart2sph_coeff(normalized='sp')
+        orb_out = np.matmul(c2s.T, orbs)
+
+    (nao, nmo) = orb_out.shape
+
+    new_mos            = Orbitals(nao, nmo, cart_aos=cart)
+    new_mos.mo_vectors = orb_out
+    new_mos.occ        = occ
+
+    return new_mos
+
 
 class Atom:
     """Wrapper for all requisite data about an atom."""
@@ -95,11 +158,14 @@ class Geom:
 
 class Orbitals:
     """Wrapper to hold information about the orbitals."""
-    def __init__(self, n_aos, n_mos):
+    def __init__(self, n_aos, n_mos, cart_aos=True):
         # number of AOs
         self.naos       = n_aos
         # number of MOs
         self.nmos       = n_mos
+        # cartesian AOs or spherical harmonic AOs
+        self.cart_aos   = cart_aos
+
         # matrix holding MOs
         self.mo_vectors = np.zeros((n_aos, n_mos), dtype=float)
         # vector holding occupations
@@ -149,6 +215,28 @@ class Orbitals:
         """Takes the norm of an orbital."""
         np.linalg.norm(self.mo_vectors[:,mo_i])
 
+    def convert(self, basis_set, new_ao_ordr, new_ao_norm):
+        """convert the orbitals to new order specified by ao_ordr and new
+           norm specified by ao_norm. The basis set used is given by
+           basis_set"""
+
+        pyout_map, scale_py, scale_new = basis_set.construct_map(
+                                                     new_ao_ordr, 
+                                                     new_ao_norm, 
+                                                     self.cart_aos)
+
+        # remove the pyscf normalization factors
+        self.scale(scale_py)
+
+        # re-sort orbitals to new ordering
+        self.sort_aos(pyout_map)
+
+        # apply the new normalization factors
+        self.scale(scale_new)
+
+        return
+
+
 class BasisFunction:
     """An object to hold information about a single basis function
     including angular momentum, exponents and contraction coefficients."""
@@ -172,11 +260,13 @@ class BasisFunction:
 
 class BasisSet:
     """Contains the basis set information for a single atom."""
-    def __init__(self, label, geom):
-        # string label of basis set name
-        self.label       = label
+    def __init__(self, mol, geom):
         # nuclear coordinates (and coordinates of centers of gaussians
         self.geom        = geom
+        # string label of basis set name
+        self.label       = mol.basis
+        # pyscf mole object
+        self.pymol       = mol.pymol()
         # total number of cartesian functions
         self.n_bf_cart   = 0
         # total number of spherical functions
@@ -185,6 +275,30 @@ class BasisSet:
         self.n_bf        = [0 for i in range(self.geom.natoms())]
         # list of basis function objects
         self.basis_funcs = [[] for i in range(self.geom.natoms())]
+
+        # load the basis function info into our standard
+        # basis set objects
+        atms     = mol.atoms()
+
+        for atm_id in range(len(atms)):
+            atm_bas_ids = self.pymol.atom_shell_ids(atm_id)
+            for bas_id in range(len(atm_bas_ids)):
+                ang    = self.pymol.bas_angular(atm_bas_ids[bas_id])
+                n_cont = self.pymol.bas_nctr(atm_bas_ids[bas_id])
+                n_prim = self.pymol.bas_nprim(atm_bas_ids[bas_id])
+                b_funcs = [BasisFunction(ang) for m in range(n_cont)]
+                expons  = self.pymol.bas_exp(atm_bas_ids[bas_id])
+                coefs   = self.pymol.bas_ctr_coeff(atm_bas_ids[bas_id])
+
+                for iprim in range(n_prim):
+                    expon = expons[iprim]
+                    print("l="+str(ang)+" norm="+str(mole.gto_norm(ang,expon)))
+                    for icont in range(n_cont):
+                        b_funcs[icont].add_primitive(expon,
+                                                 coefs[iprim, icont])
+
+                for icont in range(n_cont):
+                    self.add_function(atm_id, b_funcs[icont])
 
     def ang_mom_lst(self):
         """Returns an array containing the value of angular momentum of the
@@ -218,27 +332,36 @@ class BasisSet:
         self.n_bf_cart    += nfunc_cart[bf.ang_mom]
         self.n_bf_sph     += nfunc_sph[bf.ang_mom]
 
-    def construct_map(self, out_ordr, out_norm):
+    def construct_map(self, new_ordr, new_norm, cart=True):
         """Constructs a map array to convert the nascent pyscf AO ordering to
         an output AO ordering specified in out_ordr. Also returns the normalization 
         factors for the nascent and corresponding output-ordered AO basis."""
+        if cart:
+            pyordr = cart_ao_ordr
+            pynorm = cart_ao_norm
+            nfunc  = nfunc_cart
+        else:
+            pyordr = sph_ao_ordr
+            pynorm = sph_ao_ordr
+            nfunc  = nfunc_sph
+
         map_arr       = []
-        scale_pyscf   = []
-        scale_out     = []
-        ao_map        = [[ao_ordr[i].index(out_ordr[i][j])
-                         for j in range(nfunc_cart[i])]
-                         for i in range(len(out_ordr))]
+        scale_pyscf   = [] 
+        scale_new     = []
+        ao_map        = [[pyordr[i].index(new_ordr[i][j])
+                         for j in range(nfunc[i])]
+                         for i in range(len(new_ordr))]
 
         nf_cnt = 0
         for i in self.geom.atom_map:
             for j in range(len(self.basis_funcs[i])):
                 ang_mom = self.basis_funcs[i][j].ang_mom
-                nfunc   = nfunc_cart[ang_mom]
-                map_bf = [nf_cnt + ao_map[ang_mom][k] for k in range(nfunc)]
+                nf      = nfunc[ang_mom]
+                map_bf  = [nf_cnt + ao_map[ang_mom][k] for k in range(nf)]
                 map_arr.extend(map_bf)
-                scale_pyscf.extend([ao_norm[ang_mom][k] for k in range(nfunc)])
-                scale_out.extend([1./out_norm[ang_mom][k] for k in range(nfunc)])
-                nf_cnt += nfunc
+                scale_pyscf.extend([pynorm[ang_mom][k] for k in range(nf)])
+                scale_new.extend([1./new_norm[ang_mom][k] for k in range(nf)])
+                nf_cnt += nf
 
-        return map_arr, scale_pyscf, scale_out
+        return map_arr, scale_pyscf, scale_new
     

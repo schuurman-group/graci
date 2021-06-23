@@ -6,83 +6,48 @@ import os
 import numpy as np
 import graci.io.moinfo as moinfo
 
-ao_ordr     = [['s'],
-               ['px','py','pz'],
-               ['dxx','dyy','dzz','dxy','dxz','dyz'],
-               ['fxxx','fyyy','fzzz','fxxy','fxxz',
-                'fxyy','fyyz','fxzz','fyzz','fxyz']]
+gam_cart_ao_ordr = [['s'],
+                   ['px','py','pz'],
+                   ['dxx','dyy','dzz','dxy','dxz','dyz'],
+                   ['fxxx','fyyy','fzzz','fxxy','fxxz',
+                    'fxyy','fyyz','fxzz','fyzz','fxyz']]
 
-ao_norm     = [[1.],
-               [1.,1.,1.],
-               [1.,1.,1.,np.sqrt(3.),np.sqrt(3.),np.sqrt(3.)],
-               [1.,1.,1.,np.sqrt(5.),np.sqrt(5.),np.sqrt(5.),
-                         np.sqrt(5.),np.sqrt(5.),np.sqrt(5.),np.sqrt(15.)]]
+gam_cart_ao_norm = [[1.],
+                   [1.,1.,1.],
+                   [1.,1.,1.,np.sqrt(3.),np.sqrt(3.),np.sqrt(3.)],
+                   [1.,1.,1.,np.sqrt(5.),np.sqrt(5.),np.sqrt(5.),
+                             np.sqrt(5.),np.sqrt(5.),np.sqrt(5.),np.sqrt(15.)]]
 
-def write_orbitals(file_name, mol, orbs, occ):
+gam_sph_ao_ordr  =  [['s'],
+                    ['px','py','pz'],
+                    ['dxy','dyz','dz2','dxz','dx2-y2'],
+                    ['f3x2y-y3','fxyz','fyz2','fz3','fxz2',
+                                      'fx2z-y2z','fx3-xy2']]
+
+gam_sph_ao_norm  = [[1.],
+                    [1.,1.,1.],
+                    [1.,1.,1.,1.,1.],
+                    [1.,1.,1.,1.,1.,1.,1]]
+
+def write_orbitals(file_name, mol, orbs, occ, cart=True):
     """print the orbitals to gamess dat file format. Code assumes
-       input orbs are in pyscf format"""
+       input orbs are in pyscf format. Default is to output orbitals in
+       cartesian AOs"""
 
-    # construt geometry
-    gam_geom = moinfo.Geom()
-    atms     = mol.atoms()
-    carts    = mol.cart()
-    for iatm in range(mol.n_atoms()):
-        gam_atom = moinfo.Atom(atms[iatm], carts[iatm,:])
-        gam_geom.add_atom(gam_atom)
+    gam_geom  = moinfo.create_geom(mol)
+    gam_basis = moinfo.create_basis(mol, gam_geom)
+    gam_mos   = moinfo.create_orbitals(mol, orbs, occ, cart)
 
-    # pyscf mol object contains all basis set info
-    pymol     = mol.pymol()
-    gam_basis = moinfo.BasisSet(mol.basis, gam_geom)
-
-    # load the basis function info into our standard
-    # basis set objects
-    for atm_id in range(len(atms)):
-        atm_bas_ids = pymol.atom_shell_ids(atm_id)
-        for bas_id in range(len(atm_bas_ids)):
-            ang    = pymol.bas_angular(atm_bas_ids[bas_id])
-            n_cont = pymol.bas_nctr(atm_bas_ids[bas_id])
-            n_prim = pymol.bas_nprim(atm_bas_ids[bas_id])
-            b_funcs = [moinfo.BasisFunction(ang) for m in range(n_cont)]
-            expons  = pymol.bas_exp(atm_bas_ids[bas_id])
-            coefs   = pymol.bas_ctr_coeff(atm_bas_ids[bas_id])
-
-            for iprim in range(n_prim):
-                expon = expons[iprim]
-                for icont in range(n_cont):
-                    b_funcs[icont].add_primitive(expon,
-                                                 coefs[iprim, icont])
-            
-            for icont in range(n_cont):
-                gam_basis.add_function(atm_id, b_funcs[icont])
-
-
-    # put the orbitals into a GAMESS orbital object
-    # we will necessarily convert orbitals to cartesians 
-    # if need be
-    print("pymol.cart: "+str(pymol.cart))
-    if pymol.cart:
-        orb_cart   = orbs
+    # construct the order array for the output and provide the AO
+    # normalization factors
+    if cart:
+        out_ordr = gam_cart_ao_ordr
+        out_nrm  = gam_cart_ao_norm
     else:
-        # this generates (nmo, nao) transformation matrix
-        sph2cart = np.linalg.pinv(pymol.cart2sph_coeff())
-        orb_cart = np.matmul(sph2cart.T, orbs)
-    (nao, nmo) = orb_cart.shape
+        out_ordr = gam_sph_ao_ordr
+        out_nrm  = gam_sph_ao_norm
 
-    gam_mos = moinfo.Orbitals(nao, nmo)
-    gam_mos.mo_vectors = orb_cart
-    gam_mos.occ = occ
-
-    # construct mapping array from pyscf to GAMESS
-    pygam_map, scale_py, scale_gam = gam_basis.construct_map(ao_ordr, ao_norm)
-
-    # remove the pyscf normalization factors
-    gam_mos.scale(scale_py)
-
-    # re-sort orbitals to GAMESS ordering
-    gam_mos.sort_aos(pygam_map)
-
-    # apply the GAMESS normalization factors
-    gam_mos.scale(scale_gam)
+    gam_mos.convert(gam_basis, out_ordr, out_nrm)
 
     # print the MOs file
     with open(file_name, 'w') as orb_file:

@@ -39,8 +39,8 @@ module chkpt
   !
   subroutine chkpt_dset_dims(file_name, data_name, dims)
 
-    character(len=60), intent(in)  :: file_name
-    character(len=10), intent(in)  :: data_name
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
     integer(is), intent(out)       :: dims(2)
 
     logical                        :: file_exists
@@ -88,6 +88,7 @@ module chkpt
     call h5dclose_f(dset_id , hdferr)
     call h5sclose_f(space_id, hdferr)
     call h5fclose_f(file_id , hdferr)
+    call h5close_f(hdferr)
 
   end subroutine chkpt_dset_dims
 
@@ -104,9 +105,10 @@ module chkpt
   !            n: (integer) number of det/csfs to write (in)
   !      cf_list: (double) array of coefficients (in)
   !    conf_list: (integer) array of bitci dets/confs (in)
-  subroutine chkpt_write_wfn(file_name, nmo, wfn_indx, ndet, cf_list, det_list)
+  subroutine chkpt_write_wfn(file_name, grp_name, nmo, wfn_indx, ndet, cf_list, det_list)
 
-    character(len=60), intent(in) :: file_name
+    character(len=255), intent(in) :: file_name
+    character(len=255), intent(in) :: grp_name
     integer(is), intent(in)       :: nmo
     integer(is), intent(in)       :: wfn_indx
     integer(is), intent(in)       :: ndet
@@ -114,170 +116,44 @@ module chkpt
     integer(ib), intent(in)       :: det_list(n_int, 2, ndet)
 
     character(len=3)              :: indx_str
-    character(len=10)             :: data_name
+    character(len=10)             :: attr
+    character(len=255)            :: g_name
+    character(len=255)            :: data_name
     integer(is)                   :: dims(2)
     real(dp)                      :: data_set_cf(1, ndet)
     integer(ib)                   :: data_set_det(2*n_int,ndet)
 
     ! name of data_set
-    if (wfn_indx >= 1000) then
+    if (wfn_indx > 999) then
       print *,' trying to write wfn with index > 999'
       call exit(1)
     endif
     write(indx_str, '(i3)')wfn_indx
 
+    ! create the group to put data in if necessary
+    g_name = '/'//trim(adjustl(grp_name))
+    if(.not.group_exists(file_name, g_name)) call create_group(file_name, g_name)
+
     ! set buffers for the wfn det_list coefficients
     dims              = (/ 1, ndet /)
-    data_name         = 'wfn_cf'//adjustl(indx_str)
+    data_name         = trim(adjustl(g_name))//'/wfn_cf'//adjustl(indx_str)
     data_set_cf(1, :) = cf_list(:)    
 
     ! write wfn coefficients to dedicated dataset
     call write_dataset(file_name, data_name, dims, data_set_cf)
 
     ! Next write the determinants
-    dims                                 = (/ 2*n_int, ndet /)
-    data_name                            = 'wfn_det'//adjustl(indx_str)
+    dims        = (/ 2*n_int, ndet /)
+    data_name   = trim(adjustl(g_name))//'/wfn_det'//adjustl(indx_str)
     data_set_det(:n_int, :ndet)          = det_list(:n_int, 1, :ndet)
     data_set_det(n_int+1:2*n_int, :ndet) = det_list(:n_int, 2, :ndet)
   
     ! write wfn bit strings to dedicated dataset
     call write_dataset(file_name, data_name, dims, data_set_det)
-    call write_attribute(file_name, data_name, 'nmo  ', nmo)
+    attr = 'nmo'
+    call write_attribute(file_name, data_name, attr, nmo)
 
   end subroutine chkpt_write_wfn
-
-  !
-  !
-  !
-  !subroutine chkpt_read_geom(file_name, n_atoms, geom)
-  !
-  !  character(len=60), intent(in)    :: file_name
-  !  integer(is), intent(in)          :: n_atoms
-  !  real(dp), intent(out)            :: geom(3*n_atoms)
-  !
-  !  character(len=10)                :: data_name
-  !  integer(is)                      :: dims(2)
-  !  integer(is)                      :: dim_read(2)
-  !  real(dp), allocatable            :: data_set(:, :)
-  
-    ! name of data_set
-  !  data_name = 'geometry'
-  !  geom      = 0.
-  !  dims      = (/ 1, 3*n_atoms /)
-  !  allocate(data_set( dims(1), dims(2) ))
-
-    ! write geometry to 'geometry' data set
-  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
-
-  !  if (any(dims /= dim_read)) then
-  !    print *,'error reading geometry'
-  !  else
-  !    geom = data_set(1,1:3*n_atoms)
-  !  endif
-
-  !  deallocate(data_set)
-  !end subroutine chkpt_read_geom
-
-  !
-  !
-  !
-  !subroutine chkpt_read_ener(file_name, n_ener, energies)
-
-  !  character(len=60), intent(in)    :: file_name
-  !  integer(is), intent(in)          :: n_ener
-  !  real(dp), intent(out)            :: energies(n_ener)
-
-  !  character(len=10)                :: data_name
-  !  integer(is)                      :: dims(2)
-  !  integer(is)                      :: dim_read(2)
-  !  real(dp), allocatable            :: data_set(:, :)
-
-    ! name of data_set
-  !  data_name = 'energy'
-  !  energies  = 0.
-  !  dims      = (/ 1, n_ener /)
-  !  allocate(data_set( dims(1), dims(2)))
-
-    ! write geometry to 'geometry' data set
-  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
-
-  !  if (any(dims /= dim_read)) then
-  !    print *,'error reading energy'
-  !  else
-  !    energies = data_set(1,1:n_ener)
-  !  endif
-
-  !  deallocate(data_set)
-  !end subroutine chkpt_read_ener
-
-  !
-  !
-  !
-  !subroutine chkpt_read_orbs(file_name, nmo, nao, orbs)
-
-  !  character(len=60), intent(in)    :: file_name
-  !  integer(is), intent(in)          :: nmo
-  !  integer(is), intent(in)          :: nao
-  !  real(dp), intent(out)            :: orbs(nao, nmo)
-
-  !  character(len=10)                :: data_name
-  !  integer(is)                      :: dims(2)
-  !  integer(is)                      :: dim_read(2)
-  !  real(dp), allocatable            :: data_set(:, :)
-
-  !  ! name of data_set
-  !  data_name = 'orbitals'
-  !  orbs      = 0.
-  !  dims      = (/ nao, nmo /)
-  !  allocate(data_set( dims(1), dims(2)))
-
-    ! write geometry to 'geometry' data set
-  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
-
-  !  if (any(dims /= dim_read)) then
-  !    print *,'error reading orbitals'
-  !  else
-  !    orbs = data_set(1:nao, 1:nmo)
-  !  endif
-
-  !  deallocate(data_set)
-  !end subroutine chkpt_read_orbs
-
-  !
-  !
-  !
-  !subroutine chkpt_read_trans(file_name, ntd, st_lbls, trans)
-
-  !  character(len=60), intent(in)    :: file_name
-  !  integer(is), intent(in)          :: ntd
-  !  integer(is), intent(out)          :: st_lbls(2, ntd)
-  !  real(dp), intent(out)             :: trans(3, ntd)
-
-  !  character(len=10)                :: data_name
-  !  integer(is)                      :: dim_read(2)
-  !  integer(is)                      :: dims(2)
-  !  real(dp), allocatable            :: data_set(:, :)
-
-    ! name of data_set
-  !  data_name = 'trans'
-  !  trans     = 0.
-  !  st_lbls   = 0
-  !  dims      = (/ 5, ntd /)
-  !  allocate(data_set(dims(1), dims(2)))
-
-    ! write geometry to 'geometry' data set
-  !  call read_dataset(file_name, data_name, dims, data_set, dim_read)
-
-  !  if (any(dims /= dim_read)) then
-  !    print *,'error reading transition dipoles'
-  !  else
-  !    st_lbls = nint(data_set(1:2, :ntd))
-  !    trans   = data_set(3:5, :ntd)
-  !  endif
-
-  !  deallocate(data_set)
-  !end subroutine chkpt_read_trans
-
 
   !
   ! read_wfn: public
@@ -286,14 +162,14 @@ module chkpt
   ! 
   subroutine chkpt_read_wfn(file_name, wfn_indx, ndet, cf_list, det_list)
 
-    character(len=60), intent(in) :: file_name
+    character(len=255), intent(in) :: file_name
     integer(is), intent(in)       :: wfn_indx
     integer(is), intent(in)       :: ndet
     real(dp), intent(out)         :: cf_list(ndet)
     integer(ib), intent(out)      :: det_list(n_int, 2, ndet)
 
     character(len=3)              :: indx_str
-    character(len=10)             :: data_name
+    character(len=255)             :: data_name
     integer(is)                   :: dims(2)
     integer(is)                   :: dim_read(2)
     real(dp)                      :: data_set_cf(ndet,1)
@@ -312,7 +188,7 @@ module chkpt
     dims             = (/ ndet, 1 /)
 
     ! read the coefficients first
-    call read_dataset(file_name, data_name, dims, data_set_cf, dim_read)
+    call read_dataset(file_name, trim(data_name), dims, data_set_cf, dim_read)
 
     if (any(dims /= dim_read)) then
       print *,'unexpected number of wfn coefficients'
@@ -337,10 +213,117 @@ module chkpt
 
 !#########################################################################3
 
+  function group_exists(file_name, grp_name) result(exists)
+    character(len=255), intent(in) :: file_name
+    character(len=255), intent(in) :: grp_name
+    
+    integer(hid_t)                 :: file_id  ! File identifier 
+    integer(hid_t)                 :: grp_id ! Group identifier 
+
+    character(len=255)             :: f_name
+    character(len=255)             :: g_name
+    logical                        :: exists
+    integer(is)                    :: error
+
+    f_name    = trim(adjustl(file_name))
+    g_name    = trim(adjustl(grp_name))
+
+    ! if file doesn't exist, the group doesn't exist. Not sure if this
+    ! default behavior makes most sense
+    inquire(file=f_name, exist=exists)
+
+    if(.not.exists) return
+
+    exists    = .false.
+
+    ! else, open the file try to open the group
+    call h5open_f(error)
+
+    call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, error)
+
+    ! turn off error reporting -- we're going to explicitly check error code
+    call h5eset_auto_f(0, error)
+    call h5gopen_f(file_id, g_name, grp_id, error)
+
+    ! if we don't get an error code, group doesn't exist
+    if(error == 0) then
+      exists = .true.
+      call h5gclose_f(grp_id, error)
+    else
+      exists = .false.
+    endif
+
+    ! turn error reporting back on -- even though we're about to shut
+    ! everything down
+    call h5eset_auto_f(1, error)
+
+    call h5fclose_f(file_id, error)
+    call h5close_f(error)
+
+    return
+  end function group_exists
+
+
+  subroutine create_group(file_name, grp_name)
+    character(len=255), intent(in) :: file_name
+    character(len=255), intent(in) :: grp_name
+
+    integer(hid_t)                 :: file_id  ! File identifier 
+    integer(hid_t)                 :: grp_id ! Group identifier 
+
+    character(len=255)             :: f_name
+    character(len=255)             :: g_name
+
+    logical                        :: file_exists
+    integer(is)                    :: error ! Error flag
+    
+    
+    f_name    = trim(adjustl(file_name))
+    g_name    = trim(adjustl(grp_name))
+
+    ! group already exists, nothing to do
+    if( group_exists(f_name, grp_name) ) return
+
+    ! else, open the file and create group
+    call h5open_f(error)     
+
+    ! if file exists, append, else create a new one
+    inquire(file=f_name, exist=file_exists)
+
+    if(file_exists) then
+      call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, error)
+    else
+      call h5fcreate_f(f_name, H5F_ACC_TRUNC_F, file_id, error)
+    endif
+
+    !
+    ! Create a group named "grp_name" in the file.
+    !
+    call h5gcreate_f(file_id, grp_name, grp_id, error)
+
+    !
+    ! Close the group.
+    !
+    call h5gclose_f(grp_id, error)
+
+    !
+    ! Terminate access to the file.
+    !
+    call h5fclose_f(file_id, error)
+
+    !
+    ! Close FORTRAN interface.
+    !
+    call h5close_f(error)
+
+    return
+  end subroutine create_group
+
+
 ! # write a 2D array dataset to the specified file_name
   subroutine write_dataset_dble(file_name, data_name, dims, data_set)
-    character(len=60), intent(in)  :: file_name
-    character(len=10), intent(in)  :: data_name
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
     real(dp), intent(in)           :: data_set(:,:)
 
@@ -351,12 +334,14 @@ module chkpt
     integer(hid_t)                 :: file_id, space_id, dset_id
     integer(hsize_t), dimension(2) :: dset_dims
     integer(hsize_t), dimension(2) :: test_dim, test_max
-    character(len=10)              :: dset_name
+    character(len=255)             :: f_name
+    character(len=255)             :: dset_name
     integer                        :: hdferr
 
     ! cast dims to the appropriate integer size
     dset_dims = dims
-    dset_name = adjustl(data_name)
+    f_name    = trim(adjustl(file_name))
+    dset_name = trim(adjustl(data_name))
 
     ! assume file and data_set don't already exist
     file_exists = .false.
@@ -366,13 +351,13 @@ module chkpt
     call h5open_f(hdferr)
 
     ! if file exists, append, else create a new one
-    inquire(file=file_name, exist=file_exists)
+    inquire(file=f_name, exist=file_exists)
 
     ! open and change geom dataset if file exists, else create
     if(file_exists) then
-      call h5fopen_f(file_name, H5F_ACC_RDWR_F, file_id, hdferr)
+      call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, hdferr)
     else
-      call h5fcreate_f(file_name, H5F_ACC_TRUNC_F, file_id, hdferr)
+      call h5fcreate_f(f_name, H5F_ACC_TRUNC_F, file_id, hdferr)
     endif
 
     ! check if dataset exists, if not create it:
@@ -408,13 +393,14 @@ module chkpt
     call h5dclose_f(dset_id , hdferr)
     call h5sclose_f(space_id, hdferr)
     call h5fclose_f(file_id , hdferr)
+    call h5close_f(hdferr)
 
   end subroutine write_dataset_dble
 
   ! # write a 2D array dataset to the specified file_name
   subroutine write_dataset_int64(file_name, data_name, dims, data_set)
-    character(len=60), intent(in)  :: file_name
-    character(len=10), intent(in)  :: data_name
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
     integer(ib), intent(in)        :: data_set(:,:)
 
@@ -426,12 +412,14 @@ module chkpt
     integer(hid_t)                 :: file_id, space_id, dset_id
     integer(hsize_t), dimension(2) :: dset_dims
     integer(hsize_t), dimension(2) :: test_dim, test_max
-    character(len=10)              :: dset_name
+    character(len=255)              :: f_name
+    character(len=255)              :: dset_name
     integer                        :: hdferr
 
     ! cast dims to the appropriate integer size
     dset_dims = dims
-    dset_name = adjustl(data_name)
+    f_name    = trim(adjustl(file_name))
+    dset_name = trim(adjustl(data_name))
 
     ! assume file and data_set don't already exist
     file_exists = .false.
@@ -441,13 +429,13 @@ module chkpt
     call h5open_f(hdferr)
 
     ! if file exists, append, else create a new one
-    inquire(file=file_name, exist=file_exists)
+    inquire(file=f_name, exist=file_exists)
 
     ! open and change geom dataset if file exists, else create
     if(file_exists) then
-      call h5fopen_f(file_name, H5F_ACC_RDWR_F, file_id, hdferr)
+      call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, hdferr)
     else
-      call h5fcreate_f(file_name, H5F_ACC_TRUNC_F, file_id, hdferr)
+      call h5fcreate_f(f_name, H5F_ACC_TRUNC_F, file_id, hdferr)
     endif
 
     ! check if dataset exists, if not create it:
@@ -483,6 +471,7 @@ module chkpt
     call h5dclose_f(dset_id , hdferr)
     call h5sclose_f(space_id, hdferr)
     call h5fclose_f(file_id , hdferr)
+    call h5close_f(hdferr)
 
   end subroutine write_dataset_int64
 
@@ -490,8 +479,8 @@ module chkpt
   !
   !
   subroutine read_dataset_dble(file_name, data_name, dims, data_set, dim_read)
-    character(len=60), intent(in)  :: file_name
-    character(len=10), intent(in)  :: data_name
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
     real(dp), intent(out)          :: data_set(dims(1), dims(2))
     integer(is), intent(out)       :: dim_read(2)
@@ -502,11 +491,14 @@ module chkpt
 
     integer(hid_t)                 :: file_id, space_id, dset_id
     integer(hsize_t), dimension(2) :: test_dim, test_max
-    character(len=10)              :: dset_name
+    character(len=255)              :: f_name
+    character(len=255)              :: dset_name
     integer                        :: hdferr
 
     ! initialize to zero
     data_set = 0.
+    f_name    = trim(adjustl(file_name))
+    dset_name = trim(adjustl(data_name))
 
     ! assume file and data_set don't already exist
     file_exists = .false.
@@ -516,11 +508,11 @@ module chkpt
     call h5open_f(hdferr)
 
     ! if file exists, append, else create a new one
-    inquire(file=file_name, exist=file_exists)
+    inquire(file=f_name, exist=file_exists)
 
     ! open and change geom dataset if file exists, else create
     if(file_exists) then
-      call h5fopen_f(file_name, H5F_ACC_RDWR_F, file_id, hdferr)
+      call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, hdferr)
 
       ! check if dataset exists, if not create it:
       call h5lexists_f(file_id, dset_name, dset_exists, hdferr)
@@ -554,14 +546,16 @@ module chkpt
       call h5fclose_f(file_id , hdferr)
     endif
 
+    call h5close_f(hdferr)
+
   end subroutine read_dataset_dble
 
   !
   !
   !
   subroutine read_dataset_int64(file_name, data_name, dims, data_set, dim_read)
-    character(len=60), intent(in)  :: file_name
-    character(len=10), intent(in)  :: data_name
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
     integer(is), intent(in)        :: dims(2)
     integer(ib), intent(out)       :: data_set(dims(1), dims(2))
     integer(is), intent(out)       :: dim_read(2)
@@ -572,11 +566,14 @@ module chkpt
 
     integer(hid_t)                 :: file_id, space_id, dset_id
     integer(hsize_t), dimension(2) :: test_dim, test_max
-    character(len=10)              :: dset_name
+    character(len=255)              :: f_name
+    character(len=255)              :: dset_name
     integer                        :: hdferr
 
     ! initialize to zero
     data_set = 0.
+    f_name    = trim(adjustl(file_name))
+    dset_name = trim(adjustl(data_name))
 
     ! assume file and data_set don't already exist
     file_exists = .false.
@@ -586,7 +583,7 @@ module chkpt
     call h5open_f(hdferr)
 
     ! if file exists, append, else create a new one
-    inquire(file=file_name, exist=file_exists)
+    inquire(file=f_name, exist=file_exists)
 
     ! open and change geom dataset if file exists, else create
     if(file_exists) then
@@ -594,7 +591,7 @@ module chkpt
       ! initialize the fortran interface
       call h5open_f(hdferr)
 
-      call h5fopen_f(file_name, H5F_ACC_RDWR_F, file_id, hdferr)
+      call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, hdferr)
 
       ! check if dataset exists, if not create it:
       call h5lexists_f(file_id, dset_name, dset_exists, hdferr)
@@ -626,6 +623,7 @@ module chkpt
       call h5fclose_f(file_id , hdferr)
     endif
 
+    call h5close_f(hdferr)
   end subroutine read_dataset_int64
 
   !
@@ -634,16 +632,16 @@ module chkpt
   subroutine write_attribute_int(file_name, data_name, attr_name, attr_val)
     use iso_c_binding
 
-    character(len=60), intent(in)    :: file_name
-    character(len=10), intent(in)    :: data_name
-    character(len=5), intent(in)     :: attr_name
+    character(len=255), intent(in)    :: file_name
+    character(len=255), intent(in)    :: data_name
+    character(len=10), intent(in)     :: attr_name
     integer(is), intent(in)          :: attr_val
 
     logical                          :: file_exists
     logical                          :: dset_exists
-    character(len=60)                :: f_name
-    character(len=10)                :: dset_name
-    character(len=5)                 :: a_name
+    character(len=255)                :: f_name
+    character(len=255)                :: dset_name
+    character(len=10)                 :: a_name
 
     integer(hsize_t)                 :: dims(1)
     integer(hid_t)                   :: file_id, dset_id
@@ -656,9 +654,9 @@ module chkpt
     dims      = (/ 1 /)
     attr      = (/ attr_val /)
 
-    f_name    = adjustl(file_name)
-    dset_name = adjustl(data_name)
-    a_name    = adjustl(attr_name)
+    f_name    = trim(adjustl(file_name))
+    dset_name = trim(adjustl(data_name))
+    a_name    = trim(adjustl(attr_name))
 
     ! assume file and data_set don't already exist
     file_exists = .false.
@@ -703,7 +701,8 @@ module chkpt
       endif
 
       call H5Fclose_f(file_id, hdferr)
-      
+      call h5close_f(hdferr)
+
     endif
 
   end subroutine write_attribute_int

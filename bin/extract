@@ -4,6 +4,7 @@ The main graci driver.
 """
 import os
 import sys as sys
+import numpy as np
 import h5py
 import graci.io.chkpt as chkpt
 import graci.core.params
@@ -122,58 +123,95 @@ def extract_orbitals(chkpt_file, extract_list):
     return
 
 #
-def extract_wfns(chkpt, extract_list):
+def extract_wfns(chkpt_file, extract_list):
     """Print the determinant list"""
 
-    # using 64-bit integers to store det occupations
-    STR_LEN = 64
+    if extract_list['-dets'] is None:
+        return
 
-    # first extract the coefficient list up to a value of "cutoff"
-#    cf_name  = 'wfn_cf'+str(indx)
-#    det_name = 'wfn_det'+str(indx)
+    # name of method object to get determinants from
+    # currenty default is to extract all states. We may want to add
+    # the ability to refine that in the future
+    wfn_name = extract_list['-dets']
 
-#    (ndet_wfn, n_tot) = chkpt[det_name].shape
-#    (ndet_cf,   dum)  = chkpt[cf_name].shape
-     
-#    if ndet_wfn != ndet_cf:
-#        print("WARNING: determinant and coefficient lists are not"+
-#                " the same length: "+str(ndet_wfn)+"!="+str(ndet_cf))
+    # determine what objects to extract
+    chkpt_objs = chkpt.contents(chkpt_file)
 
-#    ndet  = min(ndet_wfn, ndet_cf)
-#    n_int = int(n_tot / 2)
-#    nmo   = int(chkpt[det_name].attrs['nmo'])
+    # these are the postscf methods for which wfn extract is 
+    # defined
+    valid_objs = wfn_objs['-dets']
 
-#    for idet in range(ndet):
-#        cf  = float(chkpt[cf_name][idet,0])
-#        if cf < cutoff:
-#            break
+    # names in chkpt file given by ClassName.label
+    obj_names = [name for name in chkpt_objs if
+                          name.split('.')[0]  in valid_objs]
 
-#        det = chkpt[det_name][idet,:]
+    if wfn_name == 'default' and len(obj_names) == 1:
+        wfn2extract = obj_names[0]
+    else:
+        # assume that only the section label is given
+        # and we need to append the class name
+        name_chk = [wfn_name in obj_name for obj_name in obj_names]
+        if sum(name_chk) != 1:
+            print("Ambiguous section name. \n"+
+                  "Requested: "+str(wfn_name)+" Found: "+str(obj_names))
+            sys.exit(1)
+        wfn2extract = obj_names[name_chk.index(True)]
 
-#        alpha = []
-#        beta  = []
+    # now we need to find out how many states there are and their
+    # indices
+    wfn_dsets = chkpt.contents(chkpt_file, grp_name=wfn2extract)
 
-#        for i_int in range(n_int):       
-#            alpha_i = list(reversed("{0:b}".format(det[i_int])))
-#            alpha  += alpha_i + ['0' for i in range(STR_LEN - len(alpha_i))]
+    cf_inds =  []
+    det_inds = []
+    for wfn in wfn_dsets:
+        if 'wfn_cf' in wfn:
+            cf_inds.append(int(wfn.replace('wfn_cf','')))
+        if 'wfn_det' in wfn:
+            det_inds.append(int(wfn.replace('wfn_det','')))
 
-#            beta_i  = list(reversed("{0:b}".format(det[n_int + i_int])))
-#            beta   += beta_i + ['0' for i in range(STR_LEN - len(beta_i))]
+    if cf_inds != det_inds:
+        print("WARNING: coefficient and determinants lists don't" +
+              " agree in chkpt file")
 
-        # only take first nmo entries -- the rest are padding
-#        dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
-#        rdet = []
-#        for i in range(nmo):
-#            if int(alpha[i]) == 0:
-#                rdet.append(-dabs[i])
-#            else:
-#                rdet.append(dabs[i])
+    # take the indices common to both lists
+    wfn_inds = list(set(cf_inds).intersection(det_inds))
 
-#        det_str  = '{:14.10f} '.format(cf)
-#        det_str += ('%3d'*nmo) % tuple(rdet)
-#        print(det_str)
+    # make sure the cutoff value is interprable
+    try:
+        cutoff = float(extract_list['-cutoff'])
+    except:
+        print("WARNING: cannot intepret cutoff value of: " + 
+              str(extract_list['-cutoff'])+" as a float. Setting to 0")
+        cutoff = 0.
 
-#    return
+    f_names = ['S', 'D', 'T', 'Q', '5', '6', '7', '8']
+
+    # extract wfns and write them to file
+    for indx in wfn_inds:
+        cf, det = chkpt.read_wfn(chkpt_file, wfn2extract, indx, cutoff)
+
+        (nmo, ndets) = det.shape
+        if ndets > 0:
+            # write to file. Determine multiplicity by taking 
+            # open(alpha) - open(beta)
+            unique, counts = np.unique(det[:,0], return_counts=True)
+            cnts = dict(zip(unique, counts))
+            nalpha = 0
+            nbeta = 0
+            if 1 in cnts.keys():
+                nalpha = cnts[1]
+            if -1 in cnts.keys():
+                nbeta  = cnts[-1]
+            nopen = abs(nalpha-nbeta)
+
+            out_file = f_names[nopen]+str(indx)+"_det.dat"
+            with open(out_file, 'w') as detlist:
+                for idet in range(ndets):
+                    det_str = '{:14.10f} '.format(cf[idet])
+                    det_str += ('%3d'*nmo) % tuple(det[:,idet])
+                    detlist.write(det_str+'\n')
+
+    return
 
 #
 def get_next_arg(arg):
