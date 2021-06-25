@@ -23,7 +23,6 @@ gam_sph_ao_ordr  =  [['s'],
                     ['dxy','dyz','dz2','dxz','dx2-y2'],
                     ['f3x2y-y3','fxyz','fyz2','fz3','fxz2',
                                       'fx2z-y2z','fx3-xy2']]
-
 gam_sph_ao_norm  = [[1.],
                     [1.,1.,1.],
                     [1.,1.,1.,1.,1.],
@@ -47,7 +46,17 @@ def write_orbitals(file_name, mol, orbs, occ, cart=True):
         out_ordr = gam_sph_ao_ordr
         out_nrm  = gam_sph_ao_norm
 
-    gam_mos.convert(gam_basis, out_ordr, out_nrm)
+    # reorder to the gamess AO ordering format
+    gam_mos.reorder(gam_basis, out_ordr)
+
+    # rescale orbitals to account for different AO normalization
+    # schemes
+    #if cart:
+    #    scale = gam_cart_ao_norm
+    #else:
+    #    scale = gam_sph_ao_norm
+    #scalevec = gam_basis.construct_scalevec(scale, cart)
+    #gam_mos.scale(scalevec)
 
     # print the MOs file
     with open(file_name, 'w') as orb_file:

@@ -239,8 +239,7 @@ class Scf:
                 ignore_h=True)
 
         elif file_format.lower() == 'gamess':
-            gamess.write_orbitals(fname, self.mol, self.orbs, 
-                                                         self.orb_ener)
+            gamess.write_orbitals(fname, self.mol, self.orbs, None) 
 
         return
 

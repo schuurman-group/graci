@@ -4,8 +4,11 @@ of MO information
 """
 
 import sys as sys
+import ctypes as ctypes
 import numpy as np
+import scipy as sp
 from pyscf.gto import mole
+from pyscf.gto import moleintor
 
 a_symbols   = ['H','HE',
                'LI','BE','B','C','N','O','F','NE',
@@ -34,15 +37,53 @@ sph_ao_ordr  =  [['s'],
                  ['f3x2y-y3','fxyz','fyz2','fz3','fxz2',
                                    'fx2z-y2z','fx3-xy2']]
 
-cart_ao_norm = [[1.],
-                [1.,1.,1.],
-                [1.,1.,1.,1.,1.,1],
-                [1.,1.,1.,1.,1.,1.,1.,1.,1.,1.]]
 
-sph_ao_norm = [[1.],
-               [1.,1.,1.],
-               [1.,1.,1.,1.,1.],
-               [1.,1.,1.,1.,1.,1.,1]]
+def sph2cart(l):
+    '''
+    Cartesian to real spherical transformation matrix
+
+    Assumes standard 'sp' pyscf normalization scheme
+    '''
+
+
+    #print("attrs="+str(dir(moleintor.libcgto)))
+
+    nf = 2 * l + 1
+    c_tensor = np.eye(nf)
+    if l == 0 or l == 1:
+        return c_tensor
+    else:
+        assert(l <= 6)
+        nd = (l+1)*(l+2)//2
+        ngrid = c_tensor.shape[0]
+        sph2c = np.zeros((ngrid, nd), order='F')
+        fn = moleintor.libcgto.CINTs2c_ket_sph
+        fn(c_tensor.ctypes.data_as(ctypes.c_void_p), ctypes.c_int(ngrid),
+           sph2c.ctypes.data_as(ctypes.c_void_p), ctypes.c_int(l))
+        return sph2c
+
+
+def sph2cart_coeff(pymol):
+    """ convert entire basis set array from spherical to cartesians"""
+
+    # scale by the norms of the cartesians (all spherical functions
+    # are normalized, while only 's' and 'p' cartesians are normalized)
+    nrms  = pymol.intor('int1e_ovlp_cart').diagonal() **.5
+
+    s2c_l  = [sph2cart(l) for l in range(6)]
+    s2c    = []
+    bf_cnt = 0
+    for ib in range(pymol.nbas):
+        l = pymol.bas_angular(ib)
+        for n in range(pymol.bas_nctr(ib)):
+            nao_ctr = nfunc_cart[l]
+            s2c_nrm = np.einsum('j,ij->ij', 
+                    nrms[bf_cnt:bf_cnt+nao_ctr], s2c_l[l])
+            s2c.append(s2c_nrm)
+            bf_cnt += s2c_l[l].shape[1]
+
+    return sp.linalg.block_diag(*s2c)
+
 
 # generate geom, basis objects from GRaCI molecule object
 def create_geom(mol):
@@ -73,23 +114,34 @@ def create_orbitals(mol, orbs, occ, cart):
 
     # if AOs already cartesian and we want cartesian orbitals,
     # do nothing
-    if cart and pymol.cart:
-        orb_out   = orbs
-    elif cart and pymol.cart is False:
-        # this generates (nmo, nao) transformation matrix
-        s2c = np.linalg.pinv(pymol.cart2sph_coeff(normalized='sp'))
-        orb_out = np.matmul(s2c.T, orbs)
-    elif cart is False and pymol.cart is False:
-        orb_out = orbs
-    elif cart is False and pymol.cart:
-        c2s = pymol.cart2sph_coeff(normalized='sp')
-        orb_out = np.matmul(c2s.T, orbs)
+    # ALSO: after this transformation, everything is normalized
+    # if output format needs things scaled, we can do that, but
+    # any pyscf (non-unity) normalization factor has been removed.
+    if cart:
+        if pymol.cart:
+            # here we will explictly normalize the pyscf AOs
+            nrms  = pymol.intor('int1e_ovlp_cart').diagonal() **.5
+            orb_out = np.einsum('i,ij->ij',nrms, orbs)
+        else:
+            # scaling handled of cartesian AOs handled by sph2cart
+            s2c = sph2cart_coeff(pymol)
+            orb_out = s2c.T @ orbs
+    else:
+        # convert pyscf cartesian orbitals to spherical
+        if pymol.cart:
+            c2s = pymol.cart2sph_coeff()
+            orb_out = c2s.T @ orbs
+        # if both are in speherical, no conversion or renormalization
+        # necessary
+        else:
+            orb_out = orbs
 
     (nao, nmo) = orb_out.shape
 
     new_mos            = Orbitals(nao, nmo, cart_aos=cart)
     new_mos.mo_vectors = orb_out
-    new_mos.occ        = occ
+    if occ is not None:
+        new_mos.occ        = occ
 
     return new_mos
 
@@ -195,10 +247,14 @@ class Orbitals:
 
     def scale(self, fac_vec):
         """Scales each MO by the vector fac_vec."""
-        scale_fac       = np.array(fac_vec)
-        old_mos         = self.mo_vectors.T
-        new_mos         = np.array([mo * scale_fac for mo in old_mos]).T
-        self.mo_vectors = new_mos
+
+        lvec = len(list(fac_vec))
+        if lvec != self.naos:
+            print("cannot scale MOs, scale vector length = " + 
+                    str(lvec)+", nao=" + str(self.naos))
+            return
+
+        self.mo_vectors = np.einsum('i,ij->ij', fac_vec, self.mo_vectors)
 
     def sort_aos(self, map_lst):
         """Re-sorts the MOs, ordering the AO indices via map_lst."""
@@ -215,24 +271,20 @@ class Orbitals:
         """Takes the norm of an orbital."""
         np.linalg.norm(self.mo_vectors[:,mo_i])
 
-    def convert(self, basis_set, new_ao_ordr, new_ao_norm):
+    def reorder(self, basis_set, new_ao_ordr):
         """convert the orbitals to new order specified by ao_ordr and new
            norm specified by ao_norm. The basis set used is given by
            basis_set"""
 
-        pyout_map, scale_py, scale_new = basis_set.construct_map(
-                                                     new_ao_ordr, 
-                                                     new_ao_norm, 
-                                                     self.cart_aos)
-
-        # remove the pyscf normalization factors
-        self.scale(scale_py)
+        pyout_map = basis_set.construct_map(new_ao_ordr, 
+                                            self.cart_aos)
 
         # re-sort orbitals to new ordering
         self.sort_aos(pyout_map)
 
-        # apply the new normalization factors
-        self.scale(scale_new)
+        #if scale is not None :
+            # apply the new normalization factors
+        #    self.scale(scale_new)
 
         return
 
@@ -292,7 +344,6 @@ class BasisSet:
 
                 for iprim in range(n_prim):
                     expon = expons[iprim]
-                    print("l="+str(ang)+" norm="+str(mole.gto_norm(ang,expon)))
                     for icont in range(n_cont):
                         b_funcs[icont].add_primitive(expon,
                                                  coefs[iprim, icont])
@@ -332,22 +383,42 @@ class BasisSet:
         self.n_bf_cart    += nfunc_cart[bf.ang_mom]
         self.n_bf_sph     += nfunc_sph[bf.ang_mom]
 
-    def construct_map(self, new_ordr, new_norm, cart=True):
+    def construct_scalevec(self, scale, cart=True):
+        """construct a scaling vector for a list of AOs, where the
+           AO-specific scale vector is specified by scale_arr"""
+
+        if cart:
+            nbf = self.n_bf_cart
+        else:
+            nbf = self.n_bf_sph
+
+        scalevec = np.zeros(nbf, dtype=float)
+        indx = -1
+        for iatm in self.geom.atom_map:
+            for ibf in range(len(self.basis_funcs[iatm])):
+                ang = self.basis_funcs[iatm][ibf].ang_mom
+                for iao in range(len(scale[ang])):
+                    indx    += 1
+                    if indx == nbf:
+                        print('Error in construct_scalevec: nbf does '+
+                              'not agree with input scaling values')
+                        sys.exit(1)
+                    scalevec[indx] = scale[ang][iao]
+                    
+        return scalevec
+
+    def construct_map(self, new_ordr, cart=True):
         """Constructs a map array to convert the nascent pyscf AO ordering to
         an output AO ordering specified in out_ordr. Also returns the normalization 
         factors for the nascent and corresponding output-ordered AO basis."""
         if cart:
             pyordr = cart_ao_ordr
-            pynorm = cart_ao_norm
             nfunc  = nfunc_cart
         else:
             pyordr = sph_ao_ordr
-            pynorm = sph_ao_ordr
             nfunc  = nfunc_sph
 
         map_arr       = []
-        scale_pyscf   = [] 
-        scale_new     = []
         ao_map        = [[pyordr[i].index(new_ordr[i][j])
                          for j in range(nfunc[i])]
                          for i in range(len(new_ordr))]
@@ -359,9 +430,7 @@ class BasisSet:
                 nf      = nfunc[ang_mom]
                 map_bf  = [nf_cnt + ao_map[ang_mom][k] for k in range(nf)]
                 map_arr.extend(map_bf)
-                scale_pyscf.extend([pynorm[ang_mom][k] for k in range(nf)])
-                scale_new.extend([1./new_norm[ang_mom][k] for k in range(nf)])
                 nf_cnt += nf
 
-        return map_arr, scale_pyscf, scale_new
+        return map_arr
     
