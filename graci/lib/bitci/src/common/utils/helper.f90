@@ -35,6 +35,8 @@ subroutine retrieve_base_det(d)
   
   use constants
   use bitglobal
+
+  implicit none
   
   integer(ib) :: d(n_int,2)
   
@@ -58,6 +60,8 @@ subroutine retrieve_mrci_dets(d,nmrci)
   use constants
   use bitglobal
   use iomod
+
+  implicit none
   
   integer(is), intent(in)  :: nmrci
   integer(ib), intent(out) :: d(n_int,2,nmrci)

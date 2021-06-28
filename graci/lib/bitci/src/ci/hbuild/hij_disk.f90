@@ -104,6 +104,8 @@ contains
 !----------------------------------------------------------------------
     call save_hij_0h_0h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
+
+    
     
 !----------------------------------------------------------------------
 ! (2) Ket: reference configurations
@@ -125,7 +127,7 @@ contains
 !----------------------------------------------------------------------
     call save_hij_1h_1h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
-
+    
 !----------------------------------------------------------------------
 ! (5)  Ket: 2-hole configurations -> 2I, 2E and 1I1E configurations
 !      Bra: 1-hole configurations -> 1I and 1E configurations
@@ -1070,6 +1072,8 @@ contains
     integer(is)                :: n_int_I
     integer(is)                :: bref
     integer(is)                :: ioff
+
+    integer(is) :: i
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1112,7 +1116,31 @@ contains
                call get_exci_indices(cfg%conf1h(:,:,kn),&
                cfg%conf1h(:,:,bn),n_int_I,hlist(1:nexci),&
                plist(1:nexci),nexci)
-    
+
+          
+          !! TEST
+          !do i=1,nexci
+          !   if (plist(i) > cfg%nmoI .or. hlist(i) > cfg%nmoI) then
+          !
+          !      print*,''
+          !      print*,'p MO:',plist(i)
+          !      print*,'h MO:',hlist(i)
+          !      print*,''
+          !      print*,'Ket:'
+          !      write(6,'(B64)') cfg%conf1h(1,1,kn)
+          !      write(6,'(B64)') cfg%conf1h(1,2,kn)
+          !      print*,''
+          !      print*,'Bra:'
+          !      write(6,'(B64)') cfg%conf1h(1,1,bn)
+          !      write(6,'(B64)') cfg%conf1h(1,2,bn)
+          !      
+          !      stop
+          !      
+          !   endif
+          !enddo
+          !! TEST
+          
+          
           !
           ! Ket 1I, bra 1I and 1E matrix elements
           !
@@ -1157,7 +1185,7 @@ contains
                         averageii,confdim,iscratch,hbuffer,ibuffer,&
                         nbuf,nrec,cfg)
                 endif
-          
+                
                 ! 1I - 1E matrix elements
                 if (nac <= 3 &
                      .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
@@ -1206,7 +1234,7 @@ contains
              ! Note that knopen, nsocc, etc can be determined from
              ! their values computed using the ket 1H conf and
              ! the index of the external creation operator...
-                          
+             
              ! 1E - 1E matrix elements
              call save_hij_1E_1E(nac1,hlist,plist,maxexci,bn,&
                   ioff,kconf_full,ksop_full,n_int_I,ndiff,Dw,nbefore,&

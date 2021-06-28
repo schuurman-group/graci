@@ -17,6 +17,8 @@ subroutine generate_cas_dets(icas,n,m,ndet)
   use math
   use iomod
 
+  implicit none
+  
   integer(is), intent(inout) :: icas(nmo)
   integer(is), intent(in)    :: n,m
   integer(is), intent(out)   :: ndet

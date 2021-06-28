@@ -217,7 +217,7 @@ contains
 
 !----------------------------------------------------------------------
 !  1/nexc Sum_i Sum_j (pJ V_iijj - p[N0] V_ijji) |Delta w_i| Delta w_j
-!         w_i<0 w_j<0
+!         w_i<0 w_j>0
 !----------------------------------------------------------------------
     !
     ! Find the start of the postive Delta w_i values
@@ -391,7 +391,7 @@ contains
           Viijj=Vc(i1,j1)
 
           ! Sum the contribution
-          contrib=contrib-pJ*Viijj
+          contrib=contrib-pJ*Viijj*Dwi*Dwj
           
        enddo
 
@@ -424,7 +424,7 @@ contains
           Viijj=Vc(i1,j1)
 
           ! Sum the contribution
-          contrib=contrib-pJ*Viijj
+          contrib=contrib-pJ*Viijj*Dwi*Dwj
           
        enddo
 
@@ -456,8 +456,9 @@ contains
           ! V_iijj
           Viijj=Vc(i1,j1)
 
-          ! Sum the contribution
-          contrib=contrib+pJ*Viijj
+          ! Sum the contribution (note that the minus sign arises
+          ! because Dwi * Dwj < 0)
+          contrib=contrib-pJ*Viijj*Dwi*Dwj
           
        enddo
 
@@ -489,9 +490,10 @@ contains
           ! V_ijij
           Vijji=Vx(i1,j1)
 
-          ! Sum the contribution
-          contrib=contrib-0.5d0*pF*Vijji
-          
+          ! Sum the contribution (note that the plus sign arises
+          ! because Dwi * Dwj < 0)
+          contrib=contrib+0.5d0*pF*Vijji*Dwi*Dwj
+
        enddo
 
     enddo
@@ -615,7 +617,7 @@ contains
     p2DE5=hpar(4)*abs(av1-av2)
     p2DE5=p2DE5**5
     func=hpar(3)/(1.0d0+p2DE5*atan(p2DE5))
-        
+
     return
     
   end function damping_lyskov
