@@ -101,6 +101,7 @@ def diag(ci_method):
     # Print the report of the MRCI states
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_state_sym()
+    nextra  = np.array(ci_method.nextra['prune'], dtype=int)
     if ci_method.prune == 'off':
         args = (ci_confunits, ciunits, nstates)
         libs.lib_func('print_mrci_states', args)

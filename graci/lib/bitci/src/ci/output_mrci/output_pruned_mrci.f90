@@ -136,14 +136,14 @@ contains
 !----------------------------------------------------------------------
     allocate(qcorr(nroot_max,0:nirrep-1))
     qcorr=0.0d0
-
+    
     do irrep=0,nirrep-1
        call get_qcorr(irrep,vecscr(irrep),vec0scr(irrep),&
             confscr(irrep),eqscr(irrep),nroots(irrep),nextra(irrep),&
             qcorr(1:nroots(irrep),irrep),&
             max_overlap(1:nroots(irrep),irrep))
     enddo
-    
+
 !----------------------------------------------------------------------
 ! Read in the MRCI energies
 !----------------------------------------------------------------------

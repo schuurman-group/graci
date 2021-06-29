@@ -105,8 +105,6 @@ contains
     call save_hij_0h_0h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
 
-    
-    
 !----------------------------------------------------------------------
 ! (2) Ket: reference configurations
 !     Bra: 1-hole configurations -> 1I and 1E configurations
@@ -1116,30 +1114,6 @@ contains
                call get_exci_indices(cfg%conf1h(:,:,kn),&
                cfg%conf1h(:,:,bn),n_int_I,hlist(1:nexci),&
                plist(1:nexci),nexci)
-
-          
-          !! TEST
-          !do i=1,nexci
-          !   if (plist(i) > cfg%nmoI .or. hlist(i) > cfg%nmoI) then
-          !
-          !      print*,''
-          !      print*,'p MO:',plist(i)
-          !      print*,'h MO:',hlist(i)
-          !      print*,''
-          !      print*,'Ket:'
-          !      write(6,'(B64)') cfg%conf1h(1,1,kn)
-          !      write(6,'(B64)') cfg%conf1h(1,2,kn)
-          !      print*,''
-          !      print*,'Bra:'
-          !      write(6,'(B64)') cfg%conf1h(1,1,bn)
-          !      write(6,'(B64)') cfg%conf1h(1,2,bn)
-          !      
-          !      stop
-          !      
-          !   endif
-          !enddo
-          !! TEST
-          
           
           !
           ! Ket 1I, bra 1I and 1E matrix elements
