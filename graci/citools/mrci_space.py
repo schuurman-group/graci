@@ -60,8 +60,8 @@ def generate(ci_method):
         (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
         
         # Optional pruning of the configuration space
-        if ci_method.prune != 'off':
-            thrsh  = ci_method.prune_thresh[ci_method.prune]
+        if ci_method.pmrci:
+            thrsh = ci_method.prune_thresh
             nextra = ci_method.nextra['prune'][irrep]            
             args = (thrsh, irrep, nroots, nextra, ci_confunits,
                     ref_ciunits, nconf, eq_units)
@@ -80,4 +80,18 @@ def generate(ci_method):
     
     return nconf, ci_confunits, confname, eq_units
 
- 
+def set_prune_vars(ci_method):
+    """Handles the setting of the MRCI pruning logical flag
+    and threshold variables"""
+
+    # Pruning not requested: return False and 1.0
+    if ci_method.prune == 'off' and ci_method.prune_thresh == 1.:
+        return False, 1.
+
+    # Pruning reqested: return True and the requested threshold
+    # Note that the 'prune_thresh' keyword takes precedent over
+    # the 'prune' keyword
+    if ci_method.prune_thresh != 1.:
+        return True, ci_method.prune_thresh
+    else:
+        return True, ci_method.prune_dict[ci_method.prune]

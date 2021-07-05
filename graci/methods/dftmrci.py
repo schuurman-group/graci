@@ -46,6 +46,7 @@ class Dftmrci:
         self.refiter        = 3
         self.ref_prune      = False
         self.prune          = 'off'
+        self.prune_thresh   = 1.
         self.prune_extra    = 10
         self.diag_guess     = 'subdiag'
         self.diag_method    = 'gendav'
@@ -60,8 +61,9 @@ class Dftmrci:
         # class variables
         # KS SCF object
         self.scf            = None 
-        # Pruning thresholds
-        self.prune_thresh   = {'tight'  : 0.9900,
+        # Pruning variables
+        self.pmrci          = False
+        self.prune_dict     = {'tight'  : 0.9900,
                                'normal' : 0.9500,
                                'loose'  : 0.9000}
         # No. extra ref space roots needed
@@ -132,7 +134,10 @@ class Dftmrci:
 
         # determine the no. extra ref space roots needed
         self.nextra = ref_diag.n_extra(self)
-        
+
+        # set the pruning variables
+        self.pmrci, self.prune_thresh = mrci_space.set_prune_vars(self)
+
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
         # set the number of configurations and the scratch file numbers
