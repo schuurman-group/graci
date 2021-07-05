@@ -1161,7 +1161,7 @@ contains
                 endif
                 
                 ! 1I - 1E matrix elements
-                if (nac <= 3 &
+                if (nac <= 3 .and. cfg%n1E > 0 &
                      .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
                    call save_hij_1I_1E(bn,ioff,kconf_full,&
                         ksop_full,kconf_int,ksop_int,n_int_I,&
@@ -1187,6 +1187,9 @@ contains
 
           ! Skip duplicate 1E - 1E elements
           if (bn < kn) cycle
+
+          ! Skip if there are no 1E configurations
+          if (cfg%n1E == 0) cycle
           
           ! Loop over ket 1E configurations
           do ioff=cfg%off1E(kn),cfg%off1E(kn+1)-1
