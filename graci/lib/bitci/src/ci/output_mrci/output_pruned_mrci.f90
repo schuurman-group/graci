@@ -83,9 +83,9 @@ contains
 !----------------------------------------------------------------------
     write(6,'(/,52a)') ('-',i=1,52)
     if (ldftmrci) then
-       write(6,'(x,a)') 'Pruned DFT/MRCI eigenstates'
+       write(6,'(x,a)') 'DFT/MRCI eigenstates (ENPT2-corrected)'
     else
-       write(6,'(x,a)') 'Pruned MRCI eigenstates'
+       write(6,'(x,a)') 'MRCI eigenstates (ENPT2-corrected)'
     endif
     write(6,'(52a)') ('-',i=1,52)
     

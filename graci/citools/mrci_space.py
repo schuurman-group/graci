@@ -80,18 +80,3 @@ def generate(ci_method):
     
     return nconf, ci_confunits, confname, eq_units
 
-def set_prune_vars(ci_method):
-    """Handles the setting of the MRCI pruning logical flag
-    and threshold variables"""
-
-    # Pruning not requested: return False and 1.0
-    if ci_method.prune == 'off' and ci_method.prune_thresh == 1.:
-        return False, 1.
-
-    # Pruning reqested: return True and the requested threshold
-    # Note that the 'prune_thresh' keyword takes precedent over
-    # the 'prune' keyword
-    if ci_method.prune_thresh != 1.:
-        return True, ci_method.prune_thresh
-    else:
-        return True, ci_method.prune_dict[ci_method.prune]
