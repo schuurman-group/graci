@@ -5,7 +5,6 @@ import ctypes
 import os as os
 import numpy as np
 from contextlib import contextmanager
-import pyscf.tools.molden as molden
 import graci.utils.constants as constants
 import graci.utils.timing as timing
 import graci.core.params as params
@@ -15,6 +14,8 @@ file_names = {'input_file'   : '',
               'out_file'     : '',
               'chkpt_file'   : '',
               'pyscf_out'    : ''}
+
+orb_formats = {'molden', 'gamess'}
 
 @contextmanager
 def output_file(file_name, mode):

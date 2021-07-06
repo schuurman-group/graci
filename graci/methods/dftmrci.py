@@ -6,7 +6,6 @@ import sys as sys
 import graci.io.convert as convert
 import ctypes as ctypes
 import numpy as np
-from pyscf.tools import molden
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
@@ -19,7 +18,6 @@ import graci.citools.mrci_refine as mrci_refine
 import graci.citools.mrci_1rdm as mrci_1rdm
 import graci.citools.mrci_wf as mrci_wf
 import graci.io.output as output
-import graci.io.gamess as gamess
 import graci.properties.moments as moments
 
 # MRCI and DFT/MRCI Hamiltonian labels
@@ -511,7 +509,7 @@ class Dftmrci:
 
     #
     def export_orbitals_state(self, state, orb_format='molden', 
-                                                      orb_dir=True):
+                                         orb_dir=True, cart=True):
         """export orbitals of a single state to various file formats"""
 
         if state >= self.n_state():
@@ -536,12 +534,15 @@ class Dftmrci:
         if os.path.isfile(fname):
             os.remove(fname)
 
-        if orb_format.lower() == 'molden':
-            molden.from_mo(self.scf.mol.pymol(), fname, orb, 
-                spin='Alpha', symm=sym_lbl, occ=occ, ignore_h=True)
+        # import the appropriate library for the file_format
+        if file_format in output.orb_formats:
+            orbtype = importlib.import_module('graci.io.'+file_format)
+        else:
+            print('orbital format type=' + file_format +
+                                        ' not found. exiting...')
 
-        elif orb_format.lower() == 'gamess':
-            gamess.write_orbitals(fname, self.mol, orb, occ)
+        orbtype.write_orbitals(fname, self.mol, orb, 
+                               occ=occ, sym_lbl=sym_lbl, cart=cart)
 
         return
 

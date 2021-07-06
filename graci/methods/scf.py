@@ -8,8 +8,8 @@ import sys
 import h5py
 import math
 import numpy as np
+import importlib
 import graci.io.output as output
-import graci.io.gamess as gamess
 import graci.utils.timing as timing
 from pyscf.lib import logger
 from pyscf import gto, scf, dft, symm, ao2mo, df
@@ -218,7 +218,8 @@ class Scf:
             return np.identity(self.nmo)
 
     # 
-    def export_orbitals(self, file_format='molden', orb_dir=True):
+    def export_orbitals(self, file_format='molden', 
+                                   orb_dir=True, cart=True):
         """export orbitals to molden format"""
 
         # append the file_format label to file name
@@ -233,13 +234,19 @@ class Scf:
         if os.path.isfile(fname):
             os.remove(fname)
 
-        if file_format.lower() == 'molden':
-            molden.from_mo(self.mol.pymol(), fname, self.orbs, 
-                symm=self.orb_irrep, spin='Alpha', ene=self.orb_ener, 
-                ignore_h=True)
+        # import the appropriate library for the file_format
+        if file_format in output.orb_formats:
+            orbtype = importlib.import_module('graci.io.'+file_format)
+        else:
+            print('orbital format type=' + file_format +
+                                        ' not found. exiting...')
 
-        elif file_format.lower() == 'gamess':
-            gamess.write_orbitals(fname, self.mol, self.orbs, None) 
+        orbtype.write_orbitals(fname, 
+                               self.mol, 
+                               self.orbs, 
+                               sym_lbl = self.orb_irrep, 
+                               ener = self.orb_ener, 
+                               cart = cart)
 
         return
 

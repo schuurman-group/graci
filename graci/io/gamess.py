@@ -28,14 +28,15 @@ gam_sph_ao_norm  = [[1.],
                     [1.,1.,1.,1.,1.],
                     [1.,1.,1.,1.,1.,1.,1]]
 
-def write_orbitals(file_name, mol, orbs, occ, cart=True):
+def write_orbitals(file_name, mol, orbs,
+                    occ=None, sym_lbl=None, ener=None, cart=True):
     """print the orbitals to gamess dat file format. Code assumes
        input orbs are in pyscf format. Default is to output orbitals in
        cartesian AOs"""
 
     gam_geom  = moinfo.create_geom(mol)
     gam_basis = moinfo.create_basis(mol, gam_geom)
-    gam_mos   = moinfo.create_orbitals(mol, orbs, occ, cart)
+    gam_mos   = moinfo.create_orbitals(mol, orbs, occ, ener, cart)
 
     # construct the order array for the output and provide the AO
     # normalization factors
@@ -49,13 +50,7 @@ def write_orbitals(file_name, mol, orbs, occ, cart=True):
     # reorder to the gamess AO ordering format
     gam_mos.reorder(gam_basis, out_ordr)
 
-    # rescale orbitals to account for different AO normalization
-    # schemes
-    #if cart:
-    #    scale = gam_cart_ao_norm
-    #else:
-    #    scale = gam_sph_ao_norm
-    #scalevec = gam_basis.construct_scalevec(scale, cart)
+    #scalevec = gam_basis.construct_scalevec(out_nrm, cart)
     #gam_mos.scale(scalevec)
 
     # print the MOs file
@@ -64,7 +59,8 @@ def write_orbitals(file_name, mol, orbs, occ, cart=True):
         print_orbitals(orb_file, gam_mos)
         if gam_mos.occ is not None:
             print_occ(orb_file, gam_mos.occ)
-
+        if gam_mos.ener is not None:
+            print_ener(orb_file, gam_mos.ener)
     return
 
 
@@ -77,6 +73,7 @@ def print_atom(file_handle, atom):
 
     return
 
+#
 def print_geom(file_handle, geom):
     """Prints geometry in GAMESS format."""
     for i in range(geom.natoms()):
@@ -84,6 +81,7 @@ def print_geom(file_handle, geom):
 
     return 
 
+#
 def print_orbitals(file_handle, gam_mos):
     """Prints orbitals in gamess style VEC format."""
     # default is to print all the orbitals
@@ -97,7 +95,7 @@ def print_orbitals(file_handle, gam_mos):
 
     return
 
-
+#
 def print_movec(file_handle, movec, mo_i):
     """Prints an orbital vector."""
     n_aos  = len(movec)
@@ -114,6 +112,7 @@ def print_movec(file_handle, movec, mo_i):
 
     return
 
+#
 def print_occ(file_handle, occ):
     """Prints orbital occupations."""
     n_orb = len(occ) 
@@ -131,6 +130,25 @@ def print_occ(file_handle, occ):
 
     return
 
+#
+def print_ener(file_handle, ener):
+    """Prints orbital energies."""
+    n_orb = len(ener)
+
+    n_col = 5
+    n_row = int(np.ceil(n_orb / n_col))
+
+    file_handle.write(' $ENER\n')
+    for i in range(n_row):
+        n_end = min(n_orb, 5*(i+1))
+        e_row = (n_end - 5*i)*'{:16.10f}' + '\n'
+        r_data = ener[5*i:n_end]
+        file_handle.write(e_row.format(*r_data))
+    file_handle.write(' $END\n')
+
+    return
+
+#
 def print_basis_function(file_handle, bf):
     """Prints the basis function in gamess format."""
     ofmt1 = ('{:1s}'+'{:>6d}'+'\n')

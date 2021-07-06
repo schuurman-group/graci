@@ -37,16 +37,12 @@ sph_ao_ordr  =  [['s'],
                  ['f3x2y-y3','fxyz','fyz2','fz3','fxz2',
                                    'fx2z-y2z','fx3-xy2']]
 
-
 def sph2cart(l):
     '''
     Cartesian to real spherical transformation matrix
 
     Assumes standard 'sp' pyscf normalization scheme
     '''
-
-
-    #print("attrs="+str(dir(moleintor.libcgto)))
 
     nf = 2 * l + 1
     c_tensor = np.eye(nf)
@@ -107,7 +103,7 @@ def create_basis(mol, geom):
     return new_basis
 
 # create orbital object
-def create_orbitals(mol, orbs, occ, cart):
+def create_orbitals(mol, orbs, occ, ener, cart):
     """create an Orbitals object from input orbitals"""
 
     pymol = mol.pymol()
@@ -142,6 +138,8 @@ def create_orbitals(mol, orbs, occ, cart):
     new_mos.mo_vectors = orb_out
     if occ is not None:
         new_mos.occ        = occ
+    if ener is not None:
+        new_mos.ener       = ener
 
     return new_mos
 
@@ -222,6 +220,8 @@ class Orbitals:
         self.mo_vectors = np.zeros((n_aos, n_mos), dtype=float)
         # vector holding occupations
         self.occ        = None
+        # vector holding energies
+        self.ener       = None
 
     def add(self, mo_vec):
         """Adds an orbital to the end of the list (i.e. at first column
@@ -266,6 +266,10 @@ class Orbitals:
         """Re-sorts the MO ordering"""
         vec_srt = self.mo_vectors[:,map_lst]
         self.mo_vectors = vec_srt
+        if self.occ is not None:
+            self.occ  = self.occ[map_lst]
+        if self.ener is not None:
+            self.ener = self.ener[map_lst]
 
     def norm(self, mo_i):
         """Takes the norm of an orbital."""
