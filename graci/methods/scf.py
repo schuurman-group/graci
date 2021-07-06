@@ -240,6 +240,7 @@ class Scf:
         else:
             print('orbital format type=' + file_format +
                                         ' not found. exiting...')
+            sys.exit(1)
 
         orbtype.write_orbitals(fname, 
                                self.mol, 

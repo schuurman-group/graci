@@ -540,6 +540,7 @@ class Dftmrci:
         else:
             print('orbital format type=' + file_format +
                                         ' not found. exiting...')
+            sys.exit(1)
 
         orbtype.write_orbitals(fname, self.mol, orb, 
                                occ=occ, sym_lbl=sym_lbl, cart=cart)
