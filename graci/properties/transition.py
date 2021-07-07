@@ -138,8 +138,7 @@ class Transition:
 
         # print orbitals if requested
         if self.print_orbitals:
-            self.export_orbitals(orb_type='nto')
-            self.export_orbitals(orb_type='ndo')
+            self.export_orbitals()
 
         # print the summary output
         self.print_log()
