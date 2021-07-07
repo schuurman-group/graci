@@ -3,6 +3,7 @@ Module for computing DFT/MRCI energies
 """
 import os as os
 import sys as sys
+import importlib
 import graci.io.convert as convert
 import ctypes as ctypes
 import numpy as np
