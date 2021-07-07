@@ -9,11 +9,9 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 
+@timing.timed
 def refine_ref_space(ci_method):
     """Refinement of the reference space"""
-
-    # Start timing
-    timing.start('mrci_refine')
 
     # number of irreps given by length of ci.nstates vector
     nirr = ci_method.n_irrep()
@@ -52,8 +50,5 @@ def refine_ref_space(ci_method):
     (confunits_ref, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space', args)
 
-    # Stop timing
-    timing.stop('mrci_refine')
-    
     #return min_norm.value
     return min_norm, ref_nconf, ref_confunits

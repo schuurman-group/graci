@@ -29,7 +29,7 @@ gam_sph_ao_norm  = [[1.],
                     [1.,1.,1.,1.,1.,1.,1]]
 
 def write_orbitals(file_name, mol, orbs,
-                    occ=None, sym_lbl=None, ener=None, cart=True):
+                    occ=None, sym_lbl=None, ener=None, cart=None):
     """print the orbitals to gamess dat file format. Code assumes
        input orbs are in pyscf format. Default is to output orbitals in
        cartesian AOs"""
@@ -37,6 +37,11 @@ def write_orbitals(file_name, mol, orbs,
     gam_geom  = moinfo.create_geom(mol)
     gam_basis = moinfo.create_basis(mol, gam_geom)
     gam_mos   = moinfo.create_orbitals(mol, orbs, occ, ener, cart)
+
+    # if 'cart' not specified, default is to use the AOs (cart or 
+    # spherical) that were used in original calculation
+    if cart is None:
+        cart = mol.pymol().cart
 
     # construct the order array for the output and provide the AO
     # normalization factors
@@ -50,6 +55,8 @@ def write_orbitals(file_name, mol, orbs,
     # reorder to the gamess AO ordering format
     gam_mos.reorder(gam_basis, out_ordr)
 
+    # right now, default is to _not_ scale, as superdyson accounts 
+    # for normalization factor
     #scalevec = gam_basis.construct_scalevec(out_nrm, cart)
     #gam_mos.scale(scalevec)
 

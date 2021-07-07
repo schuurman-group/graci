@@ -7,7 +7,7 @@ import numpy as np
 from pyscf.tools import molden
 
 def write_orbitals(file_name, mol, orbs, 
-                    occ=None, sym_lbl=None, ener=None, cart=True):
+                    occ=None, sym_lbl=None, ener=None, cart=None):
     """print the orbitals to molden dat file format. Code assumes
        input orbs are in pyscf format. Default is to output orbitals in
        cartesian AOs"""

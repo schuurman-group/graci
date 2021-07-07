@@ -11,6 +11,7 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
+@timing.timed
 def extract_wf(ci_method):
     """Extraction of the determinant expansions of the 
     MRCI wave functions for all states"""

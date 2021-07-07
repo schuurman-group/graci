@@ -9,11 +9,9 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 
+@timing.timed
 def diag(ci_method):
     """Diagonalisation of the MRCI Hamiltonian"""
-
-    # Start timing
-    timing.start('mrci_diag')
 
     # nirr is given by the length of the nstates vector in ci obj
     nirr = ci_method.n_irrep()
@@ -109,11 +107,9 @@ def diag(ci_method):
                 nextra)
         libs.lib_func('print_pmrci_states', args)
         
-    # Stop timing
-    timing.stop('mrci_diag')
-    
     return ciunits, ciname, ener 
 
+@timing.timed
 def diag_vars(ci_method):
     """ Returns the variables needed for the MRCI diagonalisation"""
 

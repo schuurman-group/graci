@@ -11,11 +11,9 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
+@timing.timed
 def generate(ci_method):
     """generate the MRCI configurations"""
-
-    # Construct the molecule object
-    timing.start('mrci_space')
 
     # number of irreps
     nirr    = ci_method.n_irrep()
@@ -75,9 +73,6 @@ def generate(ci_method):
         name = libs.lib_func('retrieve_filename', args)
         confname.append(name)
 
-    # Stop timing
-    timing.stop('mrci_space')
-    
     return nconf, ci_confunits, confname, eq_units
 
  

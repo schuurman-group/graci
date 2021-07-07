@@ -113,13 +113,12 @@ class Dftmrci:
         except:
             return False
 
+    @timing.timed
     def run(self):
         """ compute the DFT/MRCI eigenpairs for all irreps """
 
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
-
-        timing.start('dftmrci.run')
 
         # write the output logfile header for this run
         output.print_dftmrci_header(self.label)
@@ -246,8 +245,6 @@ class Dftmrci:
                         self.scf.mol.irreplbl[irr],
                         momts.quadrupole(ist))
 
-        timing.stop('dftmrci.run')
-
         return 
 
     # 
@@ -329,6 +326,7 @@ class Dftmrci:
             return self.dmat
 
     #
+    @timing.timed
     def build_nos(self):
         """print the natural orbitals for irrep 
            'irr' and state 'state'"""
@@ -535,10 +533,10 @@ class Dftmrci:
             os.remove(fname)
 
         # import the appropriate library for the file_format
-        if file_format in output.orb_formats:
-            orbtype = importlib.import_module('graci.io.'+file_format)
+        if orb_format in output.orb_formats:
+            orbtype = importlib.import_module('graci.io.'+orb_format)
         else:
-            print('orbital format type=' + file_format +
+            print('orbital format type=' + orb_format +
                                         ' not found. exiting...')
             sys.exit(1)
 

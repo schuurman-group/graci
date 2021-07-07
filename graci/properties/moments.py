@@ -3,6 +3,7 @@ module for compute moments of the dipole operator
 for a given electronic state
 """
 import numpy as np
+import graci.utils.timing as timing
 import graci.utils.constants as constants
 
 class Moments:
@@ -27,6 +28,7 @@ class Moments:
         return 'moments'
 
     #
+    @timing.timed
     def run(self):
         """return the dipole moments for states in 'states'"""
 

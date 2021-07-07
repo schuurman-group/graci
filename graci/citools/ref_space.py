@@ -5,10 +5,12 @@ Module for constructing the reference space configurations
 import sys
 import ctypes as ctypes
 import numpy as np
+import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.io.output as output
 import graci.io.convert as convert
 
+@timing.timed
 def generate(ci_method):
     """generate the reference space object"""
 
@@ -81,7 +83,7 @@ def generate(ci_method):
 
     return ref_nconf, confunits
 
-
+@timing.timed
 def autoras(ci_method):
     """determination of the RAS subspaces via preliminary
     DFT/CIS calculations"""

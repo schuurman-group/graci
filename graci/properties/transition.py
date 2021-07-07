@@ -5,12 +5,10 @@ for a given electronic state
 import os as os
 import numpy as np
 from sympy import LeviCivita
-from pyscf.tools import molden
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.citools.mrci_1tdm as mrci_1tdm
 import graci.io.output as output
-import graci.io.gamess as gamess
 import graci.utils.constants as constants
 import sys as sys
 
@@ -96,13 +94,12 @@ class Transition:
         return self.bra_obj is not None
 
     #
+    @timing.timed
     def run(self):
         """return the transition dipole moments between the bra and
            ket states. If b_state and k_state are None, assume 
            transitions from all states in method object should be 
            used."""
-
-        timing.start('transition.run')
 
         mol_bra = self.bra_obj.scf.mol
         mol_ket = self.ket_obj.scf.mol
@@ -146,8 +143,6 @@ class Transition:
         # print the summary output
         self.print_log()
 
-        timing.stop('transition.run')
-
         return
 
     #
@@ -181,6 +176,7 @@ class Transition:
 #--------------------------------------------------------------------------
 
     # 
+    @timing.timed
     def build_tdms(self):
         """grab the TDMs from bitsi and then reshape the list of
            TDMs into a more usable format"""
@@ -251,6 +247,7 @@ class Transition:
             return None
 
     #
+    @timing.timed
     def build_trans_list(self):
         """built an array of initial states, ordered by adiabatic energy
            the symmetries of each state will be stored in a separate 
@@ -343,6 +340,7 @@ class Transition:
         return
 
     #
+    @timing.timed
     def build_multipole(self, mol, scf):
         """builds the multipole moment transitions tensors"""
 
@@ -358,6 +356,7 @@ class Transition:
         return
 
     # 
+    @timing.timed
     def build_osc_str(self):
         """build the oscillator strengths in the length and velocity
            gauges"""
@@ -369,6 +368,7 @@ class Transition:
 
 
     #
+    @timing.timed
     def build_dip(self, mol, scf):
         """build the electric transition dipole moments in length
            and velocity gauges"""
@@ -389,6 +389,7 @@ class Transition:
         return
 
     # 
+    @timing.timed
     def build_quad(self, mol, scf):
         """builds the electric quadrupole moments in length and velocity
            gauges"""
@@ -411,6 +412,7 @@ class Transition:
         return
 
     #
+    @timing.timed
     def build_oct(self, mol, scf):
         """bulids the electric octupole moments in length and velocity
            gauges"""
@@ -434,6 +436,7 @@ class Transition:
         return
 
     #
+    @timing.timed
     def build_mdip(self, mol, scf):
         """build the magnetic transition dipole moments in the
            velocity gauge"""
@@ -454,9 +457,9 @@ class Transition:
         return
 
     # 
+    @timing.timed
     def build_mquad(self, mol, scf):
-        """builds the electric quadrupole moments in length and velocity
-           gauges"""
+        """builds the magnetic quadrupole moments the velocity gauge"""
 
         # see PySCF/Libcint documentation for d-shell ordering
         # https://github.com/sunqm/libcint/blob/master/doc/program_ref.pdf
@@ -479,6 +482,7 @@ class Transition:
         return
 
     #
+    @timing.timed
     def build_osc_str_l(self):
         """builds the oscillator strength in the length gauge
            see J. Chem. Phys. 137, 204106 (2012) for details. This
@@ -558,6 +562,7 @@ class Transition:
         return
 
     #
+    @timing.timed
     def build_osc_str_v(self):
         """builds the oscillator strength in the velocity gauge
            see J. Chem. Phys. 143, 234103 (2015) for details."""
@@ -633,6 +638,7 @@ class Transition:
         return
 
     #
+    @timing.timed
     def build_natural_orbs(self):
         """build the natural difference orbitals and natural transition
            orbitals"""
@@ -722,6 +728,7 @@ class Transition:
         return
 
     #
+    #@timing.timed
     def ints_ao2mo(self, mol, scf, ao_ints):
         """contract ao_tensor with the mos to convert to mo basis"""
 
@@ -737,9 +744,11 @@ class Transition:
                     +str(mol.nao)+' != '+str(nao))
             sys.exit(1)
 
-        return np.einsum('...pq,pi,qj->...ij', ao_ints, mos, mos)
+        return np.einsum('...pq,pi,qj->...ij', ao_ints, mos, mos, 
+                                                     optimize='optimal')
 
     #
+    @timing.timed
     def contract_tdm(self, mo_ints, tdm):
         """contract mo integrals with tdm to determine 
            tensor properties"""
@@ -762,6 +771,7 @@ class Transition:
         return npole.reshape( rank_dim )
 
     # 
+    @timing.timed
     def contract_transitions(self, mo_ints):
         """Loop over all transitions and contract mo_ints
            with the appropriate tdm"""
@@ -819,18 +829,20 @@ class Transition:
         return
 
     #
-    def export_orbitals(self, orb_type='nto', file_format='molden', 
-                                                          orb_dir=True):
+    def export_orbitals(self, orb_format='molden', orb_dir=True):
         """export all transition/difference density orbitals that
            in the object"""
+
+        orb_types = ['nto', 'ndo']
         for bst in self.bra_list:
             for kst in self.ket_list:
-                self.export_orbitals_tran(bst, kst, 
-                                          orb_type=orb_type, 
-                                          file_format=file_format, 
-                                          orb_dir=orb_dir)
-        return
+                for otype in orb_types:
+                    self.export_orbitals_tran(bst, kst, 
+                                              orb_type=otype, 
+                                              file_format=orb_format, 
+                                              orb_dir=orb_dir)
 
+        return
 
     #
     def export_orbitals_tran(self, bra, ket, orb_type='nto', 
@@ -875,14 +887,17 @@ class Transition:
         wts = self.nos[otype+'_wt'][:, b_ind, k_ind]
         ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
 
-        if str(file_format).lower() == 'molden':
-            molden.from_mo(self.bra_obj.scf.mol.pymol(), fname,
-                self.nos[otype][:,:ncols, b_ind, k_ind],
-                spin='Alpha', occ=wts[:ncols], ignore_h=True)
+        # import the appropriate library for the file_format
+        if orb_format in output.orb_formats:
+            orbtype = importlib.import_module('graci.io.'+orb_format)
+        else:
+            print('orbital format type=' + orb_format +
+                                        ' not found. exiting...')
+            sys.exit(1)
 
-        elif str(file_format).lower() == 'gamess':
-            gamess.write_orbitals(fname, self.bra_obj.scf.mol,
-                                  self.nos[otype][:,:ncols, b_ind, k_ind],
-                                  wts[:ncols])
+        orbtype.write_orbitals(fname, 
+                               self.bra_obj.scf.mol, 
+                               self.nos[otype][:,:ncols, b_ind, k_ind],
+                               occ=wts[:ncols])
 
         return

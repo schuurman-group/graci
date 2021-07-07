@@ -10,6 +10,7 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 
+@timing.timed
 def diag(ci_method):
     """Diagonalisation of the reference space Hamiltonian"""
 
@@ -18,9 +19,6 @@ def diag(ci_method):
 
     # bitci reference space wfn
     ref_wfn = ci_method.bitci_ref()
-
-    # Construct the molecule object
-    timing.start('ref_diag')
 
     # Print the section header
     output.print_refdiag_header()
@@ -73,11 +71,9 @@ def diag(ci_method):
             (ener[irrep, :nroots]) = \
                     libs.lib_func('retrieve_some_energies', args)
             
-    # Stop timing
-    timing.stop('ref_diag')
-    
     return ciunits, ener 
 
+@timing.timed
 def n_extra(ci_method):
     """Determination of the number of extra reference space
     eigenvectors needed"""

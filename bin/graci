@@ -10,11 +10,12 @@ import graci.io.parse as parse
 import graci.io.output as output
 
 #
+@timing.timed
 def main():
     """Runs a GRaCI computation."""
 
     # start the global timer
-    timing.start('global')
+    #timing.start('global')
 
     # read command line options
     read_cmdline()

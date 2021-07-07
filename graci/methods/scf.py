@@ -53,11 +53,11 @@ class Scf:
         except:
             return False
 
+    @timing.timed
     def run(self):
         """compute the DFT energy and KS orbitals"""
     
         # construct the molecule object
-        timing.start('scf.run')
         pymol = self.mol.pymol()
 
         output.print_scf_header()
@@ -174,8 +174,6 @@ class Scf:
         # write the Molden file if requested
         if self.print_orbitals:
             self.export_orbitals()
-
-        timing.stop('scf.run')
 
         return
 
