@@ -889,10 +889,10 @@ class Transition:
         ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
 
         # import the appropriate library for the file_format
-        if orb_format in output.orb_formats:
-            orbtype = importlib.import_module('graci.io.'+orb_format)
+        if file_format in output.orb_formats:
+            orbtype = importlib.import_module('graci.io.'+file_format)
         else:
-            print('orbital format type=' + orb_format +
+            print('orbital format type=' + file_format +
                                         ' not found. exiting...')
             sys.exit(1)
 

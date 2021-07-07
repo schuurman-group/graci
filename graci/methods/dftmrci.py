@@ -508,7 +508,7 @@ class Dftmrci:
 
     #
     def export_orbitals_state(self, state, orb_format='molden', 
-                                         orb_dir=True, cart=True):
+                                         orb_dir=True, cart=None):
         """export orbitals of a single state to various file formats"""
 
         if state >= self.n_state():
@@ -541,8 +541,8 @@ class Dftmrci:
                                         ' not found. exiting...')
             sys.exit(1)
 
-        orbtype.write_orbitals(fname, self.mol, orb, 
-                               occ=occ, sym_lbl=sym_lbl, cart=cart)
+        orbtype.write_orbitals(fname, self.scf.mol, orb, 
+                               occ=occ, sym_lbl=sym_lbl, cart=None)
 
         return
 
