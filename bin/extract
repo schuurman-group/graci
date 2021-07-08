@@ -170,19 +170,9 @@ def extract_wfns(chkpt_file, extract_list):
     wfn_dsets = chkpt.contents(chkpt_file, grp_name=wfn2extract)
 
     cf_inds =  []
-    det_inds = []
     for wfn in wfn_dsets:
         if 'wfn_cf' in wfn:
             cf_inds.append(int(wfn.replace('wfn_cf','')))
-        if 'wfn_det' in wfn:
-            det_inds.append(int(wfn.replace('wfn_det','')))
-
-    if cf_inds != det_inds:
-        print("WARNING: coefficient and determinants lists don't" +
-              " agree in chkpt file")
-
-    # take the indices common to both lists
-    wfn_inds = list(set(cf_inds).intersection(det_inds))
 
     # make sure the cutoff value is interprable
     try:
@@ -195,7 +185,7 @@ def extract_wfns(chkpt_file, extract_list):
     f_names = ['S', 'D', 'T', 'Q', '5', '6', '7', '8']
 
     # extract wfns and write them to file
-    for indx in wfn_inds:
+    for indx in cf_inds:
         cf, det = chkpt.read_wfn(chkpt_file, wfn2extract, indx, cutoff)
 
         (nmo, ndets) = det.shape
