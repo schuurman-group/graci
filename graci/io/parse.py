@@ -3,7 +3,6 @@
 import sys
 import re as re
 import numpy as np 
-import graci.utils.timing as timing
 import graci.utils.constants as constants
 import graci.core.params as params
 import graci.io.output as output

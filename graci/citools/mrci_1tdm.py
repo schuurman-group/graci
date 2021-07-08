@@ -9,6 +9,7 @@ import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
 
+@timing.timed
 def tdm(bra, ket, trans_list):
     """Calculation of the MRCI 1-TDMs for all states"""
 

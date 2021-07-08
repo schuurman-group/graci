@@ -33,6 +33,7 @@ class Molecule:
         self.use_sym  = False
         self.basis    = ''
         self.ri_basis = ''
+        self.ao_cart  = False
         self.use_df   = False
         self.use_rrdf = False
         self.rrdf_fac = 3
@@ -41,7 +42,7 @@ class Molecule:
         # the following are determined based on user
         # input
         self.asym     = []
-        self.crds     = None
+        self.crds     = None 
         self.masses   = []
         self.nel      = 0
         self.spin     = 0
@@ -51,6 +52,7 @@ class Molecule:
         self.irreplbl = None
         self.enuc     = 0.
         self.mol_obj  = None
+        self.nao      = None
 
     def run(self):
         """return a gto.Molecule object: 
@@ -84,6 +86,7 @@ class Molecule:
         # set the spin
         self.spin = 0.5*(self.mult - 1.)
 
+
         self.mol_obj = gto.M(
                      dump_input = False,
                      parse_arg  = False,
@@ -91,7 +94,8 @@ class Molecule:
                      atom       = mol_str,
                      charge     = self.charge,
                      spin       = self.spin,
-                     output     = output.file_names['pyscf_out'],
+                     output     = None,
+                     cart       = self.ao_cart,
                      basis      = self.basis,
                      symmetry   = self.use_sym,
                      unit       = self.units)
@@ -117,7 +121,7 @@ class Molecule:
         return
 
     #
-    def read_xyz():
+    def read_xyz(self):
         """read the xyz_file specified by 'xyz_file'"""
 
         # parse contents of xyz file
@@ -132,7 +136,7 @@ class Molecule:
         # use the number of atoms rather than number of lines in file
         natm        = int(xyz_gm[0].strip())
         self.atoms  = []
-        self.crds   = []
+        xyz         = []
 
         for i in range(2, natm+2):
             line = xyz_gm[i]
@@ -142,11 +146,12 @@ class Molecule:
             except ValueError:
                 sys.exit('atom '+str(line[0])+' not found.')
             try:
-                self.crds.append([float(line[i] * conv)
+                xyz.append([float(line[i] * conv)
                     for i in range(1,4)])
             except:
                 sys.exit('Cannot interpret input as a geometry')
 
+        self.crds = np.array(xyz, dtype=float)
         return
 
     # 
@@ -197,7 +202,7 @@ class Molecule:
     # 
     def cart(self):
         """returns the cartesian geometry as an np array"""
-        return self.cart
+        return self.crds
 
     #
     def atoms(self):

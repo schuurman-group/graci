@@ -1,7 +1,9 @@
 """
 Module for computing DFT/MRCI energies
 """
+import os as os
 import sys as sys
+import importlib
 import graci.io.convert as convert
 import ctypes as ctypes
 import numpy as np
@@ -115,13 +117,12 @@ class Dftmrci:
         except:
             return False
 
+    @timing.timed
     def run(self):
         """ compute the DFT/MRCI eigenpairs for all irreps """
 
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
-
-        timing.start('dftmrci.run')
 
         # write the output logfile header for this run
         output.print_dftmrci_header(self.label)
@@ -230,8 +231,7 @@ class Dftmrci:
 
         # print orbitals if requested
         if self.print_orbitals:
-            for ist in range(n_tot):
-                self.export_natorb(ist, file_format='molden')
+            self.export_orbitals(orb_format='molden')
 
         # we'll also compute 1-electron properties by
         # default.
@@ -252,8 +252,6 @@ class Dftmrci:
                         ist,
                         self.scf.mol.irreplbl[irr],
                         momts.quadrupole(ist))
-
-        timing.stop('dftmrci.run')
 
         return 
 
@@ -358,6 +356,7 @@ class Dftmrci:
             return self.dmat
 
     #
+    @timing.timed
     def build_nos(self):
         """print the natural orbitals for irrep 
            'irr' and state 'state'"""
@@ -518,7 +517,7 @@ class Dftmrci:
             maxo = olap.index(max(olap))
             sym_indx[orb] = self.scf.orb_sym[maxo]
  
-        # max sure the symmetry orbital counts match up
+        # make sure the symmetry orbital counts match up
         oval, ocnts = np.unique(sym_indx, return_counts=True)
         val,  cnts  = np.unique(self.scf.orb_sym, return_counts=True)
 
@@ -527,9 +526,19 @@ class Dftmrci:
 
         return sym_indx
 
+    # 
+    def export_orbitals(self, orb_format='molden', orb_dir=True):
+        """export natural orbitals for all states to file"""
+
+        for ist in range(self.n_state()):
+            self.export_orbitals_state(ist, orb_format=orb_format, 
+                                                   orb_dir=orb_dir)
+        return
+
     #
-    def export_natorb(self, state, file_format='molden'):
-        """export orbitals to molden or cube format"""
+    def export_orbitals_state(self, state, orb_format='molden', 
+                                         orb_dir=True, cart=None):
+        """export orbitals of a single state to various file formats"""
 
         if state >= self.n_state():
             return
@@ -539,16 +548,30 @@ class Dftmrci:
         syms          = self.natural_sym(state)
         sym_lbl       = [self.scf.mol.irreplbl[syms[i]]
                         for i in range(len(syms))]
-        fname = 'orbs/nos.'+str(state+1)+ \
+        fname = 'nos.'+str(state+1)+ \
                 '_'+str(self.scf.mol.irreplbl[irr].lower())+ \
-                '_'+str(file_format)
+                '_'+str(orb_format).lower()+"_"+str(self.label)
 
-        if file_format == 'molden':
-            output.print_nos_molden(fname, self.scf.mol, orb, occ,
-                                                   sym=sym_lbl)
+        if orb_dir:
+            fname = 'orbs/'+fname
+            # if dir_name directory doesn't exist, create it
+            if not os.path.exists('orbs'):
+                os.mkdir('orbs')
+
+        # if a file called fname exists, delete it
+        if os.path.isfile(fname):
+            os.remove(fname)
+
+        # import the appropriate library for the file_format
+        if orb_format in output.orb_formats:
+            orbtype = importlib.import_module('graci.io.'+orb_format)
         else:
-            print("export_natorb: file format "+str(file_format)+
-                  " not recognized")
+            print('orbital format type=' + orb_format +
+                                        ' not found. exiting...')
+            sys.exit(1)
+
+        orbtype.write_orbitals(fname, self.scf.mol, orb, 
+                               occ=occ, sym_lbl=sym_lbl, cart=None)
 
         return
 

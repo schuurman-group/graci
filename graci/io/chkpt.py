@@ -18,7 +18,7 @@ import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit
 
 #
-def contents(file_name):
+def contents(file_name, grp_name=None):
     """return the group names present in the checkpoint file"""
 
     try:
@@ -26,8 +26,12 @@ def contents(file_name):
     except:
         return None
 
-    grp_lst = list(chkpt.keys())
-    print("grp_lst = "+str(grp_lst))
+    if grp_name is None:
+        grp_lst = list(chkpt.keys())
+    elif grp_name in list(chkpt.keys()):
+        grp_lst = list(chkpt[grp_name].keys())
+    else:
+        grp_lst = None
 
     chkpt.close()
 
@@ -47,9 +51,9 @@ def write(file_name, graci_obj):
     grp_name = str(type(graci_obj).__name__)+'.'+str(graci_obj.label)
 
     chkpt = h5py.File(file_name, 'a', libver='latest')
-    
+
     # create the group if doesn't already exist
-    if grp_name not in chkpt.keys():
+    if grp_name not in list(chkpt.keys()):
         obj_grp = chkpt.create_group(grp_name)
     else:
         obj_grp = chkpt[grp_name]
@@ -90,11 +94,14 @@ def write(file_name, graci_obj):
     return
 
 #
-def read(file_name, obj_name, build_objs=False, file_handle=None):
+def read(file_name, obj_name, build_subobj=True, make_mol=True,
+         file_handle=None):
     """return a GRaCI object, with name 'obj_name', after parsing 
        checkpoint file. If build_subobj is True, also build GRaCI 
        objects contained in 'obj_name'. If the file_handle is passed
-       directly, use that instead of opening file"""
+       directly, use that instead of opening file. If make_mol is 
+       'True', call run() routine in GRaCI mol object to regenerate
+       the pyscf mol object (which is not written to chkpt file"""
 
     # if file doesn't exist, just return None
     if file_handle is not None:
@@ -120,42 +127,143 @@ def read(file_name, obj_name, build_objs=False, file_handle=None):
 
     # populate with the save datasets (we know these 
     # are N-rank numpy arrays)
-    for name, np_tensor in class_grp.items():
+    for name, dset in class_grp.items():
 
-        if not hasattr(Chkpt_obj, name):
-            raise AttributeError(
-            'Class '+str(obj_class)+' has no attribute '+str(name))
-        setattr(Chkpt_obj, name, np_tensor)
+        # only load if class has attribute. 
+        if hasattr(Chkpt_obj, name):
+            nparray = np.empty(dset.shape, dset.dtype)
+            nparray = dset[...]
+            setattr(Chkpt_obj, name, nparray)
 
     # populate with the saved attributes (these can
     # be more complicated)
     for name, attr in class_grp.attrs.items():
-        
+   
         if not hasattr(Chkpt_obj, name):
             raise AttributeError(
             'Class '+str(obj_class)+' has no attribute '+str(name))
 
         # if this is a graci object, read this object from 
         # this file
-        if 'GRACI_OBJ.' in name and build_subobj:
-            subgrp_name = name.replace('GRACI_OBJ.', '')
-            subobj = read(file_handle, subgrp_name, build_subobj, chkpt)
+        if 'GRACI_OBJ.' in str(attr) and build_subobj:
+            subgrp_name = str(attr).replace('GRACI_OBJ.', '')
+            subobj = read(file_handle, subgrp_name, 
+                          build_subobj = build_subobj, 
+                          make_mol = make_mol, 
+                          file_handle = chkpt)
             setattr(Chkpt_obj, name, subobj)
+            continue
 
         # if this is a dictonary, need to convert
         # from string
-        if isinstance(Chkpt_obj, dict):
+        if isinstance(getattr(Chkpt_obj, name), dict):
             try:
                 setattr(Chkpt_obj, name, ast.literal.eval(attr))
             except:
                 print("Chkpt error reading dictionary: "+str(name))
             continue
 
+        # if this is a string 'None', convert to NoneType. This 
+        # feels hacky, but, None is not a native type, so...
+        if str(attr) == 'None':
+            setattr(Chkpt_obj, name, None)
+            continue
+
         setattr(Chkpt_obj, name, attr) 
 
-    chkpt.close()
+    # don't close the file if it was called by handle -- if it's called
+    # recursively, may trip up higher levels
+    if file_handle is None:
+        chkpt.close()
+
+    if make_mol and obj_class == 'Molecule':
+        Chkpt_obj.run()
 
     return Chkpt_obj
+
+# 
+def read_wfn(file_name, obj_name, wfn_indx, cutoff):
+    """reads the wfn object from the obj_name group. Returns
+       a numpy array with the determinant coefficients and a 
+       numpy array with the orbital occupations"""
+
+    # using 64-bit integers to store det occupations
+    STR_LEN = 64
+
+    try:
+        chkpt = h5py.File(file_name, 'r', libver='latest')
+    except:
+        return None
+
+    grp_name = '/'+str(obj_name)
+
+    cf_name  = 'wfn_cf'+str(wfn_indx)
+    det_name = 'wfn_det'+str(wfn_indx)
+    
+    grp_dsets = list(chkpt[grp_name].keys())
+
+    if cf_name not in grp_dsets or det_name not in grp_dsets:
+        print(cf_name + ' and/or ' + det_name + 
+                            ' not found in group '+grp_name)
+        return None
+
+    cf_name  = grp_name + '/' + cf_name
+    det_name = grp_name + '/' + det_name
+    (ndet_cf,   dum)  = chkpt[cf_name].shape
+    (ndet_wfn, n_tot) = chkpt[det_name].shape
+
+    if ndet_wfn != ndet_cf:
+        print("WARNING: determinant and coefficient lists are not"+
+                " the same length: "+str(ndet_wfn)+"!="+str(ndet_cf))
+
+    # some preliminaries so we can allocated the output coefficient
+    # and det list arrays
+    ndet  = min(ndet_wfn, ndet_cf)
+    n_int = int(n_tot / 2)
+    nmo   = int(chkpt[det_name].attrs['nmo'])
+
+    cfs_raw  = np.array(chkpt[cf_name][:, 0], dtype=float)
+    det_ints = chkpt[det_name][...]
+
+    # next, we sort the coefficients, and only convert those dets
+    # corresponding to contributions > the cutoff.
+    # we flip array to get values in descending order
+    ordr = np.flip(np.argsort(np.absolute(cfs_raw)))
+
+    # now we step through the cf array 
+    cfs  = np.zeros((ndet,), dtype=float)
+    dets = np.zeros((nmo, ndet), dtype=np.short)
+
+    for idet in range(ndet):
+        
+        indx = ordr[idet]
+
+        if abs(cfs_raw[indx]) < cutoff:
+            break
+
+        cfs[idet] = cfs_raw[indx]
+        
+        alpha = []
+        beta  = []
+
+        for i_int in range(n_int):
+            alpha_i = list(reversed("{0:b}".format(det_ints[indx, i_int])))
+            alpha  += alpha_i + ['0' for i in range(STR_LEN - len(alpha_i))]
+
+            beta_i  = list(reversed("{0:b}".format(det_ints[indx, n_int + i_int])))
+            beta   += beta_i + ['0' for i in range(STR_LEN - len(beta_i))]
+
+        # only take first nmo entries -- the rest are padding
+        dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
+        rdet = np.array(dabs, dtype=np.short)
+        for i in range(nmo):
+            if int(alpha[i]) == 0:
+                rdet[i] = -dabs[i]
+
+        dets[:, idet] = rdet 
+
+    return cfs[:idet], dets[:,:idet]
+
 
 #--------------------------------------------------------
 
@@ -173,12 +281,11 @@ def pack(graci_obj):
     obj_dset = {}
 
     for name, obj in objs.items():
-        # if object is a numpy array of rank >=2, save
+        # if object is a numpy array, save
         # as a distinct dataset
         if isinstance(obj, np.ndarray):
-            if len(obj.shape) >= 2:
-                obj_dset[name] = obj
-                continue
+            obj_dset[name] = obj
+            continue
 
         # if the object is a graci class object, save
         # the name of the object as a string -- this
@@ -192,7 +299,5 @@ def pack(graci_obj):
         obj_attr[name] = obj
 
     return obj_dset, obj_attr
-
-
 
 

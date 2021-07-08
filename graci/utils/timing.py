@@ -37,7 +37,6 @@ class timed:
         stop(name)
         return result
 
-
 class Timer:
     """A Timer object for a process 'name'."""
     def __init__(self, name):
@@ -107,6 +106,10 @@ def stop(name, cumulative=False):
     """
     global active_stack
 
+    # if stop called and we have nothing on the stack, simply return
+    if len(active_stack) == 0:
+        return
+
     # for time being, assume, last function added to stack, is the first to
     # be stopped. If more flexibility is required, we'll address it at that time
     if active_stack[-1].name != name:
@@ -135,10 +138,10 @@ def print_timings():
     global timer_list
 
     # ensure that the global timer has finished and get the total execution time
-    if timer_list['global'].running:
-        stop('global', cumulative=True)
-    tot_cpu  = timer_list['global'].cpu_time
-    tot_wall = timer_list['global'].wall_time
+    if timer_list['__main__.main'].running:
+        stop('__main__.main', cumulative=True)
+    tot_cpu  = timer_list['__main__.main'].cpu_time
+    tot_wall = timer_list['__main__.main'].wall_time
 
     sort_list = sorted(timer_list.items(),
                        key=lambda unsort: unsort[1].wall_time, reverse=True)
@@ -153,7 +156,7 @@ def print_timings():
     frac_cpu  = 0.
     for sort in sort_list:
         rout = str(sort[0])
-        if rout != 'global':
+        if rout != '__main__.main':
             ncall = sort[1].calls
             wtim  = sort[1].wall_time
             ctim  = sort[1].cpu_time

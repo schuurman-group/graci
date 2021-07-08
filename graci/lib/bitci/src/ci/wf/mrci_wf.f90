@@ -8,10 +8,10 @@
 !          irrep
 !######################################################################
 #ifdef CBINDING
-subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet) &
+subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,ndet) &
      bind(c,name='wf_mrci')
 #else
-subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
+subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,ndet)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -21,6 +21,7 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   use csf2det
   use det_expec
   use iomod
+  use chkpt
   use timing
   
   implicit none
@@ -28,11 +29,15 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   ! Output HDF5 file name
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: h5file_in
+  character(kind=C_CHAR), intent(in) :: grp_name
   character(len=255)                 :: h5file
+  character(len=255)                 :: grp
   integer(is)                        :: length
 #else
   character(len=*), intent(in)       :: h5file_in
+  character(len=*), intent(in)       :: grp_name
   character(len=255)                 :: h5file
+  character(len=255)                 :: grp
 #endif
   
   ! Irrep and no. roots
@@ -43,6 +48,9 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
   
   ! MRCI configuration and eigenvector scratch file numbers
   integer(is), intent(in)  :: confscr(0:nirrep-1),vecscr(0:nirrep-1)
+
+  ! integer labels for the wfs
+  integer(is), intent(in)  :: lbls(nroots)
 
   ! No. determinants
   integer(is), intent(out) :: ndet
@@ -88,8 +96,11 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
 #ifdef CBINDING
   length=cstrlen(h5file_in)
   call c2fstr(h5file_in,h5file,length)
+  length=cstrlen(grp_name)
+  call c2fstr(grp_name, grp, length)
 #else
-  h5file=adjustl(trim(h5file_in))
+  h5file = adjustl(trim(h5file_in))
+  grp    = adjustl(trim(grp_name))
 #endif
 
 !----------------------------------------------------------------------
@@ -157,6 +168,14 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,ndet)
 !        call error_control
 !     endif
 !  enddo
+
+!----------------------------------------------------------------------
+! Write the determinant lists to the h5 checkpoint file
+!----------------------------------------------------------------------
+  do i = 1, nroots
+    call chkpt_write_wfn(h5file, grp, nmo, lbls(i), detdim, & 
+                                                     vec_det(:,i), det)
+  enddo
 
 !----------------------------------------------------------------------
 ! Deallocate arrays

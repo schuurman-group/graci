@@ -8,6 +8,7 @@ import sys
 import h5py
 import math
 import numpy as np
+import importlib
 import graci.io.output as output
 import graci.utils.timing as timing
 from pyscf.lib import logger
@@ -52,11 +53,11 @@ class Scf:
         except:
             return False
 
+    @timing.timed
     def run(self):
         """compute the DFT energy and KS orbitals"""
     
         # construct the molecule object
-        timing.start('scf.run')
         pymol = self.mol.pymol()
 
         output.print_scf_header()
@@ -150,8 +151,9 @@ class Scf:
         self.orb_occ   = mf.mo_occ
         # orb_ener is the array of MO energies
         self.orb_ener  = mf.mo_energy
-        # orb_irrep is the irrep label
-        self.orb_irrep = orb_sym
+        # orb_irrep is the irrep label -- this dirty: easier for
+        # checkpointing if this is NOT a numpy array of strings
+        self.orb_irrep = [orb_sym[i] for i in range(len(orb_sym))]
         # orb_sym is the irrep index
         self.orb_sym   = orb_id
         # number of MOs
@@ -171,11 +173,7 @@ class Scf:
 
         # write the Molden file if requested
         if self.print_orbitals:
-            if not os.path.exists('orbs'):
-                os.mkdir('orbs')
-            molden.dump_scf(mf, 'orbs/mos.scf.molden')
-
-        timing.stop('scf.run')
+            self.export_orbitals()
 
         return
 
@@ -216,6 +214,40 @@ class Scf:
             return self.orbs
         else:
             return np.identity(self.nmo)
+
+    # 
+    def export_orbitals(self, file_format='molden', 
+                                   orb_dir=True, cart=True):
+        """export orbitals to molden format"""
+
+        # append the file_format label to file name
+        fname = 'mos_' + str(file_format).lower() + '_' + str(self.label)
+
+        if orb_dir:
+            fname = 'orbs/'+str(fname)
+            if not os.path.exists('orbs'):
+                os.mkdir('orbs')
+
+        # if a file called fname exists, delete it
+        if os.path.isfile(fname):
+            os.remove(fname)
+
+        # import the appropriate library for the file_format
+        if file_format in output.orb_formats:
+            orbtype = importlib.import_module('graci.io.'+file_format)
+        else:
+            print('orbital format type=' + file_format +
+                                        ' not found. exiting...')
+            sys.exit(1)
+
+        orbtype.write_orbitals(fname, 
+                               self.mol, 
+                               self.orbs, 
+                               sym_lbl = self.orb_irrep, 
+                               ener = self.orb_ener, 
+                               cart = cart)
+
+        return
 
     #
     def slater_dets(self, state):
