@@ -922,7 +922,7 @@ contains
     ! Loop over configurations
     do iconf=1,nconf
 
-       ! Initialise the reordered conf and SOP
+       ! Initialise the reordered conf
        conf_new=0_ib
 
        ! Loop over MOs
@@ -934,22 +934,19 @@ contains
           ! Orbital index in the bit string
           i=imo-(k-1)*64-1
 
+          ! New MO index
+          imo1=imap(imo)
+             
+          ! New block index
+          k1=(imo1-1)/64+1
+             
+          ! New orbital index in the bit string
+          i1=imo1-(k1-1)*64-1
+          
           ! Fill in the new configuration bit string
           do n=1,2
-             
-             ! New MO index
-             imo1=imap(imo)
-             
-             ! New block index
-             k1=(imo1-1)/64+1
-             
-             ! New orbital index in the bit string
-             i1=imo1-(k1-1)*64-1
-             
-             ! Configuration
              if (btest(conf(k,n,iconf),i)) &
                   conf_new(k1,n)=ibset(conf_new(k1,n),i1)
-             
           enddo
            
        enddo

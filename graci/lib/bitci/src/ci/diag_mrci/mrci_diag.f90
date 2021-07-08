@@ -142,14 +142,14 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   
   ! Compute the diagonal elements
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
-    
+
 !----------------------------------------------------------------------
 ! If we are using disk-based sigma-vector builds, then save the
 ! non-zero off-diagonal elements of the Hamiltonian matrix to disk
 !----------------------------------------------------------------------
   if (.not. direct) &
        call save_hij(hamscr,nrec,irrep,averageii,cfg%confdim,cfg)
-
+  
 !----------------------------------------------------------------------
 ! Eigenpair scratch file stem
 !----------------------------------------------------------------------
@@ -186,7 +186,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
         errmsg='Error in diag_mrci: unrecognised value of iguess'
         call error_control
      end select
-     
+
      ! Set the sigma-vector algorithm information
      if (direct) then
         isigma=0

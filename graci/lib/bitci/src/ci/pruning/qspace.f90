@@ -343,10 +343,10 @@ contains
 !----------------------------------------------------------------------
     ! Ref space
     call read_all_eigenpairs(vec0scr,vec0,E0,csfdim0,nvec)
-
+        
     ! MRCI
     call read_all_eigenpairs(vecscr,vec,E,csfdim,nroots)
-    
+        
 !----------------------------------------------------------------------
 ! Determine which Q-space energy corrections to use based on the
 ! overlaps of the reference and MRCI eigenvectors

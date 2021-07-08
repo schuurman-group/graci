@@ -48,6 +48,8 @@ class Dftmrci:
         self.refiter        = 3
         self.ref_prune      = False
         self.prune          = 'off'
+        self.prune_thresh   = 1.
+        self.prune_qcorr    = True
         self.prune_extra    = 10
         self.diag_guess     = 'subdiag'
         self.diag_method    = 'gendav'
@@ -62,8 +64,9 @@ class Dftmrci:
         # class variables
         # KS SCF object
         self.scf            = None 
-        # Pruning thresholds
-        self.prune_thresh   = {'tight'  : 0.9900,
+        # Pruning variables
+        self.pmrci          = False
+        self.prune_dict     = {'tight'  : 0.9900,
                                'normal' : 0.9500,
                                'loose'  : 0.9000}
         # No. extra ref space roots needed
@@ -133,6 +136,10 @@ class Dftmrci:
 
         # determine the no. extra ref space roots needed
         self.nextra = ref_diag.n_extra(self)
+
+        # set the pruning variables
+        #self.pmrci, self.prune_thresh = self.set_prune_vars(self)
+        self.set_prune_vars()
         
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
@@ -248,6 +255,28 @@ class Dftmrci:
 
         return 
 
+    #
+    def set_prune_vars(self):
+        """Handles the setting of the MRCI pruning logical flag
+        and threshold variables"""
+
+        # Pruning not requested
+        if self.prune == 'off' and self.prune_thresh == 1.:
+            self.pmrci        = False
+            self.prune_thresh = 1.
+            return
+
+        # Pruning reqested: return True and the requested threshold
+        # Note that the 'prune_thresh' keyword takes precedent over
+        # the 'prune' keyword
+        if self.prune_thresh != 1.:
+            self.pmrci = True
+            return
+        else:
+            self.pmrci        = True
+            self.prune_thresh = self.prune_dict[self.prune]
+            return
+    
     # 
     def n_irrep(self):
         """return the number of irreps"""

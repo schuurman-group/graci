@@ -21,6 +21,8 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   use holeconfs
   use confbuilder
   use timing
+
+  implicit none
   
   ! Irrep number
   integer(is), intent(in)    :: irrep

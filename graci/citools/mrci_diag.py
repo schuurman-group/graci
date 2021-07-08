@@ -76,7 +76,7 @@ def diag(ci_method):
         ciname.append(name)
 
     # Apply the Q-space energy corrections
-    if ci_method.prune != 'off':
+    if ci_method.pmrci and ci_method.prune_qcorr:
         for irrep in range(nirr):
             nstates  = ci_method.n_state_sym()
             qcorr    = np.zeros(nstates[irrep], dtype=float)
@@ -99,14 +99,15 @@ def diag(ci_method):
     # Print the report of the MRCI states
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_state_sym()
-    if ci_method.prune == 'off':
-        args = (ci_confunits, ciunits, nstates)
-        libs.lib_func('print_mrci_states', args)
-    else:
+    nextra  = np.array(ci_method.nextra['prune'], dtype=int)
+    if ci_method.pmrci and ci_method.prune_qcorr:
         args = (ci_confunits, ciunits, ref_ciunits, equnits, nstates,
                 nextra)
         libs.lib_func('print_pmrci_states', args)
-        
+    else:
+        args = (ci_confunits, ciunits, nstates)
+        libs.lib_func('print_mrci_states', args)
+
     return ciunits, ciname, ener 
 
 @timing.timed

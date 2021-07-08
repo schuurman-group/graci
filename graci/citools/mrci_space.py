@@ -58,8 +58,8 @@ def generate(ci_method):
         (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
         
         # Optional pruning of the configuration space
-        if ci_method.prune != 'off':
-            thrsh  = ci_method.prune_thresh[ci_method.prune]
+        if ci_method.pmrci:
+            thrsh = ci_method.prune_thresh
             nextra = ci_method.nextra['prune'][irrep]            
             args = (thrsh, irrep, nroots, nextra, ci_confunits,
                     ref_ciunits, nconf, eq_units)
@@ -75,4 +75,3 @@ def generate(ci_method):
 
     return nconf, ci_confunits, confname, eq_units
 
- 

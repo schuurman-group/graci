@@ -104,7 +104,7 @@ contains
        ! Apply any DFT/MRCI corrections to the on-diagonal
        ! matrix elements
        if (ldftmrci) call hii_dftmrci(harr(1:nsp),nsp,Dw,ndiff,&
-            nopen,cfg%m2c)
+            nopen,cfg%m2c,sop_full,socc,nsocc,nbefore)
 
        ! Fill in the hdiag and averageii arrays
        iomega=0
@@ -160,7 +160,7 @@ contains
              ! Apply any DFT/MRCI corrections to the on-diagonal
              ! matrix elements
              if (ldftmrci) call hii_dftmrci(harr(1:nsp),nsp,Dw,ndiff,&
-                  nopen,cfg%m2c)
+                  nopen,cfg%m2c,sop_full,socc,nsocc,nbefore)
 
              ! Fill in the hdiag and averageii arrays
              iomega=0
@@ -221,7 +221,7 @@ contains
              ! Apply any DFT/MRCI corrections to the on-diagonal
              ! matrix elements
              if (ldftmrci) call hii_dftmrci(harr(1:nsp),nsp,Dw,ndiff,&
-                  nopen,cfg%m2c)
+                  nopen,cfg%m2c,sop_full,socc,nsocc,nbefore)
 
              ! Fill in the hdiag and averageii arrays
              iomega=0
@@ -282,7 +282,7 @@ contains
              ! Apply any DFT/MRCI corrections to the on-diagonal
              ! matrix elements
              if (ldftmrci) call hii_dftmrci(harr(1:nsp),nsp,Dw,ndiff,&
-                  nopen,cfg%m2c)
+                  nopen,cfg%m2c,sop_full,socc,nsocc,nbefore)
 
              ! Fill in the hdiag and averageii arrays
              iomega=0
@@ -343,7 +343,7 @@ contains
              ! Apply any DFT/MRCI corrections to the on-diagonal
              ! matrix elements
              if (ldftmrci) call hii_dftmrci(harr(1:nsp),nsp,Dw,ndiff,&
-                  nopen,cfg%m2c)
+                  nopen,cfg%m2c,sop_full,socc,nsocc,nbefore)
 
              ! Fill in the hdiag and averageii arrays
              iomega=0
@@ -404,7 +404,7 @@ contains
              ! Apply any DFT/MRCI corrections to the on-diagonal
              ! matrix elements
              if (ldftmrci) call hii_dftmrci(harr(1:nsp),nsp,Dw,ndiff,&
-                  nopen,cfg%m2c)
+                  nopen,cfg%m2c,sop_full,socc,nsocc,nbefore)
 
              ! Fill in the hdiag and averageii arrays
              iomega=0

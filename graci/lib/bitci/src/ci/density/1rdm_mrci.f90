@@ -90,12 +90,12 @@ contains
 ! (6) 2H - 1H contributions to the 1-RDMs
 !----------------------------------------------------------------------
     call rdm_2h_1h(cfg,csfdim,nroots,vec,rho)
-
+    
 !----------------------------------------------------------------------
 ! (6) 2H - 2H contributions to the 1-RDMs
 !----------------------------------------------------------------------
     call rdm_2h_2h(cfg,csfdim,nroots,vec,rho)
-    
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -938,7 +938,7 @@ contains
                 endif
                 
                 ! 1I - 1E contributions
-                if (nac <= 1 &
+                if (nac <= 1 .and. cfg%n1E > 0 &
                      .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
                    call rdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -967,6 +967,9 @@ contains
 
           ! Skip duplicate 1E - 1E  elements
           if (bn < kn) cycle
+
+          ! Cycle if there are no 1E configurations
+          if (cfg%n1E == 0) cycle
           
           ! Loop over ket 1E configurations
           do ikconf=cfg%off1E(kn),cfg%off1E(kn+1)-1
