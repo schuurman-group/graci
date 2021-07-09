@@ -251,7 +251,7 @@ def read_wfn(file_name, obj_name, wfn_indx, cutoff):
         for i_int in range(n_int):
             alpha  += list(np.binary_repr(det_ints[indx, i_int], 
                                            width=STR_LEN))[::-1]
-            beta   += list(np.binary_repr(det_ints[indx, i_int], 
+            beta   += list(np.binary_repr(det_ints[indx, n_int+i_int], 
                                            width=STR_LEN))[::-1]
 
         # only take first nmo entries -- the rest are padding
