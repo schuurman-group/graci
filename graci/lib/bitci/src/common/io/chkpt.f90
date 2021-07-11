@@ -142,16 +142,19 @@ module chkpt
     ! write wfn coefficients to dedicated dataset
     call write_dataset(file_name, data_name, dims, data_set_cf)
 
-    ! Next write the determinants
-    dims        = (/ 2*n_int, ndet /)
-    data_name   = trim(adjustl(g_name))//'/wfn_det'//adjustl(indx_str)
-    data_set_det(:n_int, :ndet)          = det_list(:n_int, 1, :ndet)
-    data_set_det(n_int+1:2*n_int, :ndet) = det_list(:n_int, 2, :ndet)
-  
-    ! write wfn bit strings to dedicated dataset
-    call write_dataset(file_name, data_name, dims, data_set_det)
-    attr = 'nmo'
-    call write_attribute(file_name, data_name, attr, nmo)
+    ! Next write the determinant list -- assumes a single common determinant
+    ! basis -- only bother writing if it doesn't exist
+    data_name   = trim(adjustl(g_name))//'/wfn_dets'
+    if(.not.dataset_exists(file_name, data_name)) then
+      dims        = (/ 2*n_int, ndet /)
+      data_set_det(:n_int, :ndet)          = det_list(:n_int, 1, :ndet)
+      data_set_det(n_int+1:2*n_int, :ndet) = det_list(:n_int, 2, :ndet)
+      ! write wfn bit strings to dedicated dataset
+      call write_dataset(file_name, data_name, dims, data_set_det)
+
+      attr = 'nmo'
+      call write_attribute(file_name, data_name, attr, nmo)
+    endif
 
   end subroutine chkpt_write_wfn
 
@@ -198,7 +201,7 @@ module chkpt
 
     ! now read the determinant list
     dims                                 = (/ 2*n_int, ndet /)
-    data_name                            = 'wfn_det'//adjustl(indx_str)
+    data_name                            = 'wfn_dets'
 
     call read_dataset(file_name, data_name, dims, data_set_det, dim_read)
 
@@ -319,6 +322,47 @@ module chkpt
     return
   end subroutine create_group
 
+  function dataset_exists(file_name, dset_name) result(exists)
+    character(len=255), intent(in) :: file_name
+    character(len=255), intent(in) :: dset_name
+
+    integer(hid_t)                 :: file_id  ! File identifier 
+    integer(hid_t)                 :: dset_id ! Dataset identifier 
+
+    character(len=255)             :: f_name
+    character(len=255)             :: d_name
+    logical                        :: exists
+    integer(is)                    :: error
+
+    f_name    = trim(adjustl(file_name))
+    d_name    = trim(adjustl(dset_name))
+
+    ! if file doesn't exist, the group doesn't exist. Not sure if this
+    ! default behavior makes most sense
+    inquire(file=f_name, exist=exists)
+
+    if(.not.exists) return
+
+    exists    = .false.
+
+    ! else, open the file try to open the group
+    call h5open_f(error)
+
+    ! open file
+    call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, error)
+
+    ! check if link exists
+    call h5lexists_f(file_id, d_name, exists, error)
+
+    ! close file
+    call h5fclose_f(file_id, error)
+    call h5close_f(error)
+
+    ! return true if exists and no errors
+    exists = exists .and. error == 0
+
+    return
+  end function dataset_exists
 
 ! # write a 2D array dataset to the specified file_name
   subroutine write_dataset_dble(file_name, data_name, dims, data_set)

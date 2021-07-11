@@ -5,17 +5,17 @@ Python and compiled dlls
 import sys as sys
 import h5py as h5py
 import numpy as np
+import struct as struct
 
 import graci.core.params as params
 import graci.core.molecule as molecule
-import graci.core.geometry as geometry
 import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftcis as dftcis
-import graci.properties.moments as moments
 import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit
+import graci.utils.timing as timing
 
 #
 def contents(file_name, grp_name=None):
@@ -74,12 +74,12 @@ def write(file_name, graci_obj):
         # if we're here, need to create a new dataset
         try:
             obj_grp.create_dataset(name, data=dset, dtype=dset.dtype, 
-                                                   compression="gzip")
+                                compression="gzip", compression_opts=9)
             # if non-native HDf5 type, just convert to a string
         except TypeError:
             dset_str = str(dset)
             obj_grp.create_dataset(name, data=dset_str, 
-                                                   compression="gzip")
+                                compression="gzip", compression_opts=9)
 
     # next write the attributes
     for name, attr in attrs.items():
@@ -181,7 +181,7 @@ def read(file_name, obj_name, build_subobj=True, make_mol=True,
 
     return Chkpt_obj
 
-# 
+#
 def read_wfn(file_name, obj_name, wfn_indx, cutoff):
     """reads the wfn object from the obj_name group. Returns
        a numpy array with the determinant coefficients and a 
@@ -198,7 +198,7 @@ def read_wfn(file_name, obj_name, wfn_indx, cutoff):
     grp_name = '/'+str(obj_name)
 
     cf_name  = 'wfn_cf'+str(wfn_indx)
-    det_name = 'wfn_det'+str(wfn_indx)
+    det_name = 'wfn_dets'
     
     grp_dsets = list(chkpt[grp_name].keys())
 
@@ -246,12 +246,13 @@ def read_wfn(file_name, obj_name, wfn_indx, cutoff):
         alpha = []
         beta  = []
 
+        # use numpy intrinsic binary_repr -- if width specified,
+        # returns two's complement value
         for i_int in range(n_int):
-            alpha_i = list(reversed("{0:b}".format(det_ints[indx, i_int])))
-            alpha  += alpha_i + ['0' for i in range(STR_LEN - len(alpha_i))]
-
-            beta_i  = list(reversed("{0:b}".format(det_ints[indx, n_int + i_int])))
-            beta   += beta_i + ['0' for i in range(STR_LEN - len(beta_i))]
+            alpha  += list(np.binary_repr(det_ints[indx, i_int], 
+                                           width=STR_LEN))[::-1]
+            beta   += list(np.binary_repr(det_ints[indx, n_int+i_int], 
+                                           width=STR_LEN))[::-1]
 
         # only take first nmo entries -- the rest are padding
         dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
@@ -260,10 +261,20 @@ def read_wfn(file_name, obj_name, wfn_indx, cutoff):
             if int(alpha[i]) == 0:
                 rdet[i] = -dabs[i]
 
+        if idet == 0:
+            ecnt = sum(dabs)
+        elif sum(dabs) != ecnt:
+            print('Wrong number of electrons in determinant. '+
+                  '\nidet=' + str(idet) + 
+                  '\nints=' + str(det_ints[indx, :]) + 
+                  '\n alpha = '+str(alpha) + 
+                  '\n beta = '+str(beta) + 
+                  '\nrdet='+str(rdet))
+            sys.exit(1)
+
         dets[:, idet] = rdet 
 
     return cfs[:idet], dets[:,:idet]
-
 
 #--------------------------------------------------------
 

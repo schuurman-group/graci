@@ -58,11 +58,6 @@ class Molecule:
         """return a gto.Molecule object: 
            compute it if one doesn't exist, or force_make=True"""
 
-        # if an xyz file is specified, this is default for reading
-        # coordinates
-        if self.xyz_file is not None:
-            self.read_xyz()
-
         # if at this point we _still_ don't have a structure, pull
         # the plug
         if len(self.asym) == 0 or self.crds is None:
@@ -134,20 +129,20 @@ class Molecule:
             sys.exit()
 
         # use the number of atoms rather than number of lines in file
-        natm        = int(xyz_gm[0].strip())
-        self.atoms  = []
-        xyz         = []
+        natm       = int(xyz_gm[0].strip())
+        self.asym  = []
+        xyz        = []
 
         for i in range(2, natm+2):
-            line = xyz_gm[i]
+            line = xyz_gm[i].strip().split()
             try:
-                atm_indx = self.atom_name.index(line[0].upper())
-                self.atoms.append(self.atom_name[atm_indx])
+                atm_indx = atom_name.index(line[0].upper())
+                self.asym.append(atom_name[atm_indx])
             except ValueError:
-                sys.exit('atom '+str(line[0])+' not found.')
+                sys.exit('atom '+str(line.strip()[0])+' not found.')
+
             try:
-                xyz.append([float(line[i] * conv)
-                    for i in range(1,4)])
+                xyz.append([float(line[j]) for j in range(1,4)])
             except:
                 sys.exit('Cannot interpret input as a geometry')
 
@@ -158,7 +153,14 @@ class Molecule:
     def set_geometry(self, atms, coords):
         """set the atoms and cartesian coordinates of the 
            Molecule object"""
-    
+
+        # if an xyz file is specified, this is default for reading
+        # coordinates
+        if self.xyz_file is not None:
+            self.read_xyz()
+            return
+
+        # else use the values in atms and coords
         if all([atm in atom_name for atm in atms]):
             self.asym = atms
         else:
