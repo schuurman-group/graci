@@ -34,7 +34,6 @@ scf_kword      = {'xc'             : str,
 # MRCI section input keywords and data types
 dftmrci_kword  = {'nstates'        : int,
                   'hamiltonian'    : str,
-                  'de_select'      : float,
                   'ras1'           : int,
                   'ras2'           : int,
                   'ras3'           : int,
@@ -63,7 +62,6 @@ dftmrci_kword  = {'nstates'        : int,
 # DFT/CIS section input keywords and data types
 dftcis_kword   = {'nstates'        : int,
                   'hamiltonian'    : str,
-                  'de_select'      : float,
                   'label'          : str
                 }
 

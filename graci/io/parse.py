@@ -223,7 +223,16 @@ def check_input(run_list):
         if 'use_rrdf' in params.kwords[type(obj).__name__].keys():
             if (obj.use_rrdf and not obj.use_df):
                 obj.use_df = True
-     
+
+        # If RAS spaces have not been specified, then set autoras = True
+        ras = False
+        for key in ['ras1', 'ras2', 'ras3']:
+            if key in params.kwords[type(obj).__name__].keys():
+                if len(getattr(obj, key)) != 0:
+                    ras = True
+        if not ras:
+            obj.autoras = True
+                    
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
         if type(obj).__name__ == 'Transition':

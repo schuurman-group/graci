@@ -348,6 +348,12 @@ contains
     ! Everything else
     integer(is)              :: nopen,ndet,iconf,idet,counter
     integer(is)              :: socc(nmo)
+
+
+    ! TEST
+    integer(is) :: i,j,k,n
+    ! TEST
+    
     
 !----------------------------------------------------------------------
 ! Initialisation

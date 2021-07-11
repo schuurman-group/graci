@@ -102,7 +102,7 @@ contains
 ! (1) 1-hole configurations -> 1I and 1E configurations
 !----------------------------------------------------------------------
     call avec_1h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots)
-
+    
 !----------------------------------------------------------------------
 ! (2)  2-hole configurations -> 2I, 2E and 1I1E configurations
 !----------------------------------------------------------------------

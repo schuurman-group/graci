@@ -36,7 +36,6 @@ class Dftmrci:
         # user defined quanties
         self.nstates        = []
         self.hamiltonian    = 'canonical'
-        self.de_select      = 0.8
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
@@ -46,7 +45,7 @@ class Dftmrci:
         self.icvs           = []
         self.ciorder        = 2
         self.refiter        = 3
-        self.ref_prune      = False
+        self.ref_prune      = True
         self.prune          = 'off'
         self.prune_thresh   = 1.
         self.prune_qcorr    = True
