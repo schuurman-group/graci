@@ -251,7 +251,7 @@ class Dftmrci:
                         self.scf.mol.irreplbl[irr],
                         momts.quadrupole(ist))
 
-        return 
+        return
 
     #
     def set_prune_vars(self):

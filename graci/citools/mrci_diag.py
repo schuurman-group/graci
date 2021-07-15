@@ -108,7 +108,7 @@ def diag(ci_method):
         args = (ci_confunits, ciunits, nstates)
         libs.lib_func('print_mrci_states', args)
 
-    return ciunits, ciname, ener 
+    return ciunits, ciname, ener
 
 @timing.timed
 def diag_vars(ci_method):

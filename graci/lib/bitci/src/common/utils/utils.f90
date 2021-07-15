@@ -402,5 +402,57 @@ contains
   end subroutine diag_matrix_real
   
 !######################################################################
+! invsqrt_matrix: computes the inverse square root of a real,
+!                 symmetric, double precision matrix
+!######################################################################
+  subroutine invsqrt_matrix(mat,invsqrtmat,dim)
+
+    use constants
+    use iomod
     
+    implicit none
+
+    integer(is)                  :: dim,info,i
+    real(dp), dimension(dim,dim) :: mat,invsqrtmat,eigvec,dmat
+    real(dp), dimension(dim)     :: lambda
+    real(dp), dimension(3*dim)   :: work
+    real(dp), parameter          :: thrsh=1e-10_dp
+    
+!----------------------------------------------------------------------
+! Diagonalisation of the input matrix
+!----------------------------------------------------------------------
+    eigvec=mat
+    call dsyev('V','U',dim,eigvec,dim,lambda,work,3*dim,info)
+
+    ! Exit if the diagonalisation failed
+    if (info /= 0) then
+       errmsg='Diagonalisation failed in subroutine invsqrt_matrix'
+       call error_control
+    endif
+
+!----------------------------------------------------------------------
+! Inverse square root of the input matrix
+!----------------------------------------------------------------------
+    dmat=0.0d0
+    do i=1,dim
+
+       if (abs(lambda(i)) > thrsh &
+            .and.lambda(i) < 0.0d0) then
+          errmsg='Non semi positive definite matrix in &
+               subroutine invsqrt_matrix'
+          call error_control
+       endif
+
+       if (lambda(i) > thrsh) dmat(i,i)=1.0d0/sqrt(abs(lambda(i)))
+       
+    enddo
+    
+    invsqrtmat=matmul(eigvec,matmul(dmat,transpose(eigvec)))
+    
+    return
+    
+  end subroutine invsqrt_matrix
+
+!######################################################################
+  
 end module utils

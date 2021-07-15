@@ -14,7 +14,7 @@ import graci.citools.ref_space as ref_space
 import graci.citools.ref_diag as ref_diag
 import graci.citools.ref_prune as ref_prune
 import graci.citools.mrci_space as mrci_space
-import graci.citools.mrci_diag as mrci_diag
+import graci.citools.enpt2_corrections as enpt2_corrections
 import graci.citools.mrci_refine as mrci_refine
 import graci.citools.mrci_1rdm as mrci_1rdm
 import graci.citools.mrci_wf as mrci_wf
@@ -52,6 +52,8 @@ class Dftmrenpt2:
 
         # class variables
         self.scf            = None
+        # No. extra ref space roots needed
+        self.nextra         = {}
         # Max no. iterations of the ref space refinement 
         self.niter          = 0
         # ref space bitci wave function object
@@ -113,6 +115,11 @@ class Dftmrenpt2:
         self.ref_wfn  = bitciwfn.Bitciwfn()
         self.mrci_wfn = bitciwfn.Bitciwfn()
 
+        # set the number of extra roots to be calculated
+        # (hard-wired for now)
+        self.nextra = {'enpt2' : [5 for n in range(self.n_irrep())],
+                       'max'   : [5 for n in range(self.n_irrep())]}
+        
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
         # set the number of configurations and the scratch file numbers
@@ -130,9 +137,102 @@ class Dftmrenpt2:
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
             output.print_refdiag_summary(self)
-        
-        sys.exit()
 
+            # optional removal of deadwood from the
+            # guess reference space
+            if self.ref_prune and self.niter == 0:
+                # remove the deadwood
+                n_ref_conf = ref_prune.prune(self)
+                # set the new no. ref confs
+                self.ref_wfn.set_nconf(n_ref_conf)
+                # re-diagonalise
+                ref_ci_units, ref_ener = ref_diag.diag(self)
+                # set the ci files and reference energies
+                self.ref_wfn.set_ciunits(ref_ci_units)
+                self.ref_ener = ref_ener
+                output.print_refdiag_summary(self)
+
+            # generate the MRCI configurations
+            n_mrci_conf, mrci_conf_units, mrci_conf_files, dummy = \
+                mrci_space.generate(self)
+
+            # set the number of mrci config, and the mrci unit numbers
+            # and unit names
+            self.mrci_wfn.set_nconf(n_mrci_conf)
+            self.mrci_wfn.set_confunits(mrci_conf_units)
+            self.mrci_wfn.set_confname(mrci_conf_files)
+
+            # MR-ENPT2 calculation
+            mrci_ci_units, mrci_ci_files, mrci_ener_sym = \
+                enpt2_corrections.corrections(self)
+            # set the wfn unit numbers, file names and energies
+            self.mrci_wfn.set_ciunits(mrci_ci_units)
+            self.mrci_wfn.set_ciname(mrci_ci_files)
+            self.mrci_ener_sym = mrci_ener_sym
+            # generate the energies sorted by value, and their
+            # corresponding states
+            self.order_ener()
+
+            # refine the reference space
+            min_norm, n_ref_conf, ref_conf_units = \
+                    mrci_refine.refine_ref_space(self)
+            self.ref_wfn.set_nconf(n_ref_conf)
+            self.ref_wfn.set_confunits(ref_conf_units)
+
+            # break if the reference space is converged
+            if min_norm > 0.9025 and self.niter > 0:
+                print('\n * Reference Space Converged *', flush=True)
+                break
+
+        # save the determinant expansions of the wave functions
+        # if requested
+        if self.save_wf:
+            mrci_wf.extract_wf(self)
+
+        # construct density matrices
+        dmat_sym = mrci_1rdm.rdm(self)
+
+        # store them in adiabatic energy order
+        n_tot = self.n_state()
+        (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
+
+        self.dmat = np.zeros((n_tot, nmo1, nmo2), dtype=float)
+        for istate in range(n_tot):
+            irr, st = self.state_sym(istate)
+            self.dmat[istate, :, :] = dmat_sym[irr][:, :, st]
+
+        # build the natural orbitals
+        self.build_nos()
+
+        # Finalise the bitCI library
+        libs.finalise_bitci()
+
+        # print orbitals if requested
+        if self.print_orbitals:
+            self.export_orbitals(orb_format='molden')
+
+        # we'll also compute 1-electron properties by
+        # default.
+        momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)
+        momts.run()
+ 
+        output.print_moments_header()
+        for ist in range(n_tot):
+            [irr, st_sym] = self.state_sym(ist)
+            output.print_moments(
+                        ist,
+                        self.scf.mol.irreplbl[irr],
+                        momts.dipole(ist),
+                        momts.second_moment(ist))
+  
+            if self.print_quad:
+                output.print_quad(
+                        ist,
+                        self.scf.mol.irreplbl[irr],
+                        momts.quadrupole(ist))
+
+        return 
+        
     # 
     def n_irrep(self):
         """return the number of irreps"""
