@@ -12,6 +12,7 @@ import graci.core.molecule as molecule
 import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
+import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.methods.dftcis as dftcis
 import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit

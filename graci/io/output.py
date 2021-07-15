@@ -145,7 +145,24 @@ def print_dftmrci_header(label):
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n\n **************************************'+
                            '**************************************')
-        outfile.write('\n\n DFT-MRCI computation\n')
+        outfile.write('\n\n DFT/MRCI computation\n')
+        outfile.write('\n')
+        outfile.write(' Section label: '+str(label))
+        outfile.write('\n')
+        outfile.write('\n **************************************'+
+                         '**************************************')
+        outfile.flush()
+
+    return
+
+#
+def print_dftmrenpt2_header(label):
+    global file_names
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n **************************************'+
+                           '**************************************')
+        outfile.write('\n\n DFT/MR-ENPT2 computation\n')
         outfile.write('\n')
         outfile.write(' Section label: '+str(label))
         outfile.write('\n')
