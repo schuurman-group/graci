@@ -225,13 +225,12 @@ def check_input(run_list):
                 obj.use_df = True
 
         # If RAS spaces have not been specified, then set autoras = True
-        ras = False
-        for key in ['ras1', 'ras2', 'ras3']:
-            if key in params.kwords[type(obj).__name__].keys():
-                if len(getattr(obj, key)) != 0:
-                    ras = True
-        if not ras:
+        if hasattr(obj, 'autoras'):
             obj.autoras = True
+            for key in ['ras1', 'ras2', 'ras3']:
+                if hasattr(obj, key):
+                    if len(getattr(obj, key)) != 0:
+                        obj.autoras = False
                     
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
