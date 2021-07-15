@@ -117,8 +117,8 @@ class Dftmrenpt2:
 
         # set the number of extra roots to be calculated
         # (hard-wired for now)
-        self.nextra = {'enpt2' : [5 for n in range(self.n_irrep())],
-                       'max'   : [5 for n in range(self.n_irrep())]}
+        self.nextra = {'enpt2' : [10 for n in range(self.n_irrep())],
+                       'max'   : [10 for n in range(self.n_irrep())]}
         
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
