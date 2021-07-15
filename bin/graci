@@ -24,7 +24,7 @@ def main():
     job_array = parse.parse_input()
 
     # build and run computation
-    drive_obj = driver.Driver()
+    drive_obj = driver.Driver()    
     drive_obj.run(job_array)
 
     # cleanup

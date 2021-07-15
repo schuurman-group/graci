@@ -1,5 +1,5 @@
 """
-Module for computing DFT/MRCI energies
+Module for computing DFT/MR-ENPT2 energies
 """
 import os as os
 import sys as sys
@@ -30,9 +30,9 @@ hamiltonians   = ['canonical',
                   'heil17_standard',
                   'heil18_short']
 
-class Dftmrci:
-    """Class constructor for DFT/MRCI object"""
-    def __init__(self):
+class Dftmrenpt2:
+    """Class constructor for DFT/MR-ENPT2 objects"""
+    def __init__(self):        
         # user defined quanties
         self.nstates        = []
         self.hamiltonian    = 'canonical'
@@ -46,31 +46,12 @@ class Dftmrci:
         self.ciorder        = 2
         self.refiter        = 3
         self.ref_prune      = True
-        self.prune          = 'off'
-        self.prune_thresh   = 1.
-        self.prune_qcorr    = True
-        self.prune_extra    = 10
-        self.diag_guess     = 'subdiag'
-        self.diag_method    = 'gendav'
-        self.diag_tol       = 0.0001
-        self.diag_iter      = 50
-        self.diag_blocksize = []
-        self.diag_deflate   = False
         self.print_orbitals = False
         self.save_wf        = False
-        self.label          = 'Dftmrci'
+        self.label          = 'Dftmrenpt2'
 
         # class variables
-        # KS SCF object
-        self.scf            = None 
-        # Pruning variables
-        self.pmrci          = False
-        self.prune_dict     = {'tight'  : 0.9900,
-                               'normal' : 0.9500,
-                               'loose'  : 0.9000}
-        # No. extra ref space roots needed
-        # for various tasks
-        self.nextra         = {}
+        self.scf            = None
         # Max no. iterations of the ref space refinement 
         self.niter          = 0
         # ref space bitci wave function object
@@ -101,7 +82,6 @@ class Dftmrci:
         # dictionary of bitci wfns
         self.bitciwfns      = {}
 
-
 # Required functions #############################################################
 
     def set_scf(self, scf):
@@ -118,163 +98,41 @@ class Dftmrci:
 
     @timing.timed
     def run(self):
-        """ compute the DFT/MRCI eigenpairs for all irreps """
+        """ compute the DFT/MR-ENPT2 eigenpairs for all irreps """
 
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
 
         # write the output logfile header for this run
-        output.print_dftmrci_header(self.label)
+        output.print_dftmrenpt2_header(self.label)
 
         # initialize bitci
         libs.init_bitci(self)
-        
+
         # create the reference space and mrci wfn objects
         self.ref_wfn  = bitciwfn.Bitciwfn()
         self.mrci_wfn = bitciwfn.Bitciwfn()
 
-        # determine the no. extra ref space roots needed
-        self.nextra = ref_diag.n_extra(self)
-
-        # set the pruning variables
-        self.set_prune_vars()
-        
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
         # set the number of configurations and the scratch file numbers
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
 
-        # Perform the MRCI iterations, refining the reference space
-        # as we go
+        # Perform the MR-ENPT2 iterations, refining the reference
+        # space as we go
         self.niter = 0
         for self.niter in range(self.refiter):
-            
+
             # reference space diagonalisation
             ref_ci_units, ref_ener = ref_diag.diag(self)
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
             output.print_refdiag_summary(self)
-
-            # optional removal of deadwood from the
-            # guess reference space
-            if self.ref_prune and self.niter == 0:
-                # remove the deadwood
-                n_ref_conf = ref_prune.prune(self)
-                # set the new no. ref confs
-                self.ref_wfn.set_nconf(n_ref_conf)
-                # re-diagonalise
-                ref_ci_units, ref_ener = ref_diag.diag(self)
-                # set the ci files and reference energies
-                self.ref_wfn.set_ciunits(ref_ci_units)
-                self.ref_ener = ref_ener
-                output.print_refdiag_summary(self)
-                
-            # generate the MRCI configurations
-            n_mrci_conf, mrci_conf_units, mrci_conf_files, eq_units = \
-                    mrci_space.generate(self)
-            # set the number of mrci config, the mrci unit numbers and
-            # unit names, and the Q-space energy correction unit numbers
-            self.mrci_wfn.set_nconf(n_mrci_conf)
-            self.mrci_wfn.set_confunits(mrci_conf_units)
-            self.mrci_wfn.set_confname(mrci_conf_files)
-            self.mrci_wfn.set_equnits(eq_units)
-            
-            # MRCI diagonalisation
-            mrci_ci_units, mrci_ci_files, mrci_ener_sym = \
-                    mrci_diag.diag(self)
-            # set the mrci wfn unit numbers, file names and mrci 
-            # energies
-            self.mrci_wfn.set_ciunits(mrci_ci_units)
-            self.mrci_wfn.set_ciname(mrci_ci_files)
-            self.mrci_ener_sym = mrci_ener_sym
-            # generate the energies sorted by value, and their
-            # corresponding states
-            self.order_ener()
-
-            # refine the reference space
-            min_norm, n_ref_conf, ref_conf_units = \
-                    mrci_refine.refine_ref_space(self)
-            self.ref_wfn.set_nconf(n_ref_conf)
-            self.ref_wfn.set_confunits(ref_conf_units)
-
-            # break if the reference space is converged
-            if min_norm > 0.9025 and self.niter > 0:
-                print('\n * Reference Space Converged *', flush=True)
-                break
-
-        # save the determinant expansions of the wave functions
-        # if requested
-        if self.save_wf:
-            mrci_wf.extract_wf(self)
         
-        # construct density matrices
-        dmat_sym = mrci_1rdm.rdm(self)
+        sys.exit()
 
-        # store them in adiabatic energy order
-        n_tot = self.n_state()
-        (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
-
-        self.dmat = np.zeros((n_tot, nmo1, nmo2), dtype=float)
-        for istate in range(n_tot):
-            irr, st = self.state_sym(istate)
-            self.dmat[istate, :, :] = dmat_sym[irr][:, :, st]
-
-        # build the natural orbitals
-        self.build_nos()
-
-        # Finalise the bitCI library
-        libs.finalise_bitci()
-
-        # print orbitals if requested
-        if self.print_orbitals:
-            self.export_orbitals(orb_format='molden')
-
-        # we'll also compute 1-electron properties by
-        # default.
-        momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)
-        momts.run()
- 
-        output.print_moments_header()
-        for ist in range(n_tot):
-            [irr, st_sym] = self.state_sym(ist)
-            output.print_moments(
-                        ist,
-                        self.scf.mol.irreplbl[irr],
-                        momts.dipole(ist),
-                        momts.second_moment(ist))
-  
-            if self.print_quad:
-                output.print_quad(
-                        ist,
-                        self.scf.mol.irreplbl[irr],
-                        momts.quadrupole(ist))
-
-        return 
-
-    #
-    def set_prune_vars(self):
-        """Handles the setting of the MRCI pruning logical flag
-        and threshold variables"""
-
-        # Pruning not requested
-        if self.prune == 'off' and self.prune_thresh == 1.:
-            self.pmrci        = False
-            self.prune_thresh = 1.
-            return
-
-        # Pruning reqested: return True and the requested threshold
-        # Note that the 'prune_thresh' keyword takes precedent over
-        # the 'prune' keyword
-        if self.prune_thresh != 1.:
-            self.pmrci = True
-            return
-        else:
-            self.pmrci        = True
-            self.prune_thresh = self.prune_dict[self.prune]
-            return
-    
     # 
     def n_irrep(self):
         """return the number of irreps"""
@@ -572,4 +430,3 @@ class Dftmrci:
                                occ=occ, sym_lbl=sym_lbl, cart=None)
 
         return
-

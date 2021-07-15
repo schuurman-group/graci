@@ -4,6 +4,7 @@ import graci.core.molecule as molecule
 import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
+import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.methods.dftcis as dftcis
 import graci.properties.moments as moments
 import graci.properties.transition as transition
@@ -59,6 +60,24 @@ dftmrci_kword  = {'nstates'        : int,
                   'label'          : str
                  }
 
+# DFT/MR-ENPT2 section input keywords and data types
+dftmrenpt2_kword  = {'nstates'        : int,
+                     'hamiltonian'    : str,
+                     'ras1'           : int,
+                     'ras2'           : int,
+                     'ras3'           : int,
+                     'nhole1'         : int,
+                     'nelec3'         : int,
+                     'icvs'           : int,
+                     'autoras'        : bool,
+                     'ciorder'        : int,
+                     'refiter'        : int,
+                     'ref_prune'      : bool,
+                     'print_orbitals' : bool,
+                     'save_wf'        : bool,
+                     'label'          : str
+                     }
+
 # DFT/CIS section input keywords and data types
 dftcis_kword   = {'nstates'        : int,
                   'hamiltonian'    : str,
@@ -99,9 +118,10 @@ parameterize_kword = {'algorithm' : str,
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_objs = ['Molecule', 'Parameterize','Scf', 'Dftmrci', 'Dftcis', 
+valid_objs = ['Molecule', 'Parameterize','Scf', 'Dftmrci',
+              'Dftmrenpt2', 'Dftcis', 
               'Transition', 'Spinorbit']
-method_objs = ['Scf', 'Dftmrci', 'Dftcis']
+method_objs = ['Scf', 'Dftmrci', 'Dftmrenpt2', 'Dftcis']
 si_objs     = ['Transition', 'Spinorbit']
 
 ##############################################
@@ -110,6 +130,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Scf'          : scf_kword,
           'Dftcis'       : dftcis_kword,
           'Dftmrci'      : dftmrci_kword,
+          'Dftmrenpt2'   : dftmrenpt2_kword,
           'Transition'   : transition_kword,
           'Spinorbit'    : spinorbit_kword
          }
