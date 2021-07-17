@@ -14,7 +14,7 @@ import graci.citools.ref_space as ref_space
 import graci.citools.ref_diag as ref_diag
 import graci.citools.ref_prune as ref_prune
 import graci.citools.mrci_space as mrci_space
-import graci.citools.enpt2_corrections as enpt2_corrections
+import graci.citools.mrenpt2 as mrenpt2
 import graci.citools.mrci_refine as mrci_refine
 import graci.citools.mrci_1rdm as mrci_1rdm
 import graci.citools.mrci_wf as mrci_wf
@@ -164,7 +164,7 @@ class Dftmrenpt2:
 
             # MR-ENPT2 calculation
             mrci_ci_units, mrci_ci_files, mrci_ener_sym = \
-                enpt2_corrections.corrections(self)
+                mrenpt2.corrections(self)
             # set the wfn unit numbers, file names and energies
             self.mrci_wfn.set_ciunits(mrci_ci_units)
             self.mrci_wfn.set_ciname(mrci_ci_files)

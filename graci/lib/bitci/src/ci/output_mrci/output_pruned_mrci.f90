@@ -81,13 +81,13 @@ contains
 !----------------------------------------------------------------------
 ! Section header
 !----------------------------------------------------------------------
-    write(6,'(/,52a)') ('-',i=1,52)
-    if (ldftmrci) then
-       write(6,'(x,a)') 'DFT/MRCI eigenstates (ENPT2-corrected)'
-    else
-       write(6,'(x,a)') 'MRCI eigenstates (ENPT2-corrected)'
-    endif
-    write(6,'(52a)') ('-',i=1,52)
+!    write(6,'(/,52a)') ('-',i=1,52)
+!    if (ldftmrci) then
+!       write(6,'(x,a)') 'DFT/MRCI eigenstates (ENPT2-corrected)'
+!    else
+!       write(6,'(x,a)') 'MRCI eigenstates (ENPT2-corrected)'
+!    endif
+!    write(6,'(52a)') ('-',i=1,52)
     
 !----------------------------------------------------------------------
 ! Allocate arrays

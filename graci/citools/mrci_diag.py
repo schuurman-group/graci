@@ -7,6 +7,7 @@ import ctypes as ctypes
 import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
+import graci.io.output as output
 import graci.io.convert as convert
 
 @timing.timed
@@ -97,6 +98,7 @@ def diag(ci_method):
             ener[irrep,:nstates[irrep]] += qcorr
             
     # Print the report of the MRCI states
+    output.print_dftmrci_states_header()
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_state_sym()
     nextra  = np.array(ci_method.nextra['prune'], dtype=int)

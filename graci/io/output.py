@@ -228,7 +228,27 @@ def print_autoras_header():
         outfile.write('\n Automatic RAS Space Generation\n')
         outfile.write(' -------------------------------')
         outfile.flush()
-    
+
+#
+def print_dftmrci_states_header():
+    """print the DFT/MRCI eigenstate report header"""
+    global file_names
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n DFT/MRCI Eigenstates\n')
+        outfile.write(' -------------------------------')
+        outfile.flush()
+
+#
+def print_dftmrenpt2_states_header():
+    """print the DFT/MR-ENPT2 eigenstate report header"""
+    global file_names
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n DFT/MR-ENPT2 Eigenstates\n')
+        outfile.write(' -------------------------------')
+        outfile.flush()
+        
 #
 def print_cleanup():
     """shutdown the timers and print timing information"""

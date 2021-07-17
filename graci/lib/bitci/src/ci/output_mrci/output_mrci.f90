@@ -50,17 +50,6 @@ contains
     integer(is)              :: irrep,nroot_tot,nroot_max
     integer(is)              :: n,k,i
     real(dp)                 :: emin,minrnorm,rnorm
-
-!----------------------------------------------------------------------
-! Section header
-!----------------------------------------------------------------------
-    write(6,'(/,52a)') ('-',i=1,52)
-    if (ldftmrci) then
-       write(6,'(x,a)') 'DFT/MRCI eigenstates'
-    else
-       write(6,'(x,a)') 'MRCI eigenstates'
-    endif
-    write(6,'(52a)') ('-',i=1,52)
     
 !----------------------------------------------------------------------
 ! Allocate arrays

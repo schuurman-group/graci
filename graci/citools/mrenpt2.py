@@ -7,6 +7,7 @@ import ctypes as ctypes
 import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
+import graci.io.output as output
 import graci.io.convert as convert
 
 @timing.timed
@@ -67,6 +68,7 @@ def corrections(ci_method):
         ciname.append(name)
 
     # Print the report of the MR-ENPT2 states 
+    output.print_dftmrenpt2_states_header()
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_state_sym()
     args = (ci_confunits, ciunits, nstates)
