@@ -126,10 +126,10 @@ class Scf:
             ij_trans = np.concatenate(([mf.mo_coeff], [mf.mo_coeff]))
             df.outcore.general(pymol, ij_trans, 
                     self.moint_2e_eri, 
-                    self.mol.ri_basis, dataname='eri_mo')        
+                    self.mol.ri_basis, dataname='eri_mo')
         else:
             eri_ao = pymol.intor('int2e_sph', aosym='s8')
-            eri_mo = ao2mo.incore.full(eri_ao, mf.mo_coeff)        
+            eri_mo = ao2mo.incore.full(eri_ao, mf.mo_coeff)
             with h5py.File(self.moint_2e_eri, 'w') as f:
                 f['eri_mo'] = eri_mo
     

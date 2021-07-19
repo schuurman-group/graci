@@ -363,102 +363,51 @@ contains
     enddo
     
 !----------------------------------------------------------------------
-! Coulomb correction 1
+! Coulomb corrections
 !----------------------------------------------------------------------
-! -pJ Sum_i Sum_j V_iijj , Delta w_i > 0, Delta w_j > 0, j > i
+! -pJ Sum_i Sum_j Viijj, Delta w_i < 0, Delta w_j < 0
+! -pJ Sum_i Sum_j Viijj, Delta w_i > 0, Delta w_j > 0
+! +pJ Sum_i Sum_j Viijj, Delta w_i < 0, Delta w_j > 0
 !----------------------------------------------------------------------
     contrib=0.0d0
 
-    ! Loop over positive Delta w_i values
-    do i=ipos,ndiff-1
-       
+    ! Loop over pairs of created/annihilated MOs (relative to the base
+    ! configuration)
+    do i=1,ndiff
+
        ! MO index
        i1=m2c(Dw(i,1))
        
        ! Delta w_i value
        Dwi=Dw(i,2)
-
-       ! Loop over positive Delta w_j values
-       do j=ipos+1,ndiff
-          
-          ! MO index
-          j1=m2c(Dw(j,1))
-          
-          ! Delta w_j value
-          Dwj=Dw(j,2)
-
-          ! V_iijj
-          Viijj=Vc(i1,j1)
-
-          ! Sum the contribution
-          contrib=contrib-pJ*Viijj*Dwi*Dwj
-          
-       enddo
-
-    enddo
-
-!----------------------------------------------------------------------
-! Coulomb correction 2
-!----------------------------------------------------------------------
-! -pJ Sum_i Sum_j V_iijj , Delta w_i < 0, Delta w_j < 0, j > i
-!----------------------------------------------------------------------
-    ! Loop over negative Delta w_i values
-    do i=1,ipos-2
        
-       ! MO index
-       i1=m2c(Dw(i,1))
-       
-       ! Delta w_i value
-       Dwi=Dw(i,2)
-
-       ! Loop over negative Delta w_j values
-       do j=i+1,ipos-1
-          
-          ! MO index
-          j1=m2c(Dw(j,1))
-          
-          ! Delta w_j value
-          Dwj=Dw(j,2)
-
-          ! V_iijj
-          Viijj=Vc(i1,j1)
-
-          ! Sum the contribution
-          contrib=contrib-pJ*Viijj*Dwi*Dwj
-          
-       enddo
-
-    enddo
-
-!----------------------------------------------------------------------
-! Coulomb correction 3
-!----------------------------------------------------------------------
-! pJ Sum_i Sum_j V_iijj , Delta w_i < 0, Delta w_j > 0
-!----------------------------------------------------------------------
-    ! Loop over negative Delta w_i values
-    do i=1,ipos-1
-
-       ! MO index
-       i1=m2c(Dw(i,1))
-    
-       ! Delta w_i value
-       Dwi=Dw(i,2)
-       
-       ! Loop over positive Delta w_j values
-       do j=ipos,ndiff
+       do j=i,ndiff
 
           ! MO index
           j1=m2c(Dw(j,1))
           
-          ! Delta w_j value
+          ! Delta w_i value
           Dwj=Dw(j,2)
 
-          ! V_iijj
-          Viijj=Vc(i1,j1)
+          if (i == j .and. abs(Dwi) == 2) then
+             ! Same MO index and double excitation
 
-          ! Sum the contribution (note that the minus sign arises
-          ! because Dwi * Dwj < 0)
-          contrib=contrib-pJ*Viijj*Dwi*Dwj
+             ! V_iijj
+             Viijj=Vc(i1,i1)
+
+             ! Sum the contribution
+             contrib=contrib-pJ*Viijj
+
+          else if (i /= j) then
+             ! Different MO indices
+
+             ! V_iijj
+             Viijj=Vc(i1,j1)
+
+             ! Sum the contribution
+             contrib=contrib-pJ*Viijj*Dwi*Dwj             
+
+          endif
           
        enddo
 
@@ -493,7 +442,7 @@ contains
           ! Sum the contribution (note that the plus sign arises
           ! because Dwi * Dwj < 0)
           contrib=contrib+0.5d0*pF*Vijji*Dwi*Dwj
-
+                    
        enddo
 
     enddo
