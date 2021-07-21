@@ -95,11 +95,14 @@ end subroutine generate_base_det
     integer(is) :: ndocc,nopen
     
 !----------------------------------------------------------------------
-! Allocate and initialise the base configuration bit string pair
+! Allocate and initialise arrays
 !----------------------------------------------------------------------
     allocate(conf0(n_int,2))
     conf0=0_ib
 
+    allocate(iopen0(nmo))
+    iopen0=0
+    
 !----------------------------------------------------------------------
 ! Number of doubly-occupied and singly-occupied spatial orbitals in
 ! the base determinant(s)
@@ -133,6 +136,9 @@ end subroutine generate_base_det
     ! Loop over the unpaired electrons
     do imo=ndocc+1,ndocc+nopen
 
+       ! Save the indices of the open-shell MOs
+       iopen0(imo)=1
+       
        ! Block index
        k=(imo-1)/64+1
        

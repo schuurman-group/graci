@@ -55,6 +55,11 @@ contains
        ! Lyskov's parameterisation
        call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
+
+    case(6:9)
+       ! Heil's parameterisations
+       call hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
+            nsocc,nbefore)
        
     case default
        print*,'Your Hamiltonian choice has not been implemented yet'
@@ -505,6 +510,241 @@ contains
     return
     
   end subroutine hii_dftmrci_lyskov
+
+!######################################################################
+! hii_dftmrci_heil: applies Heil's DFT/MRCI correction to a batch of
+!                   on-diagonal Hamiltonian matrix elements
+!######################################################################
+  subroutine hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
+       nsocc,nbefore)
+    
+    use constants
+    use bitglobal
+    use pattern_indices
+    use hparam
+
+    implicit none
+
+    ! Array of on-diagonal Hamiltonian matrix elements
+    integer(is), intent(in) :: nsp
+    real(dp), intent(inout) :: harr(nsp)
+
+    ! Difference configuration information
+    integer(is), intent(in) :: ndiff
+    integer(is), intent(in) :: Dw(nmo,2)
+
+    ! Number of open shells
+    integer(is), intent(in) :: nopen
+    
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+
+    ! SOP characterising the spatial occupation
+    integer(ib), intent(in) :: sop(n_int,2)
+
+    ! Indices of the singly-occupied MOs
+    integer(is), intent(in) :: nsocc
+    integer(is), intent(in) :: socc(nmo)
+
+    ! Numbers of open shells preceding each MO
+    integer(is), intent(in) :: nbefore(nmo)
+    
+    ! Everything else
+    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,nsp2b
+    integer(is)             :: ic,ja,omega,indx
+    real(dp)                :: Viijj,Vijji
+    real(dp)                :: contrib(nsp)
+    real(dp)                :: product
+    real(dp)                :: pJ,pF
+
+!----------------------------------------------------------------------
+! Return if we are at the base configuration
+!----------------------------------------------------------------------
+    if (ndiff == 0) return
+
+!----------------------------------------------------------------------
+! Parameter values
+!----------------------------------------------------------------------
+    pJ=hpar(1)
+    pF=hpar(2)
+
+!----------------------------------------------------------------------
+! Sum_i F_ii^KS - F_ii^HF Delta w_i
+!----------------------------------------------------------------------
+    ! Loop over non-zero Delta w_i values
+    do i=1,ndiff
+    
+       ! MO index
+       i1=m2c(Dw(i,1))
+    
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+    
+       ! Sum the contribution
+       harr=harr+(moen(i1)-Fii(i1))*Dwi
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Find the start of the postive Delta w_i values
+!----------------------------------------------------------------------
+    do i=1,ndiff
+       if (Dw(i,2) > 0) then
+          ipos=i
+          exit
+       endif
+    enddo
+
+!----------------------------------------------------------------------
+! Coulomb corrections
+!----------------------------------------------------------------------
+! -pJ Sum_i Sum_j Viijj, Delta w_i < 0, Delta w_j < 0
+! -pJ Sum_i Sum_j Viijj, Delta w_i > 0, Delta w_j > 0
+! +pJ Sum_i Sum_j Viijj, Delta w_i < 0, Delta w_j > 0
+!----------------------------------------------------------------------
+    contrib=0.0d0
+
+    ! Loop over pairs of created/annihilated MOs (relative to the base
+    ! configuration)
+    do i=1,ndiff
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+       
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       do j=i,ndiff
+
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_i value
+          Dwj=Dw(j,2)
+
+          if (i == j .and. abs(Dwi) == 2) then
+             ! Same MO index and double excitation
+
+             ! V_iijj
+             Viijj=Vc(i1,i1)
+
+             ! Sum the contribution
+             contrib=contrib-pJ*Viijj
+
+          else if (i /= j) then
+             ! Different MO indices
+
+             ! V_iijj
+             Viijj=Vc(i1,j1)
+
+             ! Sum the contribution
+             contrib=contrib-pJ*Viijj*Dwi*Dwj             
+
+          endif
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 1
+!----------------------------------------------------------------------
+! -pF/2 Sum_i Sum_j V_ijji , Delta w_i < 0, Delta w_j > 0
+!----------------------------------------------------------------------
+    ! Loop over negative Delta w_i values
+    do i=1,ipos-1
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+    
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       ! Loop over positive Delta w_j values
+       do j=ipos,ndiff
+
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! V_ijij
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contribution (note that the plus sign arises
+          ! because Dwi * Dwj < 0)
+          contrib=contrib+0.5d0*pF*Vijji*Dwi*Dwj
+                    
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 2
+!----------------------------------------------------------------------
+! -pF Sum_i Sum_j V_ijji <w omega|E_i^j E_j^i|w omega>,
+! j > i, i and j singly-occupied
+!----------------------------------------------------------------------
+    ! Numbers of 'intermediate' CSFs entering into the contractions of
+    ! the fibers of the spin-coupling coefficient tensor
+    if (nopen > 1) then
+       nsp2b=ncsfs(nopen-2)
+    else
+       nsp2b=0
+    endif
+
+    ! Loop over singly-occupied MOs (creation operator)
+    do i=1,nsocc-1
+       
+       ! Creation operator index
+       ic=socc(i)
+       
+       ! DFT/HF MO index
+       i1=m2c(ic)
+
+       ! Loop over singly-occupied MOs (annihilation operator)
+       do j=i+1,nsocc
+          
+          ! Annihilation operator index
+          ja=socc(j)
+          
+          ! DFT/HF MO index
+          j1=m2c(ja)
+
+          ! Get the spin coupling coefficient pattern index
+          indx=pattern_index_case2b(sop,ic,ja,nbefore(ic),nbefore(ja),&
+               nopen)
+
+          ! V_ijji
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contributions
+          do omega=1,nsp
+             product=dot_product(spincp2(1:nsp2b,omega,indx),&
+                  spincp2(1:nsp2b,omega,indx))
+             contrib(omega)=contrib(omega)-pF*Vijji*product
+          enddo
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Add the Coulomb and exchange corrections
+!----------------------------------------------------------------------
+    harr=harr+contrib
+
+
+
+
+    
+    STOP
+    
+    
+    return
+    
+  end subroutine hii_dftmrci_heil
     
 !######################################################################
 ! damping_grimme: for two CSF-averaged on-diagonal matrix element

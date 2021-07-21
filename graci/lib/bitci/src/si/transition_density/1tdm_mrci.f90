@@ -45,6 +45,9 @@ contains
 
     ! Bra-ket pair to eigenvector mapping arrays
     integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Everything else
+    integer(is)             :: arrdim
     
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
@@ -60,7 +63,8 @@ contains
 !----------------------------------------------------------------------
     rhoij=0.0d0
 
-    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    arrdim=maxval(ncsfs(0:nomax))
+    allocate(spincp(arrdim,arrdim))
     spincp=0.0d0
     
 !----------------------------------------------------------------------

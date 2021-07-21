@@ -61,6 +61,7 @@ contains
     integer(is)             :: nbefore(nmo)
     
     ! Everything else
+    integer(is)             :: arrdim
     integer(is)             :: iconf,icsf,ibconf,ikconf,ibcsf,ikcsf
     integer(is)             :: bomega,komega,nexci
     integer(is)             :: knopen,bnopen,knsp,bnsp
@@ -82,7 +83,8 @@ contains
 !----------------------------------------------------------------------
     rho=0.0d0
 
-    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    arrdim=maxval(ncsfs(0:nomax))
+    allocate(spincp(arrdim,arrdim))
     spincp=0.0d0
 
 !----------------------------------------------------------------------
