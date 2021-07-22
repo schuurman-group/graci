@@ -98,8 +98,9 @@ contains
        ! Grimme's parameterisation
        damp=damping_grimme(bav,kav)
 
-    case(4:5)
+    case(4:7)
        ! Lyskov's parameterisation
+       ! Note that this is also used for Heil's 2017 Hamiltonian
        damp=damping_lyskov(bav,kav)
        
     case default
@@ -143,8 +144,9 @@ contains
        ! Grimme's parameterisation: do nothing
        return
 
-    case(4:5)
+    case(4:7)
        ! Lyskov's parameterisation
+       ! Note that this is also used for Heil's Hamiltonians
        nij=nsp*(nsp-1)/2
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
@@ -552,11 +554,19 @@ contains
     ! Everything else
     integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,nsp2b
     integer(is)             :: ic,ja,omega,indx
-    real(dp)                :: Viijj,Vijji
+    real(dp)                :: Viijj,Vijji,Viiii
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
     real(dp)                :: pJ,pF
 
+!----------------------------------------------------------------------
+! Diagonal shift: 1/4 Sum_i V_iiii, i singly occupied in the base
+! configuration    
+!----------------------------------------------------------------------
+    do i=1,nmo
+       if (iopen0(i) == 1) harr=harr+0.25d0*Vc(i,i)
+    enddo
+    
 !----------------------------------------------------------------------
 ! Return if we are at the base configuration
 !----------------------------------------------------------------------
@@ -596,7 +606,7 @@ contains
     enddo
 
 !----------------------------------------------------------------------
-! Coulomb corrections
+! Coulomb correction 1
 !----------------------------------------------------------------------
 ! -pJ Sum_i Sum_j Viijj, Delta w_i < 0, Delta w_j < 0
 ! -pJ Sum_i Sum_j Viijj, Delta w_i > 0, Delta w_j > 0
@@ -646,6 +656,32 @@ contains
 
     enddo
 
+!----------------------------------------------------------------------
+! Coulomb correction 2
+!----------------------------------------------------------------------
+! -pJ sum_i Viiii, |Delta w_i| = 1 and i indexes an open-shell in the
+! base configuration
+!----------------------------------------------------------------------
+    ! Loop over created/annihilated MOs (relative to the base
+    ! configuration)
+    do i=1,ndiff
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+       
+       ! Cycle if this MO is not singly-occupied in the base
+       ! configuration
+       if (iopen0(i1) == 0) cycle
+
+       ! V_iiii
+       Viiii=Vc(i1,i1)
+       
+       ! Sum the contribution
+       ! Note that if we are here, then |Delta w_i| = 1
+       contrib=contrib-0.5d0*pJ*Viiii
+       
+    enddo
+    
 !----------------------------------------------------------------------
 ! Exchange correction 1
 !----------------------------------------------------------------------
@@ -731,16 +767,89 @@ contains
     enddo
 
 !----------------------------------------------------------------------
+! Exchange correction 3
+!----------------------------------------------------------------------
+! +pF/2 Sum_i Sum_j Vijji, Delta w_i > 0, Delta w_j > 0, and i indexes
+! an open shell in the base configuration
+!----------------------------------------------------------------------
+    ! Loop over pairs of created MOs
+    do i=ipos,ndiff
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+    
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       ! Cycle if i does not index an open shell in the base
+       ! configuration
+       if (iopen0(i1) == 0) cycle
+       
+       do j=ipos,ndiff
+
+          ! Cycle if j indexes an open shell in the base
+          ! configuration
+          if (i == j) cycle
+
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! V_ijij
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib+0.5d0*pF*abs(Dwj)*Vijji
+          
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 4
+!----------------------------------------------------------------------
+! +pF/2 Sum_i Sum_j Vijji, Delta w_i < 0, Delta w_j < 0, and i indexes
+! an open shell in the base configuration
+!----------------------------------------------------------------------
+    ! Loop over pairs of annihilated MOs
+    do i=1,ipos-1
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+    
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       ! Cycle if i does not index an open shell in the base
+       ! configuration
+       if (iopen0(i1) == 0) cycle
+       
+       do j=1,ipos-1
+
+          ! Cycle if j indexes an open shell in the base
+          ! configuration
+          if (i == j) cycle
+
+          ! MO index
+          j1=m2c(Dw(j,1))
+          
+          ! Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! V_ijij
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib+0.5d0*pF*abs(Dwj)*Vijji
+          
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
 ! Add the Coulomb and exchange corrections
 !----------------------------------------------------------------------
     harr=harr+contrib
-
-
-
-
-    
-    STOP
-    
     
     return
     
