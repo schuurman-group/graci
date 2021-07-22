@@ -108,6 +108,23 @@ module hparam
        0.573523d0, &  ! p1
        1.9266d0]      ! p2
 
+!----------------------------------------------------------------------
+! Heil's DFT/MRCI Hamiltonian for transition metal complexes
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(4) :: heil18_standard= &
+       [0.508918d0, & ! pJ
+       0.362362d0, &  ! pF
+       0.558411d0, &  ! p1
+       4.47165d0]     ! p2
+
+  ! delta E_sel = 0.8
+  real(dp), parameter, dimension(4) :: heil18_short= &
+       [0.505808d0, & ! pJ
+       0.359626d0, &  ! pF
+       0.577732d0, &  ! p1
+       11.499113d0]   ! p2
+  
 contains
 
 !######################################################################
@@ -209,16 +226,18 @@ contains
     case(8)
        ! Heil18, standard
        ldftmrci=.true.
+       nhpar=4
+       allocate(hpar(nhpar))
+       hpar=heil18_standard
        desel=1.0d0
-       errmsg='The Heil18 Hamiltonian has not yet been implemented'
-       call error_control
-       
+              
     case(9)
        ! Heil18, short
        ldftmrci=.true.
+       nhpar=4
+       allocate(hpar(nhpar))
+       hpar=heil18_short
        desel=0.8d0
-       errmsg='The Heil18 Hamiltonian has not yet been implemented'
-       call error_control
        
     case default
        ! Unrecognised Hamiltonian

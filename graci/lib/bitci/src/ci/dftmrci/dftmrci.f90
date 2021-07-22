@@ -102,6 +102,10 @@ contains
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's 2017 Hamiltonian
        damp=damping_lyskov(bav,kav)
+
+    case(8:9)
+       ! Heil's 2018 parameterisation
+       damp=damping_heil18(bav,kav)
        
     case default
        print*,'Your Hamiltonian choice has not been implemented yet'
@@ -144,7 +148,7 @@ contains
        ! Grimme's parameterisation: do nothing
        return
 
-    case(4:7)
+    case(4:9)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's Hamiltonians
        nij=nsp*(nsp-1)/2
@@ -919,6 +923,38 @@ contains
     return
     
   end function damping_lyskov
+
+!######################################################################
+! damping_heil18: for two CSF-averaged on-diagonal matrix element
+!                 values, returns the value of Grimme's original
+!                 DFT/MRCI damping function
+!######################################################################
+  function damping_heil18(av1,av2) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+    
+    implicit none
+
+    ! Function result
+    real(dp)             :: func
+
+    ! CSF-averaged on-diagonal matrix elements
+    real(dp), intent(in) :: av1,av2
+
+    ! Everything else
+    real(dp)             :: DE6
+    
+    !
+    !  p1 exp(-p2 DeltaE^6)
+    !
+    DE6=(av1-av2)**6
+    func=hpar(3)*exp(-hpar(4)*DE6)
+    
+    return
+    
+  end function damping_heil18
   
 !######################################################################
   
