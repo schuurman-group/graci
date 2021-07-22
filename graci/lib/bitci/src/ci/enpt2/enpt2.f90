@@ -78,7 +78,7 @@ contains
     vec0=0.0d0
 
     ! Hij working array
-    harr2dim=ncsfs(nomax)**2
+    harr2dim=maxval(ncsfs(0:nomax))**2    
     allocate(harr2(harr2dim))
     
 !----------------------------------------------------------------------

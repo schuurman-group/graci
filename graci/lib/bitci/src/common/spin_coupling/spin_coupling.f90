@@ -73,6 +73,9 @@ contains
 
     ! Verbose output
     logical, intent(in)      :: verbose
+
+    ! Spin-coupling coefficient array dimensions
+    integer(is)              :: nsp1,nsp2
     
     ! Everything else
     integer(is) :: i
@@ -107,19 +110,19 @@ contains
 ! Allocate the spin coupling coefficient arrays
 !----------------------------------------------------------------------
     call init_spincp_arrays(imult,nocase1,nocase2,ncsfs,npattern1,&
-         npattern2,spincp1,spincp2,verbose)
+         npattern2,spincp1,spincp2,nsp1,nsp2,verbose)
     
 !----------------------------------------------------------------------
 ! Compute the Case 1 spin coupling coefficients
 !----------------------------------------------------------------------
     call case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-         csfcoe,detvec,maxpattern,patternmap1,npattern1,spincp1)
+         csfcoe,detvec,maxpattern,patternmap1,nsp1,npattern1,spincp1)
     
 !----------------------------------------------------------------------
 ! Compute the Case 2 spin coupling coefficients
 !----------------------------------------------------------------------
     call case2_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
-         detvec,maxpattern,patternmap2,npattern2,spincp2)
+         detvec,maxpattern,patternmap2,nsp2,npattern2,spincp2)
 
 !----------------------------------------------------------------------
 ! Fill in the array of bit strings with N set bits, from which the
@@ -131,8 +134,8 @@ contains
 ! For checking purposes, determine the percentage of zero
 ! spin-coupling coefficients
 !----------------------------------------------------------------------
-    call zero_coeffs(imult,nocase1,nocase2,ncsfs,npattern1,npattern2,&
-         spincp1,spincp2,verbose)
+    call zero_coeffs(imult,nocase1,nocase2,ncsfs,nsp1,nsp2,npattern1,&
+         npattern2,spincp1,spincp2,verbose)
 
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -269,7 +272,7 @@ contains
 !                     spin coupling coefficient arrays
 !######################################################################
   subroutine init_spincp_arrays(imult,nocase1,nocase2,ncsfs,npattern1,&
-       npattern2,spincp1,spincp2,verbose)
+       npattern2,spincp1,spincp2,nsp1,nsp2,verbose)
 
     use constants
         
@@ -278,6 +281,7 @@ contains
     integer(is), intent(in)  :: imult,nocase1,nocase2
     integer(is), intent(in)  :: ncsfs(0:nocase2)
     integer(is), intent(out) :: npattern1,npattern2
+    integer(is), intent(out) :: nsp1,nsp2
     real(dp), allocatable    :: spincp1(:,:,:),spincp2(:,:,:)
     logical, intent(in)      :: verbose
     
@@ -332,19 +336,28 @@ contains
 !----------------------------------------------------------------------
 ! Spin coupling coefficient arrays
 !----------------------------------------------------------------------    
+    ! Maximum no. CSFs
+    if (modulo(imult,2) == 0) then
+       nsp1=ncsfs(nocase1-1)
+       nsp2=ncsfs(nocase2-1)
+    else
+       nsp1=ncsfs(nocase1)
+       nsp2=ncsfs(nocase2)
+    endif
+
     ! Case 1 spin coupling coefficients
-    allocate(spincp1(ncsfs(nocase1),ncsfs(nocase1),npattern1*2))
+    allocate(spincp1(nsp1,nsp1,npattern1*2))
     spincp1=0.0d0
-
+    
     ! Case 2 spin coupling coefficients
-    allocate(spincp2(ncsfs(nocase2),ncsfs(nocase2),npattern2))
+    allocate(spincp2(nsp2,nsp2,npattern2))
     spincp2=0.0d0
-
+    
 !----------------------------------------------------------------------
 ! Output the memory used
 !----------------------------------------------------------------------
-    mem=(2*(npattern1*ncsfs(nocase1)**2)+npattern2*ncsfs(nocase2)**2) &
-         *8/1024.0d0**2
+    mem=(2*(npattern1*nsp1**2)+npattern2*nsp2**2)*8/1024.0d0**2
+    
     if (verbose) write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',mem,'MB'
     
     return
@@ -358,7 +371,7 @@ contains
 !               numbers of open shells
 !######################################################################
   subroutine case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-       csfcoe,detvec,maxpattern,patternmap1,npattern1,spincp1)
+       csfcoe,detvec,maxpattern,patternmap1,nsp1,npattern1,spincp1)
 
     use constants
     use bitutils
@@ -371,8 +384,8 @@ contains
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     integer(is), intent(out) :: maxpattern(2)
     integer(is), allocatable :: patternmap1(:)
-    integer(is), intent(in)  :: npattern1
-    real(dp), intent(out)    :: spincp1(ncsfs(nocase1),ncsfs(nocase1),npattern1*2)
+    integer(is), intent(in)  :: nsp1,npattern1
+    real(dp), intent(out)    :: spincp1(nsp1,nsp1,npattern1*2)
     
     integer(is)              :: nopen,is1,is2,icsf1,icsf2,indx,nsp
     integer(ib), allocatable :: ws(:,:)
@@ -439,7 +452,7 @@ contains
              ! CSF pairs
              call spincp_coeff_case1(ws(is1,nopen),ws(is2,nopen),&
                   nopen,indx,nocase1,nocase2,maxcsf,maxdet,ncsfs,&
-                  ndets,npattern1,detvec,csfcoe,spincp1)
+                  ndets,nsp1,npattern1,detvec,csfcoe,spincp1)
              
           enddo
        enddo
@@ -494,7 +507,7 @@ contains
 !                     coefficient
 !######################################################################
   subroutine spincp_coeff_case1(ws1,ws2,nopen,indx,nocase1,nocase2,&
-       maxcsf,maxdet,ncsfs,ndets,npattern1,detvec,csfcoe,spincp1)
+       maxcsf,maxdet,ncsfs,ndets,nsp1,npattern1,detvec,csfcoe,spincp1)
 
     use constants
     use bitutils
@@ -507,10 +520,10 @@ contains
 
     integer(is), intent(in)  :: nocase1,nocase2,maxcsf,maxdet
     integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
-    integer(is), intent(in)  :: npattern1
+    integer(is), intent(in)  :: nsp1,npattern1
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
-    real(dp), intent(inout)  :: spincp1(ncsfs(nocase1),ncsfs(nocase1),npattern1*2)
+    real(dp), intent(inout)  :: spincp1(nsp1,nsp1,npattern1*2)
         
     integer(is)              :: icsf1,icsf2
     integer(is)              :: idet,n,vecindx,iket,ibra,ispin
@@ -740,7 +753,7 @@ contains
 !               open shells differing by two.
 !######################################################################
   subroutine case2_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-       csfcoe,detvec,maxpattern,patternmap2,npattern2,spincp2)
+       csfcoe,detvec,maxpattern,patternmap2,nsp2,npattern2,spincp2)
 
     use constants
     use bitutils
@@ -753,8 +766,8 @@ contains
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     integer(is), intent(out) :: maxpattern(2)
     integer(is), allocatable :: patternmap2(:)
-    integer(is), intent(in)  :: npattern2
-    real(dp), intent(out)    :: spincp2(ncsfs(nocase2),ncsfs(nocase2),npattern2)
+    integer(is), intent(in)  :: nsp2,npattern2
+    real(dp), intent(out)    :: spincp2(nsp2,nsp2,npattern2)
     
     integer(is)              :: nopen,is1,is2,icsf1,icsf2,indx,lim,i
     integer(ib), allocatable :: ws(:,:)
@@ -874,7 +887,7 @@ contains
           ! pairs
           call spincp_coeff_case2(ws(is1,nopen),wsp(nopen+2),nopen,&
                nopen+2,indx,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-               npattern2,detvec,csfcoe,spincp2)
+               nsp2,npattern2,detvec,csfcoe,spincp2)
           
        enddo
        
@@ -893,7 +906,7 @@ contains
 ! with N+2=nopen2 open shells
 !######################################################################
   subroutine spincp_coeff_case2(ws1,ws2,nopen1,nopen2,indx,nocase2,&
-       maxcsf,maxdet,ncsfs,ndets,npattern2,detvec,csfcoe,spincp2)
+       maxcsf,maxdet,ncsfs,ndets,nsp2,npattern2,detvec,csfcoe,spincp2)
 
     use constants
     use bitutils
@@ -905,10 +918,10 @@ contains
     integer(is), intent(in)  :: nopen1,nopen2,indx
     integer(is), intent(in)  :: nocase2,maxcsf,maxdet
     integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
-    integer(is), intent(in)  :: npattern2
+    integer(is), intent(in)  :: nsp2,npattern2
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
-    real(dp), intent(inout)  :: spincp2(ncsfs(nocase2),ncsfs(nocase2),npattern2)
+    real(dp), intent(inout)  :: spincp2(nsp2,nsp2,npattern2)
     
     integer(is)              :: icsf1,icsf2
     integer(is)              :: idet,n,vecindx,nunset
@@ -1365,8 +1378,8 @@ contains
   
 !######################################################################
 
-  subroutine zero_coeffs(imult,nocase1,nocase2,ncsfs,npattern1,&
-       npattern2,spincp1,spincp2,verbose)
+  subroutine zero_coeffs(imult,nocase1,nocase2,ncsfs,nsp1,nsp2,&
+       npattern1,npattern2,spincp1,spincp2,verbose)
 
     use constants
     
@@ -1374,9 +1387,9 @@ contains
 
     integer(is), intent(in) :: imult,nocase1,nocase2
     integer(is), intent(in) :: ncsfs(0:nocase2)
-    integer(is), intent(in) :: npattern1,npattern2
-    real(dp), intent(in)    :: spincp1(ncsfs(nocase1),ncsfs(nocase1),npattern1*2)
-    real(dp), intent(in)    :: spincp2(ncsfs(nocase2),ncsfs(nocase2),npattern2)
+    integer(is), intent(in) :: nsp1,nsp2,npattern1,npattern2
+    real(dp), intent(in)    :: spincp1(nsp1,nsp1,npattern1*2)
+    real(dp), intent(in)    :: spincp2(nsp2,nsp2,npattern2)
     logical, intent(in)     :: verbose
     
     integer(is) :: nopen,icsf1,icsf2,is1,is2,indx

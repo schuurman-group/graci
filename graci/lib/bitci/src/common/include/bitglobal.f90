@@ -74,6 +74,7 @@ module bitglobal
   ! Base determinant and configuration
   !
   integer(ib), allocatable :: det0(:,:),conf0(:,:)
+  integer(is), allocatable :: iopen0(:)
   
   !
   ! MO information

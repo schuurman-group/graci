@@ -22,6 +22,9 @@ module rasperm
   integer(is)              :: na_ras2,nb_ras2
   integer(is)              :: na_ras3,nb_ras3
 
+  ! Number of alpha and beta holes in the RAS1 space
+  integer(is)              :: nha_ras1,nhb_ras1
+
   ! Number of permutations of the alpha and beta electrons in the
   ! RAS1, RAS2 and RAS3 orbitals
   integer(is)              :: nperma_ras1(-2:0),npermb_ras1(-2:0)
@@ -114,9 +117,9 @@ subroutine generate_ras_dets(iras1,iras2,iras3,nras1,mras1,nras2,&
 !----------------------------------------------------------------------
 ! Generate all the determinants of the RAS wavefunction
 !----------------------------------------------------------------------
-  call make_ras_dets(detras_a,ndet,iras1,iras2,iras3,nras1,mras1,nras2,&
-       mras2,nras3,mras3)
-
+  call make_ras_dets(detras_a,ndet,iras1,iras2,iras3,nras1,mras1,&
+       nras2,mras2,nras3,mras3)
+  
 !----------------------------------------------------------------------
 ! Sort the RAS determinants
 !----------------------------------------------------------------------
@@ -179,21 +182,21 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
 ! of RAS1, RAS2, or RAS3 orbitals
 !----------------------------------------------------------------------
   ! RAS1
-  if (mras1>0) then
+  if (mras1 > 0) then
      okras1=.true.
   else
      okras1=.false.
   endif
 
   ! RAS2
-  if (mras2>0) then
+  if (mras2 > 0) then
      okras2=.true.
   else
      okras2=.false.
   endif
 
   ! RAS3
-  if (mras3>0) then
+  if (mras3 > 0) then
      okras3=.true.
   else
      okras3=.false.
@@ -202,7 +205,7 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
 !----------------------------------------------------------------------
 ! Exit if the base determinant has not been generated
 !----------------------------------------------------------------------
-  if (.not.allocated(det0)) then
+  if (.not. allocated(det0)) then
      errmsg='Error in generate_cas_excitations: the base determinant'&
           //' has not yet been generated'
      call error_control
@@ -212,7 +215,7 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
 ! Exit if the number of CAS orbitals is greater than 64 (this is both
 ! an insane number and would over-fill the permutation bit string)
 !----------------------------------------------------------------------
-  if (mras2.gt.64) then
+  if (mras2 > 64) then
      errmsg='Error in generate_cas_excitations: the no. CAS orbitals'&
           //' is greater than 64'
      call error_control
@@ -243,7 +246,7 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
      
   enddo
 
-  if (na+nb/=nras2) then
+  if (na+nb /= nras2) then
      errmsg='Error in check_ras_input: the number of CAS'&
           //' electrons is not consistent with the base orbital'&
           //' occupations'
@@ -253,7 +256,7 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
 !----------------------------------------------------------------------
 ! The maximum number of holes in RAS1 cannot be greater than 2
 !----------------------------------------------------------------------
-  if (okras1.and.nras1<1.or.nras1>2) then
+  if (okras1 .and. nras1 < 1 .or. nras1 > 2) then
      errmsg='Error in check_ras_input: the maximum no. RAS1 holes'&
           //' can only be 1 or 2'
      call error_control
@@ -262,17 +265,15 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
 !----------------------------------------------------------------------
 ! The maximum number of electrons in RAS3 cannot be greater than 2
 !----------------------------------------------------------------------
-  if (okras3.and.nras3<1.or.nras3>2) then
+  if (okras3 .and. nras3 < 1 .or. nras3 > 2) then
      errmsg='Error in check_ras_input: the maximum no. RAS3'&
           //' electrons can only be 1 or 2'
      call error_control
   endif
 
 !----------------------------------------------------------------------
-! Check the RAS1 orbitals: they have to be doubly-occupied in the
-! current incarnation of the code
+! Check the RAS1 orbitals: they cannot be unoccupied
 !----------------------------------------------------------------------
-  n=0
   ! Loop over RAS1 orbitals
   do i1=1,mras1
 
@@ -285,17 +286,15 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
      ! Orbital index in the bit string
      i=imo-(k-1)*64-1
 
-     ! Sum of alpha and beta occupations
-     if (btest(det0(k,1),i)) n=n+1
-     if (btest(det0(k,2),i)) n=n+1
+     ! Is this orbital unoccupied
+     if (.not. btest(det0(k,1),i) &
+          .and. .not. btest(det0(k,2),i)) then
+        errmsg='Error in check_ras_input: the RAS1 orbitals cannot'&
+             //' be unoccupied'
+        call error_control
+     endif
      
   enddo
-
-  if (n/=2*mras1) then
-     errmsg='Error in check_ras_input: the RAS1 orbitals have to'&
-          //' be doubly-occupied'
-     call error_control
-  endif
 
 !----------------------------------------------------------------------
 ! Check the RAS3 orbitals: they have to be unoccupied in the current
@@ -320,7 +319,7 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
      
   enddo
 
-  if (n/=0) then
+  if (n /= 0) then
      errmsg='Error in check_ras_input: the RAS3 orbitals have to'&
           //' be unoccupied'
      call error_control
@@ -383,6 +382,34 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
   endif
 
 !----------------------------------------------------------------------
+! Get the number of alpha and beta electrons and holes in RAS1
+!----------------------------------------------------------------------
+  nha_ras1=0
+  nhb_ras1=0
+  
+  ! Loop over RAS1 orbitals
+  do i1=1,mras1
+
+     ! Current active space orbital
+     imo=iras1(i1)
+
+     ! Block index
+     k=(imo-1)/64+1
+
+     ! Orbital index in the bit string
+     i=imo-(k-1)*64-1
+
+     ! Sum the number of alpha and beta holes
+     if (.not. btest(det0(k,1),i)) nha_ras1=nha_ras1+1
+     if (.not. btest(det0(k,2),i)) nhb_ras1=nhb_ras1+1
+     
+  enddo
+
+  ! No. alpha and beta electrons in RAS1
+  na_ras1=mras1-nha_ras1
+  nb_ras1=mras1-nhb_ras1
+  
+!----------------------------------------------------------------------
 ! Get the number of alpha and beta electrons in the RAS2 orbitals
 !----------------------------------------------------------------------
   na_ras2=0
@@ -421,56 +448,56 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
      npermb_ras2(0)=bico(mras2,nb_ras2)
 
      ! Permutations of the alpha electrons in RAS2 with +1 alpha electrons
-     if (na_ras2+1<=mras2) then
+     if (na_ras2+1 <= mras2) then
         nperma_ras2(1)=bico(mras2,na_ras2+1)
      else
         nperma_ras2(1)=0
      endif
         
      ! Permutations of the beta electrons in RAS2 with +1 beta electrons
-     if (nb_ras2+1<=mras2) then
+     if (nb_ras2+1 <= mras2) then
         npermb_ras2(1)=bico(mras2,nb_ras2+1)
      else
         npermb_ras2(1)=0
      endif
         
      ! Permutations of the alpha electrons in RAS2 with +2 alpha electrons
-     if (na_ras2+2<=mras2) then
+     if (na_ras2+2 <= mras2) then
         nperma_ras2(2)=bico(mras2,na_ras2+2)
      else
         nperma_ras2(2)=0
      endif
         
      ! Permutations of the beta electrons in RAS2 with +2 beta electrons
-     if (nb_ras2+2<=mras2) then
+     if (nb_ras2+2 <= mras2) then
         npermb_ras2(2)=bico(mras2,nb_ras2+2)
      else
         npermb_ras2(2)=0
      endif
         
      ! Permutations of the alpha electrons in RAS2 with -1 alpha electrons
-     if (na_ras2>0) then
+     if (na_ras2 > 0) then
         nperma_ras2(-1)=bico(mras2,na_ras2-1)
      else
         nperma_ras2(-1)=0
      endif
 
      ! Permutations of the beta electrons in RAS2 with -1 beta electrons
-     if (nb_ras2>0) then
+     if (nb_ras2 > 0) then
         npermb_ras2(-1)=bico(mras2,nb_ras2-1)
      else
         npermb_ras2(-1)=0
      endif
 
      ! Permutations of the alpha electrons in RAS2 with -2 alpha electrons
-     if (na_ras2>1) then
+     if (na_ras2 > 1) then
         nperma_ras2(-2)=bico(mras2,na_ras2-2)
      else
         nperma_ras2(-2)=0
      endif
 
      ! Permutations of the beta electrons in RAS2 with -2 beta electrons
-     if (nb_ras2>1) then
+     if (nb_ras2 > 1) then
         npermb_ras2(-2)=bico(mras2,nb_ras2-2)
      else
         npermb_ras2(-2)=0
@@ -527,25 +554,25 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
           v_ras2(1:npermb_ras2(2),2,2),nperma_ras2(2))
 
      ! Permutations of the alpha electrons in RAS2 with -1 alpha electrons
-     if (na_ras2>0) then
+     if (na_ras2 > 0) then
         call get_permutations(na_ras2-1,mras2-(na_ras2-1),&
              v_ras2(1:nperma_ras2(-1),-1,1),nperma_ras2(-1))
      endif
 
      ! Permutations of the beta electrons in RAS2 with -1 beta electrons
-     if (nb_ras2>0) then
+     if (nb_ras2 > 0) then
         call get_permutations(nb_ras2-1,mras2-(nb_ras2-1),&
              v_ras2(1:npermb_ras2(-1),-1,2),npermb_ras2(-1))
      endif
 
      ! Permutations of the alpha electrons in RAS2 with -2 alpha electrons
-     if (na_ras2>1) then
+     if (na_ras2 > 1) then
         call get_permutations(na_ras2-2,mras2-(na_ras2-2),&
              v_ras2(1:nperma_ras2(-2),-2,1),nperma_ras2(-2))
      endif
 
      ! Permutations of the beta electrons in RAS2 with -2 beta electrons
-     if (nb_ras2>1) then
+     if (nb_ras2 > 1) then
         call get_permutations(nb_ras2-2,mras2-(nb_ras2-2),&
              v_ras2(1:npermb_ras2(-2),-2,2),npermb_ras2(-2))
      endif
@@ -559,33 +586,37 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
   select case(okras1)
 
   case(.true.) ! The number of RAS1 orbitals is non-zero
-     ! Number of alpha and beta electrons in RAS1
-     ! Note that the RAS1 orbitals are constrained to be doubly-occupied
-     na_ras1=mras1
-     nb_ras1=mras1
 
-     ! Number of permutations of the alpha electrons RAS1 with zero holes
-     nperma_ras1(0)=1
+     ! Number of permutations of the alpha electrons in RAS1 with zero holes
+     if (nha_ras1 == 0) then
+        nperma_ras1(0)=1
+     else
+        nperma_ras1(0)=bico(mras1,nhb_ras1)
+     endif
      
-     ! Number of permutations of the beta electrons RAS1 with zero holes
-     npermb_ras1(0)=1
-
-     ! Number of permutations of the alpha electrons RAS1 with one hole
-     nperma_ras1(-1)=bico(mras1,1)
+     ! Number of permutations of the beta electrons in RAS1 with zero holes
+     if (nhb_ras1 == 0) then
+        npermb_ras1(0)=1
+     else
+        npermb_ras1(0)=bico(mras1,nhb_ras1)
+     endif
+     
+     ! Number of permutations of the alpha electrons in RAS1 with one hole
+     nperma_ras1(-1)=bico(mras1,1+nha_ras1)
      
      ! Number of permutations of the beta electrons in RAS1 with one hole
-     npermb_ras1(-1)=bico(mras1,1)
+     npermb_ras1(-1)=bico(mras1,1+nhb_ras1)
      
-     ! Number of permutations of the alpha electrons RAS1 with two holes
-     if (na_ras1>1) then
-        nperma_ras1(-2)=bico(mras1,2)
+     ! Number of permutations of the alpha electrons in RAS1 with two holes
+     if (na_ras1 > 1) then
+        nperma_ras1(-2)=bico(mras1,2+nha_ras1)
      else
         nperma_ras1(-2)=0
      endif
 
-     ! Number of permutations of the beta electrons RAS1 with two holes
-     if (nb_ras1>1) then
-        npermb_ras1(-2)=bico(mras1,2)
+     ! Number of permutations of the beta electrons in RAS1 with two holes
+     if (nb_ras1 > 1) then
+        npermb_ras1(-2)=bico(mras1,2+nhb_ras1)
      else
         npermb_ras1(-2)=0
      endif
@@ -617,31 +648,30 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
   if (okras1) then
 
      ! Permutations of the alpha electrons in RAS1 with zero holes
-     v_ras1(1,0,1)=ishft(1_ib,mras1)-1_ib
-    
+     call get_permutations(mras1-nha_ras1,nha_ras1,&
+          v_ras1(1:nperma_ras1(0),0,1),nperma_ras1(0))
+     
      ! Permutations of the beta electrons in RAS1 with zero holes
-     v_ras1(1,0,2)=ishft(1_ib,mras1)-1_ib
+     call get_permutations(mras1-nhb_ras1,nhb_ras1,&
+          v_ras1(1:npermb_ras1(0),0,2),npermb_ras1(0))     
      
      ! Permutations of the alpha electrons in RAS1 with one hole
-     call get_permutations(mras1-1,1,v_ras1(1:nperma_ras1(-1),-1,1),&
-          nperma_ras1(-1))
+     call get_permutations(mras1-1-nha_ras1,1+nha_ras1,&
+          v_ras1(1:nperma_ras1(-1),-1,1),nperma_ras1(-1))
      
      ! Permutations of the beta electrons in RAS1 with one hole
-     call get_permutations(mras1-1,1,v_ras1(1:npermb_ras1(-1),-1,2),&
-          npermb_ras1(-1))
-     
+     call get_permutations(mras1-1-nhb_ras1,1+nhb_ras1,&
+          v_ras1(1:npermb_ras1(-1),-1,2),npermb_ras1(-1))
+
      ! Permutations of the alpha electrons in RAS1 with two holes
-     if (mras1>1.and.nras1>1) then
-        call get_permutations(mras1-2,2,v_ras1(1:nperma_ras1(-2),-2,1),&
-             nperma_ras1(-2))
-     endif
-     
+     if (na_ras1 > 1) &
+          call get_permutations(mras1-2-nha_ras1,2+nha_ras1,&
+          v_ras1(1:nperma_ras1(-2),-2,1),nperma_ras1(-2))
+
      ! Permutations of the beta electrons in RAS1 with two holes
-     !if (mras1-2>0) then
-     if (mras1>1.and.nras1>1) then
-        call get_permutations(mras1-2,2,v_ras1(1:npermb_ras1(-2),-2,2),&
-             npermb_ras1(-2))
-     endif
+     if (nb_ras1 > 1) &
+          call get_permutations(mras1-2-nhb_ras1,2+nhb_ras1,&
+          v_ras1(1:npermb_ras1(-2),-2,2),npermb_ras1(-2))
      
   endif
   
@@ -666,14 +696,14 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
      npermb_ras3(1)=bico(mras3,1)
      
      ! Number of permutations of the alpha electrons RAS3 with two particles
-     if (mras3>1.and.nras3>1) then
+     if (mras3 > 1 .and. nras3 > 1) then
         nperma_ras3(2)=bico(mras3,2)
      else
         nperma_ras3(2)=0
      endif
      
      ! Number of permutations of the beta electrons RAS3 with two particles
-     if (mras3>1.and.nras3>1) then
+     if (mras3 > 1 .and. nras3 > 1) then
         npermb_ras3(2)=bico(mras3,2)
      else
         npermb_ras3(2)=0
@@ -700,7 +730,7 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
   end select
 
 !----------------------------------------------------------------------
-! Compute the permutations of the alpha and beta electrons in the RAS1
+! Compute the permutations of the alpha and beta electrons in the RAS3
 ! orbitals
 !----------------------------------------------------------------------
   if (okras3) then
@@ -720,13 +750,13 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
           v_ras3(1:npermb_ras3(1),1,2),npermb_ras3(1))
 
      ! Permutations of the alpha electrons in RAS3 with two particles
-     if (mras3>1.and.nras3>1) then
+     if (mras3 > 1 .and. nras3 > 1) then
         call get_permutations(2,mras3-2,&
              v_ras3(1:nperma_ras3(2),2,1),nperma_ras3(2))
      endif
 
      ! Permutations of the beta electrons in RAS3 with two particles
-     if (mras3>1.and.nras3>1) then
+     if (mras3 > 1 .and. nras3 > 1) then
         call get_permutations(2,mras3-2,&
              v_ras3(1:npermb_ras3(2),2,2),npermb_ras3(2))
      endif
@@ -786,18 +816,18 @@ subroutine make_ras_dets(detras,ndet,iras1,iras2,iras3,nras1,mras1,&
                     ! electron-number conserving (this will be for the
                     ! majority of iterations)
                     if (ia_ras1+ib_ras1+ia_ras2+ib_ras2+ia_ras3+ib_ras3&
-                         /=0) cycle
-
+                         /= 0) cycle
+                    
                     ! Cycle if the current set of excitations is not
                     ! spin conserving
-                    if (ia_ras1+ia_ras2+ia_ras3/=0) cycle
-                    if (ib_ras1+ib_ras2+ib_ras3/=0) cycle
+                    if (ia_ras1+ia_ras2+ia_ras3 /= 0) cycle
+                    if (ib_ras1+ib_ras2+ib_ras3 /= 0) cycle
                     
                     ! Cycle if the number of holes in RAS1 is too large
-                    if (abs(ia_ras1+ib_ras1)>nras1) cycle
+                    if (abs(ia_ras1+ib_ras1) > nras1) cycle
 
                     ! Cycle if the number of particles in RAS3 is too large
-                    if (ia_ras3+ib_ras3>nras3) cycle
+                    if (ia_ras3+ib_ras3 > nras3) cycle
                     
                     !
                     ! Inner loop over determinants within each RAS
@@ -916,18 +946,18 @@ subroutine get_ndet_ras_dumb(ndet,nras1,nras2,nras3)
                     ! electron-number conserving (this will be for the
                     ! majority of iterations)
                     if (ia_ras1+ib_ras1+ia_ras2+ib_ras2+ia_ras3+ib_ras3&
-                         /=0) cycle
+                         /= 0) cycle
 
                     ! Cycle if the current set of excitations is not
                     ! spin conserving
-                    if (ia_ras1+ia_ras2+ia_ras3/=0) cycle
-                    if (ib_ras1+ib_ras2+ib_ras3/=0) cycle
+                    if (ia_ras1+ia_ras2+ia_ras3 /= 0) cycle
+                    if (ib_ras1+ib_ras2+ib_ras3 /= 0) cycle
                     
                     ! Cycle if the number of holes in RAS1 is too large
-                    if (abs(ia_ras1+ib_ras1)>nras1) cycle
+                    if (abs(ia_ras1+ib_ras1) > nras1) cycle
 
                     ! Cycle if the number of particles in RAS3 is too large
-                    if (ia_ras3+ib_ras3>nras3) cycle
+                    if (ia_ras3+ib_ras3 > nras3) cycle
                     
                     !
                     ! Inner loop over determinants within each RAS
@@ -973,12 +1003,12 @@ subroutine fill_orbitals(det,ispin,morb,v,iorb)
   
   implicit none
 
-  integer(ib), intent(out) :: det(n_int,2)
-  integer(is), intent(in)  :: ispin
-  integer(is), intent(in)  :: morb
-  integer(ib), intent(in)  :: v
-  integer(is), intent(in)  :: iorb(nmo)
-  integer(is)              :: i1,i,k
+  integer(ib), intent(inout) :: det(n_int,2)
+  integer(is), intent(in)    :: ispin
+  integer(is), intent(in)    :: morb
+  integer(ib), intent(in)    :: v
+  integer(is), intent(in)    :: iorb(nmo)
+  integer(is)                :: i1,i,k
   
   ! Loop over orbitals
   do i1=1,morb

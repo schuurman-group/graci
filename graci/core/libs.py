@@ -16,6 +16,8 @@ hamiltonians   = ['canonical',
                   'lyskov_standard',
                   'lyskov_short',
                   'heil17_standard',
+                  'heil17_short',
+                  'heil18_standard',
                   'heil18_short']
 
 # registry of bitci functions

@@ -43,7 +43,10 @@ contains
     
     ! Density matrix
     real(dp), intent(out)   :: rho(nmo,nmo,nroots)
-   
+
+    ! Everything else
+    integer                 :: arrdim
+    
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
                                twall_end
@@ -58,7 +61,8 @@ contains
 !----------------------------------------------------------------------
     rho=0.0d0
 
-    allocate(spincp(ncsfs(nomax),ncsfs(nomax)))
+    arrdim=maxval(ncsfs(0:nomax))
+    allocate(spincp(arrdim,arrdim))
     spincp=0.0d0
 
 !----------------------------------------------------------------------

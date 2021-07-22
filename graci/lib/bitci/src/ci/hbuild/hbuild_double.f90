@@ -72,7 +72,7 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(harr(ncsfs(nomax)**2))
+    allocate(harr(maxval(ncsfs(0:nomax))**2))    
     harr=0.0d0
 
 !----------------------------------------------------------------------
@@ -278,11 +278,10 @@ contains
     nbuf=0
 
     ! H_ij working arrays
-    allocate(harr(ncsfs(nomax)**2))
-    harr=0.0d0
-
-    harr2dim=ncsfs(nomax)**2
+    harr2dim=maxval(ncsfs(0:nomax))**2
+    allocate(harr(harr2dim))
     allocate(harr2(harr2dim))
+    harr=0.0d0
     harr2=0.0d0
 
 !----------------------------------------------------------------------

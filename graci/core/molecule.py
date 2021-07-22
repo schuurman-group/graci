@@ -81,14 +81,13 @@ class Molecule:
         # set the spin
         self.spin = 0.5*(self.mult - 1.)
 
-
         self.mol_obj = gto.M(
                      dump_input = False,
                      parse_arg  = False,
                      verbose    = logger.NOTE,
                      atom       = mol_str,
                      charge     = self.charge,
-                     spin       = self.spin,
+                     spin       = int(2*self.spin),
                      output     = None,
                      cart       = self.ao_cart,
                      basis      = self.basis,
