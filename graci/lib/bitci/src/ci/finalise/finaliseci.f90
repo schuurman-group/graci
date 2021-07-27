@@ -27,6 +27,8 @@ subroutine bitci_finalise()
   if (allocated(spincp2))     deallocate(spincp2)
   if (allocated(det0))        deallocate(det0)
   if (allocated(conf0))       deallocate(conf0)
+  if (allocated(iopen0))      deallocate(iopen0)
+  if (allocated(iocc0))       deallocate(iocc0)
   if (allocated(mosym))       deallocate(mosym)
   if (allocated(moen))        deallocate(moen)
   if (allocated(csfcoe))      deallocate(csfcoe)
@@ -36,7 +38,7 @@ subroutine bitci_finalise()
   if (allocated(Vc))          deallocate(Vc)
   if (allocated(Vx))          deallocate(Vx)
   if (allocated(hpar))        deallocate(hpar)
-
+  
   !
   ! To be on the safe side, scrub all other global variables
   !

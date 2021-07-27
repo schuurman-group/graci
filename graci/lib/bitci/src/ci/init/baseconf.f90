@@ -102,6 +102,9 @@ end subroutine generate_base_det
 
     allocate(iopen0(nmo))
     iopen0=0
+
+    allocate(iocc0(nmo))
+    iocc0=0
     
 !----------------------------------------------------------------------
 ! Number of doubly-occupied and singly-occupied spatial orbitals in
@@ -118,6 +121,9 @@ end subroutine generate_base_det
     !
     do imo=1,ndocc
 
+       ! Save the MO occupation
+       iocc0(imo)=2
+       
        ! Block index
        k=(imo-1)/64+1
 
@@ -136,6 +142,9 @@ end subroutine generate_base_det
     ! Loop over the unpaired electrons
     do imo=ndocc+1,ndocc+nopen
 
+       ! Save the MO occupation
+       iocc0(imo)=1
+       
        ! Save the indices of the open-shell MOs
        iopen0(imo)=1
        

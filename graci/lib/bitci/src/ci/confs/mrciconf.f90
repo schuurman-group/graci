@@ -150,12 +150,12 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole configurations
 !----------------------------------------------------------------------
-  call generate_1hole_confs(cfgM,icvs)
+  call generate_1hole_confs(cfgM,icvs,E0max)
 
 !----------------------------------------------------------------------
 ! Generate the 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_2hole_confs(cfgM,icvs)
+  call generate_2hole_confs(cfgM,icvs,E0max)
   
 !----------------------------------------------------------------------
 ! Apply the internal creation operators to the 2-hole configurations,
@@ -164,7 +164,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! 1H1I configurations, from which the 2I and 1I1E configurations
 ! will be generated
 !----------------------------------------------------------------------
-  call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+  call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs,E0max)
   
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
@@ -295,7 +295,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   ! Total number of configurations
   write(6,'(/,x,a,x,i0)') &
        'Total number of MRCI configurations:',ntotal
-
+  
 !----------------------------------------------------------------------
 ! Debugging: check for duplicate configurations
 !----------------------------------------------------------------------
@@ -317,7 +317,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! Flush stdout
 !----------------------------------------------------------------------
   flush(6)
-  
+
   return
 
 end subroutine generate_mrci_confs
