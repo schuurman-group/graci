@@ -75,6 +75,7 @@ module bitglobal
   !
   integer(ib), allocatable :: det0(:,:),conf0(:,:)
   integer(is), allocatable :: iopen0(:)
+  integer(is), allocatable :: iocc0(:)
   
   !
   ! MO information
