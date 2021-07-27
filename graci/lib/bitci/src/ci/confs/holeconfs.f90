@@ -157,9 +157,11 @@ contains
           ! Cycle if this 1-hole configuration cannot possibly
           ! generate DFT/MRCI confs satisfying the energy selection
           ! criterion
-          if (ldftmrci .and. iocc0(cfgM%m2c(i1)) /= 0 &
-               .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-          
+          if (ldftmrci) then
+             if (iocc0(cfgM%m2c(i1)) /= 0 &
+                  .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
+          endif
+             
           ! Cycle if this is a CVS-MRCI calculation and we are creating
           ! a hole in a flagged core MO
           if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
@@ -191,9 +193,11 @@ contains
           ! Cycle if this 1-hole configuration cannot possibly
           ! generate DFT/MRCI confs satisfying the energy selection
           ! criterion
-          if (ldftmrci .and. iocc0(cfgM%m2c(i1)) /= 0 &
-               .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-          
+          if (ldftmrci) then
+             if (iocc0(cfgM%m2c(i1)) /= 0 &
+                  .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
+          endif
+             
           ! Cycle if this is a CVS-MRCI calculation and we are creating
           ! a hole in a flagged core MO
           if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
@@ -364,7 +368,6 @@ contains
     integer(is)                :: i,j,k,n,imo,i1,ioff
     integer(is)                :: n_int_I,n1h,n2h
     integer(is)                :: counter
-    real(dp)                   :: ehole
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -440,20 +443,11 @@ contains
              key=0_ib
              key(1:n_int_I,:)=keyI
 
-             ! Cycle if this 1-hole configuration cannot possibly
+             ! Cycle if this 2-hole configuration cannot possibly
              ! generate DFT/MRCI confs satisfying the energy selection
              ! criterion
              if (ldftmrci) then
-                if (iocc0(cfgM%m2c(i1)) /= 0 &
-                     .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-                call diffconf(key,n_int,Dw,nmo,ndiff)
-                ehole=0.0d0
-                do j=1,ndiff
-                   if (Dw(j,2) < 0) then
-                      ehole=ehole+moen(cfgM%m2c(Dw(j,1)))*abs(Dw(j,2))
-                   endif
-                enddo
-                if (ehole > E0max + desel) cycle
+                if (ehole(key,n_int,cfgM%m2c) > E0max+desel) cycle
              endif
              
              ! Insert the conf into the hash table
@@ -484,20 +478,11 @@ contains
              key=0_ib
              key(1:n_int_I,:)=keyI
 
-             ! Cycle if this 1-hole configuration cannot possibly
+             ! Cycle if this 2-hole configuration cannot possibly
              ! generate DFT/MRCI confs satisfying the energy selection
              ! criterion
              if (ldftmrci) then
-                if (iocc0(cfgM%m2c(i1)) /= 0 &
-                     .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-                call diffconf(key,n_int,Dw,nmo,ndiff)
-                ehole=0.0d0
-                do j=1,ndiff
-                   if (Dw(j,2) < 0) then
-                      ehole=ehole+moen(cfgM%m2c(Dw(j,1)))*abs(Dw(j,2))
-                   endif
-                enddo
-                if (ehole > E0max + desel) cycle
+                if (ehole(key,n_int,cfgM%m2c) > E0max+desel) cycle
              endif
              
              ! Insert the conf into the hash table
@@ -703,16 +688,11 @@ contains
              key(k,1)=ibset(key(k,1),i)
           endif
 
-          ! Cycle if this 1-hole configuration cannot possibly
+          ! Cycle if this 1H1I configuration cannot possibly
           ! generate DFT/MRCI confs satisfying the energy selection
           ! criterion
           if (ldftmrci) then
-             call diffconf(key,n_int,Dw,nmo,ndiff)
-             eph=0.0d0
-             do j=1,ndiff
-                eph=eph+moen(cfgM%m2c(Dw(j,1)))*abs(Dw(j,2))
-             enddo
-             if (eph > E0max + desel) cycle
+             if (eparticle_hole(key,n_int,cfgM%m2c) > E0max+desel) cycle 
           endif
              
           ! Hash table insertion
@@ -884,7 +864,104 @@ contains
     return
     
   end subroutine load_1h1I
-  
+
+!######################################################################
+! ehole: returns the sum of the negatives of the energies of the hole
+!        MOs (relative the base configuration)
+!######################################################################
+  function ehole(conf,ldc,m2c)
+
+    use constants
+    use bitglobal
+    use mrciutils
+
+    implicit none
+
+    ! Function result
+    real(dp)                :: ehole
+    
+    ! Configuration
+    integer(is), intent(in) :: ldc
+    integer(ib), intent(in) :: conf(ldc,2)
+
+    ! MO mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! Difference configuration information
+    integer(is)             :: Dw(nmo,2)
+    integer(is)             :: ndiff
+
+    ! Everything else
+    integer(is)             :: i,i1,Dwi
+
+    !
+    ! Difference configuration information
+    !
+    call diffconf(conf,ldc,Dw,nmo,ndiff)
+
+    !
+    ! Sum the hole MO energies multiplied by the occupation differences
+    !
+    ehole=0.0d0
+    do i=1,ndiff
+       i1=m2c(Dw(i,1))
+       Dwi=Dw(i,2)
+       if (Dwi < 0) ehole=ehole+moen(i1)*Dwi
+    enddo
+    
+    return
+    
+  end function ehole
+
+!######################################################################
+! eparticle_hole: returns the sum of the absolutes of the energies of
+!                 hole and particle MOs (relative the base
+!                 configuration)
+!######################################################################
+  function eparticle_hole(conf,ldc,m2c)
+
+    use constants
+    use bitglobal
+    use mrciutils
+
+    implicit none
+
+    ! Function result
+    real(dp)                :: eparticle_hole
+    
+    ! Configuration
+    integer(is), intent(in) :: ldc
+    integer(ib), intent(in) :: conf(ldc,2)
+
+    ! MO mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! Difference configuration information
+    integer(is)             :: Dw(nmo,2)
+    integer(is)             :: ndiff
+
+    ! Everything else
+    integer(is)             :: i,i1,Dwi
+
+    !
+    ! Difference configuration information
+    !
+    call diffconf(conf,ldc,Dw,nmo,ndiff)
+
+    !
+    ! Sum the MO energies multiplied by the occupation differences
+    !
+    eparticle_hole=0.0d0
+    do i=1,ndiff
+       i1=m2c(Dw(i,1))
+       Dwi=Dw(i,2)
+       eparticle_hole=eparticle_hole+moen(i1)*Dwi
+    enddo
+    
+    return
+    
+  end function eparticle_hole
+
 !######################################################################
 ! filter_hole_confs: removes any hole configurations which do not
 !                    generate any full configurations

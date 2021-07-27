@@ -317,7 +317,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! Flush stdout
 !----------------------------------------------------------------------
   flush(6)
-
+  
   return
 
 end subroutine generate_mrci_confs
