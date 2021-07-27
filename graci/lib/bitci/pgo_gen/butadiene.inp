@@ -24,7 +24,7 @@
  $dftmrci section
  nstates      = 5
  hamiltonian  = grimme_standard
- autoras      = True
+ prune        = tight
  refiter      = 1
  $end
 
