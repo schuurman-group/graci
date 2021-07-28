@@ -93,7 +93,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 
 !----------------------------------------------------------------------
 ! Subtract E_SCF from the highest reference space energy to obtain the
-! true DFT/MRCI Hamiltonian eigenvalue
+! true MRCI Hamiltonian eigenvalue
 !----------------------------------------------------------------------
   E0max=E0max1-Escf
 
@@ -177,7 +177,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! electrons
 !----------------------------------------------------------------------
   call generate_2E_confs(irrep,E0max,cfgM)
-
+  
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one internal
 ! electron
@@ -317,14 +317,14 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! Flush stdout
 !----------------------------------------------------------------------
   flush(6)
-  
+
   return
 
 end subroutine generate_mrci_confs
   
 !######################################################################
 ! check_confs: temporary debugging routine to check the generated
-!              for duplicates
+!              configurations for duplicates
 !######################################################################
 subroutine check_confs(ntotal,n_int_I,nmoI,cfgM)
   

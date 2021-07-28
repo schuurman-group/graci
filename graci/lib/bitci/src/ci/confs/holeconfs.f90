@@ -154,13 +154,13 @@ contains
           ! MO index
           i1=socc(imo)
 
-          ! Cycle if this 1-hole configuration cannot possibly
-          ! generate DFT/MRCI confs satisfying the energy selection
-          ! criterion
-          if (ldftmrci) then
-             if (iocc0(cfgM%m2c(i1)) /= 0 &
-                  .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-          endif
+          !! Cycle if this 1-hole configuration cannot possibly
+          !! generate DFT/MRCI confs satisfying the energy selection
+          !! criterion
+          !if (ldftmrci) then
+          !   if (iocc0(cfgM%m2c(i1)) /= 0 &
+          !        .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
+          !endif
              
           ! Cycle if this is a CVS-MRCI calculation and we are creating
           ! a hole in a flagged core MO
@@ -190,13 +190,13 @@ contains
           ! MO index
           i1=docc(imo)
 
-          ! Cycle if this 1-hole configuration cannot possibly
-          ! generate DFT/MRCI confs satisfying the energy selection
-          ! criterion
-          if (ldftmrci) then
-             if (iocc0(cfgM%m2c(i1)) /= 0 &
-                  .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-          endif
+          !! Cycle if this 1-hole configuration cannot possibly
+          !! generate DFT/MRCI confs satisfying the energy selection
+          !! criterion
+          !if (ldftmrci) then
+          !   if (iocc0(cfgM%m2c(i1)) /= 0 &
+          !        .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
+          !endif
              
           ! Cycle if this is a CVS-MRCI calculation and we are creating
           ! a hole in a flagged core MO
@@ -365,9 +365,10 @@ contains
     integer(is), allocatable   :: ngen(:)
     
     ! Everything else
-    integer(is)                :: i,j,k,n,imo,i1,ioff
+    integer(is)                :: i,j,k,n,imo,i1,i2,ioff
     integer(is)                :: n_int_I,n1h,n2h
     integer(is)                :: counter
+    real(dp)                   :: eplow
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -437,7 +438,7 @@ contains
              ! Cycle if this is a CVS-MRCI calculation and we are
              ! creating a hole in a flagged core MO
              if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
-             
+
              ! Annihilate an electron in imo'th singly-occupied MO
              keyI=annihilate_electron(cfgM%conf1h(:,:,i),n_int_I,i1)
              key=0_ib
@@ -446,9 +447,10 @@ contains
              ! Cycle if this 2-hole configuration cannot possibly
              ! generate DFT/MRCI confs satisfying the energy selection
              ! criterion
-             if (ldftmrci) then
-                if (ehole(key,n_int,cfgM%m2c) > E0max+desel) cycle
-             endif
+             !if (ldftmrci) then
+             !   call get_eplow(2,eplow,key,n_int,cfgM%m2c)
+             !   if (ehole(key,n_int,cfgM%m2c)+eplow > E0max+desel) cycle
+             !endif
              
              ! Insert the conf into the hash table
              call h%insert_key(key)
@@ -481,9 +483,10 @@ contains
              ! Cycle if this 2-hole configuration cannot possibly
              ! generate DFT/MRCI confs satisfying the energy selection
              ! criterion
-             if (ldftmrci) then
-                if (ehole(key,n_int,cfgM%m2c) > E0max+desel) cycle
-             endif
+             !if (ldftmrci) then
+             !   call get_eplow(2,eplow,key,n_int,cfgM%m2c)
+             !   if (ehole(key,n_int,cfgM%m2c)+eplow > E0max+desel) cycle
+             !endif
              
              ! Insert the conf into the hash table
              call h%insert_key(key)
@@ -591,7 +594,7 @@ contains
     ! Everything else
     integer(is)                :: i,j,k,n,imo,i1
     integer(is)                :: n_int_I,nmoI,n1h,n2h
-    real(dp)                   :: eph
+    real(dp)                   :: eplow
     
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
@@ -691,9 +694,10 @@ contains
           ! Cycle if this 1H1I configuration cannot possibly
           ! generate DFT/MRCI confs satisfying the energy selection
           ! criterion
-          if (ldftmrci) then
-             if (eparticle_hole(key,n_int,cfgM%m2c) > E0max+desel) cycle 
-          endif
+          !if (ldftmrci) then
+          !   call get_eplow(1,eplow,key,n_int,cfgM%m2c)
+          !   if (eparticle_hole(key,n_int,cfgM%m2c)+eplow > E0max+desel) cycle
+          !endif
              
           ! Hash table insertion
           call h%insert_key(key)
@@ -962,6 +966,112 @@ contains
     
   end function eparticle_hole
 
+!######################################################################  
+
+  subroutine get_eplow(np,eplow,conf,ldc,m2c)
+
+    use constants
+    use bitglobal
+    use mrciutils
+    
+    implicit none
+
+    integer(is), intent(in) :: np
+    real(dp), intent(out)   :: eplow
+    integer(is), intent(in) :: ldc
+    integer(ib), intent(in) :: conf(ldc,2)
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! Orbital classes
+    integer(is)             :: socc(nmo),docc(nmo),unocc(nmo)
+    integer(is)             :: nopen,nsocc,ndocc,nunocc
+
+    ! SOP
+    integer(ib)             :: sop(ldc,2)
+
+    ! Everything else
+    integer(is)             :: i,j,Dwi,Dwj
+
+    print*,''
+    print*,'get_eplow is fundamentally flawed: it will return the annihilation operator indexed MO energies. i.e., it will undo ehole...'
+    print*,''
+    stop
+    
+    !
+    ! SOP
+    !
+    sop=conf_to_sop(conf,ldc)
+
+    !
+    ! Unoccupied and singly-occupied MOs
+    !
+    call sop_unocc_list(sop,ldc,unocc,nmo,nunocc)
+    call sop_socc_list(sop,ldc,socc,nmo,nsocc)
+
+    !
+    ! Indices of the lowest-lying non-double-occupied MOs
+    !
+    if (nsocc == 0) then
+       i=m2c(unocc(1))
+       j=m2c(unocc(2))
+       Dwi=-iocc0(m2c(unocc(1)))
+       Dwj=-iocc0(m2c(unocc(2)))
+    else if (nsocc == 1) then
+       if (m2c(socc(1)) < m2c(unocc(2))) then
+          i=socc(1)
+          j=unocc(1)
+          Dwi=1-iocc0(m2c(socc(1)))
+          Dwj=-iocc0(m2c(unocc(1)))
+       else
+          i=m2c(unocc(1))
+          j=m2c(unocc(2))
+          Dwi=-iocc0(m2c(unocc(1)))
+          Dwj=-iocc0(m2c(unocc(2)))
+       endif
+    else if (nsocc >= 2) then
+       if (m2c(socc(1)) < m2c(unocc(1))) then
+          i=m2c(socc(1))
+          Dwi=1-iocc0(m2c(socc(1)))
+          if (m2c(socc(2) < m2c(unocc(1)))) then
+             j=m2c(socc(2))
+             Dwj=1-iocc0(m2c(socc(2)))
+          else
+             j=m2c(unocc(1))
+             Dwj=-iocc0(m2c(unocc(1)))
+          endif
+       else
+          i=unocc(1)
+          Dwi=-iocc0(m2c(unocc(1)))
+          if (m2c(socc(1)) < m2c(unocc(2))) then
+             j=m2c(socc(1))
+             Dwj=1-iocc0(m2c(socc(1)))
+          else
+             j=m2c(unocc(2))
+             Dwj=-iocc0(m2c(unocc(2)))
+          endif
+       endif
+    endif
+
+    !
+    ! Sum of the MO energies multiplied by the occupation differences
+    ! relative to the base configuration
+    !
+    eplow=0.0d0
+    if (np == 1) then
+       eplow=moen(i)*Dwi
+    else if (np == 2) then
+       eplow=moen(i)+moen(j)*Dwi*Dwj
+    endif
+
+    print*,'---------------------------------------------'
+    print*,'unocc:',unocc(1:2)
+    print*,'socc:',socc(1:2)
+    print*,'i,j:',i,j
+    
+    return
+    
+  end subroutine get_eplow
+  
 !######################################################################
 ! filter_hole_confs: removes any hole configurations which do not
 !                    generate any full configurations
