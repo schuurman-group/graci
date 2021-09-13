@@ -174,6 +174,9 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 !----------------------------------------------------------------------
 ! Pre-compute integrals
 !----------------------------------------------------------------------
+! Note that this has to be called *after* load_hpar in order to know
+! whether the full Fock matrix has to be computed
+!----------------------------------------------------------------------
   call precompute_integrals
   
 !----------------------------------------------------------------------
