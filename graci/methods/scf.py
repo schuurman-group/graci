@@ -23,7 +23,8 @@ class Scf:
         self.xc             = 'hf'
         self.print_orbitals = False
         self.label          = 'Scf'
- 
+        self.verbose        = 0
+        
         # computed quantities
         self.mol          = None 
         self.energy       = None
@@ -59,7 +60,10 @@ class Scf:
     
         # construct the molecule object
         pymol = self.mol.pymol()
-
+        
+        # set the verbosity of the output
+        pymol.verbose = self.verbose
+        
         output.print_scf_header()
 
         # if var.d3_inp['xc']='hf', use canonical hf orbitals
