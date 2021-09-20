@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "Standard citation for the GRaCI package: General Reference Configuration Interaction"
+authors:
+- family-names: "Schuurman"
+  given-names: "Michael"
+  orcid: "https://orcid.org/0000-0002-0922-9034"
+- family-names: "Neville"
+  given-names: "Simon"
+  orcid: "https://orcid.org/0000-0001-8134-1883"
+title: "GRaCI: General Reference Configuration Interaction"
+version: 0.1
+date-released: 2021-10-01
+url: "https://github.com/schuurman-group/graci.git"
