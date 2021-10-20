@@ -373,9 +373,12 @@ class Transition:
             for b_st in bra_list:
                 bsym = self.bra_obj.state_sym(b_st)
  
-                # if this state pair combination has already
-                # been included, don't do it again
+                # exclude bra == ket pairs
                 if self.braket_iden and k_st == b_st:
+                    continue
+
+                # only include unique pairs
+                if self.trans_index(k_st, b_st) is not None:
                     continue
 
                 # only add unique pairs
@@ -893,6 +896,7 @@ class Transition:
                                           osc_str[2],
                                           osc_str[3],
                                           osc_str[4])
+
 
         return
 
