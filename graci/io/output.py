@@ -342,7 +342,7 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
                              f2l[i], 
                              f0v[i], 
                              f2v[i],
-                             *f0xyz[:,i]))
+                             *f0xyz[i][:]))
 
     return
 

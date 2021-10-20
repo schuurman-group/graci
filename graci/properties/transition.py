@@ -4,6 +4,8 @@ for a given electronic state
 """
 import os as os
 import numpy as np
+import functools
+import operator
 import importlib
 from sympy import LeviCivita
 import graci.utils.timing as timing
@@ -31,23 +33,29 @@ class Transition:
 
         # global variables
         # method object for the bra states
-        self.bra_obj      = None
+        self.bra_obj        = None
         # method object for the ket states
-        self.ket_obj      = None
+        self.ket_obj        = None
         # the tdms
-        self.tdms         = None
+        self.tdms           = None
         # comprehensive list of all transition pairs
-        self.trans_list   = None
-        # list of initial states
-        self.ket_list     = None
-        # symmetries of initial states
-        self.ket_sym      = None
+        self.trans_list     = None
+        # list of transition pairs, grouped by irrep
+        # (format for bitci)
+        self.trans_list_sym = None
+        # convenient to just keep track of initial states
+        # for printing purposes
+        self.ket_list       = None
         # various orbital quantities (NDOs, NTOs, wts, etc.)
-        self.nos          = {} 
+        self.nos            = {} 
         # electric/magnetic multipole tensors -- all guages
-        self.multipole    = {}
+        self.multipole      = {}
         # oscillator strengths -- all gauges
-        self.oscstr       = {}
+        self.oscstr         = {}
+        # simple boolean that is true if bra and ket objects
+        # are identical. If this is true, default behavior is 
+        # to only consider unique bra/ket pairs
+        self.braket_iden    = False
        
     #-----------------------------------------------------------
 
@@ -102,18 +110,25 @@ class Transition:
            transitions from all states in method object should be 
            used."""
 
+        # first check to see if bra and ket are identical
+        if (type(self.bra_obj).__name__ == type(self.ket_obj).__name__ 
+            and self.bra_obj.label == self.ket_obj.label):
+            self.braket_iden = True
+
         mol_bra = self.bra_obj.scf.mol
         mol_ket = self.ket_obj.scf.mol
 
         scf_bra = self.bra_obj.scf
         scf_ket = self.ket_obj.scf
-        
-        # sanity check that orbitals and geometry are the same
-        if np.any(scf_bra.orbs != scf_ket.orbs):
-            sys.exit('transition moments require same bra/ket orbs')
 
-        if mol_bra.pymol().atom != mol_ket.pymol().atom:
-            sys.exit('transition moments require same geometry/basis')
+        if not self.braket_iden:
+            # sanity check that orbitals and geometry are the same
+            if np.any(scf_bra.orbs != scf_ket.orbs):
+                sys.exit('transition moments require same bra/ket orbs')
+
+            if mol_bra.pymol().atom != mol_ket.pymol().atom:
+                sys.exit('transition moments require same geometry'+
+                         ' and basis set')
 
         # initialize the bitsi library
         libs.init_bitsi(self)
@@ -149,7 +164,12 @@ class Transition:
     def tdm1(self, b_st, k_st):
         """return the tdm for the bra and ket state indicated"""
 
-        return self.tdms[:,:, b_st, k_st]
+        indx = self.trans_index(b_st, k_st)
+
+        if indx is not None:
+            return self.tdms[:, :, indx]
+        else:
+            return None
  
     #
     def transition_multipole(self, b_st, k_st, name, gauge='velocity'):
@@ -183,34 +203,47 @@ class Transition:
 
         # grab the tdms
         tdm_list = mrci_1tdm.tdm(self.bra_obj, self.ket_obj, 
-                                                     self.trans_list)
+                                          self.trans_list_sym)
 
         # make the tdm list
-        nbra = len(self.bra_list)
-        nket = len(self.ket_list)
-        nmo  = self.bra_obj.scf.nmo
+        nmo         = self.bra_obj.scf.nmo
+        npairs      = len(self.trans_list)
+        self.tdms   = np.zeros((nmo, nmo, npairs), dtype=float)
 
-        self.tdms = np.zeros((nmo, nmo, nbra, nket), dtype=float)
+   
+        for bk_st in self.trans_list:
+            [birr, bst_sym] = self.bra_obj.state_sym(bk_st[0])
+            [kirr, kst_sym] = self.ket_obj.state_sym(bk_st[1])
+            indx            = self.trans_index(bk_st[0], bk_st[1])
+            sym_indx        = self.trans_sym_index( birr, kirr, 
+                                                bst_sym, kst_sym)
 
-        for ik in range(nket):
-            [kirr,kst] = self.ket_obj.state_sym(self.ket_list[ik])
-            for ib in range(nbra):
-                [birr,bst] = self.bra_obj.state_sym(self.bra_list[ib])
-                indx       = self.trans_index(birr,kirr,bst,kst)
-                self.tdms[:,:,ib,ik] = tdm_list[birr][kirr][:,:,indx]
+            self.tdms[:, :, indx] = tdm_list[birr][kirr][:, :, sym_indx]
 
         del(tdm_list)
         return
 
-    # 
-    def trans_index(self, b_irr, k_irr, b_st, k_st):
+    #
+    def trans_index(self, b_st, k_st):
         """return the index in the trans_list corresponding to
+           [b_st, k_st]"""
+
+        try:
+            indx = self.trans_list.index([b_st, k_st])
+        except:
+            indx = None
+
+        return indx
+
+    # 
+    def trans_sym_index(self, b_irr, k_irr, b_st, k_st):
+        """return the index in the trans_sym_list corresponding to
            b_st,k_st"""
 
         # return the transition dipole vector given the irreps and
         # state indices
         try:
-            ind = self.trans_list[b_irr][k_irr].index([b_st, k_st])
+            ind = self.trans_list_sym[b_irr][k_irr].index([b_st, k_st])
         except:
             return None
 
@@ -223,9 +256,10 @@ class Transition:
 
         # append a '_l' or '_v' to indicate length or velocity gauge
         keyname = name+'_'+str(gauge)[0]
+        indx = self.trans_index(b_st, k_st)
 
-        if keyname in self.multipole.keys():
-            return self.multipole[keyname][..., b_st, k_st]
+        if keyname in self.multipole.keys() and indx is not None:
+            return self.multipole[keyname][..., indx]
         else:
             return None 
 
@@ -240,9 +274,10 @@ class Transition:
             istr = 'iso'
 
         keyname = 'f'+str(order)+istr+'_'+str(gauge)[0]
+        indx = self.trans_index(b_st, k_st)
 
-        if keyname in self.oscstr.keys():
-            return self.oscstr[keyname][..., b_st, k_st]
+        if keyname in self.oscstr.keys() and indx is not None:
+            return self.oscstr[keyname][..., indx]
         else:
             return None
 
@@ -264,13 +299,13 @@ class Transition:
         ninit_total = self.ket_obj.n_state()
         if self.init_states is not None:
             # iterate through the initial states, adding roots
-            # to various irreps as nee
+            # to various irreps as needed
             for istate in self.init_states:
                 if istate < ninit_total:
                     state_list.append(istate)
         
         # use the istate array (format = irrep.state) to select
-        # individual states
+        # individual states - input is form irrep.state
         if self.init_states_sym is not None:
             for state in self.init_states_sym:
                 irrep   = int(state)
@@ -279,8 +314,9 @@ class Transition:
                 if istate is not None:
                     state_list.append(istate)
 
+        # take the union of the two approaches
         self.ket_list = sorted(list(set(state_list)))
-        self.ket_sym  = [self.ket_obj.state_sym(self.ket_list[i])[0] 
+        ket_sym  = [self.ket_obj.state_sym(self.ket_list[i])[0] 
                                     for i in range(len(self.ket_list))]
 
         if len(self.ket_list) == 0:
@@ -312,30 +348,40 @@ class Transition:
                 if fstate is not None:
                     state_list.append(fstate)
 
-        self.bra_list = sorted(list(set(state_list)))
-        self.bra_sym  = [self.bra_obj.state_sym(self.bra_list[i])[0]
-                                    for i in range(len(self.bra_list))]
+        # take the union of the two approaches
+        bra_list = sorted(list(set(state_list)))
+        bra_sym  = [self.bra_obj.state_sym(bra_list[i])[0]
+                               for i in range(len(bra_list))]
 
         # create the pair list -- we build the list this way 
         # in order to facilitate call to the tdm code in bitci
         # which computes tmds for pairs of states in particular
-        # irreps.
-
+        # irreps
         nirr_bra = self.bra_obj.n_irrep()
         nirr_ket = self.ket_obj.n_irrep()
 
-        self.trans_list = [[[] for irr_bra in range(nirr_bra)]
-                               for irr_ket in range(nirr_ket)]
+        self.trans_list_sym = [[[] for irr_bra in range(nirr_bra)]
+                                   for irr_ket in range(nirr_ket)]
 
-        for k_ind in range(len(self.ket_list)):
-            kst  = self.ket_obj.state_sym(self.ket_list[k_ind])[1]
-            ksym = self.ket_sym[k_ind]
+        # trans list is a list of pairs, with first dimension 
+        # equal to the number of initial states
+        self.trans_list     = []
 
-            for b_ind in range(len(self.bra_list)):
-                bst  = self.bra_obj.state_sym(self.bra_list[b_ind])[1]
-                bsym = self.bra_sym[b_ind]
+        for k_st in self.ket_list:
+            ksym = self.ket_obj.state_sym(k_st)
 
-                self.trans_list[bsym][ksym].append([bst, kst])
+            for b_st in bra_list:
+                bsym = self.bra_obj.state_sym(b_st)
+ 
+                # if this state pair combination has already
+                # been included, don't do it again
+                if self.braket_iden and k_st == b_st:
+                    continue
+
+                # only add unique pairs
+                self.trans_list_sym[bsym[0]][ksym[0]].append(
+                                           [bsym[1], ksym[1]])
+                self.trans_list.append([b_st, k_st])
 
         return
 
@@ -491,67 +537,69 @@ class Transition:
            the velocity gauge. I think this is actually standard,
            but need to confirm"""
 
-        nbra = len(self.bra_list)
-        nket = len(self.ket_list)
+        ntrans = len(self.trans_list)
 
-        f0_l   = np.zeros((3, nbra, nket), dtype=float)
-        f0_iso = np.zeros((nbra, nket), dtype=float)
-        f2_l   = np.zeros((3, nbra, nket), dtype=float)
-        f2_iso = np.zeros((nbra, nket), dtype=float)
-        
-        for ib in range(nbra):
-            for ik in range(nket):
+        f0_l   = np.zeros((3, ntrans), dtype=float)
+        f0_iso = np.zeros((ntrans), dtype=float)
+        f2_l   = np.zeros((3, ntrans), dtype=float)
+        f2_iso = np.zeros((ntrans), dtype=float)
 
-                # set up state and energy info
-                b_ener = self.bra_obj.energy(self.bra_list[ib])
-                k_ener = self.ket_obj.energy(self.ket_list[ik])
-                alpha  = constants.fine_str
-                de     = b_ener - k_ener
-                de2    = de**2
-                de3    = de**3
+        for tpair in self.trans_list:        
 
-                # electric tensors
-                mu     = self.multipole['e_dipole_l'][:, ib, ik]
-                Qab    = self.multipole['e_quadrupole_l'][:, :, ib, ik]
-                Oabc   = self.multipole['e_octupole_l'][:, :, :, ib, ik]
-                # magnetic tensors
-                mdp    = self.multipole['m_dipole_v'][:, ib, ik]
-                Mqp    = self.multipole['m_quadrupole_v'][:, :, ib, ik]
+            b_st    = tpair[0]
+            k_st    = tpair[1]
+            bk_indx = self.trans_index(b_st, k_st)
 
-                # dipole oscillator strength - length gauge
-                f0_l[:, ib, ik] = (2.*de)*mu**2
-                # isotropically averaged value
-                f0_iso[ib, ik]  = np.sum(f0_l[:, ib, ik])/3.
+            # set up state and energy info
+            b_ener = self.bra_obj.energy(b_st)
+            k_ener = self.ket_obj.energy(k_st)
+            alpha  = constants.fine_str
+            de     = b_ener - k_ener
+            de2    = de**2
+            de3    = de**3
 
-                # compute second-order contributions
-                # electric quadrupole contribution
-                fQ_iso  = np.sum(Qab**2) - (1./3.)*np.trace(Qab)**2
-                fQ_iso *= (de3 * alpha**2 / 20.)
+            # electric tensors
+            mu     = self.multipole['e_dipole_l'][:, bk_indx]
+            Qab    = self.multipole['e_quadrupole_l'][:, :, bk_indx]
+            Oabc   = self.multipole['e_octupole_l'][:, :, :, bk_indx]
+            # magnetic tensors
+            mdp    = self.multipole['m_dipole_v'][:, bk_indx]
+            Mqp    = self.multipole['m_quadrupole_v'][:, :, bk_indx]
 
-                # magnetic dipole term
-                fm_iso  = (2.*de/3.) * np.sum(mdp**2) 
+            # dipole oscillator strength - length gauge
+            f0_l[:, bk_indx] = (2.*de)*mu**2
+            # isotropically averaged value
+            f0_iso[bk_indx]  = np.sum(f0_l[:, bk_indx])/3.
 
-                # electric dipole - electric octupole term
-                fuO_iso = np.sum(np.array([[mu[b]*Oabc[a,a,b]
+            # compute second-order contributions
+            # electric quadrupole contribution
+            fQ_iso  = np.sum(Qab**2) - (1./3.)*np.trace(Qab)**2
+            fQ_iso *= (de3 * alpha**2 / 20.)
+
+            # magnetic dipole term
+            fm_iso  = (2.*de/3.) * np.sum(mdp**2) 
+
+            # electric dipole - electric octupole term
+            fuO_iso = np.sum(np.array([[mu[b]*Oabc[a,a,b]
                                    for a in range(3)]
                                    for b in range(3)]))
-                fuO_iso *= -2 * de3 * alpha**2 / 45.
+            fuO_iso *= -2 * de3 * alpha**2 / 45.
 
-                # electric dipole - magnetic quadrupole term
-                fuM_iso  = np.sum(np.array([[[
+            # electric dipole - magnetic quadrupole term
+            fuM_iso  = np.sum(np.array([[[
                                  LeviCivita(a,b,c)*mu[b]*Mqp[c,a]
-                                   for a in range(3)]
-                                   for b in range(3)]
-                                   for c in range(3)]))
-                fuM_iso *= de2 * alpha / 3.
+                               for a in range(3)]
+                               for b in range(3)]
+                               for c in range(3)]))
+            fuM_iso *= de2 * alpha / 3.
 
-                # polarization dependent Osc strengths to come
-                # later
-                f2_l[:, ib, ik] = np.zeros((3,), dtype=float)
-                # isotropically averaged value
-                f2_av = f0_iso[ib, ik] + \
-                        fQ_iso + fm_iso + fuO_iso + fuM_iso
-                f2_iso[ib, ik] = f2_av
+            # polarization dependent Osc strengths to come
+            # later
+            f2_l[:, bk_indx] = np.zeros((3,), dtype=float)
+            # isotropically averaged value
+            f2_av = f0_iso[bk_indx] + \
+                    fQ_iso + fm_iso + fuO_iso + fuM_iso
+            f2_iso[bk_indx] = f2_av
                     
         self.oscstr['f0_l']    = f0_l
         self.oscstr['f0iso_l'] = f0_iso
@@ -567,67 +615,69 @@ class Transition:
         """builds the oscillator strength in the velocity gauge
            see J. Chem. Phys. 143, 234103 (2015) for details."""
 
-        nbra = len(self.bra_list)
-        nket = len(self.ket_list)
+        ntrans = len(self.trans_list)
 
-        f0_v   = np.zeros((3, nbra, nket), dtype=float)
-        f0_iso = np.zeros((nbra, nket), dtype=float)
-        f2_v   = np.zeros((3, nbra, nket), dtype=float)
-        f2_iso = np.zeros((nbra, nket), dtype=float)
+        f0_v   = np.zeros((3, ntrans), dtype=float)
+        f0_iso = np.zeros((ntrans), dtype=float)
+        f2_v   = np.zeros((3, ntrans), dtype=float)
+        f2_iso = np.zeros((ntrans), dtype=float)
 
-        for ib in range(nbra):
-            for ik in range(nket):
+        for tpair in self.trans_list:
+    
+            b_st    = tpair[0]
+            k_st    = tpair[1]
+            bk_indx = self.trans_index(b_st, k_st)
+ 
+            # set up state and energy info
+            b_ener = self.bra_obj.energy(b_st)
+            k_ener = self.ket_obj.energy(k_st)
+            alpha  = constants.fine_str
+            de     = b_ener - k_ener
+            de2    = de**2
+            de3    = de**3
 
-                # set up state and energy info
-                b_ener = self.bra_obj.energy(self.bra_list[ib])
-                k_ener = self.ket_obj.energy(self.ket_list[ik])
-                alpha  = constants.fine_str
-                de     = b_ener - k_ener
-                de2    = de**2
-                de3    = de**3
+            # electric tensors
+            mu     = self.multipole['e_dipole_v'][:, bk_indx]
+            Qab    = self.multipole['e_quadrupole_v'][:, :, bk_indx]
+            Oabc   = self.multipole['e_octupole_v'][:, :, :, bk_indx]
+            # magnetic tensors
+            mdp    = self.multipole['m_dipole_v'][:, bk_indx]
+            Mqp    = self.multipole['m_quadrupole_v'][:, :, bk_indx]
 
-                # electric tensors
-                mu     = self.multipole['e_dipole_v'][:, ib, ik]
-                Qab    = self.multipole['e_quadrupole_v'][:, :, ib, ik]
-                Oabc   = self.multipole['e_octupole_v'][:, :, :, ib, ik]
-                # magnetic tensors
-                mdp    = self.multipole['m_dipole_v'][:, ib, ik]
-                Mqp    = self.multipole['m_quadrupole_v'][:, :, ib, ik]
+            # dipole oscillator strength - length gauge
+            f0_v[:, bk_indx] = (2./de)*mu**2
+            # isotropically averaged value
+            f0_iso[bk_indx]  = np.sum(f0_v[:, bk_indx])/3.
 
-                # dipole oscillator strength - length gauge
-                f0_v[:, ib, ik] = (2./de)*mu**2
-                # isotropically averaged value
-                f0_iso[ib, ik]  = np.sum(f0_v[:, ib, ik])/3.
+            # compute second-order contributions
+            # electric quadrupole contribution
+            fQ_iso  = np.sum(Qab**2) - (1./3.)*np.trace(Qab)**2
+            fQ_iso *= (de * alpha**2) / 20.
 
-                # compute second-order contributions
-                # electric quadrupole contribution
-                fQ_iso  = np.sum(Qab**2) - (1./3.)*np.trace(Qab)**2
-                fQ_iso *= (de * alpha**2) / 20.
+            # magnetic dipole term
+            fm_iso  = (de * alpha**2 / 6.) * np.sum(mdp**2)
 
-                # magnetic dipole term
-                fm_iso  = (de * alpha**2 / 6.) * np.sum(mdp**2)
+            # electric dipole - electric octupole term
+            fuO_iso = np.sum(np.array([[mu[b]*Oabc[a,a,b]
+                               for a in range(3)]
+                               for b in range(3)]))
+            fuO_iso *= -2 * de * alpha**2 / 45.
 
-                # electric dipole - electric octupole term
-                fuO_iso = np.sum(np.array([[mu[b]*Oabc[a,a,b]
-                                   for a in range(3)]
-                                   for b in range(3)]))
-                fuO_iso *= -2 * de * alpha**2 / 45.
+            # electric dipole - magnetic quadrupole term
+            fuM_iso  = np.sum(np.array([[[
+                             LeviCivita(a,b,c)*mu[b]*Mqp[c,a]
+                               for a in range(3)]
+                               for b in range(3)]
+                               for c in range(3)]))
+            fuM_iso *= de * alpha**2 / 9.
 
-                # electric dipole - magnetic quadrupole term
-                fuM_iso  = np.sum(np.array([[[
-                                 LeviCivita(a,b,c)*mu[b]*Mqp[c,a]
-                                   for a in range(3)]
-                                   for b in range(3)]
-                                   for c in range(3)]))
-                fuM_iso *= de * alpha**2 / 9.
-
-                # polarization dependent Osc strengths to come
-                # later
-                f2_v[:, ib, ik] = np.zeros(3, dtype=float)
-                # isotropically averaged value
-                f2_av = f0_iso[ib, ik] + \
-                        fQ_iso + fm_iso + fuO_iso + fuM_iso
-                f2_iso[ib, ik] = f2_av
+            # polarization dependent Osc strengths to come
+            # later
+            f2_v[:, bk_indx] = np.zeros(3, dtype=float)
+            # isotropically averaged value
+            f2_av = f0_iso[bk_indx] + \
+                    fQ_iso + fm_iso + fuO_iso + fuM_iso
+            f2_iso[bk_indx] = f2_av
 
         self.oscstr['f0_v']    = f0_v
         self.oscstr['f0iso_v'] = f0_iso
@@ -643,82 +693,87 @@ class Transition:
         """build the natural difference orbitals and natural transition
            orbitals"""
 
-        nbra = len(self.bra_list)
-        nket = len(self.ket_list)
-        nmo  = self.bra_obj.scf.nmo
-        nao  = self.bra_obj.scf.mol.nao
-        mos  = self.bra_obj.scf.orbs
+        ntrans = len(self.trans_list)
+        nmo    = self.bra_obj.scf.nmo
+        nao    = self.bra_obj.scf.mol.nao
+        mos    = self.bra_obj.scf.orbs
 
-        nto    = np.zeros((nao, nmo, nbra, nket), dtype=float)
-        ndo    = np.zeros((nao, nmo, nbra, nket), dtype=float)
-        nto_wt = np.zeros((nmo, nbra, nket), dtype=float)
-        ndo_wt = np.zeros((nmo, nbra, nket), dtype=float)
+        nto    = np.zeros((nao, nmo, ntrans), dtype=float)
+        ndo    = np.zeros((nao, nmo, ntrans), dtype=float)
+        nto_wt = np.zeros((nmo, ntrans), dtype=float)
+        ndo_wt = np.zeros((nmo, ntrans), dtype=float)
 
-        for ik in range(nket):
-            for ib in range(nbra):
+        for tpair in self.trans_list:
 
-                tdm = self.tdm1(ib, ik)
-                rdm_bra = self.bra_obj.rdm1(self.bra_list[ib])
-                rdm_ket = self.ket_obj.rdm1(self.ket_list[ik])
+            b_st    = tpair[0]
+            k_st    = tpair[1]
+            bk_indx = self.trans_index(b_st, k_st)
 
-                # first perform SVD of 1TDMs to get hole and
-                # particle orbitals and weights and convert
-                # orbitals to AO basis
-                part, s, hole = np.linalg.svd(tdm)
-                part_ao       = np.matmul(mos, part)
-                hole_ao       = np.matmul(mos, hole.T)
+            tdm = self.tdm1(b_st, k_st)
+            if tdm is None:
+                continue
 
-                # normalize singular values
-                s  = 0.5 * np.square(s)
+            rdm_bra = self.bra_obj.rdm1(b_st)
+            rdm_ket = self.ket_obj.rdm1(k_st)
 
-                # sort the NTO amplitudes by decreasing magnitude
-                ordr     = np.flip(np.argsort(s))
-                hole_srt = hole_ao[:,ordr]
-                part_srt = part_ao[:,ordr]
-                s_srt    = s[ordr] 
+            # first perform SVD of 1TDMs to get hole and
+            # particle orbitals and weights and convert
+            # orbitals to AO basis
+            part, s, hole = np.linalg.svd(tdm)
+            part_ao       = np.matmul(mos, part)
+            hole_ao       = np.matmul(mos, hole.T)
 
-                # find the number of particle/hole pairs with weight
-                # greater than 0.01 (this should be a parameter), 
-                # and only write these to file
-                npairs = sum(chk > 0.01 for chk in s_srt)
+            # normalize singular values
+            s  = 0.5 * np.square(s)
 
-                nto_pairs = np.zeros((nao, 2*npairs), dtype=float)
-                wt_pairs  = np.zeros((2*npairs), dtype=float)
+            # sort the NTO amplitudes by decreasing magnitude
+            ordr     = np.flip(np.argsort(s))
+            hole_srt = hole_ao[:,ordr]
+            part_srt = part_ao[:,ordr]
+            s_srt    = s[ordr] 
 
-                # save NTOs and weights (define hole wts as neg.)
-                nto_pairs[:,0::2] =  hole_srt[:,:npairs]
-                nto_pairs[:,1::2] =  part_srt[:,:npairs]
-                wt_pairs[0::2]    = -s_srt[:npairs] 
-                wt_pairs[1::2]    =  s_srt[:npairs]
+            # find the number of particle/hole pairs with weight
+            # greater than 0.01 (this should be a parameter), 
+            # and only write these to file
+            npairs = sum(chk > 0.01 for chk in s_srt)
 
-                nto[:, :2*npairs, ib, ik] = nto_pairs
-                nto_wt[:2*npairs, ib, ik] = wt_pairs
+            nto_pairs = np.zeros((nao, 2*npairs), dtype=float)
+            wt_pairs  = np.zeros((2*npairs), dtype=float)
 
-                # next construct the natural difference densities
-                delta      = rdm_bra - rdm_ket
-                wt, ndo_mo = np.linalg.eigh(delta)
+            # save NTOs and weights (define hole wts as neg.)
+            nto_pairs[:,0::2] =  hole_srt[:,:npairs]
+            nto_pairs[:,1::2] =  part_srt[:,:npairs]
+            wt_pairs[0::2]    = -s_srt[:npairs] 
+            wt_pairs[1::2]    =  s_srt[:npairs]
 
-                # transform ndo to AO basis
-                ndo_ao     = np.matmul(mos, ndo_mo)
+            nto[:, :2*npairs, bk_indx] = nto_pairs
+            nto_wt[:2*npairs, bk_indx] = wt_pairs
 
-                # sort NDO wts by increasing magnitude (hole 
-                # orbitals to start, then particle
-                ordr    = np.argsort(wt)
-                ndo_srt = ndo_ao[:,ordr]
-                wt_srt  = wt[ordr]         
- 
-                npairs  = sum(chk > 0.01 for chk in wt_srt)
+            # next construct the natural difference densities
+            delta      = rdm_bra - rdm_ket
+            wt, ndo_mo = np.linalg.eigh(delta)
 
-                ndo_pairs = np.zeros((nao, 2*npairs), dtype=float)
-                wt_pairs  = np.zeros((2*npairs), dtype=float)
+            # transform ndo to AO basis
+            ndo_ao     = np.matmul(mos, ndo_mo)
 
-                ndo_pairs[:,0::2] = ndo_srt[:,:npairs]
-                ndo_pairs[:,1::2] = ndo_srt[:,-1:-npairs-1:-1]
-                wt_pairs[0::2]    = wt_srt[:npairs]
-                wt_pairs[1::2]    = wt_srt[-1:-npairs-1:-1]
+            # sort NDO wts by increasing magnitude (hole 
+            # orbitals to start, then particle
+            ordr    = np.argsort(wt)
+            ndo_srt = ndo_ao[:,ordr]
+            wt_srt  = wt[ordr]         
 
-                ndo[:, :2*npairs, ib, ik] = ndo_pairs
-                ndo_wt[:2*npairs, ib, ik] = wt_pairs
+            npairs  = sum(chk > 0.01 for chk in wt_srt)
+
+            ndo_pairs = np.zeros((nao, 2*npairs), dtype=float)
+            wt_pairs  = np.zeros((2*npairs), dtype=float)
+
+            ndo_pairs[:,0::2] = ndo_srt[:,:npairs]
+            ndo_pairs[:,1::2] = ndo_srt[:,-1:-npairs-1:-1]
+            wt_pairs[0::2]    = wt_srt[:npairs]
+            wt_pairs[1::2]    = wt_srt[-1:-npairs-1:-1]
+
+            ndo[:, :2*npairs, bk_indx] = ndo_pairs
+            ndo_wt[:2*npairs, bk_indx] = wt_pairs
 
         self.nos['ndo']    = ndo
         self.nos['ndo_wt'] = ndo_wt
@@ -778,14 +833,13 @@ class Transition:
 
         # get the dimsensions of each rank 
         rank_dim = mo_ints.shape[:-2]
-        nbra     = len(self.bra_list)
-        nket     = len(self.ket_list)
-        tens     = np.zeros((rank_dim + (nbra, nket)), dtype=float)
+        ntrans   = len(self.trans_list)
+        tens     = np.zeros((rank_dim + (ntrans,)), dtype=float)
 
-        for ib in range(nbra):
-            for ik in range(nket):
-                tdm = self.tdms[:, :, ib, ik]
-                tens[..., ib, ik] = self.contract_tdm(mo_ints, tdm)
+        for tpair in self.trans_list:
+            indx = self.trans_index(tpair[0], tpair[1])
+            tdm = self.tdms[:, :, indx]
+            tens[..., indx] = self.contract_tdm(mo_ints, tdm)
 
         return tens
 
@@ -794,37 +848,51 @@ class Transition:
         """print summary output to log file"""
         # for each initial state, write out a table of 
         # oscillator strenghts and transition dipole moments
-
-        nbra = len(self.bra_list)
-        nket = len(self.ket_list)
-
-        k_irrlbl = self.ket_obj.scf.mol.irreplbl
-        b_irrlbl = self.bra_obj.scf.mol.irreplbl
+        bsym_lbl = self.bra_obj.scf.mol.irreplbl
+        ksym_lbl = self.bra_obj.scf.mol.irreplbl
 
         # print a 'transition table' for each initial state
-        for ik in range(nket):
-
+        for iket in self.ket_list:
+            
             # shift state indices from 0..n-1 to 1..n
-            init_st   = self.ket_list[ik]+1
-            init_sym  = k_irrlbl[self.ket_sym[ik]]
-            final_st  = [bra+1 for bra in self.bra_list]
-            final_sym = [b_irrlbl[self.bra_sym[ib]] 
-                         for ib in range(nbra)]
-            exc_ener  = [self.bra_obj.energy(self.bra_list[i]) - 
-                        self.ket_obj.energy(self.ket_list[ik]) 
-                         for i in range(nbra)]
+            init_st   = iket + 1
+            init_sym  = ksym_lbl[self.ket_obj.state_sym(iket)[0]]
+            final_st  = []
+            final_sym = []
+            exc_ener  = []
+            osc_str   = [[] for i in range(5)]     
 
+            for tpair in self.trans_list:
+          
+                b_st = tpair[0]
+                k_st = tpair[1]
+                indx = self.trans_index(b_st, k_st)
+
+                if k_st != iket:
+                    continue    
+
+                # shift state indices from 0..n-1 to 1..n
+                final_st.append(b_st+1)
+                final_sym.append(bsym_lbl[self.bra_obj.state_sym(b_st)[0]]) 
+                exc_ener.append(self.bra_obj.energy(b_st) - 
+                                self.ket_obj.energy(k_st)) 
+                osc_str[0].append(self.oscstr['f0iso_l'][indx])
+                osc_str[1].append(self.oscstr['f2iso_l'][indx])
+                osc_str[2].append(self.oscstr['f0iso_v'][indx])
+                osc_str[3].append(self.oscstr['f2iso_v'][indx])
+                osc_str[4].append(self.oscstr['f0_v'][:,indx])
+ 
             # print a 'transition table' for each initial state
             output.print_transition_table(init_st,
                                           init_sym,
                                           final_st,
                                           final_sym,
                                           exc_ener, 
-                                          self.oscstr['f0iso_l'][:,ik],
-                                          self.oscstr['f2iso_l'][:,ik],
-                                          self.oscstr['f0iso_v'][:,ik],
-                                          self.oscstr['f2iso_v'][:,ik],
-                                          self.oscstr['f0_v'][:,:,ik])
+                                          osc_str[0],
+                                          osc_str[1],
+                                          osc_str[2],
+                                          osc_str[3],
+                                          osc_str[4])
 
         return
 
@@ -834,13 +902,12 @@ class Transition:
            in the object"""
 
         orb_types = ['nto', 'ndo']
-        for bst in self.bra_list:
-            for kst in self.ket_list:
-                for otype in orb_types:
-                    self.export_orbitals_tran(bst, kst, 
-                                              orb_type=otype, 
-                                              file_format=orb_format, 
-                                              orb_dir=orb_dir)
+        for tpair in self.trans_list:
+            for otype in orb_types:
+                self.export_orbitals_tran(tpair[0], tpair[1], 
+                                          orb_type=otype, 
+                                          file_format=orb_format, 
+                                          orb_dir=orb_dir)
 
         return
 
@@ -851,8 +918,10 @@ class Transition:
            densities to file"""
         orb_types = ['nto', 'ndo']
         otype     = str(orb_type).lower()
+        indx      = self.trans_index(bra_ket)
 
-        if bra not in self.bra_list or ket not in self.ket_list:
+
+        if indx is None:
             print("bra="+str(bra)+" ket="+str(ket)+
                     " not in list of transitions")
             return False
@@ -861,14 +930,8 @@ class Transition:
             print("orbital format: "+orb_type+" not recognized.")
             return False
 
-        k_irrlbl = self.ket_obj.scf.mol.irreplbl
-        b_irrlbl = self.bra_obj.scf.mol.irreplbl
-
-        b_ind = self.bra_list.index(bra)
-        b_sym = b_irrlbl[self.bra_sym[b_ind]]
-
-        k_ind = self.ket_list.index(ket)
-        k_sym = k_irrlbl[self.ket_sym[k_ind]]
+        b_sym = self.bra_obj.state_sym(bra)[0]
+        k_sym = self.ket_obj.state_sym(ket)[0] 
 
         fname = otype.lower() + \
                   '.'+ str(ket+1)+'_' +str(k_sym.lower()) + \
@@ -884,7 +947,7 @@ class Transition:
         if os.path.isfile(fname):
             os.remove(fname)
 
-        wts = self.nos[otype+'_wt'][:, b_ind, k_ind]
+        wts = self.nos[otype+'_wt'][:, indx]
         ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
 
         # import the appropriate library for the file_format
@@ -897,7 +960,7 @@ class Transition:
 
         orbtype.write_orbitals(fname, 
                                self.bra_obj.scf.mol, 
-                               self.nos[otype][:,:ncols, b_ind, k_ind],
+                               self.nos[otype][:,:ncols, indx],
                                occ=wts[:ncols])
 
         return
