@@ -196,17 +196,20 @@ def check_input(run_list):
 
     for obj in run_list:
     
+        # the class name for this run object
+        obj_name = type(obj).__name__
+
         # Make sure that nstates is an array - in the case of C1
         # symmetry this will be a single integer, but it needs
         # to be a numpy array for use later on
-        if 'nstates' in params.kwords[type(obj).__name__].keys():
+        if 'nstates' in params.kwords[obj_name].keys():
             if isinstance(obj.nstates, int):
                 obj.nstates = np.array([obj.nstates], dtype=int)
 
         # Make sure that all the RAS entries are numpy arrays.
         ras_key = ['ras1','ras2','ras3']
         for key in ras_key:
-            if key in params.kwords[type(obj).__name__].keys():
+            if key in params.kwords[obj_name].keys():
                 if isinstance(getattr(obj, key), int):
                     setattr(obj, key, 
                             np.array([getattr(obj, key)], dtype=int))
@@ -215,15 +218,30 @@ def check_input(run_list):
                             np.array(getattr(obj, key), dtype=int))
 
         # Make sure that the icvs entry is a numpy array
-        if 'icvs' in params.kwords[type(obj).__name__].keys():
+        if 'icvs' in params.kwords[obj_name].keys():
             if isinstance(obj.icvs, int):
                 obj.icvs = np.array([obj.icvs], dtype=int)
 
         # If RR-DF is enabled, make sure that the DF flag is
         # set to True
-        if 'use_rrdf' in params.kwords[type(obj).__name__].keys():
+        if 'use_rrdf' in params.kwords[obj_name].keys():
             if (obj.use_rrdf and not obj.use_df):
                 obj.use_df = True
+
+        # the basis set definition should actually be a dictionary
+        if 'basis' in params.kwords[obj_name].keys():
+            # construct basis dictionary
+            if isinstance(obj.basis, (list, np.ndarray)):
+                basis_str = obj.basis.copy()             
+                obj.basis = {basis_str[2*i] : basis_str[2*i+1] for 
+                                i in range(int(len(basis_str)/2.))}
+
+            # if basis just a single string, apply to all atoms
+            else:
+                # get the list of unique atoms
+                atms       = set(obj.asym)
+                basis_str = obj.basis
+                obj.basis = {atm : basis_str for atm in atms}
 
         # If RAS spaces have not been specified, then set autoras = True
         if hasattr(obj, 'autoras'):
