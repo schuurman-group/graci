@@ -20,6 +20,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   use conftype
   use holeconfs
   use confbuilder
+  use confinfo
   use timing
 
   implicit none
@@ -66,6 +67,10 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   ! MO mapping arrays
   integer(is)                :: m2c(nmo),c2m(nmo)
 
+  ! Active MO information
+  integer(is)                :: nactive
+  integer(is)                :: active(nmo)
+  
   ! Scratch file variables
   integer(is)                :: iscratch
   character(len=60)          :: vecfile
@@ -300,18 +305,31 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! Debugging: check for duplicate configurations
 !----------------------------------------------------------------------
   !call check_confs(ntotal,n_int_I,nmoI,cfgM)
+  
+!----------------------------------------------------------------------
+! Check on the number of 'active' MOs. That is, the number of variably
+! occupied MOs across all configurations
+!----------------------------------------------------------------------
+  ! Construct the full configuration derived type including the SOPs,
+  ! etc.
+  call cfgM%finalise
+  call cfgM%initialise(irrep,confscr(irrep))
+  
+  ! Determine the active MO indices
+  call get_active_mos(cfgM,nactive,active)
 
+  ! Deallocate the configuration derived type
+  call cfgM%finalise
+
+  ! Output the no. active MOs
+  write(6,'(/,x,a,x,i0)') 'Number of active MOs:',nactive
+  
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
   call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
        'generate_mrci_confs')
-  
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-  call cfgM%finalise
   
 !----------------------------------------------------------------------
 ! Flush stdout

@@ -334,7 +334,7 @@ class Transition:
             for b_ind in range(len(self.bra_list)):
                 bst  = self.bra_obj.state_sym(self.bra_list[b_ind])[1]
                 bsym = self.bra_sym[b_ind]
-
+                
                 self.trans_list[bsym][ksym].append([bst, kst])
 
         return

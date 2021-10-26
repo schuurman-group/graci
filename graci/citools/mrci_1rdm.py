@@ -53,5 +53,11 @@ def rdm(ci_method):
         dmat_all.append(np.reshape(dmat, (nmo, nmo, nstates),
                                    order='F'))
 
+        ## Temporary: save the 1-RDMs to disk
+        #for i in range(nstates):
+        #    f = 'xdm_'+str(irr)+str(i+1)+'_' \
+        #        +str(irr)+str(i+1)
+        #    np.save(f, dmat_all[irr][:,:,i])
+        
     return dmat_all
 

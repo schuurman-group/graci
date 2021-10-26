@@ -19,6 +19,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   use constants
   use bitglobal
   use conftype
+  use confinfo
   use hii
   use epstein_nesbet
   use pspace
@@ -76,6 +77,10 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   
   ! Surviving configuration flags
   integer(is), allocatable   :: i1I(:),i2I(:),i1E(:),i2E(:),i1I1E(:)
+
+  ! Active MO information
+  integer(is)                :: nactive
+  integer(is)                :: active(nmo)
   
   ! Everything else
   integer(is)                :: i,nvec
@@ -206,6 +211,13 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
        nconf(irrep)
 
 !----------------------------------------------------------------------
+! Determine and output the new no. active MOs
+!----------------------------------------------------------------------
+  call get_active_mos(cfg,nactive,active)
+
+  write(6,'(/,x,a,x,i0)') 'New number of active MOs:',nactive
+  
+!----------------------------------------------------------------------
 ! Output the ENPT2 2nd-order corrected excitation energies
 !----------------------------------------------------------------------
   ! Q-space contributions to the ENPT2 energies
@@ -214,7 +226,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
      write(6,'(3x,a,x,i3,a,2x,F12.6)') &
           'State' ,i,':',E2Q(indx(i))
   enddo
-
+  
 !----------------------------------------------------------------------
 ! Write the Q-space contributions to the ENPT2 energies to disk
 !----------------------------------------------------------------------

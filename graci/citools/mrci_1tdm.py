@@ -59,16 +59,27 @@ def tdm(bra, ket, trans_list):
             ket_conf = ket_wfn.conf_name[ket_irr]
             ket_vec  = ket_wfn.ci_name[ket_irr]
 
-            # Compute the 1-RDM for all states in this irrep
+            # Compute the 1-TDMs for all states in this irrep
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
                     tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
                     ket_vec)
             rhoij = libs.lib_func('transition_density_mrci', args)
 
-            # Add the 1-RDMs to the list
+            # Add the 1-TDMs to the list
             rho[bra_irr][ket_irr] = np.reshape(rhoij, 
                                           (nmo, nmo, npairs),
                                            order='F')
+            
+            ## Temporary: save the 1-TDMs to disk
+            #pairs = np.reshape(tdm_pairs, (npairs, 2), order='F')
+            #for n in range(npairs):
+            #    ibra = pairs[n][0]
+            #    iket = pairs[n][1]
+            #    if bra_irr == ket_irr and ibra == iket:
+            #        continue
+            #    f = 'xdm_'+str(bra_irr)+str(ibra)+'_' \
+            #        +str(ket_irr)+str(iket)
+            #    np.save(f, rho[bra_irr][ket_irr][:,:,n])
 
     return rho
 

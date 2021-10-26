@@ -112,7 +112,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   ! MO energies
   allocate(moen(nmo))
   moen=moen1
-
+  
 !----------------------------------------------------------------------
 ! Initialise the symmetry arrays
 !----------------------------------------------------------------------

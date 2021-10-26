@@ -82,7 +82,7 @@ module hparam
        0.355895d0, &  ! pF
        0.568168d0, &  ! p1
        1.788d0]       ! p2
-
+       
   ! delta E_sel = 0.8
   real(dp), parameter, dimension(4) :: lyskov_short= &
        [0.503506d0, & ! pJ
