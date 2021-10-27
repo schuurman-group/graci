@@ -39,6 +39,7 @@ class Scf:
         self.rdm_ao       = None
         self.moint_1e     = None
         self.moint_2e_eri = None
+        self.auxbasis     = None
  
 
 # Required functions #######################################################
@@ -70,9 +71,11 @@ class Scf:
         if self.xc == 'hf': 
             if self.mol.use_df:
                 if self.mol.spin == 0.:
-                    mf = scf.RHF(pymol).density_fit()
+                    mf = scf.RHF(pymol).density_fit( auxbasis = 
+                                                self.mol.ri_basis)
                 else:
-                    mf = scf.ROHF(pymol).density_fit()
+                    mf = scf.ROHF(pymol).density_fit( auxbasis = 
+                                                self.mol.ri_basis)
             else: 
                 if self.mol.spin == 0.:
                     mf = scf.RHF(pymol)
@@ -83,9 +86,11 @@ class Scf:
         else:
             if self.mol.use_df:
                 if self.mol.spin == 0.:
-                    mf = dft.RKS(pymol).density_fit()
+                    mf = dft.RKS(pymol).density_fit( auxbasis = 
+                                               self.mol.ri_basis)
                 else:
-                    mf = dft.ROKS(pymol).density_fit()
+                    mf = dft.ROKS(pymol).density_fit( auxbasis = 
+                                               self.mol.ri_basis)
             else:
                 if self.mol.spin == 0.:
                     mf = dft.RKS(pymol)
@@ -93,14 +98,27 @@ class Scf:
                     mf = dft.ROKS(pymol)
             # set the XC functional to BHLYP
             mf.xc = self.xc
-        
+
+ 
         # save integrals -- tie them to the mol object for
         # this file
         self.moint_1e     = '1e_'+str(self.mol.label).strip()+'.h5'
         self.moint_2e_eri = '2e_eri_'+str(self.mol.label).strip()+'.h5'
 
         if self.mol.use_df:
-            mf.with_df.auxbasis       = self.mol.ri_basis
+            # tell user what RI basis if ri_basis is not set
+            self.auxbasis = self.mol.ri_basis
+            if self.auxbasis is None:
+                bname = {atm : 
+                        gto.basis._format_basis_name(self.mol.basis[atm]) 
+                                        for atm in self.mol.basis.keys()}
+                self.auxbasis = dict()
+                for atm in bname.keys():
+                    if bname[atm] in df.addons.DEFAULT_AUXBASIS.keys():
+                        self.auxbasis[atm] = df.addons.DEFAULT_AUXBASIS[bname[atm]][0]
+                    else:
+                        self.auxbasis[atm] = 'even-tempered'
+
             # this will be generated during the calculation,
             # saved upon completion
             mf.with_df._cderi_to_save = self.moint_2e_eri
@@ -127,10 +145,12 @@ class Scf:
 
         # Do the AO -> MO transformation
         if self.mol.use_df:
+            # save the auxbasis value: either user requested or the
+            # PySCF default
             ij_trans = np.concatenate(([mf.mo_coeff], [mf.mo_coeff]))
             df.outcore.general(pymol, ij_trans, 
                     self.moint_2e_eri, 
-                    self.mol.ri_basis, dataname='eri_mo')
+                    auxbasis=self.mol.ri_basis, dataname='eri_mo')
         else:
             eri_ao = pymol.intor('int2e_sph', aosym='s8')
             eri_mo = ao2mo.incore.full(eri_ao, mf.mo_coeff)

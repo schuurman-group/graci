@@ -32,7 +32,7 @@ class Molecule:
         self.charge   = 0.
         self.use_sym  = False
         self.basis    = dict() 
-        self.ri_basis = ''
+        self.ri_basis = None 
         self.ao_cart  = False
         self.use_df   = False
         self.use_rrdf = False

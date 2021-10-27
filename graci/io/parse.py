@@ -243,6 +243,24 @@ def check_input(run_list):
                 basis_str = obj.basis
                 obj.basis = {atm : basis_str for atm in atms}
 
+        # the basis set definition should actually be a dictionary
+        if 'ri_basis' in params.kwords[obj_name].keys():
+            # construct basis dictionary, but unlike obj.basis, 
+            # ri_basis is allowed to be None
+            if obj.ri_basis is not None:
+                
+                if isinstance(obj.ri_basis, (list, np.ndarray)):
+                    basis_str = obj.ri_basis.copy()
+                    obj.ri_basis = {basis_str[2*i] : basis_str[2*i+1] 
+                             for i in range(int(len(basis_str)/2.))}
+
+                # if basis just a single string, apply to all atoms
+                else:
+                    # get the list of unique atoms
+                    atms       = set(obj.asym)
+                    basis_str = obj.ri_basis
+                    obj.ri_basis = {atm : basis_str for atm in atms}
+
         # If RAS spaces have not been specified, then set autoras = True
         if hasattr(obj, 'autoras'):
             obj.autoras = True
