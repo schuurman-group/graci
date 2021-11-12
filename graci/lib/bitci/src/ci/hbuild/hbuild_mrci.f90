@@ -364,7 +364,7 @@ contains
     
     ! Everything else
     integer(is)             :: indx,k,k1
-    real(dp)                :: spincp,halfspincp,product
+    real(dp)                :: scp,halfscp,product
 
 !----------------------------------------------------------------------
 ! Initialisation
@@ -377,13 +377,13 @@ contains
     indx=kpattern(nsocc+1)
     select case(icase)
     case(i1a)
-       spincp=spincp1(komega,bomega,indx)
+       scp=spincp1(komega,bomega,indx)
     case(i1b)
-       spincp=-spincp1(komega,bomega,indx)
+       scp=-spincp1(komega,bomega,indx)
     case(i2a)
-       spincp=spincp2(komega,bomega,indx)
+       scp=spincp2(komega,bomega,indx)
     case(i2b)
-       spincp=spincp2(bomega,komega,indx)
+       scp=spincp2(bomega,komega,indx)
     case default
        errmsg='Unrecognised icase value in hij_single_mrci'
        call error_control
@@ -393,7 +393,7 @@ contains
 ! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>, k singly-
 ! occupied in the ket
 !----------------------------------------------------------------------
-    halfspincp=0.5d0*spincp
+    halfscp=0.5d0*scp
     
     ! Loop over singly-occupied MOs
     do k=1,nsocc
@@ -412,7 +412,7 @@ contains
             pairindx,bnopen,knopen)
 
        ! Sum the contribution
-       hij=hij+Vpqrs(k)*(product-halfspincp)
+       hij=hij+Vpqrs(k)*(product-halfscp)
        
     enddo
 
@@ -420,12 +420,12 @@ contains
 ! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
 ! x <w' omega'|E_a^i|w omega>
 !----------------------------------------------------------------------
-    hij=hij+Vpqrs(nsocc+1)*spincp
+    hij=hij+Vpqrs(nsocc+1)*scp
     
 !----------------------------------------------------------------------
 ! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
 !----------------------------------------------------------------------
-    hij=hij+Vpqrs(nsocc+2)*spincp
+    hij=hij+Vpqrs(nsocc+2)*scp
     
     return
     
@@ -485,7 +485,7 @@ contains
     ! Everything else
     integer(is)             :: bomega,komega,bcsf,kcsf
     integer(is)             :: indx,k,k1,counter
-    real(dp)                :: spincp,halfspincp,product
+    real(dp)                :: scp,halfscp,product
 
     ! Initialise the harr counter
     counter=0
@@ -511,13 +511,13 @@ contains
           indx=kpattern(nsocc+1)
           select case(icase)
           case(i1a)
-             spincp=spincp1(komega,bomega,indx)
+             scp=spincp1(komega,bomega,indx)
           case(i1b)
-             spincp=-spincp1(komega,bomega,indx)
+             scp=-spincp1(komega,bomega,indx)
           case(i2a)
-             spincp=spincp2(komega,bomega,indx)
+             scp=spincp2(komega,bomega,indx)
           case(i2b)
-             spincp=spincp2(bomega,komega,indx)
+             scp=spincp2(bomega,komega,indx)
           case default
              errmsg='Unrecognised icase value in hij_single_mrci'
              call error_control
@@ -527,7 +527,7 @@ contains
           ! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>,
           ! k singly-occupied in the ket
           !          
-          halfspincp=0.5d0*spincp
+          halfscp=0.5d0*scp
           
           ! Loop over singly-occupied MOs
           do k=1,nsocc
@@ -546,7 +546,7 @@ contains
                   kpattern(k),pairindx,bnopen,knopen)
              
              ! Sum the contribution
-             harr(counter)=harr(counter)+Vpqrs(k)*(product-halfspincp)
+             harr(counter)=harr(counter)+Vpqrs(k)*(product-halfscp)
        
           enddo
 
@@ -554,12 +554,12 @@ contains
           ! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
           ! x <w' omega'|E_a^i|w omega>
           !
-          harr(counter)=harr(counter)+Vpqrs(nsocc+1)*spincp
+          harr(counter)=harr(counter)+Vpqrs(nsocc+1)*scp
           
           !
           ! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
           !
-          harr(counter)=harr(counter)+Vpqrs(nsocc+2)*spincp
+          harr(counter)=harr(counter)+Vpqrs(nsocc+2)*scp
           
        enddo
 

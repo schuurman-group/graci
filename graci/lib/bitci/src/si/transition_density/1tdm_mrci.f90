@@ -8,7 +8,7 @@ module tdm
   implicit none
 
   ! Spin-coupling coefficients
-  real(dp), allocatable, private :: spincp(:,:)
+  real(dp), allocatable, private :: scp(:,:)
   
 contains
 
@@ -64,8 +64,8 @@ contains
     rhoij=0.0d0
 
     arrdim=maxval(ncsfs(0:nomax))
-    allocate(spincp(arrdim,arrdim))
-    spincp=0.0d0
+    allocate(scp(arrdim,arrdim))
+    scp=0.0d0
     
 !----------------------------------------------------------------------
 ! (1) Ref - Ref contributions to the 1-TDMs
@@ -106,7 +106,7 @@ contains
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-    deallocate(spincp)
+    deallocate(scp)
 
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -216,7 +216,7 @@ contains
                plist(1:nexci),nexci)
 
           ! Get the spin-coupling coefficients
-          spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+          scp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
                plist(1),hlist(1),knopen,nbefore)
 
           ! Idices of the 1-TDM elements
@@ -243,7 +243,7 @@ contains
                    kcoe=vecK(ikcsf,Kindx)
 
                    ! Contribution to the 1-TDM
-                   prod=kcoe*bcoe*spincp(komega,bomega)
+                   prod=kcoe*bcoe*scp(komega,bomega)
                    rhoij(a,i,ipair)=rhoij(a,i,ipair)+prod
                    
                 enddo
@@ -1905,7 +1905,7 @@ contains
        call get_exci_indices(kconf,bconf,n_int,hlist(1),plist(1),1)
 
        ! Get the spin-coupling coefficients
-       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),&
+       scp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),&
             hlist(1),knopen,knbefore)
 
        ! Idices of the 1-RDM elements
@@ -1932,7 +1932,7 @@ contains
                 kcoe=vecK(ikcsf,Kindx)
 
                 ! Contribution to the 1-TDM
-                prod=kcoe*bcoe*spincp(komega,bomega)
+                prod=kcoe*bcoe*scp(komega,bomega)
                 if (transpose) then
                    rhoij(i,a,ipair)=rhoij(i,a,ipair)+prod
                 else

@@ -25,7 +25,7 @@ contains
   subroutine generate_coupling_coefficients(imult,nocase1,nocase2,&
        maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
        npattern2,maxpattern,patternmap1,patternmap2,nspincp,&
-       spincp1,spincp2,N1s,verbose)
+       spincp1,spincp2,N1s,verbose,spincp)
 
     use constants
     use timing
@@ -67,6 +67,10 @@ contains
 
     ! Case 1 and Case 2 spin coupling coefficients
     real(dp), allocatable    :: spincp1(:,:,:),spincp2(:,:,:)
+
+    ! All spin coupling coefficients
+    integer(is)              :: spincpdim(3)
+    real(dp), allocatable    :: spincp(:)
     
     ! Bit strings comprised of N 1's
     integer(ib), allocatable :: N1s(:)
@@ -109,14 +113,16 @@ contains
 !----------------------------------------------------------------------
 ! Allocate the spin coupling coefficient arrays
 !----------------------------------------------------------------------
-    call init_spincp_arrays(imult,nocase1,nocase2,ncsfs,npattern1,&
-         npattern2,spincp1,spincp2,nsp1,nsp2,verbose)
+    call init_spincp_arrays(imult,nocase1,nocase2,ncsfs,nspincp,&
+         npattern1,npattern2,spincp1,spincp2,nsp1,nsp2,verbose,&
+         spincp,spincpdim)
     
 !----------------------------------------------------------------------
 ! Compute the Case 1 spin coupling coefficients
 !----------------------------------------------------------------------
     call case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-         csfcoe,detvec,maxpattern,patternmap1,nsp1,npattern1,spincp1)
+         csfcoe,detvec,maxpattern,patternmap1,nsp1,npattern1,spincp1,&
+         spincpdim,spincp)
     
 !----------------------------------------------------------------------
 ! Compute the Case 2 spin coupling coefficients
@@ -271,8 +277,9 @@ contains
 ! init_spincp_arrays: Allocation and initialisation of the various
 !                     spin coupling coefficient arrays
 !######################################################################
-  subroutine init_spincp_arrays(imult,nocase1,nocase2,ncsfs,npattern1,&
-       npattern2,spincp1,spincp2,nsp1,nsp2,verbose)
+  subroutine init_spincp_arrays(imult,nocase1,nocase2,ncsfs,nspincp,&
+       npattern1,npattern2,spincp1,spincp2,nsp1,nsp2,verbose,&
+       spincp,spincpdim)
 
     use constants
         
@@ -280,25 +287,17 @@ contains
 
     integer(is), intent(in)  :: imult,nocase1,nocase2
     integer(is), intent(in)  :: ncsfs(0:nocase2)
+    integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(out) :: npattern1,npattern2
     integer(is), intent(out) :: nsp1,nsp2
+    integer(is)              :: spincpdim(3)
     real(dp), allocatable    :: spincp1(:,:,:),spincp2(:,:,:)
+    real(dp), allocatable    :: spincp(:)
     logical, intent(in)      :: verbose
     
     integer(is)              :: nopen
     real(dp)                 :: mem
     
-!**********************************************************************
-! Note that we are being wasteful here with the dimensions of the spin
-! coupling coefficient arrays. However, e.g., for a triplet and up to
-! 12 open shells, the memory requirement is increased from 21 MB to
-! 123 MB, which is still low for modern computers. The reason for
-! doing this is that storing the spin-coupling coefficients in
-! 3-dimensional arrays cuts down on the number of floating point
-! operations required to retrieve them, albeit at the cost of not
-! always running through memory addresses in a contiguous manner.
-!**********************************************************************
-
 !----------------------------------------------------------------------
 ! Compute the number of unique Case 1 and 2 patterns
 !----------------------------------------------------------------------
@@ -334,6 +333,19 @@ contains
     enddo
 
 !----------------------------------------------------------------------
+! Numbers of spin coupling coefficients
+!----------------------------------------------------------------------
+    ! Case 1 coefficients: (i) 1a i>j, (ii) 1a i<j, (iii) 1b i>j,
+    !                     (iv) 1b i<j
+    spincpdim(1)=4*nspincp(1)
+
+    ! Case 2 coefficients: (i) 2a, (ii) 2b
+    spincpdim(2)=2*nspincp(2)
+
+    ! Total number of coefficients
+    spincpdim(3)=sum(spincpdim(1:2))
+    
+!----------------------------------------------------------------------
 ! Spin coupling coefficient arrays
 !----------------------------------------------------------------------    
     ! Maximum no. CSFs
@@ -352,14 +364,19 @@ contains
     ! Case 2 spin coupling coefficients
     allocate(spincp2(nsp2,nsp2,npattern2))
     spincp2=0.0d0
+
+    ! All spin coupling coefficients
+    allocate(spincp(spincpdim(3)))
+    spincp=0.0d0
     
 !----------------------------------------------------------------------
 ! Output the memory used
 !----------------------------------------------------------------------
-    mem=(2*(npattern1*nsp1**2)+npattern2*nsp2**2)*8/1024.0d0**2
-    
-    if (verbose) write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',mem,'MB'
-    
+    mem=spincpdim(3)*8/1024.0d0**2
+
+    if (verbose) write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',&
+         mem,'MB'
+
     return
     
   end subroutine init_spincp_arrays
@@ -371,7 +388,8 @@ contains
 !               numbers of open shells
 !######################################################################
   subroutine case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-       csfcoe,detvec,maxpattern,patternmap1,nsp1,npattern1,spincp1)
+       csfcoe,detvec,maxpattern,patternmap1,nsp1,npattern1,spincp1,&
+       spincpdim,spincp)
 
     use constants
     use bitutils
@@ -386,8 +404,11 @@ contains
     integer(is), allocatable :: patternmap1(:)
     integer(is), intent(in)  :: nsp1,npattern1
     real(dp), intent(out)    :: spincp1(nsp1,nsp1,npattern1*2)
+    integer(is), intent(in)  :: spincpdim(3)
+    real(dp), intent(out)    :: spincp(spincpdim(3))
     
     integer(is)              :: nopen,is1,is2,icsf1,icsf2,indx,nsp
+    integer(is)              :: istart
     integer(ib), allocatable :: ws(:,:)
     integer(ib)              :: pattern
     real(dp)                 :: coeff
@@ -429,6 +450,10 @@ contains
 !----------------------------------------------------------------------
 ! Compute the Case 1 spin coupling coefficients
 !----------------------------------------------------------------------
+
+    print*,'HERE'
+    stop
+    
     ! Initialise the array index counter
     indx=0
     

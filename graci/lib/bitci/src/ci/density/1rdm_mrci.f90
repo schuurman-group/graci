@@ -8,7 +8,7 @@ module rdm
   implicit none
 
   ! Spin-coupling coefficients
-  real(dp), allocatable, private :: spincp(:,:)
+  real(dp), allocatable, private :: scp(:,:)
   
 contains
 
@@ -62,8 +62,8 @@ contains
     rho=0.0d0
 
     arrdim=maxval(ncsfs(0:nomax))
-    allocate(spincp(arrdim,arrdim))
-    spincp=0.0d0
+    allocate(scp(arrdim,arrdim))
+    scp=0.0d0
 
 !----------------------------------------------------------------------
 ! (1) On-diagonal elements
@@ -103,7 +103,7 @@ contains
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-    deallocate(spincp)
+    deallocate(scp)
     
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -563,7 +563,7 @@ contains
                plist(1:nexci),nexci)
 
           ! Get the spin-coupling coefficients
-          spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
+          scp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop_full,&
                plist(1),hlist(1),knopen,nbefore)
 
           ! Idices of the 1-RDM elements
@@ -586,7 +586,7 @@ contains
                    kcoe=vec(ikcsf,ista)
 
                    ! Contribution to the 1-RDM
-                   prod=kcoe*bcoe*spincp(komega,bomega)
+                   prod=kcoe*bcoe*scp(komega,bomega)
                    rho(i,a,ista)=rho(i,a,ista)+prod
                    rho(a,i,ista)=rho(a,i,ista)+prod
                    
@@ -1627,7 +1627,7 @@ contains
        call get_exci_indices(kconf,bconf,n_int,hlist(1),plist(1),1)
 
        ! Get the spin-coupling coefficients
-       spincp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),&
+       scp(1:knsp,1:bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),&
             hlist(1),knopen,knbefore)
 
        ! Idices of the 1-RDM elements
@@ -1653,7 +1653,7 @@ contains
                 if (same_class .and. ibcsf < ikcsf) cycle
                 
                 ! Contribution to the 1-RDM
-                prod=kcoe*bcoe*spincp(komega,bomega)
+                prod=kcoe*bcoe*scp(komega,bomega)
                 rho(i,a,ista)=rho(i,a,ista)+prod
                 rho(a,i,ista)=rho(a,i,ista)+prod
                 
