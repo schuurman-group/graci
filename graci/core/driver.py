@@ -42,9 +42,7 @@ class Driver:
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
             mol_obj.run()
-            if os.path.exists(output.file_names['chkpt_file']):
-                os.remove(output.file_names['chkpt_file'])
-            chkpt.write(output.file_names['chkpt_file'], mol_obj)
+            chkpt.write(mol_obj)
 
         # print output file header
         output.print_header(calc_array)
@@ -55,31 +53,53 @@ class Driver:
         # match scf objects to molecule objects
         for scf_obj in scf_objs:
 
-            for mol_obj in mol_objs:
-                # if labels match -- set the geometry
-                # to the molecule object
-                if scf_obj.label == mol_obj.label:
+            # if restarting, load KS orbitals from chkpt, but
+            # still do AO -> MO transformation (via call to
+            # scf_obj.load())
+            if scf_obj.restart:
+                # this should be changed: we should only set
+                # scf_obj to the object read from the chkpt file
+                # after we've confirmed they're the same..
+                scf_obj = chkpt.read('Scf.' + scf_obj.label, 
+                                     build_subobj = True,
+                                     make_mol = True)
+
+                if scf_obj is None:
+                    sys.exit('Cannot restart Scf, section = Scf.' + 
+                              str(scf_obj.label) + 
+                             ' not found in chkpt file = ' + 
+                              str(output.file_names['chkpt_file']))
+
+                # evidence that this is imperfect:
+                scf_obj.restart = True
+                # call load to ensure AO -> MO transformation is run
+                # and that orbitals are printed, etc.
+                scf_obj.load()
+
+            # else assign molecule object and call run() routine
+            else:
+                for mol_obj in mol_objs:
+                    # if labels match -- set the geometry
+                    # to the molecule object
+                    if scf_obj.label == mol_obj.label:
+                        scf_obj.set_mol(mol_obj)
+                        break
+
+                # if we didn't match labels, but there is a single
+                # molecule object, 
+                if scf_obj.mol_exists() is False and len(mol_objs)==1:
                     scf_obj.set_mol(mol_obj)
-                    break
 
-            # if we didn't match labels, but there is a single
-            # molecule object, 
-            if scf_obj.mol_exists() is False and len(mol_objs)==1:
-                scf_obj.set_mol(mol_obj)
-
-            # if we have a label problem, then we should exit
-            # with an error
-            if scf_obj.mol_exists() is False:
-                output.print_message('scf section, label='+
-                        str(scf_obj.label)+
-                        ' has no molecule section. Please check input')
-                sys.exit(1)
+                # if we have a label problem, then we should exit
+                # with an error
+                if scf_obj.mol_exists() is False:
+                    output.print_message('scf section, label='+
+                            str(scf_obj.label)+
+                            ' has no molecule section. Please check input')
+                    sys.exit(1)
         
-            scf_obj.run()
-            chkpt.write(output.file_names['chkpt_file'], scf_obj)
-
-            #TESTING
-            #scf_test = chkpt.read(output.file_names['chkpt_file'], scf_obj, build_objs=True)
+                scf_obj.run()
+                chkpt.write(scf_obj)
 
             # initialize the MO integrals following the SCF run, but
             # finalise previous integrals if they exist
@@ -114,7 +134,7 @@ class Driver:
                     sys.exit(1)
 
                 postscf.run()
-                chkpt.write(output.file_names['chkpt_file'], postscf)
+                chkpt.write(postscf)
 
         # State interaction Sections 
         # ----------------------------------------------------
@@ -147,7 +167,7 @@ class Driver:
                 sys.exit(1)
 
             si_obj.run()
-            chkpt.write(output.file_names['chkpt_file'], si_obj)
+            chkpt.write(si_obj)
 
         return
 

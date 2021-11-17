@@ -99,15 +99,31 @@ def print_header(run_list):
     return
 
 #
-def print_scf_header():
+def print_scf_header(scf):
     """print the SCF header"""
     global file_names
 
-    with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write(' SCF Computation with PySCF\n')
-        outfile.write(' -----------------------------\n\n')
-        outfile.flush()
+    LLEN = 76
 
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'SCF Computation with PySCF, label = '+str(scf.label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')                                   
+        outfile.write(  '\n '+str('*'*LLEN))
+
+        if scf.restart:
+            outfile.write('\n\n **** RESTART ACTIVATED ****\n\n')
+            outfile.write(' Extracting SCF result from checkpoint file:'
+                          + str(file_names['chkpt_file'])+'\n\n')
+
+        outfile.flush()
+      
     return
 
 #
@@ -146,15 +162,19 @@ def print_scf_summary(scf):
 def print_dftmrci_header(label):
     global file_names
 
+    LLEN = 76
+
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n\n **************************************'+
-                           '**************************************')
-        outfile.write('\n\n DFT/MRCI computation\n')
-        outfile.write('\n')
-        outfile.write(' Section label: '+str(label))
-        outfile.write('\n')
-        outfile.write('\n **************************************'+
-                         '**************************************')
+        title = 'DFT/MRCI computation, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')                                   
+        outfile.write(  '\n '+str('*'*LLEN))
         outfile.flush()
 
     return
@@ -163,15 +183,19 @@ def print_dftmrci_header(label):
 def print_dftmrenpt2_header(label):
     global file_names
 
+    LLEN = 76
+
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n\n **************************************'+
-                           '**************************************')
-        outfile.write('\n\n DFT/MR-ENPT2 computation\n')
-        outfile.write('\n')
-        outfile.write(' Section label: '+str(label))
-        outfile.write('\n')
-        outfile.write('\n **************************************'+
-                         '**************************************')
+        title = 'DFT/MR-ENPT2 computation, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN))
         outfile.flush()
 
     return

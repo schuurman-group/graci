@@ -6,6 +6,7 @@ import sys as sys
 import h5py as h5py
 import numpy as np
 import struct as struct
+import json as json
 
 import graci.core.params as params
 import graci.core.molecule as molecule
@@ -17,18 +18,27 @@ import graci.methods.dftcis as dftcis
 import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit
 import graci.utils.timing as timing
+import graci.io.output as output
 
 #
-def contents(file_name, grp_name=None):
+def contents(file_name=None, grp_name=None):
     """return the group names present in the checkpoint file"""
 
+    f_name = file_name
+    if f_name is None:
+        f_name = output.file_names['chkpt_file']
+
     try:
-        chkpt = h5py.File(file_name, 'r', libver='latest')
+        chkpt = h5py.File(f_name, 'r', libver='latest')
     except:
         return None
 
+    # if grp_name stub (i.e. class type) is not given,
+    # return all top-level class objects in checkpoint file
     if grp_name is None:
         grp_lst = list(chkpt.keys())
+    # else, only return objects associated with a specific
+    # object
     elif grp_name in list(chkpt.keys()):
         grp_lst = list(chkpt[grp_name].keys())
     else:
@@ -39,7 +49,7 @@ def contents(file_name, grp_name=None):
     return grp_lst
 
 #
-def write(file_name, graci_obj):
+def write(graci_obj, file_name=None):
     """write the graci_obj to the checkpoint file"""
 
     # get the data sets and attributes
@@ -51,9 +61,12 @@ def write(file_name, graci_obj):
     # the group name will by the class type + object label
     grp_name = str(type(graci_obj).__name__)+'.'+str(graci_obj.label)
 
-    chkpt = h5py.File(file_name, 'a', libver='latest')
+    f_name = file_name
+    if f_name is None:
+        f_name = output.file_names['chkpt_file']
+    chkpt = h5py.File(f_name, 'a', libver='latest')
 
-    # create the group if doesn't already exist
+    # if grp doesn't exist, create it 
     if grp_name not in list(chkpt.keys()):
         obj_grp = chkpt.create_group(grp_name)
     else:
@@ -62,25 +75,18 @@ def write(file_name, graci_obj):
     # first write the datasets
     for name, dset in dsets.items():
 
-        # if the dataset already exists, resize if necessary
+        # if dataset exists, delete it
         if name in obj_grp.keys():
-            # get shape and resize
-            if obj_grp[name].shape != dset.shape:
-                try:
-                    obj_grp[name].resize(dset.shape)
-                    continue
-                except:
-                    del obj_grp[name]
+            del obj_grp[name]
 
-        # if we're here, need to create a new dataset
         try:
             obj_grp.create_dataset(name, data=dset, dtype=dset.dtype, 
-                                compression="gzip", compression_opts=9)
-            # if non-native HDf5 type, just convert to a string
+                            compression="gzip", compression_opts=9)
+        # if non-native HDf5 type, just convert to a string
         except TypeError:
             dset_str = str(dset)
             obj_grp.create_dataset(name, data=dset_str, 
-                                compression="gzip", compression_opts=9)
+                            compression="gzip", compression_opts=9)
 
     # next write the attributes
     for name, attr in attrs.items():
@@ -95,21 +101,25 @@ def write(file_name, graci_obj):
     return
 
 #
-def read(file_name, obj_name, build_subobj=True, make_mol=True,
-         file_handle=None):
+def read(obj_name, build_subobj=True, make_mol=True, 
+         file_name=None, file_handle=None):
     """return a GRaCI object, with name 'obj_name', after parsing 
        checkpoint file. If build_subobj is True, also build GRaCI 
        objects contained in 'obj_name'. If the file_handle is passed
        directly, use that instead of opening file. If make_mol is 
        'True', call run() routine in GRaCI mol object to regenerate
-       the pyscf mol object (which is not written to chkpt file"""
+       the pyscf mol object (which is not written to chkpt file)"""
 
     # if file doesn't exist, just return None
     if file_handle is not None:
         chkpt = file_handle
+    # else, try to open the checkpoint file
     else:
+        f_name = file_name
+        if f_name is None:
+            f_name = output.file_names['chkpt_file']
         try:
-            chkpt = h5py.File(file_name, 'r', libver='latest')
+            chkpt = h5py.File(f_name, 'r', libver='latest')
         except:
             return None
 
@@ -148,9 +158,10 @@ def read(file_name, obj_name, build_subobj=True, make_mol=True,
         # this file
         if 'GRACI_OBJ.' in str(attr) and build_subobj:
             subgrp_name = str(attr).replace('GRACI_OBJ.', '')
-            subobj = read(file_handle, subgrp_name, 
+            subobj = read(subgrp_name, 
                           build_subobj = build_subobj, 
                           make_mol = make_mol, 
+                          file_name = file_name,
                           file_handle = chkpt)
             setattr(Chkpt_obj, name, subobj)
             continue
@@ -159,9 +170,11 @@ def read(file_name, obj_name, build_subobj=True, make_mol=True,
         # from string
         if isinstance(getattr(Chkpt_obj, name), dict):
             try:
-                setattr(Chkpt_obj, name, ast.literal.eval(attr))
+                str_json = attr.replace("'","\"")
+                #setattr(Chkpt_obj, name, ast.literal.eval(attr))
+                setattr(Chkpt_obj, name, json.loads(str_json))
             except:
-                print("Chkpt error reading dictionary: "+str(name))
+                print("Chkpt error reading dictionary: "+str(name),flush=True)
             continue
 
         # if this is a string 'None', convert to NoneType. This 
@@ -170,6 +183,16 @@ def read(file_name, obj_name, build_subobj=True, make_mol=True,
             setattr(Chkpt_obj, name, None)
             continue
 
+        # explicitly doing logical as well for now, must be 
+        # a better way
+        if str(attr).lower() == 'false':
+            setattr(Chkpt_obj, name, False)
+            continue
+
+        if str(attr).lower() == 'true':
+            setattr(Chkpt_obj, name, True)
+            continue        
+
         setattr(Chkpt_obj, name, attr) 
 
     # don't close the file if it was called by handle -- if it's called
@@ -177,13 +200,14 @@ def read(file_name, obj_name, build_subobj=True, make_mol=True,
     if file_handle is None:
         chkpt.close()
 
+    # this is a bit of hack -- generate Molecule class if need be
     if make_mol and obj_class == 'Molecule':
         Chkpt_obj.run()
 
     return Chkpt_obj
 
 #
-def read_wfn(file_name, obj_name, wfn_indx, cutoff):
+def read_wfn(obj_name, wfn_indx, cutoff, file_name=None):
     """reads the wfn object from the obj_name group. Returns
        a numpy array with the determinant coefficients and a 
        numpy array with the orbital occupations"""
@@ -191,8 +215,11 @@ def read_wfn(file_name, obj_name, wfn_indx, cutoff):
     # using 64-bit integers to store det occupations
     STR_LEN = 64
 
+    f_name = file_name
+    if f_name is None:
+        f_name = output.file_names['chkpt_file']
     try:
-        chkpt = h5py.File(file_name, 'r', libver='latest')
+        chkpt = h5py.File(f_name, 'r', libver='latest')
     except:
         return None
 

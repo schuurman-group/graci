@@ -29,6 +29,7 @@ molecule_kword =     {'xyz_file' : str,
 
 # DFT section input keywords and data types
 scf_kword      = {'xc'             : str,
+                  'restart'        : bool,
                   'print_orbitals' : bool,
                   'verbose'        : int,
                   'label'          : str}
