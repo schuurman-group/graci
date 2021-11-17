@@ -56,7 +56,12 @@ module bitglobal
   real(dp), allocatable    :: spincp1(:,:,:)  ! Case 1 spin coupling coefficients
   real(dp), allocatable    :: spincp2(:,:,:)  ! Case 2 spin coupling coefficients
 
+  integer(is), allocatable :: patternmap(:)   ! Pattern value -> array index
+                                              ! mapping
+  integer(is)              :: offspincp(4)    ! Spincp array offsets for the
+                                              ! different coefficient cases
   real(dp), allocatable    :: spincp(:)       ! All spin coupling coefficients
+  
   
   !
   ! Buffered I/O

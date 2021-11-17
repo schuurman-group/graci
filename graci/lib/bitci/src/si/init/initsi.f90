@@ -206,7 +206,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1)
      call generate_coupling_coefficients(imultB,nocase1,nocase2,&
           maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
           npattern2,maxpattern,patternmap1,patternmap2,nspincp,&
-          spincp1,spincp2,N1s,verbose,spincp)
+          spincp1,spincp2,N1s,verbose,spincp,patternmap,offspincp)
   endif
      
   ! SOC calculation: non-equal bra and ket spin multiplicities, equal

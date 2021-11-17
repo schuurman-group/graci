@@ -263,6 +263,10 @@ contains
     ! Pattern indices
     integer(is)             :: bpattern(nmo+1),kpattern(nmo+1)
 
+    ! No. CSFs for the intermediate configuration in the case
+    ! of double excitations
+    integer(is)             :: insp(2)
+    
     ! Integrals
     real(dp)                :: Vpqrs(nmo)
     
@@ -289,6 +293,11 @@ contains
        call package_integrals_nexci2(bsop,ksop,&
             pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
             bpattern(1:2),kpattern(1:2),Vpqrs(1:2),m2c,nbefore)
+
+       !call package_integrals_nexci2_new(bsop,ksop,hlist(1:2),&
+       !     plist(1:2),bnopen,knopen,bpattern(1:2),kpattern(1:2),&
+       !     Vpqrs(1:2),m2c,nbefore,insp)
+       
     end select
 
 !----------------------------------------------------------------------
@@ -304,6 +313,11 @@ contains
        call hij_double_mrci_batch(bnopen,knopen,pairindx(1:2),&
             bpattern(1:2),kpattern(1:2),Vpqrs(1:2),plist(1:2),&
             hlist(1:2),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
+
+       !call hij_double_mrci_batch_new(bnopen,knopen,bpattern(1:2),&
+       !     kpattern(1:2),Vpqrs(1:2),plist(1:2),hlist(1:2),harr,&
+       !     harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
+       
     end select
     
 !----------------------------------------------------------------------
@@ -751,6 +765,141 @@ contains
     return
     
   end subroutine hij_double_mrci_batch
+
+!######################################################################
+! hij_double_mrci_batch: Computes a batch of off-diagonal Hamiltonian
+!                        matrix element for a pair of configurations
+!                        differing by two pairs of spatial orbital
+!                        occupations.
+!######################################################################
+  subroutine hij_double_mrci_batch_new(bnopen,knopen,bpattern,&
+       kpattern,Vpqrs,plist,hlist,harr,harrdim,bcsfs,kcsfs,bdim,kdim,&
+       bconf,kconf,insp)
+
+    use constants
+    use bitglobal
+    use mrci_integrals
+    
+    implicit none
+
+    ! No. open shells in the bra and ket configurations
+    integer(is), intent(in) :: bnopen,knopen
+
+    ! Pattern indices
+    integer(is), intent(in) :: bpattern(2),kpattern(2)
+
+    ! Integrals (pre-scaled by the 1/[(1+delta_ab)*(1+delta_ij)]
+    ! prefactor)
+    real(dp), intent(in)    :: Vpqrs(2)
+
+    ! Indices of the creation and annihilation operators
+    integer(is), intent(in) :: plist(2),hlist(2)
+    integer(is)             :: ic1,ic2,ja1,ja2
+
+    ! Array of off-diagonal matrix elements
+    integer(is), intent(in) :: harrdim
+    real(dp), intent(out)   :: harr(harrdim)
+
+    ! CSF offsets
+    integer(is), intent(in) :: kdim,bdim
+    integer(is), intent(in) :: bcsfs(bdim),kcsfs(kdim)
+
+    ! Bra and ket configuration indices
+    integer(is), intent(in) :: bconf,kconf
+
+    ! Number of CSFs for the intermediate configuration obtained
+    ! by acting on the ket CSF with the first singlet excitation
+    ! operator
+    integer(is), intent(in) :: insp(2)
+    
+    ! CSFs
+    integer(is)             :: bomega,komega,bcsf,kcsf,bnsp,knsp
+    
+    ! Everything else
+    integer(is)             :: counter
+    real(dp)                :: product
+
+    real(dp), allocatable   :: mat1k(:,:),mat2k(:,:)
+    real(dp), allocatable   :: mat1b(:,:),mat2b(:,:)
+    real(dp), allocatable   :: mat1bk(:,:),mat2bk(:,:)
+    
+!----------------------------------------------------------------------
+! Creation and annihilation operator indices
+!----------------------------------------------------------------------
+    ic1=plist(1)
+    ja1=hlist(1)
+
+    ic2=plist(2)
+    ja2=hlist(2)
+
+!----------------------------------------------------------------------
+! Number of bra and ket CSFs
+!----------------------------------------------------------------------
+    bnsp=ncsfs(bnopen)
+    knsp=ncsfs(knopen)
+
+!----------------------------------------------------------------------
+! Spin-coupling coefficient matrix arrays
+!----------------------------------------------------------------------
+    allocate(mat1k(knsp,insp(1)))
+    allocate(mat2k(knsp,insp(2)))
+    allocate(mat1b(bnsp,insp(1)))
+    allocate(mat2b(bnsp,insp(2)))
+    allocate(mat1bk(bnsp,knsp))
+    allocate(mat2bk(bnsp,knsp))
+    
+    ! <w' omega'| E_i^j | w'' omega''>
+    mat1b=reshape(spincp(bpattern(1):bpattern(1)+bnsp*insp(1)-1),&
+         (/insp(1),bnsp/))
+    mat2b=reshape(spincp(bpattern(2):bpattern(2)+bnsp*insp(2)-1),&
+         (/insp(2),bnsp/))
+    
+    ! <w'' omega''| E_k^l | w omega>
+    mat1k=reshape(spincp(kpattern(1):kpattern(1)+knsp*insp(1)-1),&
+         (/knsp,insp(1)/))
+    mat2k=reshape(spincp(kpattern(2):kpattern(2)+knsp*insp(2)-1),&
+         (/knsp,insp(2)/))
+
+    ! <w' omega'| E_i^j E_k^l | w omega>
+    mat1bk=matmul(transpose(mat1b),transpose(mat1k))
+    mat2bk=matmul(transpose(mat2b),transpose(mat2k))
+    
+!----------------------------------------------------------------------
+! Compute the matrix elements
+!----------------------------------------------------------------------
+    ! Initialise the harr counter
+    counter=0
+
+    ! Loop over ket CSFs
+    komega=0
+    do kcsf=kcsfs(kconf),kcsfs(kconf+1)-1
+       
+       ! Ket CSF spin coupling index
+       komega=komega+1
+    
+       ! Loop over bra CSFs
+       bomega=0
+       do bcsf=bcsfs(bconf),bcsfs(bconf+1)-1
+
+          ! Increment the harr counter
+          counter=counter+1
+          
+          ! Bra CSF spin coupling index
+          bomega=bomega+1
+
+          ! V_aibj contribution
+          harr(counter)=harr(counter)+Vpqrs(1)*mat1bk(bomega,komega)
+          
+          ! V_ajbi contribution    
+          harr(counter)=harr(counter)+Vpqrs(2)*mat2bk(bomega,komega)
+          
+       enddo
+
+    enddo
+       
+    return
+    
+  end subroutine hij_double_mrci_batch_new
   
 !######################################################################
 ! hij_same_mrci: Computes a batch of off-diagonal Hamiltonian matrix

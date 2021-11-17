@@ -5,12 +5,6 @@
 ! Follows the formalism detailed in R. W. Wetmore and G. A. Segal,
 ! Chem. Phys. Lett., 36, 478 (1975).
 !**********************************************************************
-! Important: The Case 1 spin-coupling coefficients are computed for
-!            single -> unoccupied excitations. That is, they are the
-!            Case 1a spin-coupling coefficients. The Case 1b
-!            spin-coupling coefficients are simply the negatives of
-!            these.
-!**********************************************************************
 module spin_coupling
 
   implicit none
@@ -25,7 +19,7 @@ contains
   subroutine generate_coupling_coefficients(imult,nocase1,nocase2,&
        maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
        npattern2,maxpattern,patternmap1,patternmap2,nspincp,&
-       spincp1,spincp2,N1s,verbose,spincp)
+       spincp1,spincp2,N1s,verbose,spincp,patternmap,offspincp)
 
     use constants
     use timing
@@ -75,6 +69,10 @@ contains
     ! All pattern -> array index mappings
     integer(is)              :: mapdim
     integer(is), allocatable :: patternmap(:)
+
+    ! Spin coupling coefficient offsets for the various
+    ! different cases
+    integer(is), intent(out) :: offspincp(4)
     
     ! Bit strings comprised of N 1's
     integer(ib), allocatable :: N1s(:)
@@ -119,7 +117,7 @@ contains
 !----------------------------------------------------------------------
     call init_spincp_arrays(imult,nocase1,nocase2,ncsfs,nspincp,&
          npattern1,npattern2,spincp1,spincp2,nsp1,nsp2,verbose,&
-         spincp,spincpdim)
+         spincp,spincpdim,offspincp)
 
 !----------------------------------------------------------------------
 ! Allocate the pattern value -> array index mapping array
@@ -289,7 +287,7 @@ contains
 !######################################################################
   subroutine init_spincp_arrays(imult,nocase1,nocase2,ncsfs,nspincp,&
        npattern1,npattern2,spincp1,spincp2,nsp1,nsp2,verbose,&
-       spincp,spincpdim)
+       spincp,spincpdim,offspincp)
 
     use constants
         
@@ -300,7 +298,8 @@ contains
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(out) :: npattern1,npattern2
     integer(is), intent(out) :: nsp1,nsp2
-    integer(is)              :: spincpdim(3)
+    integer(is), intent(out) :: spincpdim(3)
+    integer(is), intent(out) :: offspincp(4)
     real(dp), allocatable    :: spincp1(:,:,:),spincp2(:,:,:)
     real(dp), allocatable    :: spincp(:)
     logical, intent(in)      :: verbose
@@ -354,6 +353,22 @@ contains
 
     ! Total number of coefficients
     spincpdim(3)=sum(spincpdim(1:2))
+
+!----------------------------------------------------------------------
+! Offsets for the various different spin coupling coefficients within
+! the spincp array
+!----------------------------------------------------------------------
+    ! Case 1a, i<j
+    offspincp(1)=nspincp(1)
+
+    ! Case 1b, i>j
+    offspincp(2)=2*nspincp(1)
+
+    ! Case 1b, i<j
+    offspincp(3)=3*nspincp(1)
+
+    ! Case 2b
+    offspincp(4)=nspincp(2)
     
 !----------------------------------------------------------------------
 ! Spin coupling coefficient arrays

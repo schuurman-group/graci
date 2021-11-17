@@ -986,6 +986,174 @@ contains
     return
     
   end subroutine contract_spincp_matrix
+
+!######################################################################
+! Packaging of the two-electron integrals and spin-coupling
+! coefficient information needed to evaluate a Hamiltonian matrix
+! element between two CSFs linked by a double excitation
+!**********************************************************************
+! IMPORTANT: We scale the two-electron integrals by the
+!            1 / [(1+delta_ab) * (1+delta_ij)] prefactor to save
+!            effort down the road
+!######################################################################
+  subroutine package_integrals_nexci2_new(bsop,ksop,hlist,plist,&
+       bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,knbefore,insp)
+
+    use constants
+    use bitglobal
+    use pattern_indices
+    use bitstrings
+    use mrciutils
+    use int_pyscf
+    
+    implicit none
+
+    ! Bra and ket SOPs
+    integer(ib), intent(in)  :: bsop(n_int,2),ksop(n_int,2)
+
+    ! Indices of the annihilation and creation operators
+    integer(is), intent(in)  :: hlist(2),plist(2)
+    integer(is)              :: ia,ja,ac,bc
+    integer(is)              :: i1,j1,a1,b1
+    
+    ! Numbers of open shells
+    integer(is), intent(in)  :: bnopen,knopen
+
+    ! Pattern indices
+    integer(is), intent(out) :: bpattern(2),kpattern(2)
+    
+    ! Spin-coupling sub-case bitstrings
+    integer(ib)              :: icase_b(2),icase_k(2)
+
+    ! Integrals
+    real(dp), intent(out)    :: Vpqrs(2)
+
+    ! MO mapping array
+    integer(is), intent(in)  :: m2c(nmo)
+
+    ! Numbers of open shells preceding the annihilation
+    ! and creation operator indices
+    integer(is), intent(in)  :: knbefore(nmo)
+    integer(is)              :: nc,na
+
+    ! Number of CSFs for the intermediate configuration obtained
+    ! by acting on the ket CSF with the first singlet excitation
+    ! operator
+    integer(is), intent(out) :: insp(2)
+    
+    ! Prefactor
+    real(dp)                 :: fac1,fac2
+
+    ! Number of bra and ket CSFs
+    integer(is)              :: bnsp,knsp
+
+    ! Everything else
+    integer(is)              :: m
+    
+!----------------------------------------------------------------------
+! Indices of the annihilation and creation operators
+!----------------------------------------------------------------------
+    ! Annihilation operators
+    ia=hlist(1)
+    ja=hlist(2)
+
+    ! Creation operators
+    ac=plist(1)
+    bc=plist(2)
+
+!----------------------------------------------------------------------
+! Bitstring encodings of the spin-coupling sub-cases
+!----------------------------------------------------------------------
+    ! bra, V_aibj
+    icase_b(1)=get_icase(bsop,ia,ac)
+
+    ! bra, V_ajbi
+    icase_b(2)=get_icase(bsop,ja,ac)
+    
+    ! ket, V_aibj
+    icase_k(1)=get_icase(ksop,bc,ja)
+
+    ! ket, V_ajbi
+    icase_k(2)=get_icase(ksop,bc,ia)
+
+!----------------------------------------------------------------------
+! Number of CSFs for the intermediate configuration obtained by acting
+! on the ket CSF with with first singlet excitation operator
+!----------------------------------------------------------------------
+    ! No. ket CSFs
+    knsp=ncsfs(knopen)
+
+    ! Set the no. intermediate CSFs
+    do m=1,2
+       select case(icase_k(m))
+       case(i1a)
+          ! Case 1a
+          insp(m)=knsp
+       case(i1b)
+          ! Case 1b
+          insp(m)=knsp
+       case(i2a)
+          ! Case 2a
+          insp(m)=ncsfs(knopen+2)
+       case(i2b)
+          ! Case 2b
+          insp(m)=ncsfs(knopen-2)
+       end select
+    enddo
+          
+!----------------------------------------------------------------------
+! Pattern indices
+!----------------------------------------------------------------------
+    ! bra, V_aibj
+    nc=n_bits_set_before(bsop(:,1),n_int,ia)
+    na=n_bits_set_before(bsop(:,1),n_int,ac)
+    bpattern(1)=pattern_index_new(bsop,ia,ac,nc,na,bnopen,icase_b(1))
+    
+    ! bra, V_ajbi
+    nc=n_bits_set_before(bsop(:,1),n_int,ja)
+    bpattern(2)=pattern_index_new(bsop,ja,ac,nc,na,bnopen,icase_b(2))
+    
+    ! ket, V_aibj
+    nc=knbefore(bc)
+    na=knbefore(ja)
+    kpattern(1)=pattern_index_new(ksop,bc,ja,nc,na,knopen,icase_k(1))
+    
+    ! ket, V_ajbi
+    na=knbefore(ia)
+    kpattern(2)=pattern_index_new(ksop,bc,ia,nc,na,knopen,icase_k(2))
+    
+!----------------------------------------------------------------------
+! Two-electron integrals scaled by the 1/[(1+delta_ab)*(1+delta_ij)]
+! prefactor
+!----------------------------------------------------------------------
+    ! MO indices
+    a1=m2c(ac)
+    b1=m2c(bc)
+    i1=m2c(ia)
+    j1=m2c(ja)
+    
+    ! V_aibj
+    Vpqrs(1)=mo_integral(a1,i1,b1,j1)
+    
+    ! V_ajbi
+    Vpqrs(2)=mo_integral(a1,j1,b1,i1)
+
+    ! Scaling by the prefactor
+    if (ac == bc) then
+       fac1=2.0d0
+    else
+       fac1=1.0d0
+    endif
+    if (ia == ja) then
+       fac2=2.0d0
+    else
+       fac2=1.0d0
+    endif
+    Vpqrs=Vpqrs/(fac1*fac2)
+    
+    return
+    
+  end subroutine package_integrals_nexci2_new
   
 !######################################################################
   
