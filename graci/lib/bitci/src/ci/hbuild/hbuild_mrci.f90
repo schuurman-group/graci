@@ -263,9 +263,9 @@ contains
     ! Pattern indices
     integer(is)             :: bpattern(nmo+1),kpattern(nmo+1)
 
-    ! No. CSFs for the intermediate configuration in the case
-    ! of double excitations
-    integer(is)             :: insp(2)
+    ! No. CSFs for the intermediate configuration in the spin-coupling
+    ! coefficients <w' omega'|E_i^j E_k^l|w omega>
+    integer(is)             :: insp(nmo)
     
     ! Integrals
     real(dp)                :: Vpqrs(nmo)
@@ -286,17 +286,24 @@ contains
 !----------------------------------------------------------------------
     select case(nexci)
     case(1)
-       call package_integrals_nexci1(bsop,ksop,pairindx(1),hlist(1),&
+
+       !call package_integrals_nexci1(bsop,ksop,pairindx(1),hlist(1),&
+       !     plist(1),bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,&
+       !     socc,nsocc,nbefore,Dw,ndiff,icase)
+
+       call package_integrals_nexci1_new(bsop,ksop,hlist(1),&
             plist(1),bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,&
-            socc,nsocc,nbefore,Dw,ndiff,icase)
+            socc,nsocc,nbefore,Dw,ndiff,icase,insp)
+       
     case(2)
+
        !call package_integrals_nexci2(bsop,ksop,&
        !     pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
        !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),m2c,nbefore)
 
        call package_integrals_nexci2_new(bsop,ksop,hlist(1:2),&
             plist(1:2),bnopen,knopen,bpattern(1:2),kpattern(1:2),&
-            Vpqrs(1:2),m2c,nbefore,insp)
+            Vpqrs(1:2),m2c,nbefore,insp(1:2))
        
     end select
 
@@ -306,17 +313,25 @@ contains
 !----------------------------------------------------------------------
     select case(nexci)
     case(1)
-       call hij_single_mrci_batch(bnopen,knopen,pairindx(1),icase,&
+
+       !call hij_single_mrci_batch(bnopen,knopen,pairindx(1),icase,&
+       !     bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,hlist(1),&
+       !     plist(1),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
+
+       call hij_single_mrci_batch_new(bnopen,knopen,&
             bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,hlist(1),&
-            plist(1),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
+            plist(1),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,&
+            insp)
+       
     case(2)
+       
        !call hij_double_mrci_batch(bnopen,knopen,pairindx(1:2),&
        !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),plist(1:2),&
        !     hlist(1:2),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
 
        call hij_double_mrci_batch_new(bnopen,knopen,bpattern(1:2),&
             kpattern(1:2),Vpqrs(1:2),plist(1:2),hlist(1:2),harr,&
-            harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
+            harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp(1:2))
        
     end select
     
@@ -888,7 +903,152 @@ contains
     return
     
   end subroutine hij_double_mrci_batch_new
-  
+
+!######################################################################
+! hij_single_mrci_batch: Computes a batch of off-diagonal Hamiltonian
+!                        matrix element for a pair of configurations
+!                        differing by one pair of spatial orbital
+!                        occupation.
+!######################################################################
+  subroutine hij_single_mrci_batch_new(bnopen,knopen,&
+       bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,ia,ac,harr,harrdim,&
+       bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
+
+    use constants
+    use bitglobal
+    use bitstrings
+    use mrci_integrals
+    use iomod
+    
+    implicit none
+
+    ! No. open shells in the bra and ket configurations
+    integer(is), intent(in) :: bnopen,knopen
+
+    ! Pattern indices
+    integer(is), intent(in) :: bpattern(nmo+1),kpattern(nmo+1)
+
+    ! Integrals and functions of integrals
+    real(dp), intent(in)    :: Vpqrs(nmo)
+
+    ! Singly-occupied MOs in the ket configuration
+    integer(is), intent(in) :: nsocc
+    integer(is), intent(in) :: socc(nmo)
+    
+    ! Number of excitations relative to the base configuration
+    integer(is), intent(in) :: ndiff
+
+    ! Indices of the annihilation and creation operators
+    integer(is), intent(in) :: ia,ac
+
+    ! Array of off-diagonal matrix elements
+    integer(is), intent(in) :: harrdim
+    real(dp), intent(out)   :: harr(harrdim)
+
+    ! CSF offsets
+    integer(is), intent(in) :: kdim,bdim
+    integer(is), intent(in) :: bcsfs(bdim),kcsfs(kdim)
+
+    ! Bra and ket configuration indices
+    integer(is), intent(in) :: bconf,kconf
+
+    ! No. CSFs for the intermediate configuration in the spin-coupling
+    ! coefficients <w' omega'|E_i^j E_k^l|w omega>
+    integer(is)             :: insp(nmo)
+    
+    ! Everything else
+    integer(is)             :: bomega,komega,bcsf,kcsf,bnsp,knsp
+    integer(is)             :: indx,k,k1,counter
+    integer(is)             :: bstart(nomax),kstart(nomax)
+    real(dp)                :: scp,halfscp,product
+    
+!----------------------------------------------------------------------
+! Number of bra and ket CSFs
+!----------------------------------------------------------------------
+    bnsp=ncsfs(bnopen)
+    knsp=ncsfs(knopen)
+
+!----------------------------------------------------------------------
+! Compute the matrix elements
+!----------------------------------------------------------------------    
+    ! Initialise counters
+    kstart(1:nsocc)=kpattern(1:nsocc)
+    komega=0
+    counter=0
+    
+    ! Loop over ket CSFs
+    do kcsf=kcsfs(kconf),kcsfs(kconf+1)-1
+       
+       ! Ket CSF spin coupling index
+       komega=komega+1
+       
+       ! Loop over bra CSFs
+       bomega=0
+       bstart(1:nsocc)=bpattern(1:nsocc)
+       do bcsf=bcsfs(bconf),bcsfs(bconf+1)-1
+
+          ! Increment the harr counter
+          counter=counter+1
+          
+          ! Bra CSF spin coupling index
+          bomega=bomega+1
+
+          ! Get the spin-coupling coefficient <w' omega'|E_a^i|w omega>
+          scp=spincp(kpattern(nsocc+1)+counter-1)
+          
+          !
+          ! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>,
+          ! k singly-occupied in the ket
+          !          
+          halfscp=0.5d0*scp
+          
+          ! Loop over singly-occupied MOs
+          do k=1,nsocc
+             
+             ! MO index
+             k1=socc(k)
+             
+             ! Cycle if the current MO corresponds to either the creation
+             ! or annihilation operator
+             if (k1 == ia) cycle
+             if (k1 == ac) cycle
+             
+             ! Contraction of the fibers of the spin-coupling coefficient
+             ! tensor
+             product=dot_product(&
+                  spincp(bstart(k):bstart(k)+insp(k)-1),&
+                  spincp(kstart(k):kstart(k)+insp(k)-1))
+                  
+             ! Sum the contribution
+             harr(counter)=harr(counter)+Vpqrs(k)*(product-halfscp)
+       
+          enddo
+
+          !
+          ! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
+          ! x <w' omega'|E_a^i|w omega>
+          !
+          harr(counter)=harr(counter)+Vpqrs(nsocc+1)*scp
+          
+          !
+          ! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
+          !
+          harr(counter)=harr(counter)+Vpqrs(nsocc+2)*scp
+
+          ! Update the bra starting points in the spincp array
+          bstart(1:nsocc)=bstart(1:nsocc)+insp(1:nsocc)
+          
+       enddo
+
+       ! Update the ket starting points in the spincp array
+       kstart(1:nsocc)=kstart(1:nsocc)+insp(1:nsocc)
+       
+    enddo
+       
+    return
+    
+  end subroutine hij_single_mrci_batch_new
+    
 !######################################################################
 ! hij_same_mrci: Computes a batch of off-diagonal Hamiltonian matrix
 !                elements < w omega' | H - E_SCF | w omega > for CSFs

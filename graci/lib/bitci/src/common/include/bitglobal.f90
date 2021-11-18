@@ -61,10 +61,6 @@ module bitglobal
   integer(is)              :: offspincp(4)    ! Spincp array offsets for the
                                               ! different coefficient cases
   real(dp), allocatable    :: spincp(:)       ! All spin coupling coefficients
-
-  real(dp), allocatable    :: mat1bk(:,:),&
-                              mat2bk(:,:)
-  
   
   !
   ! Buffered I/O

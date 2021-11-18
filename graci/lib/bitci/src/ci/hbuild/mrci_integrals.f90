@@ -1159,5 +1159,255 @@ contains
   end subroutine package_integrals_nexci2_new
   
 !######################################################################
+! Packaging of the two-electron integrals and spin-coupling
+! coefficient information needed to evaluate a Hamiltonian matrix
+! element between two CSFs linked by a single excitation
+!######################################################################
+  subroutine package_integrals_nexci1_new(bsop,ksop,hindx,pindx,&
+       bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,socc,nsocc,knbefore,&
+       Dw,ndiff,icase,insp)
+
+    use constants
+    use bitglobal
+    use pattern_indices
+    use bitstrings
+    use mrciutils
+    use int_pyscf
+    use hparam
+    
+    implicit none
+
+    ! Bra and ket SOPs
+    integer(ib), intent(in)  :: bsop(n_int,2),ksop(n_int,2)
+
+    ! Spin-coupling sub-case bitstring encodings
+    integer(ib), intent(out) :: icase
+    
+    ! Indices of the annihilation and creation operators
+    integer(is), intent(in)  :: hindx,pindx
+    integer(is)              :: ia,ac,ia1,ac1
+    integer(is)              :: i1
+    
+    ! Numbers of open shells
+    integer(is), intent(in)  :: bnopen,knopen
+
+    ! Pattern indices
+    integer(is), intent(out) :: bpattern(nmo+1),kpattern(nmo+1)
+    
+    ! Spin-coupling sub-case bitstrings
+    integer(ib)              :: icase_b,icase_k
+
+    ! Integrals and functions of integrals
+    real(dp), intent(out)    :: Vpqrs(nmo)
+
+    ! MO mapping array
+    integer(is), intent(in)  :: m2c(nmo)
+
+    ! Indices of the singly-occupied MOs in the ket configuration
+    integer(is), intent(in)  :: nsocc
+    integer(is), intent(in)  :: socc(nmo)
+
+    ! Number of open shells preceding each MO
+    integer(is), intent(in)  :: knbefore(nmo)
+    integer(is)              :: nc_k,na_k,nc_b,na_b
+
+    ! No. CSFs for the intermediate configuration in the case
+    ! of spin-coupling coefficients
+    ! <w' omega' | E_i^j E_k^l | w omega>
+    integer(is), intent(out) :: insp(nmo)
+    
+    ! Difference configuration information
+    integer(is)             :: ndiff
+    integer(is)             :: Dw(nmo,2)
+    
+    ! Everything else
+    integer(is)             :: i,k,k1,count
+    integer(is)             :: wac,wia
+    integer(is)             :: bnsp,knsp
+    logical                 :: transpose
+    
+!----------------------------------------------------------------------
+! Indices of the annihilation and creation operators
+!----------------------------------------------------------------------
+    ! Annihilation operator
+    ia=hindx
+
+    ! Creation operator
+    ac=pindx
+
+!----------------------------------------------------------------------
+! Occupations of the MOs corresponding to the annihilation and
+! creation operators
+!----------------------------------------------------------------------
+    ! Creation operator
+    k=(ac-1)/64+1
+    i=ac-(k-1)*64-1
+    if (btest(ksop(k,1),i)) then
+       wac=1
+    else
+       wac=0
+    endif
+
+    ! Annihilation operator
+    k=(ia-1)/64+1
+    i=ia-(k-1)*64-1
+    if (btest(ksop(k,1),i)) then
+       wia=1
+    else
+       wia=2
+    endif 
+    
+!----------------------------------------------------------------------
+! Bitstring encoding of the sub-case for the spin-coupling coefficients
+! < w' omega'| E_a^k E_k^i | w omega >
+!----------------------------------------------------------------------
+    if (nsocc > 0) then
+       do k=1,nsocc
+          k1=socc(k)
+          if (k1 == ia) cycle
+          if (k1 == ac) cycle
+          icase_b=get_icase(bsop,k1,ac)
+          icase_k=get_icase(ksop,k1,ia)
+          exit
+       enddo
+    endif
+
+!----------------------------------------------------------------------
+! Number of CSFs for the intermediate configuration obtained by acting
+! on the ket CSF with with first singlet excitation operator for the
+! spin-coupling coefficients < w' omega'| E_a^k E_k^i | w omega >
+!----------------------------------------------------------------------
+    ! No. ket CSFs
+    knsp=ncsfs(knopen)
+
+    ! Set the number of intermediate CSFs
+    if (nsocc > 0) then
+       do k=1,nsocc
+          k1=socc(k)
+          if (k1 == ia) cycle
+          if (k1 == ac) cycle
+          select case(icase_k)
+          case(i1a)
+             ! Case 1a
+             insp(k)=knsp
+          case(i1b)
+             ! Case 1b
+             insp(k)=knsp
+          case(i2a)
+             ! Case 2a
+             insp(k)=ncsfs(knopen+2)
+          case(i2b)
+             ! Case 2b
+             insp(k)=ncsfs(knopen-2)
+          end select
+       enddo
+    endif
+    
+!----------------------------------------------------------------------
+! Pattern indices for the spin-coupling coefficients
+! < w' omega'| E_a^k E_k^i | w omega > (bpattern and kpattern)
+!----------------------------------------------------------------------    
+    ! No. open shells before the annihilation operator index in the
+    ! ket configuration
+    na_k=knbefore(ia)
+
+    ! No. open shells before the creation operator index in the
+    ! ket configuration
+    na_b=n_bits_set_before(bsop(:,1),n_int,ac)
+    
+    ! Loop over singly-occupied MOs in the ket configuration
+    do k=1,nsocc
+       
+       ! MO index
+       k1=socc(k)
+
+       ! Cycle if k=a or k=i
+       if (k1 == ia) cycle
+       if (k1 == ac) cycle
+       
+       ! bra
+       transpose=.true.
+       nc_b=n_bits_set_before(bsop(:,1),n_int,k1)
+       bpattern(k)=pattern_index_new(bsop,k1,ac,nc_b,na_b,bnopen,icase_b,transpose)
+       
+       ! ket
+       transpose=.false.
+       nc_k=knbefore(k1)
+       kpattern(k)=pattern_index_new(ksop,k1,ia,nc_k,na_k,knopen,icase_k,transpose)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Pattern index for the spin-coupling coefficients
+! < w' omega'| E_a^i | w omega > (icase)
+!----------------------------------------------------------------------
+    transpose=.true.
+    nc_k=knbefore(ac)
+    na_k=knbefore(ia)
+    icase=get_icase(ksop,ac,ia)
+    kpattern(nsocc+1)=pattern_index_new(ksop,ac,ia,nc_k,na_k,knopen,&
+         icase,transpose)
+    
+!----------------------------------------------------------------------
+! Two-electron integrals
+!----------------------------------------------------------------------
+    ! Initialise the integral counter
+    count=0
+
+    ! HF/DFT MO indices
+    ia1=m2c(ia)
+    ac1=m2c(ac)
+    
+    !
+    ! V_ikka, k indexing a singly-occupied MO in the ket configuration
+    !
+    do k=1,nsocc
+
+       ! Increment the integral counter
+       count=count+1
+
+       ! MO index
+       k1=m2c(socc(k))
+
+       ! V_ikka
+       Vpqrs(count)=mo_integral(ia1,k1,k1,ac1)
+       
+    enddo
+
+    !
+    ! F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k
+    !
+    count=count+1
+    if (ihamiltonian == 1) then
+       ! Canonical Hamiltonian
+       Vpqrs(count)=fock(ia1,ac1)
+    else
+       ! DFT/MRCI Hamiltonians - F_ia contribution is neglected
+       Vpqrs(count)=0.0d0
+    endif
+    do k=1,ndiff
+
+       ! MO index
+       k1=m2c(Dw(k,1))
+
+       ! (V_iakk - 1/2 V_ikka) Delta w_k
+       Vpqrs(count)=Vpqrs(count) &
+            +(mo_integral(ia1,ac1,k1,k1) &
+            -0.5d0*mo_integral(ia1,k1,k1,ac1))*Dw(k,2)
+       
+    enddo
+
+    !
+    ! 1/2 [ V_aaai w_a + V_aiii (w_i -2) ]
+    !
+    count=count+1
+    Vpqrs(count)=0.5d0*(mo_integral(ac1,ac1,ac1,ia1)*wac &
+         +mo_integral(ac1,ia1,ia1,ia1)*(wia-2))
+    
+    return
+    
+  end subroutine package_integrals_nexci1_new
+  
+!######################################################################
   
 end module mrci_integrals
