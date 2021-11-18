@@ -1049,6 +1049,7 @@ contains
 
     ! Everything else
     integer(is)              :: m
+    logical                  :: transpose
     
 !----------------------------------------------------------------------
 ! Indices of the annihilation and creation operators
@@ -1105,22 +1106,24 @@ contains
 ! Pattern indices
 !----------------------------------------------------------------------
     ! bra, V_aibj
+    transpose=.true.
     nc=n_bits_set_before(bsop(:,1),n_int,ia)
     na=n_bits_set_before(bsop(:,1),n_int,ac)
-    bpattern(1)=pattern_index_new(bsop,ia,ac,nc,na,bnopen,icase_b(1))
+    bpattern(1)=pattern_index_new(bsop,ia,ac,nc,na,bnopen,icase_b(1),transpose)
     
     ! bra, V_ajbi
     nc=n_bits_set_before(bsop(:,1),n_int,ja)
-    bpattern(2)=pattern_index_new(bsop,ja,ac,nc,na,bnopen,icase_b(2))
+    bpattern(2)=pattern_index_new(bsop,ja,ac,nc,na,bnopen,icase_b(2),transpose)
     
     ! ket, V_aibj
+    transpose=.false.
     nc=knbefore(bc)
     na=knbefore(ja)
-    kpattern(1)=pattern_index_new(ksop,bc,ja,nc,na,knopen,icase_k(1))
+    kpattern(1)=pattern_index_new(ksop,bc,ja,nc,na,knopen,icase_k(1),transpose)
     
     ! ket, V_ajbi
     na=knbefore(ia)
-    kpattern(2)=pattern_index_new(ksop,bc,ia,nc,na,knopen,icase_k(2))
+    kpattern(2)=pattern_index_new(ksop,bc,ia,nc,na,knopen,icase_k(2),transpose)
     
 !----------------------------------------------------------------------
 ! Two-electron integrals scaled by the 1/[(1+delta_ab)*(1+delta_ij)]

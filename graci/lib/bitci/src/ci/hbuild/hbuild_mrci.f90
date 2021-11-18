@@ -290,13 +290,13 @@ contains
             plist(1),bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,&
             socc,nsocc,nbefore,Dw,ndiff,icase)
     case(2)
-       call package_integrals_nexci2(bsop,ksop,&
-            pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
-            bpattern(1:2),kpattern(1:2),Vpqrs(1:2),m2c,nbefore)
+       !call package_integrals_nexci2(bsop,ksop,&
+       !     pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
+       !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),m2c,nbefore)
 
-       !call package_integrals_nexci2_new(bsop,ksop,hlist(1:2),&
-       !     plist(1:2),bnopen,knopen,bpattern(1:2),kpattern(1:2),&
-       !     Vpqrs(1:2),m2c,nbefore,insp)
+       call package_integrals_nexci2_new(bsop,ksop,hlist(1:2),&
+            plist(1:2),bnopen,knopen,bpattern(1:2),kpattern(1:2),&
+            Vpqrs(1:2),m2c,nbefore,insp)
        
     end select
 
@@ -310,13 +310,13 @@ contains
             bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,hlist(1),&
             plist(1),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
     case(2)
-       call hij_double_mrci_batch(bnopen,knopen,pairindx(1:2),&
-            bpattern(1:2),kpattern(1:2),Vpqrs(1:2),plist(1:2),&
-            hlist(1:2),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
+       !call hij_double_mrci_batch(bnopen,knopen,pairindx(1:2),&
+       !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),plist(1:2),&
+       !     hlist(1:2),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
 
-       !call hij_double_mrci_batch_new(bnopen,knopen,bpattern(1:2),&
-       !     kpattern(1:2),Vpqrs(1:2),plist(1:2),hlist(1:2),harr,&
-       !     harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
+       call hij_double_mrci_batch_new(bnopen,knopen,bpattern(1:2),&
+            kpattern(1:2),Vpqrs(1:2),plist(1:2),hlist(1:2),harr,&
+            harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
        
     end select
     
@@ -816,13 +816,9 @@ contains
     integer(is)             :: bomega,komega,bcsf,kcsf,bnsp,knsp
     
     ! Everything else
-    integer(is)             :: counter
+    integer(is)             :: counter,bstart1,bstart2,kstart1,kstart2
     real(dp)                :: product
 
-    real(dp), allocatable   :: mat1k(:,:),mat2k(:,:)
-    real(dp), allocatable   :: mat1b(:,:),mat2b(:,:)
-    real(dp), allocatable   :: mat1bk(:,:),mat2bk(:,:)
-    
 !----------------------------------------------------------------------
 ! Creation and annihilation operator indices
 !----------------------------------------------------------------------
@@ -839,45 +835,23 @@ contains
     knsp=ncsfs(knopen)
 
 !----------------------------------------------------------------------
-! Spin-coupling coefficient matrix arrays
-!----------------------------------------------------------------------
-    allocate(mat1k(knsp,insp(1)))
-    allocate(mat2k(knsp,insp(2)))
-    allocate(mat1b(bnsp,insp(1)))
-    allocate(mat2b(bnsp,insp(2)))
-    allocate(mat1bk(bnsp,knsp))
-    allocate(mat2bk(bnsp,knsp))
-    
-    ! <w' omega'| E_i^j | w'' omega''>
-    mat1b=reshape(spincp(bpattern(1):bpattern(1)+bnsp*insp(1)-1),&
-         (/insp(1),bnsp/))
-    mat2b=reshape(spincp(bpattern(2):bpattern(2)+bnsp*insp(2)-1),&
-         (/insp(2),bnsp/))
-    
-    ! <w'' omega''| E_k^l | w omega>
-    mat1k=reshape(spincp(kpattern(1):kpattern(1)+knsp*insp(1)-1),&
-         (/knsp,insp(1)/))
-    mat2k=reshape(spincp(kpattern(2):kpattern(2)+knsp*insp(2)-1),&
-         (/knsp,insp(2)/))
-
-    ! <w' omega'| E_i^j E_k^l | w omega>
-    mat1bk=matmul(transpose(mat1b),transpose(mat1k))
-    mat2bk=matmul(transpose(mat2b),transpose(mat2k))
-    
-!----------------------------------------------------------------------
 ! Compute the matrix elements
 !----------------------------------------------------------------------
-    ! Initialise the harr counter
+    ! Initialise counters
+    kstart1=kpattern(1)
+    kstart2=kpattern(2)
+    komega=0
     counter=0
 
     ! Loop over ket CSFs
-    komega=0
     do kcsf=kcsfs(kconf),kcsfs(kconf+1)-1
        
        ! Ket CSF spin coupling index
        komega=komega+1
-    
+
        ! Loop over bra CSFs
+       bstart1=bpattern(1)
+       bstart2=bpattern(2)
        bomega=0
        do bcsf=bcsfs(bconf),bcsfs(bconf+1)-1
 
@@ -888,15 +862,29 @@ contains
           bomega=bomega+1
 
           ! V_aibj contribution
-          harr(counter)=harr(counter)+Vpqrs(1)*mat1bk(bomega,komega)
+          harr(counter)=harr(counter)+Vpqrs(1) &
+               *dot_product(&
+               spincp(bstart1:bstart1+insp(1)-1),&
+               spincp(kstart1:kstart1+insp(1)-1))
           
           ! V_ajbi contribution    
-          harr(counter)=harr(counter)+Vpqrs(2)*mat2bk(bomega,komega)
+          harr(counter)=harr(counter)+Vpqrs(2) &
+               *dot_product(&
+               spincp(bstart2:bstart2+insp(2)-1),&
+               spincp(kstart2:kstart2+insp(2)-1))
+          
+          ! Update the bra starting point in the spincp array
+          bstart1=bstart1+insp(1)
+          bstart2=bstart2+insp(2)
           
        enddo
-
-    enddo
+          
+       ! Update the ket starting point in the spincp array
+       kstart1=kstart1+insp(1)
+       kstart2=kstart2+insp(2)
        
+    enddo
+    
     return
     
   end subroutine hij_double_mrci_batch_new

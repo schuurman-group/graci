@@ -165,6 +165,9 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
        maxpattern,patternmap1,patternmap2,nspincp,spincp1,spincp2,&
        N1s,verbose,spincp,patternmap,offspincp)
 
+  allocate(mat1bk(ncsfs(nomax),ncsfs(nomax)))
+  allocate(mat2bk(ncsfs(nomax),ncsfs(nomax)))
+  
 !----------------------------------------------------------------------
 ! Generate the base determinant and base configuration
 !----------------------------------------------------------------------
