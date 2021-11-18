@@ -1302,7 +1302,7 @@ contains
           end select
        enddo
     endif
-    
+
 !----------------------------------------------------------------------
 ! Pattern indices for the spin-coupling coefficients
 ! < w' omega'| E_a^k E_k^i | w omega > (bpattern and kpattern)

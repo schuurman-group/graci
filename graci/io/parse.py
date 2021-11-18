@@ -222,12 +222,6 @@ def check_input(run_list):
             if isinstance(obj.icvs, int):
                 obj.icvs = np.array([obj.icvs], dtype=int)
 
-        # If RR-DF is enabled, make sure that the DF flag is
-        # set to True
-        if 'use_rrdf' in params.kwords[obj_name].keys():
-            if (obj.use_rrdf and not obj.use_df):
-                obj.use_df = True
-
         # the basis set definition should actually be a dictionary
         if 'basis' in params.kwords[obj_name].keys():
             # construct basis dictionary
