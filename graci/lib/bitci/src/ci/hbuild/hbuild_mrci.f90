@@ -53,19 +53,20 @@ contains
     ! Everything else
     integer(is)             :: i,j,i1,j1,ic,ja,k
     integer(is)             :: Dwi,Dwj,wi,wj
-    integer(is)             :: omega,indx
-    integer(is)             :: nsp2b
+    integer(is)             :: omega,pattern,start
+    integer(is)             :: insp
     real(dp)                :: focksum,xsum1,xsum2
     real(dp)                :: product,Vijji
+    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Numbers of 'intermediate' CSFs entering into the contractions of the
 ! fibers of the spin-coupling coefficient tensor
 !----------------------------------------------------------------------
     if (nopen > 1) then
-       nsp2b=ncsfs(nopen-2)
+       insp=ncsfs(nopen-2)
     else
-       nsp2b=0
+       insp=0
     endif
     
 !----------------------------------------------------------------------
@@ -176,17 +177,21 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          indx=pattern_index_case2b(sop,ic,ja,nbefore(ic),nbefore(ja),&
-               nopen)
+          transpose=.false.
+          pattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen,transpose)
           
           ! V_ijji
           Vijji=Vx(i1,j1)
           
           ! Contributions to hii
+          start=pattern
           do omega=1,nsp
-             product=dot_product(spincp2(1:nsp2b,omega,indx),&
-                  spincp2(1:nsp2b,omega,indx))
+             product=dot_product(&
+                  spincp(start:start+insp-1),&
+                  spincp(start:start+insp-1))
              harr(omega)=harr(omega)+Vijji*product
+             start=start+insp
           enddo
           
        enddo
@@ -417,7 +422,7 @@ contains
        errmsg='Unrecognised icase value in hij_single_mrci'
        call error_control
     end select
-       
+
 !----------------------------------------------------------------------
 ! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>, k singly-
 ! occupied in the ket
@@ -460,6 +465,203 @@ contains
     
   end function hij_single_mrci
 
+!######################################################################
+! hij_single_mrci: Computes an off-diagonal Hamiltonian matrix element
+!                  for a pair of CSFs differing by one pair of spatial
+!                  orbital occupation. The spin couplings of the bra
+!                  and ket CSFs are given by the indices bomega and
+!                  komega, respectively.
+!######################################################################
+  function hij_single_mrci_new(bomega,komega,bnopen,knopen,&
+       bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,ia,ac,insp) result(hij)
+
+    use constants
+    use bitglobal
+    use bitstrings
+    use mrci_integrals
+    use iomod
+    
+    implicit none
+
+    ! Function result
+    real(dp)                :: hij
+
+    ! Bra and ket spin couplings
+    integer(is), intent(in) :: bomega,komega
+
+    ! No. open shells in the bra and ket configurations
+    integer(is), intent(in) :: bnopen,knopen
+
+    ! Pattern indices
+    integer(is), intent(in) :: bpattern(nmo+1),kpattern(nmo+1)
+
+    ! Integrals and functions of integrals
+    real(dp), intent(in)    :: Vpqrs(nmo)
+
+    ! Singly-occupied MOs in the ket configuration
+    integer(is), intent(in) :: nsocc
+    integer(is), intent(in) :: socc(nmo)
+    
+    ! Number of excitations relative to the base configuration
+    integer(is), intent(in) :: ndiff
+
+    ! Indices of the annihilation and creation operators
+    integer(is), intent(in) :: ia,ac
+
+    ! No. CSFs for the intermediate configuration in the spin-coupling
+    ! coefficients <w' omega'|E_i^j E_k^l|w omega>
+    integer(is), intent(in) :: insp(nmo)
+    
+    ! Everything else
+    integer(is)             :: indx,k,k1,bstart,kstart
+    real(dp)                :: scp,halfscp,product
+
+
+    integer(is)             :: bcsf,kcsf,bnsp,knsp
+    integer(is)             :: counter
+    integer(is)             :: bstart1(nomax),kstart1(nomax)
+
+    integer(is) :: bomega1,komega1
+    real(dp)    :: hij1
+    
+!----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    hij=0.0d0
+    
+!----------------------------------------------------------------------
+! Get the spin-coupling coefficient <w' omega'|E_a^i|w omega>
+!----------------------------------------------------------------------
+    scp=spincp(kpattern(nsocc+1)+(komega-1)*ncsfs(bnopen)+bomega-1)
+
+!----------------------------------------------------------------------
+! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>, k singly-
+! occupied in the ket
+!----------------------------------------------------------------------
+    halfscp=0.5d0*scp
+
+    ! Loop over singly-occupied MOs
+    do k=1,nsocc
+    
+       ! MO index
+       k1=socc(k)
+    
+       ! Cycle if the current MO corresponds to either the creation
+       ! or annihilation operator
+       if (k1 == ia) cycle
+       if (k1 == ac) cycle
+    
+       ! Contraction of the fibers of the spin-coupling coefficient
+       ! tensor
+    
+       !
+       ! THIS IS THE PROBLEM
+       !
+       bstart=bpattern(k)+(bomega-1)*insp(k)
+       kstart=kpattern(k)+(komega-1)*insp(k)       
+       product=dot_product(&
+            spincp(bstart:bstart+insp(k)-1),&
+            spincp(kstart:kstart+insp(k)-1))
+    
+       ! Sum the contribution
+       hij=hij+Vpqrs(k)*(product-halfscp)
+       
+    enddo
+    
+!----------------------------------------------------------------------
+! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
+! x <w' omega'|E_a^i|w omega>
+!----------------------------------------------------------------------
+    hij=hij+Vpqrs(nsocc+1)*scp
+    
+!----------------------------------------------------------------------
+! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
+!----------------------------------------------------------------------
+    hij=hij+Vpqrs(nsocc+2)*scp
+
+
+
+
+    
+
+
+    
+    hij1=0.0d0
+    
+    ! Initialise counters
+    kstart1(1:nsocc)=kpattern(1:nsocc)
+    counter=0
+    
+    ! Loop over ket CSFs
+    do komega1=1,ncsfs(knopen)
+       
+       ! Loop over bra CSFs
+       bstart1(1:nsocc)=bpattern(1:nsocc)
+       do bomega1=1,ncsfs(bnopen)
+
+          ! Increment the harr counter
+          counter=counter+1
+          
+          ! Get the spin-coupling coefficient <w' omega'|E_a^i|w omega>
+          scp=spincp(kpattern(nsocc+1)+counter-1)
+          
+          !
+          ! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>,
+          ! k singly-occupied in the ket
+          !          
+          halfscp=0.5d0*scp
+
+          if (bomega1 == bomega .and. komega1 == komega) then
+          
+             ! Loop over singly-occupied MOs
+             do k=1,nsocc
+             
+                ! MO index
+                k1=socc(k)
+                
+                ! Cycle if the current MO corresponds to either the creation
+                ! or annihilation operator
+                if (k1 == ia) cycle
+                if (k1 == ac) cycle
+                
+                ! Contraction of the fibers of the spin-coupling coefficient
+                ! tensor
+                product=dot_product(&
+                     spincp(bstart1(k):bstart1(k)+insp(k)-1),&
+                     spincp(kstart1(k):kstart1(k)+insp(k)-1))
+                
+                ! Sum the contribution
+                hij1=hij1+Vpqrs(k)*(product-halfscp)
+                
+             enddo
+
+             !
+             ! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
+             ! x <w' omega'|E_a^i|w omega>
+             !
+             hij1=hij1+Vpqrs(nsocc+1)*scp
+          
+             !
+             ! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
+             !
+             hij1=hij1+Vpqrs(nsocc+2)*scp
+
+          endif
+             
+          ! Update the bra starting points in the spincp array
+          bstart1(1:nsocc)=bstart1(1:nsocc)+insp(1:nsocc)
+          
+       enddo
+
+       ! Update the ket starting points in the spincp array
+       kstart1(1:nsocc)=kstart1(1:nsocc)+insp(1:nsocc)
+       
+    enddo
+    
+    return
+    
+  end function hij_single_mrci_new
+  
 !######################################################################
 ! hij_single_mrci_batch: Computes a batch of off-diagonal Hamiltonian
 !                        matrix element for a pair of configurations
@@ -954,7 +1156,7 @@ contains
 
     ! No. CSFs for the intermediate configuration in the spin-coupling
     ! coefficients <w' omega'|E_i^j E_k^l|w omega>
-    integer(is)             :: insp(nmo)
+    integer(is), intent(in) :: insp(nmo)
     
     ! Everything else
     integer(is)             :: bomega,komega,bcsf,kcsf,bnsp,knsp
@@ -1018,7 +1220,7 @@ contains
              product=dot_product(&
                   spincp(bstart(k):bstart(k)+insp(k)-1),&
                   spincp(kstart(k):kstart(k)+insp(k)-1))
-                  
+
              ! Sum the contribution
              harr(counter)=harr(counter)+Vpqrs(k)*(product-halfscp)
        
@@ -1082,11 +1284,13 @@ contains
     integer(is), intent(in) :: m2c(nmo)
     
     ! Everything else
-    integer(is)             :: nsp,nsp2b,nopen
+    integer(is)             :: nsp,insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
-    integer(is)             :: bomega,komega,indx
+    integer(is)             :: bomega,komega
+    integer(is)             :: bpattern,kpattern,kstart,bstart
     integer(is)             :: count,n
     real(dp)                :: Vijji,product
+    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Initialisation
@@ -1104,9 +1308,9 @@ contains
 ! fibers of the spin-coupling coefficient tensor
 !----------------------------------------------------------------------
     if (nopen > 1) then
-       nsp2b=ncsfs(nopen-2)
+       insp=ncsfs(nopen-2)
     else
-       nsp2b=0
+       insp=0
     endif
 
 !----------------------------------------------------------------------
@@ -1132,24 +1336,35 @@ contains
           ! DFT/HF MO index
           j1=m2c(ja)
 
-          ! Get the spin coupling coefficient pattern index
-          indx=pattern_index_case2b(sop,ic,ja,nbefore(ic),nbefore(ja),&
-               nopen)
-          
+          ! Get the spin coupling coefficient pattern indices
+          transpose=.true.
+          bpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen,transpose)
+          transpose=.false.
+          kpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen,transpose)
+
           ! V_ijji
           Vijji=Vx(i1,j1)
           
           ! Contributions to hij
           count=0
-          do bomega=1,nsp-1
-             do komega=bomega+1,nsp
-                count=count+1
-                product=dot_product(spincp2(1:nsp2b,bomega,indx),&
-                     spincp2(1:nsp2b,komega,indx))
-                harr(count)=harr(count)+Vijji*product
+          kstart=kpattern
+          do komega=1,nsp
+             bstart=bpattern
+             do bomega=1,nsp
+                if (bomega > komega) then
+                   count=count+1
+                   product=dot_product(&
+                        spincp(bstart:bstart+insp-1),&
+                        spincp(kstart:kstart+insp-1))
+                   harr(count)=harr(count)+Vijji*product
+                endif
+                bstart=bstart+insp
              enddo
+             kstart=kstart+insp
           enddo
-
+          
        enddo
 
     enddo
@@ -1200,10 +1415,12 @@ contains
     integer(is), intent(in) :: m2c(nmo)
     
     ! Everything else
-    integer(is)             :: nsp,nsp2b,nopen
+    integer(is)             :: nsp,insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
-    integer(is)             :: indx,count
+    integer(is)             :: count
+    integer(is)             :: bpattern,kpattern,bstart,kstart
     real(dp)                :: Vijji,product
+    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Initialisation
@@ -1221,9 +1438,9 @@ contains
 ! fibers of the spin-coupling coefficient tensor
 !----------------------------------------------------------------------
     if (nopen > 1) then
-       nsp2b=ncsfs(nopen-2)
+       insp=ncsfs(nopen-2)
     else
-       nsp2b=0
+       insp=0
     endif
 
 !----------------------------------------------------------------------
@@ -1249,16 +1466,23 @@ contains
           ! DFT/HF MO index
           j1=m2c(ja)
 
-          ! Get the spin coupling coefficient pattern index
-          indx=pattern_index_case2b(sop,ic,ja,nbefore(ic),nbefore(ja),&
-               nopen)
+          ! Get the spin coupling coefficient pattern indices
+          transpose=.true.
+          bpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen,transpose)
+          transpose=.false.
+          kpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen,transpose)
           
           ! V_ijji
           Vijji=Vx(i1,j1)
           
           ! Contributions to hij
-          product=dot_product(spincp2(1:nsp2b,bomega,indx),&
-               spincp2(1:nsp2b,komega,indx))
+          bstart=bpattern+(bomega-1)*insp
+          kstart=kpattern+(komega-1)*insp
+          product=dot_product(&
+               spincp(bstart:bstart+insp-1),&
+               spincp(kstart:kstart+insp-1))
           hij=hij+Vijji*product
 
        enddo
