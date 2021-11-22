@@ -102,7 +102,7 @@ class Scf:
         # number of MOs
         self.nmo       = len(scf_pyscf.mo_occ)
         # number of auxiliary AOs
-        if (self.mol.use_df):
+        if (self.mol.use_df and hasattr(scf_pyscf, 'with_df')):
             self.naux      = int(scf_pyscf.with_df.auxmol.nao_nr())
 
         # orb_sym are the symmetry labels 
@@ -237,13 +237,12 @@ class Scf:
             # set the XC functional to BHLYP
             mf.xc = self.xc
 
-            # this will be generated during the calculation,
-            # saved upon completion
-            mf.with_df._cderi_to_save = self.moint_2e_eri
-
-        if (self.xc != 'hf' and hasattr(mf, 'with_df') and 
-                                      self.mol.use_df is False):
-            mf.with_df = False
+        # if using density-fitting, set the name of the DF-tensor
+        if hasattr(mf, 'with_df'):
+             if self.mol.use_df:
+                 mf.with_df._cderi_to_save = self.moint_2e_eri
+             else:
+                 mf.with_df = None
 
         # run the dft computation
         self.energy = mf.kernel()
