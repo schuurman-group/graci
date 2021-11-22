@@ -553,10 +553,6 @@ contains
     
        ! Contraction of the fibers of the spin-coupling coefficient
        ! tensor
-    
-       !
-       ! THIS IS THE PROBLEM
-       !
        bstart=bpattern(k)+(bomega-1)*insp(k)
        kstart=kpattern(k)+(komega-1)*insp(k)       
        product=dot_product(&
@@ -881,7 +877,104 @@ contains
     return
     
   end function hij_double_mrci
-  
+
+!######################################################################
+! hij_double_mrci: Computes an off-diagonal Hamiltonian matrix element
+!                  for a pair of CSFs differing by two pairs of spatial
+!                  orbital occupations. The spin couplings of the bra
+!                  and ket CSFs are given by the indices bomega and
+!                  komega, respectively.
+!######################################################################
+  function hij_double_mrci_new(bomega,komega,bnopen,knopen,&
+       bpattern,kpattern,Vpqrs,plist,hlist,insp) result(hij)
+
+    use constants
+    use bitglobal
+    use mrci_integrals
+    
+    implicit none
+
+    ! Function result
+    real(dp)                :: hij
+
+    ! Bra and ket spin couplings
+    integer(is), intent(in) :: bomega,komega
+
+    ! No. open shells in the bra and ket configurations
+    integer(is), intent(in) :: bnopen,knopen
+
+    ! Pattern indices
+    integer(is), intent(in) :: bpattern(2),kpattern(2)
+
+    ! Integrals (pre-scaled by the 1/[(1+delta_ab)*(1+delta_ij)]
+    ! prefactor)
+    real(dp), intent(in)    :: Vpqrs(2)
+
+    ! Indices of the creation and annihilation operators
+    integer(is), intent(in) :: plist(2),hlist(2)
+    integer(is)             :: ic1,ic2,ja1,ja2
+
+    ! Number of CSFs for the intermediate configuration obtained
+    ! by acting on the ket CSF with the first singlet excitation
+    ! operator
+    integer(is), intent(in) :: insp(2)
+    
+    ! Everything else
+    integer(is)             :: bnsp,knsp,kstart,bstart
+    real(dp)                :: product
+    
+!----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    hij=0.0d0
+
+!----------------------------------------------------------------------
+! Number of bra and ket CSFs
+!----------------------------------------------------------------------
+    bnsp=ncsfs(bnopen)
+    knsp=ncsfs(knopen)
+    
+!----------------------------------------------------------------------
+! Creation and annihilation operator indices
+!----------------------------------------------------------------------
+    ic1=plist(1)
+    ja1=hlist(1)
+
+    ic2=plist(2)
+    ja2=hlist(2)
+    
+!----------------------------------------------------------------------
+! V_aibj contribution    
+!----------------------------------------------------------------------
+    ! Contraction of the fibers of the spin-coupling coefficient
+    ! tensor
+    bstart=bpattern(1)+(bomega-1)*insp(1)
+    kstart=kpattern(1)+(komega-1)*insp(1)
+    product=dot_product(&
+         spincp(bstart:bstart+insp(1)-1),&
+         spincp(kstart:kstart+insp(1)-1))
+    
+    ! Contribution to hij
+    hij=hij+Vpqrs(1)*product
+
+!----------------------------------------------------------------------
+! V_ajbi contribution    
+!----------------------------------------------------------------------
+    ! Contraction of the fibers of the spin-coupling coefficient
+    ! tensor
+    bstart=bpattern(2)+(bomega-1)*insp(2)
+    kstart=kpattern(2)+(komega-1)*insp(2)
+    product=dot_product(&
+         spincp(bstart:bstart+insp(2)-1),&
+         spincp(kstart:kstart+insp(2)-1))
+    
+    ! Contribution to hij
+    hij=hij+Vpqrs(2)*product
+    
+    return
+    
+  end function hij_double_mrci_new
+
 !######################################################################
 ! hij_double_mrci_batch: Computes a batch of off-diagonal Hamiltonian
 !                        matrix element for a pair of configurations

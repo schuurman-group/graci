@@ -684,11 +684,19 @@ contains
                   hlist(1),plist(1),bnopen,knopen,bpattern,kpattern,&
                   Vpqrs,cfg%m2c,socc,nsocc,nbefore,Dw,ndiff,icase,insp)
           case(2)
-             call package_integrals_nexci2(&
+             
+             !call package_integrals_nexci2(&
+             !     sop(:,:,bcsf),sop(:,:,kcsf),&
+             !     pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
+             !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),cfg%m2c,&
+             !     nbefore)
+
+             call package_integrals_nexci2_new(&
                   sop(:,:,bcsf),sop(:,:,kcsf),&
-                  pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
+                  hlist(1:2),plist(1:2),bnopen,knopen,&
                   bpattern(1:2),kpattern(1:2),Vpqrs(1:2),cfg%m2c,&
-                  nbefore)
+                  nbefore,insp(1:2))
+             
           end select
 
           ! Compute the matrix element
@@ -707,10 +715,14 @@ contains
 
           case(2) ! Bra and ket configurations linked by two
                   ! excitations
-             subhmat(bcsf,kcsf)=hij_double_mrci(&
-                  omega(bcsf),omega(kcsf),bnopen,knopen,pairindx(1:2),&
+
+             subhmat(bcsf,kcsf)=hij_double_mrci_new(&
+                  omega(bcsf),omega(kcsf),bnopen,knopen,&
                   bpattern(1:2),kpattern(1:2),Vpqrs(1:2),&
-                  plist(1:2),hlist(1:2))
+                  plist(1:2),hlist(1:2),insp)
+
+             
+             
           end select
           
           ! DFT/MRCI corrections
