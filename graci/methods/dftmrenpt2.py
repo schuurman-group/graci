@@ -45,7 +45,6 @@ class Dftmrenpt2:
         self.nelec3         = 0
         self.autoras        = False
         self.icvs           = []
-        self.ciorder        = 2
         self.refiter        = 3
         self.ref_prune      = True
         self.print_orbitals = False

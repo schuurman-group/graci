@@ -43,18 +43,15 @@ module bitglobal
   !
   integer(is)              :: nspincp(2)      ! Number of unique spin coupling
                                               ! coefficients 
-  integer(is)              :: maxpattern(2)   ! Maximum possible simplified
-                                              ! spatial occupation pattern values
   integer(is)              :: npattern1,&     ! Number of Case 1 and Case 2
                               npattern2       ! patterns
-  integer(is), allocatable :: patternmap1(:)  ! Case 1 pattern -> array index
-                                              ! mapping
-  integer(is), allocatable :: patternmap2(:)  ! Case 2 pattern -> array index
-                                              ! mapping
   integer(ib), allocatable :: N1s(:)          ! Bit strings comprised of N 1's
 
-  real(dp), allocatable    :: spincp1(:,:,:)  ! Case 1 spin coupling coefficients
-  real(dp), allocatable    :: spincp2(:,:,:)  ! Case 2 spin coupling coefficients
+  integer(is), allocatable :: patternmap(:)   ! Pattern value -> array index
+                                              ! mapping
+  integer(is)              :: offspincp(4)    ! Spincp array offsets for the
+                                              ! different coefficient cases
+  real(dp), allocatable    :: spincp(:)       ! All spin coupling coefficients
   
   !
   ! Buffered I/O

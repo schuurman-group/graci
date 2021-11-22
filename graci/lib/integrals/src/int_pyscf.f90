@@ -63,26 +63,20 @@ module int_pyscf
   !              i.e. n_mo*(n_mo+1)/2
   !     use_ri:  Boolean that is true if DF is employed, else
   !              False
-  !     use_rr:  Boolean that is true if the rank reduction of the
-  !              DF 3-index integral tensor is to be performed
-  !     rr_fac:  Rank reduced DF compression factor  
   !
 #ifdef CBINDING
-    subroutine intpyscf_initialise(f1e, f2eri, n_mo1, n_aux1, use_ri, use_rr, rr_fac, thresh, max_memory) &
+    subroutine intpyscf_initialise(f1e, f2eri, n_mo1, n_aux1, use_ri, thresh, max_memory) &
          bind(c,name="intpyscf_initialise")
 #else
-      subroutine intpyscf_initialise(f1e, f2eri, n_mo, n_aux, use_ri, use_rr, rr_fac, thresh, max_memory)
+      subroutine intpyscf_initialise(f1e, f2eri, n_mo, n_aux, use_ri, thresh, max_memory)
 #endif
     use iomod
-    use rrdf
     use iso_c_binding, only: C_CHAR
 
     integer(ik), intent(in)                   :: n_mo1           ! number of MOs
     integer(ik), intent(in)                   :: n_aux1          ! number of auxility basis functions, if using DF, else
                                                                  ! it's the dimension of the AO space
     logical, intent(in)                       :: use_ri          ! whether or not to use density fitting
-    logical, intent(in)                       :: use_rr          ! whether or not to use rank density fitting
-    integer(ik), intent(in)                   :: rr_fac          ! rank reduced DF compression factor
     real(drk), intent(in)                     :: thresh          ! threshold for zero integrals
     integer(ik), intent(in), optional         :: max_memory      ! maximum memory that can be used by integral arrays     
                                                                  ! (in double precision numbers). If < 0, no limit is enforced
@@ -279,11 +273,6 @@ module int_pyscf
     !
     call h5close_f(error)
 
-    !
-    ! Rank reduction of the density fitting 3-index integrals
-    !    
-    if (use_ri .and. use_rr) call rank_reduce(n_aux, n_ij, integrals, rr_fac)
-    
     return
   end subroutine intpyscf_initialise 
 

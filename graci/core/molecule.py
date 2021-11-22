@@ -35,8 +35,6 @@ class Molecule:
         self.ri_basis = None 
         self.ao_cart  = False
         self.use_df   = False
-        self.use_rrdf = False
-        self.rrdf_fac = 3
         self.label    = 'Molecule'
 
         # the following are determined based on user

@@ -18,7 +18,6 @@ subroutine density_mrci(irrep,nroots,iroots,dmat,confscr,vecscr)
   use iomod
   use conftype
   use rdm
-  use rdm_double
   
   implicit none
 

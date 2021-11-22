@@ -193,8 +193,6 @@ def init_intpyscf(mol, scf):
     nmo      = convert.convert_ctypes(scf.nmo, dtype='int32')
     naux     = convert.convert_ctypes(scf.naux, dtype='int32')
     use_df   = convert.convert_ctypes(mol.use_df, dtype='logical')
-    use_rrdf = convert.convert_ctypes(mol.use_rrdf, dtype='logical')
-    rrdf_fac = convert.convert_ctypes(mol.rrdf_fac, dtype='int32')
     thresh   = convert.convert_ctypes(1e-14, dtype='double')
     max_mem  = convert.convert_ctypes(-1, dtype='int32')
 
@@ -205,8 +203,6 @@ def init_intpyscf(mol, scf):
                                   ctypes.byref(nmo),
                                   ctypes.byref(naux),
                                   ctypes.byref(use_df),
-                                  ctypes.byref(use_rrdf),
-                                  ctypes.byref(rrdf_fac),
                                   ctypes.byref(thresh),
                                   ctypes.byref(max_mem))
 
