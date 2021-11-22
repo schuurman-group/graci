@@ -328,13 +328,14 @@ contains
     integer(is), intent(in) :: nbefore(nmo)
     
     ! Everything else
-    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,nsp2b
-    integer(is)             :: ic,ja,omega,indx
+    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,insp
+    integer(is)             :: ic,ja,omega,pattern,start
     real(dp)                :: Viijj,Vijji
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
     real(dp)                :: pJ,pF
-
+    logical                 :: transpose
+    
 !----------------------------------------------------------------------
 ! Return if we are at the base configuration
 !----------------------------------------------------------------------
@@ -467,9 +468,9 @@ contains
     ! Numbers of 'intermediate' CSFs entering into the contractions of
     ! the fibers of the spin-coupling coefficient tensor
     if (nopen > 1) then
-       nsp2b=ncsfs(nopen-2)
+       insp=ncsfs(nopen-2)
     else
-       nsp2b=0
+       insp=0
     endif
 
     ! Loop over singly-occupied MOs (creation operator)
@@ -491,17 +492,21 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          indx=pattern_index_case2b(sop,ic,ja,nbefore(ic),nbefore(ja),&
-               nopen)
+          transpose=.false.
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen,transpose)
 
           ! V_ijji
           Vijji=Vx(i1,j1)
 
           ! Sum the contributions
+          start=pattern
           do omega=1,nsp
-             product=dot_product(spincp2(1:nsp2b,omega,indx),&
-                  spincp2(1:nsp2b,omega,indx))
+             product=dot_product(&
+                  spincp(start:start+insp-1),&
+                  spincp(start:start+insp-1))
              contrib(omega)=contrib(omega)-pF*Vijji*product
+             start=start+insp
           enddo
           
        enddo
@@ -556,12 +561,13 @@ contains
     integer(is), intent(in) :: nbefore(nmo)
     
     ! Everything else
-    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,nsp2b
-    integer(is)             :: ic,ja,omega,indx
+    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,insp
+    integer(is)             :: ic,ja,omega,pattern,start
     real(dp)                :: Viijj,Vijji,Viiii
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
     real(dp)                :: pJ,pF
+    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Diagonal shift: 1/4 Sum_i V_iiii, i singly occupied in the base
@@ -729,9 +735,9 @@ contains
     ! Numbers of 'intermediate' CSFs entering into the contractions of
     ! the fibers of the spin-coupling coefficient tensor
     if (nopen > 1) then
-       nsp2b=ncsfs(nopen-2)
+       insp=ncsfs(nopen-2)
     else
-       nsp2b=0
+       insp=0
     endif
 
     ! Loop over singly-occupied MOs (creation operator)
@@ -753,17 +759,21 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          indx=pattern_index_case2b(sop,ic,ja,nbefore(ic),nbefore(ja),&
-               nopen)
+          transpose=.false.
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen,transpose)
 
           ! V_ijji
           Vijji=Vx(i1,j1)
 
           ! Sum the contributions
+          start=pattern
           do omega=1,nsp
-             product=dot_product(spincp2(1:nsp2b,omega,indx),&
-                  spincp2(1:nsp2b,omega,indx))
+             product=dot_product(&
+                  spincp(start:start+insp-1),&
+                  spincp(start:start+insp-1))
              contrib(omega)=contrib(omega)-pF*Vijji*product
+             start=start+insp
           enddo
           
        enddo

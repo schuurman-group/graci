@@ -178,7 +178,7 @@ contains
 
           ! Get the spin coupling coefficient pattern index
           transpose=.false.
-          pattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
           
           ! V_ijji
@@ -291,25 +291,13 @@ contains
 !----------------------------------------------------------------------
     select case(nexci)
     case(1)
-
-       !call package_integrals_nexci1(bsop,ksop,pairindx(1),hlist(1),&
-       !     plist(1),bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,&
-       !     socc,nsocc,nbefore,Dw,ndiff,icase)
-
-       call package_integrals_nexci1_new(bsop,ksop,hlist(1),&
-            plist(1),bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,&
-            socc,nsocc,nbefore,Dw,ndiff,icase,insp)
-       
+       call package_integrals_nexci1(bsop,ksop,hlist(1),plist(1),&
+            bnopen,knopen,bpattern,kpattern,Vpqrs,m2c,socc,nsocc,&
+            nbefore,Dw,ndiff,icase,insp)
     case(2)
-
-       !call package_integrals_nexci2(bsop,ksop,&
-       !     pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
-       !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),m2c,nbefore)
-
-       call package_integrals_nexci2_new(bsop,ksop,hlist(1:2),&
-            plist(1:2),bnopen,knopen,bpattern(1:2),kpattern(1:2),&
-            Vpqrs(1:2),m2c,nbefore,insp(1:2))
-       
+       call package_integrals_nexci2(bsop,ksop,hlist(1:2),plist(1:2),&
+            bnopen,knopen,bpattern(1:2),kpattern(1:2),Vpqrs(1:2),m2c,&
+            nbefore,insp(1:2))
     end select
 
 !----------------------------------------------------------------------
@@ -318,26 +306,13 @@ contains
 !----------------------------------------------------------------------
     select case(nexci)
     case(1)
-
-       !call hij_single_mrci_batch(bnopen,knopen,pairindx(1),icase,&
-       !     bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,hlist(1),&
-       !     plist(1),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
-
-       call hij_single_mrci_batch_new(bnopen,knopen,&
-            bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,hlist(1),&
-            plist(1),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,&
-            insp)
-       
+       call hij_single_mrci_batch(bnopen,knopen,bpattern,kpattern,&
+            Vpqrs,socc,nsocc,ndiff,hlist(1),plist(1),harr,harrdim,&
+            bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
     case(2)
-       
-       !call hij_double_mrci_batch(bnopen,knopen,pairindx(1:2),&
-       !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),plist(1:2),&
-       !     hlist(1:2),harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf)
-
-       call hij_double_mrci_batch_new(bnopen,knopen,bpattern(1:2),&
+       call hij_double_mrci_batch(bnopen,knopen,bpattern(1:2),&
             kpattern(1:2),Vpqrs(1:2),plist(1:2),hlist(1:2),harr,&
             harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp(1:2))
-       
     end select
     
 !----------------------------------------------------------------------
@@ -357,123 +332,8 @@ contains
 !                  and ket CSFs are given by the indices bomega and
 !                  komega, respectively.
 !######################################################################
-  function hij_single_mrci(bomega,komega,bnopen,knopen,pairindx,&
-       icase,bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,ia,ac) result(hij)
-
-    use constants
-    use bitglobal
-    use bitstrings
-    use mrci_integrals
-    use iomod
-    
-    implicit none
-
-    ! Function result
-    real(dp)                :: hij
-
-    ! Bra and ket spin couplings
-    integer(is), intent(in) :: bomega,komega
-
-    ! No. open shells in the bra and ket configurations
-    integer(is), intent(in) :: bnopen,knopen
-
-    ! Spin-coupling sub-case bitstring encodings
-    integer(ib), intent(in) :: pairindx,icase
-
-    ! Pattern indices
-    integer(is), intent(in) :: bpattern(nmo+1),kpattern(nmo+1)
-
-    ! Integrals and functions of integrals
-    real(dp), intent(in)    :: Vpqrs(nmo)
-
-    ! Singly-occupied MOs in the ket configuration
-    integer(is), intent(in) :: nsocc
-    integer(is), intent(in) :: socc(nmo)
-    
-    ! Number of excitations relative to the base configuration
-    integer(is), intent(in) :: ndiff
-
-    ! Indices of the annihilation and creation operators
-    integer(is), intent(in) :: ia,ac
-    
-    ! Everything else
-    integer(is)             :: indx,k,k1
-    real(dp)                :: scp,halfscp,product
-
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    hij=0.0d0
-    
-!----------------------------------------------------------------------
-! Get the spin-coupling coefficient <w' omega'|E_a^i|w omega>
-!----------------------------------------------------------------------
-    indx=kpattern(nsocc+1)
-    select case(icase)
-    case(i1a)
-       scp=spincp1(komega,bomega,indx)
-    case(i1b)
-       scp=-spincp1(komega,bomega,indx)
-    case(i2a)
-       scp=spincp2(komega,bomega,indx)
-    case(i2b)
-       scp=spincp2(bomega,komega,indx)
-    case default
-       errmsg='Unrecognised icase value in hij_single_mrci'
-       call error_control
-    end select
-
-!----------------------------------------------------------------------
-! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>, k singly-
-! occupied in the ket
-!----------------------------------------------------------------------
-    halfscp=0.5d0*scp
-    
-    ! Loop over singly-occupied MOs
-    do k=1,nsocc
-
-       ! MO index
-       k1=socc(k)
-
-       ! Cycle if the current MO corresponds to either the creation
-       ! or annihilation operator
-       if (k1 == ia) cycle
-       if (k1 == ac) cycle
-
-       ! Contraction of the fibers of the spin-coupling coefficient
-       ! tensor
-       product=contract_spincp(bomega,komega,bpattern(k),kpattern(k),&
-            pairindx,bnopen,knopen)
-
-       ! Sum the contribution
-       hij=hij+Vpqrs(k)*(product-halfscp)
-       
-    enddo
-
-!----------------------------------------------------------------------
-! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
-! x <w' omega'|E_a^i|w omega>
-!----------------------------------------------------------------------
-    hij=hij+Vpqrs(nsocc+1)*scp
-    
-!----------------------------------------------------------------------
-! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
-!----------------------------------------------------------------------
-    hij=hij+Vpqrs(nsocc+2)*scp
-    
-    return
-    
-  end function hij_single_mrci
-
-!######################################################################
-! hij_single_mrci: Computes an off-diagonal Hamiltonian matrix element
-!                  for a pair of CSFs differing by one pair of spatial
-!                  orbital occupation. The spin couplings of the bra
-!                  and ket CSFs are given by the indices bomega and
-!                  komega, respectively.
-!######################################################################
-  function hij_single_mrci_new(bomega,komega,bnopen,knopen,&
-       bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,ia,ac,insp) result(hij)
+  function hij_single_mrci(bomega,komega,bnopen,knopen,bpattern,&
+       kpattern,Vpqrs,socc,nsocc,ndiff,ia,ac,insp) result(hij)
 
     use constants
     use bitglobal
@@ -575,226 +435,9 @@ contains
 !----------------------------------------------------------------------
     hij=hij+Vpqrs(nsocc+2)*scp
 
-
-
-
-    
-
-
-    
-    hij1=0.0d0
-    
-    ! Initialise counters
-    kstart1(1:nsocc)=kpattern(1:nsocc)
-    counter=0
-    
-    ! Loop over ket CSFs
-    do komega1=1,ncsfs(knopen)
-       
-       ! Loop over bra CSFs
-       bstart1(1:nsocc)=bpattern(1:nsocc)
-       do bomega1=1,ncsfs(bnopen)
-
-          ! Increment the harr counter
-          counter=counter+1
-          
-          ! Get the spin-coupling coefficient <w' omega'|E_a^i|w omega>
-          scp=spincp(kpattern(nsocc+1)+counter-1)
-          
-          !
-          ! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>,
-          ! k singly-occupied in the ket
-          !          
-          halfscp=0.5d0*scp
-
-          if (bomega1 == bomega .and. komega1 == komega) then
-          
-             ! Loop over singly-occupied MOs
-             do k=1,nsocc
-             
-                ! MO index
-                k1=socc(k)
-                
-                ! Cycle if the current MO corresponds to either the creation
-                ! or annihilation operator
-                if (k1 == ia) cycle
-                if (k1 == ac) cycle
-                
-                ! Contraction of the fibers of the spin-coupling coefficient
-                ! tensor
-                product=dot_product(&
-                     spincp(bstart1(k):bstart1(k)+insp(k)-1),&
-                     spincp(kstart1(k):kstart1(k)+insp(k)-1))
-                
-                ! Sum the contribution
-                hij1=hij1+Vpqrs(k)*(product-halfscp)
-                
-             enddo
-
-             !
-             ! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
-             ! x <w' omega'|E_a^i|w omega>
-             !
-             hij1=hij1+Vpqrs(nsocc+1)*scp
-          
-             !
-             ! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
-             !
-             hij1=hij1+Vpqrs(nsocc+2)*scp
-
-          endif
-             
-          ! Update the bra starting points in the spincp array
-          bstart1(1:nsocc)=bstart1(1:nsocc)+insp(1:nsocc)
-          
-       enddo
-
-       ! Update the ket starting points in the spincp array
-       kstart1(1:nsocc)=kstart1(1:nsocc)+insp(1:nsocc)
-       
-    enddo
-    
     return
     
-  end function hij_single_mrci_new
-  
-!######################################################################
-! hij_single_mrci_batch: Computes a batch of off-diagonal Hamiltonian
-!                        matrix element for a pair of configurations
-!                        differing by one pair of spatial orbital
-!                        occupation.
-!######################################################################
-  subroutine hij_single_mrci_batch(bnopen,knopen,pairindx,icase,&
-       bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,ia,ac,harr,harrdim,&
-       bcsfs,kcsfs,bdim,kdim,bconf,kconf)
-
-    use constants
-    use bitglobal
-    use bitstrings
-    use mrci_integrals
-    use iomod
-    
-    implicit none
-
-    ! No. open shells in the bra and ket configurations
-    integer(is), intent(in) :: bnopen,knopen
-
-    ! Spin-coupling sub-case bitstring encodings
-    integer(ib), intent(in) :: pairindx,icase
-
-    ! Pattern indices
-    integer(is), intent(in) :: bpattern(nmo+1),kpattern(nmo+1)
-
-    ! Integrals and functions of integrals
-    real(dp), intent(in)    :: Vpqrs(nmo)
-
-    ! Singly-occupied MOs in the ket configuration
-    integer(is), intent(in) :: nsocc
-    integer(is), intent(in) :: socc(nmo)
-    
-    ! Number of excitations relative to the base configuration
-    integer(is), intent(in) :: ndiff
-
-    ! Indices of the annihilation and creation operators
-    integer(is), intent(in) :: ia,ac
-
-    ! Array of off-diagonal matrix elements
-    integer(is), intent(in) :: harrdim
-    real(dp), intent(out)   :: harr(harrdim)
-
-    ! CSF offsets
-    integer(is), intent(in) :: kdim,bdim
-    integer(is), intent(in) :: bcsfs(bdim),kcsfs(kdim)
-
-    ! Bra and ket configuration indices
-    integer(is), intent(in) :: bconf,kconf
-    
-    ! Everything else
-    integer(is)             :: bomega,komega,bcsf,kcsf
-    integer(is)             :: indx,k,k1,counter
-    real(dp)                :: scp,halfscp,product
-
-    ! Initialise the harr counter
-    counter=0
-    
-    ! Loop over ket CSFs
-    komega=0
-    do kcsf=kcsfs(kconf),kcsfs(kconf+1)-1
-       
-       ! Ket CSF spin coupling index
-       komega=komega+1
-       
-       ! Loop over bra CSFs
-       bomega=0
-       do bcsf=bcsfs(bconf),bcsfs(bconf+1)-1
-
-          ! Increment the harr counter
-          counter=counter+1
-          
-          ! Bra CSF spin coupling index
-          bomega=bomega+1
-
-          ! Get the spin-coupling coefficient <w' omega'|E_a^i|w omega>
-          indx=kpattern(nsocc+1)
-          select case(icase)
-          case(i1a)
-             scp=spincp1(komega,bomega,indx)
-          case(i1b)
-             scp=-spincp1(komega,bomega,indx)
-          case(i2a)
-             scp=spincp2(komega,bomega,indx)
-          case(i2b)
-             scp=spincp2(bomega,komega,indx)
-          case default
-             errmsg='Unrecognised icase value in hij_single_mrci'
-             call error_control
-          end select
-
-          !
-          ! Sum_k V_ikka <w' omega'|E_a^k E_k^i - 1/2E_a^i|w omega>,
-          ! k singly-occupied in the ket
-          !          
-          halfscp=0.5d0*scp
-          
-          ! Loop over singly-occupied MOs
-          do k=1,nsocc
-             
-             ! MO index
-             k1=socc(k)
-             
-             ! Cycle if the current MO corresponds to either the creation
-             ! or annihilation operator
-             if (k1 == ia) cycle
-             if (k1 == ac) cycle
-             
-             ! Contraction of the fibers of the spin-coupling coefficient
-             ! tensor
-             product=contract_spincp(bomega,komega,bpattern(k),&
-                  kpattern(k),pairindx,bnopen,knopen)
-             
-             ! Sum the contribution
-             harr(counter)=harr(counter)+Vpqrs(k)*(product-halfscp)
-       
-          enddo
-
-          !
-          ! [F_ia + Sum_k (V_iakk - 1/2 V_ikka) Delta w_k]
-          ! x <w' omega'|E_a^i|w omega>
-          !
-          harr(counter)=harr(counter)+Vpqrs(nsocc+1)*scp
-          
-          !
-          ! 1/2 [V_aaai w_a + Vaiii (w_i -2)] <w' omega'|E_a^i|w omega>
-          !
-          harr(counter)=harr(counter)+Vpqrs(nsocc+2)*scp
-          
-       enddo
-
-    enddo
-       
-    return
-    
-  end subroutine hij_single_mrci_batch
+  end function hij_single_mrci
 
 !######################################################################
 ! hij_double_mrci: Computes an off-diagonal Hamiltonian matrix element
@@ -803,90 +446,8 @@ contains
 !                  and ket CSFs are given by the indices bomega and
 !                  komega, respectively.
 !######################################################################
-  function hij_double_mrci(bomega,komega,bnopen,knopen,pairindx,&
-       bpattern,kpattern,Vpqrs,plist,hlist) result(hij)
-
-    use constants
-    use bitglobal
-    use mrci_integrals
-    
-    implicit none
-
-    ! Function result
-    real(dp)                :: hij
-
-    ! Bra and ket spin couplings
-    integer(is), intent(in) :: bomega,komega
-
-    ! No. open shells in the bra and ket configurations
-    integer(is), intent(in) :: bnopen,knopen
-
-    ! Spin-coupling sub-case pair bitstrings
-    integer(ib), intent(in) :: pairindx(2)
-
-    ! Pattern indices
-    integer(is), intent(in) :: bpattern(2),kpattern(2)
-
-    ! Integrals (pre-scaled by the 1/[(1+delta_ab)*(1+delta_ij)]
-    ! prefactor)
-    real(dp), intent(in)    :: Vpqrs(2)
-
-    ! Indices of the creation and annihilation operators
-    integer(is), intent(in) :: plist(2),hlist(2)
-    integer(is)             :: ic1,ic2,ja1,ja2
-    
-    ! Everything else
-    real(dp)                :: product
-
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    hij=0.0d0
-
-!----------------------------------------------------------------------
-! Creation and annihilation operator indices
-!----------------------------------------------------------------------
-    ic1=plist(1)
-    ja1=hlist(1)
-
-    ic2=plist(2)
-    ja2=hlist(2)
-    
-!----------------------------------------------------------------------
-! V_aibj contribution    
-!----------------------------------------------------------------------
-    ! Contraction of the fibers of the spin-coupling coefficient
-    ! tensor
-    product=contract_spincp(bomega,komega,bpattern(1),kpattern(1),&
-         pairindx(1),bnopen,knopen)
-
-    ! Contribution to hij
-    hij=hij+Vpqrs(1)*product
-
-!----------------------------------------------------------------------
-! V_ajbi contribution    
-!----------------------------------------------------------------------
-    ! Contraction of the fibers of the spin-coupling coefficient
-    ! tensor
-    product=contract_spincp(bomega,komega,bpattern(2),kpattern(2),&
-         pairindx(2),bnopen,knopen)
-
-    ! Contribution to hij
-    hij=hij+Vpqrs(2)*product
-    
-    return
-    
-  end function hij_double_mrci
-
-!######################################################################
-! hij_double_mrci: Computes an off-diagonal Hamiltonian matrix element
-!                  for a pair of CSFs differing by two pairs of spatial
-!                  orbital occupations. The spin couplings of the bra
-!                  and ket CSFs are given by the indices bomega and
-!                  komega, respectively.
-!######################################################################
-  function hij_double_mrci_new(bomega,komega,bnopen,knopen,&
-       bpattern,kpattern,Vpqrs,plist,hlist,insp) result(hij)
+  function hij_double_mrci(bomega,komega,bnopen,knopen,bpattern,&
+       kpattern,Vpqrs,plist,hlist,insp) result(hij)
 
     use constants
     use bitglobal
@@ -973,7 +534,7 @@ contains
     
     return
     
-  end function hij_double_mrci_new
+  end function hij_double_mrci
 
 !######################################################################
 ! hij_double_mrci_batch: Computes a batch of off-diagonal Hamiltonian
@@ -981,110 +542,9 @@ contains
 !                        differing by two pairs of spatial orbital
 !                        occupations.
 !######################################################################
-  subroutine hij_double_mrci_batch(bnopen,knopen,pairindx,&
-       bpattern,kpattern,Vpqrs,plist,hlist,harr,harrdim,&
-       bcsfs,kcsfs,bdim,kdim,bconf,kconf)
-
-    use constants
-    use bitglobal
-    use mrci_integrals
-    
-    implicit none
-
-    ! No. open shells in the bra and ket configurations
-    integer(is), intent(in) :: bnopen,knopen
-
-    ! Spin-coupling sub-case pair bitstrings
-    integer(ib), intent(in) :: pairindx(2)
-
-    ! Pattern indices
-    integer(is), intent(in) :: bpattern(2),kpattern(2)
-
-    ! Integrals (pre-scaled by the 1/[(1+delta_ab)*(1+delta_ij)]
-    ! prefactor)
-    real(dp), intent(in)    :: Vpqrs(2)
-
-    ! Indices of the creation and annihilation operators
-    integer(is), intent(in) :: plist(2),hlist(2)
-    integer(is)             :: ic1,ic2,ja1,ja2
-
-    ! Array of off-diagonal matrix elements
-    integer(is), intent(in) :: harrdim
-    real(dp), intent(out)   :: harr(harrdim)
-
-    ! CSF offsets
-    integer(is), intent(in) :: kdim,bdim
-    integer(is), intent(in) :: bcsfs(bdim),kcsfs(kdim)
-
-    ! Bra and ket configuration indices
-    integer(is), intent(in) :: bconf,kconf
-    
-    ! CSFs
-    integer(is)             :: bomega,komega,bcsf,kcsf
-    
-    ! Everything else
-    integer(is)             :: counter
-    real(dp)                :: product
-
-!----------------------------------------------------------------------
-! Creation and annihilation operator indices
-!----------------------------------------------------------------------
-    ic1=plist(1)
-    ja1=hlist(1)
-
-    ic2=plist(2)
-    ja2=hlist(2)
-    
-!----------------------------------------------------------------------
-! Compute the matrix elements
-!----------------------------------------------------------------------
-    ! Initialise the harr counter
-    counter=0
-
-    ! Loop over ket CSFs
-    komega=0
-    do kcsf=kcsfs(kconf),kcsfs(kconf+1)-1
-       
-       ! Ket CSF spin coupling index
-       komega=komega+1
-    
-       ! Loop over bra CSFs
-       bomega=0
-       do bcsf=bcsfs(bconf),bcsfs(bconf+1)-1
-
-          ! Increment the harr counter
-          counter=counter+1
-          
-          ! Bra CSF spin coupling index
-          bomega=bomega+1
-
-          ! V_aibj contribution    
-          product=contract_spincp(bomega,komega,bpattern(1),&
-               kpattern(1),pairindx(1),bnopen,knopen)
-          harr(counter)=harr(counter)+Vpqrs(1)*product
-          
-          ! V_ajbi contribution    
-          product=contract_spincp(bomega,komega,bpattern(2),&
-               kpattern(2),pairindx(2),bnopen,knopen)
-          harr(counter)=harr(counter)+Vpqrs(2)*product
-          
-       enddo
-
-    enddo
-       
-    return
-    
-  end subroutine hij_double_mrci_batch
-
-!######################################################################
-! hij_double_mrci_batch: Computes a batch of off-diagonal Hamiltonian
-!                        matrix element for a pair of configurations
-!                        differing by two pairs of spatial orbital
-!                        occupations.
-!######################################################################
-  subroutine hij_double_mrci_batch_new(bnopen,knopen,bpattern,&
-       kpattern,Vpqrs,plist,hlist,harr,harrdim,bcsfs,kcsfs,bdim,kdim,&
-       bconf,kconf,insp)
+  subroutine hij_double_mrci_batch(bnopen,knopen,bpattern,kpattern,&
+       Vpqrs,plist,hlist,harr,harrdim,bcsfs,kcsfs,bdim,kdim,bconf,&
+       kconf,insp)
 
     use constants
     use bitglobal
@@ -1197,7 +657,7 @@ contains
     
     return
     
-  end subroutine hij_double_mrci_batch_new
+  end subroutine hij_double_mrci_batch
 
 !######################################################################
 ! hij_single_mrci_batch: Computes a batch of off-diagonal Hamiltonian
@@ -1205,9 +665,9 @@ contains
 !                        differing by one pair of spatial orbital
 !                        occupation.
 !######################################################################
-  subroutine hij_single_mrci_batch_new(bnopen,knopen,&
-       bpattern,kpattern,Vpqrs,socc,nsocc,ndiff,ia,ac,harr,harrdim,&
-       bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
+  subroutine hij_single_mrci_batch(bnopen,knopen,bpattern,kpattern,&
+       Vpqrs,socc,nsocc,ndiff,ia,ac,harr,harrdim,bcsfs,kcsfs,bdim,&
+       kdim,bconf,kconf,insp)
 
     use constants
     use bitglobal
@@ -1342,7 +802,7 @@ contains
        
     return
     
-  end subroutine hij_single_mrci_batch_new
+  end subroutine hij_single_mrci_batch
     
 !######################################################################
 ! hij_same_mrci: Computes a batch of off-diagonal Hamiltonian matrix
@@ -1431,10 +891,10 @@ contains
 
           ! Get the spin coupling coefficient pattern indices
           transpose=.true.
-          bpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+          bpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
           transpose=.false.
-          kpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+          kpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
 
           ! V_ijji
@@ -1561,10 +1021,10 @@ contains
 
           ! Get the spin coupling coefficient pattern indices
           transpose=.true.
-          bpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+          bpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
           transpose=.false.
-          kpattern=pattern_index_case2b_new(sop,ic,ja,nbefore(ic),&
+          kpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
           
           ! V_ijji

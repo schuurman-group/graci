@@ -679,24 +679,16 @@ contains
           ! Fill the integrals, pattern index, and pair index arrays
           select case(nexci)
           case(1)
-             call package_integrals_nexci1_new(&
+             call package_integrals_nexci1(&
                   sop(:,:,bcsf),sop(:,:,kcsf),&
                   hlist(1),plist(1),bnopen,knopen,bpattern,kpattern,&
                   Vpqrs,cfg%m2c,socc,nsocc,nbefore,Dw,ndiff,icase,insp)
           case(2)
-             
-             !call package_integrals_nexci2(&
-             !     sop(:,:,bcsf),sop(:,:,kcsf),&
-             !     pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
-             !     bpattern(1:2),kpattern(1:2),Vpqrs(1:2),cfg%m2c,&
-             !     nbefore)
-
-             call package_integrals_nexci2_new(&
+             call package_integrals_nexci2(&
                   sop(:,:,bcsf),sop(:,:,kcsf),&
                   hlist(1:2),plist(1:2),bnopen,knopen,&
                   bpattern(1:2),kpattern(1:2),Vpqrs(1:2),cfg%m2c,&
                   nbefore,insp(1:2))
-             
           end select
 
           ! Compute the matrix element
@@ -708,21 +700,17 @@ contains
                   nsocc,nbefore,cfg%m2c)
           case(1) ! Bra and ket configurations linked by a single
                   ! excitation
-             subhmat(bcsf,kcsf)=hij_single_mrci_new(&
+             subhmat(bcsf,kcsf)=hij_single_mrci(&
                   omega(bcsf),omega(kcsf),bnopen,knopen,&
                   bpattern,kpattern,Vpqrs,socc,nsocc,&
                   ndiff,hlist(1),plist(1),insp)
 
           case(2) ! Bra and ket configurations linked by two
                   ! excitations
-
-             subhmat(bcsf,kcsf)=hij_double_mrci_new(&
+             subhmat(bcsf,kcsf)=hij_double_mrci(&
                   omega(bcsf),omega(kcsf),bnopen,knopen,&
                   bpattern(1:2),kpattern(1:2),Vpqrs(1:2),&
                   plist(1:2),hlist(1:2),insp)
-
-             
-             
           end select
           
           ! DFT/MRCI corrections

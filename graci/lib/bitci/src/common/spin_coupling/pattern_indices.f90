@@ -7,254 +7,6 @@ module pattern_indices
   implicit none
 
 contains
-
-!######################################################################
-! pattern_index: Given an SOP with nopen open shells, creation and
-!                annihilation operator indices, ic and ja, and a
-!                sub-case bitstring encoding, returns a spin coupling
-!                coefficient pattern index.
-!######################################################################
-  function pattern_index(sop,ic,ja,nc,na,nopen,icase) result(pattern)
-
-    use constants
-    use bitglobal
-    use bitstrings
-    use iomod
-
-    implicit none
-
-    integer(is)             :: pattern
-    integer(ib), intent(in) :: sop(n_int,2)
-    integer(is), intent(in) :: ic,ja,nc,na,nopen
-    integer(ib), intent(in) :: icase
-    
-    select case(icase)
-    
-    case(i1a) ! Sub-case 1a
-       pattern=pattern_index_case1a(sop,ic,ja,nc,na,nopen)
-    
-    case(i1b) ! Sub-case 1b
-       pattern=pattern_index_case1b(sop,ic,ja,nc,na,nopen)
-    
-    case(i2a) ! Sub-case 2a
-       pattern=pattern_index_case2a(sop,ic,ja,nc,na,nopen)
-    
-    case(i2b) ! Sub-case 2b
-       pattern=pattern_index_case2b(sop,ic,ja,nc,na,nopen)
-    
-    case default ! Unrecognised bitstring encoding
-       errmsg='Error in pattern_index: unrecognised bitstring encoding'
-       call error_control
-       
-    end select
-
-    return
-    
-  end function pattern_index
-    
-!######################################################################
-! pattern_index_case1a: Given an SOP with nopen open shells and
-!                       creation and annihilation operator indices,
-!                       ic and ja, returns a Case 1a spin coupling
-!                       coefficient pattern index, i.e., for a
-!                       singly-occupied -> unoccupied excitation
-!######################################################################
-  function pattern_index_case1a(sop,ic,ja,nc,na,nopen) result(pattern)
-
-    use constants
-    use bitglobal
-    use mrciutils
-    
-    implicit none
-
-    integer(is)             :: pattern
-    integer(ib), intent(in) :: sop(n_int,2)
-    integer(is), intent(in) :: ic,ja,nopen
-    integer(is), intent(in) :: nc,na
-    integer(ib)             :: ip
-    integer(is)             :: shift
-    
-!----------------------------------------------------------------------
-! Compute the pattern number
-!----------------------------------------------------------------------
-    ! Bit string with the first nopen+1 bits set
-    ip=N1s(nopen+1)
-
-    ! Clear the two bits corresponding to the positions of annihilated
-    ! and created MOs in the simplified spatial occupation vector.
-    ! This will directly yield the value of the pattern number
-    if (ja < ic) then
-       ! ws  ...1...0...
-       ! ws' ...0...1...
-       ip=ibclr(ip,na)
-       ip=ibclr(ip,nc)
-       shift=0
-    else
-       ! ws  ...0...1...
-       ! ws' ...1...0...
-       ip=ibclr(ip,nc)
-       ip=ibclr(ip,na+1)
-       shift=npattern1
-    endif
-
-!----------------------------------------------------------------------
-! Pattern index
-!----------------------------------------------------------------------
-    pattern=patternmap1(ip)+shift
-    
-    return
-    
-  end function pattern_index_case1a
-
-!######################################################################
-! pattern_index_case1b: Given an SOP with nopen open shells and
-!                       creation and annihilation operator indices,
-!                       ic and ja, returns a Case 1b spin coupling
-!                       coefficient pattern index, i.e., for a
-!                       doubly-occupied -> singly-occupied excitation
-!######################################################################
-  function pattern_index_case1b(sop,ic,ja,nc,na,nopen) result(pattern)
-
-    use constants
-    use bitglobal
-    use mrciutils
-    
-    implicit none
-
-    integer(is)             :: pattern
-    integer(ib), intent(in) :: sop(n_int,2)
-    integer(is), intent(in) :: ic,ja,nopen
-    integer(is), intent(in) :: nc,na
-    integer(ib)             :: ip
-    integer(is)             :: shift
-    
-!----------------------------------------------------------------------
-! Compute the pattern number
-!----------------------------------------------------------------------
-    ! Bit string with the first nopen+1 bits set
-    ip=N1s(nopen+1)
-
-    ! Clear the two bits corresponding to the positions of annihilated
-    ! and created MOs in the simplified spatial occupation vector.
-    ! This will directly yield the value of the pattern number
-    if (ja < ic) then
-       ! ws  ...2...1...
-       ! ws' ...1...2...
-       ip=ibclr(ip,na)
-       ip=ibclr(ip,nc+1)
-       shift=npattern1
-    else
-       ! ws  ...1...2...
-       ! ws' ...2...2...
-       ip=ibclr(ip,nc)
-       ip=ibclr(ip,na)
-       shift=0
-    endif
-
-!----------------------------------------------------------------------
-! Pattern index
-!----------------------------------------------------------------------
-    pattern=patternmap1(ip)+shift
-    
-    return
-    
-  end function pattern_index_case1b
-  
-!######################################################################
-! pattern_index_case2a: Given an SOP with nopen open shells and
-!                       creation and annihilation operator indices,
-!                       ic and ja, returns a Case 2a spin coupling
-!                       coefficient pattern index, i.e., for a
-!                       doubly-occupied -> unoccupied excitation
-!######################################################################
-  function pattern_index_case2a(sop,ic,ja,nc,na,nopen) result(pattern)
-
-    use constants
-    use bitglobal
-    use mrciutils
-    
-    implicit none
-
-    integer(is)             :: pattern
-    integer(ib), intent(in) :: sop(n_int,2)
-    integer(is), intent(in) :: ic,ja,nopen
-    integer(is), intent(in) :: nc,na
-    integer(ib)             :: ip
-
-!----------------------------------------------------------------------
-! Compute the pattern number
-!----------------------------------------------------------------------
-    ! Bit string with the first nopen+2 bits set
-    ip=N1s(nopen+2)
-    
-    ! Clear the two bits corresponding to the positions of annihilated
-    ! and created MOs in the simplified spatial occupation vector.
-    ! This will directly yield the value of the pattern number
-    if (ja < ic) then
-       ! ws  ...2...0...
-       ! ws' ...1...1...
-       ip=ibclr(ip,na)
-       ip=ibclr(ip,nc+1)
-    else
-       ! ws  ...0...2...
-       ! ws' ...1...1...
-       ip=ibclr(ip,nc)
-       ip=ibclr(ip,na+1)
-    endif
-    
-!----------------------------------------------------------------------
-! Pattern index
-!----------------------------------------------------------------------
-    pattern=patternmap2(ip)
-    
-    return
-    
-  end function pattern_index_case2a
-
-!######################################################################
-! pattern_index_case2b: Given an SOP with nopen open shells and
-!                       creation and annihilation operator indices,
-!                       ic and ja, returns a Case 2b spin coupling
-!                       coefficient pattern index, i.e., for a
-!                       singly-occupied -> singly-occupied excitation
-!######################################################################
-  function pattern_index_case2b(sop,ic,ja,nc,na,nopen) result(pattern)
-
-    use constants
-    use bitglobal
-    use mrciutils
-    
-    implicit none
-
-    integer(is)             :: pattern
-    integer(ib), intent(in) :: sop(n_int,2)
-    integer(is), intent(in) :: ic,ja,nopen
-    integer(is), intent(in) :: nc,na
-    integer(ib)             :: ip
-
-!----------------------------------------------------------------------
-! Compute the pattern number
-!----------------------------------------------------------------------
-    ! Bit string with the first nopen bits set
-    ip=N1s(nopen)
-
-    ! Clear the two bits corresponding to the positions of annihilated
-    ! and created MOs in the simplified spatial occupation vector.
-    ! This will directly yield the value of the pattern number
-    !
-    ! ws  ...1...1... or ...1...1... (this makes no difference because
-    ! ws' ...0...2...    ...2...0... both MOs are singly-occupied in ws)
-    ip=ibclr(ip,na)
-    ip=ibclr(ip,nc)
-    
-!----------------------------------------------------------------------
-! Pattern index
-!----------------------------------------------------------------------
-    pattern=patternmap2(ip)
-        
-    return
-    
-  end function pattern_index_case2b
   
 !######################################################################
 ! get_icase: Given an SOP and a pair of creation and annihilation
@@ -324,12 +76,12 @@ contains
   end function get_icase
   
 !######################################################################
-! pattern_index_new:  Given an SOP with nopen open shells, creation and
-!                     annihilation operator indices, ic and ja, and a
-!                     sub-case bitstring encoding, returns a spin
-!                     coupling coefficient pattern index.
+! pattern_index:  Given an SOP with nopen open shells, creation and
+!                 annihilation operator indices, ic and ja, and a
+!                 sub-case bitstring encoding, returns a spin
+!                 coupling coefficient pattern index.
 !######################################################################
-  function pattern_index_new(sop,ic,ja,nc,na,nopen,icase,transpose) &
+  function pattern_index(sop,ic,ja,nc,na,nopen,icase,transpose) &
        result(pattern)
 
     use constants
@@ -350,16 +102,16 @@ contains
     select case(icase)
     
     case(i1a) ! Sub-case 1a
-       pattern=pattern_index_case1a_new(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case1a(sop,ic,ja,nc,na,nopen,transpose)
     
     case(i1b) ! Sub-case 1b
-       pattern=pattern_index_case1b_new(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case1b(sop,ic,ja,nc,na,nopen,transpose)
     
     case(i2a) ! Sub-case 2a
-       pattern=pattern_index_case2a_new(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case2a(sop,ic,ja,nc,na,nopen,transpose)
     
     case(i2b) ! Sub-case 2b
-       pattern=pattern_index_case2b_new(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case2b(sop,ic,ja,nc,na,nopen,transpose)
     
     case default ! Unrecognised bitstring encoding
        errmsg='Error in pattern_index: unrecognised bitstring encoding'
@@ -369,7 +121,7 @@ contains
     
     return
     
-  end function pattern_index_new
+  end function pattern_index
     
 !######################################################################
 ! pattern_index_case1a: Given an SOP with nopen open shells and
@@ -378,7 +130,8 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       singly-occupied -> unoccupied excitation
 !######################################################################
-  function pattern_index_case1a_new(sop,ic,ja,nc,na,nopen,transpose) result(pattern)
+  function pattern_index_case1a(sop,ic,ja,nc,na,nopen,transpose) &
+       result(pattern)
 
     use constants
     use bitglobal
@@ -432,7 +185,7 @@ contains
     
     return
 
-  end function pattern_index_case1a_new
+  end function pattern_index_case1a
 
 !######################################################################
 ! pattern_index_case1b: Given an SOP with nopen open shells and
@@ -441,7 +194,8 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       doubly-occupied -> singly-occupied excitation
 !######################################################################
-  function pattern_index_case1b_new(sop,ic,ja,nc,na,nopen,transpose) result(pattern)
+  function pattern_index_case1b(sop,ic,ja,nc,na,nopen,transpose) &
+       result(pattern)
 
     use constants
     use bitglobal
@@ -495,7 +249,7 @@ contains
     
     return
     
-  end function pattern_index_case1b_new
+  end function pattern_index_case1b
 
 !######################################################################
 ! pattern_index_case2a: Given an SOP with nopen open shells and
@@ -504,7 +258,8 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       doubly-occupied -> unoccupied excitation
 !######################################################################
-  function pattern_index_case2a_new(sop,ic,ja,nc,na,nopen,transpose) result(pattern)
+  function pattern_index_case2a(sop,ic,ja,nc,na,nopen,transpose) &
+       result(pattern)
 
     use constants
     use bitglobal
@@ -555,7 +310,7 @@ contains
     
     return
     
-  end function pattern_index_case2a_new
+  end function pattern_index_case2a
 
 !######################################################################
 ! pattern_index_case2b: Given an SOP with nopen open shells and
@@ -564,7 +319,8 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       singly-occupied -> singly-occupied excitation
 !######################################################################
-  function pattern_index_case2b_new(sop,ic,ja,nc,na,nopen,transpose) result(pattern)
+  function pattern_index_case2b(sop,ic,ja,nc,na,nopen,transpose) &
+       result(pattern)
 
     use constants
     use bitglobal
@@ -609,7 +365,7 @@ contains
 
     return
     
-  end function pattern_index_case2b_new
+  end function pattern_index_case2b
   
 !######################################################################
   

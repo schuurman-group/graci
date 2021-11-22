@@ -217,8 +217,8 @@ contains
                plist(1:nexci),nexci)
 
           ! Get the spin-coupling coefficients
-          scp(1:knsp*bnsp)=spincp_coeff_new(knsp,bnsp,ksop_full,&
-               plist(1),hlist(1),knopen,nbefore)
+          scp(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop_full,plist(1)&
+               ,hlist(1),knopen,nbefore)
 
           ! Idices of the 1-TDM elements
           i=cfgB%m2c(hlist(1))
@@ -1911,8 +1911,8 @@ contains
        call get_exci_indices(kconf,bconf,n_int,hlist(1),plist(1),1)
 
        ! Get the spin-coupling coefficients
-       scp(1:knsp*bnsp)=spincp_coeff_new(knsp,bnsp,ksop,plist(1),&
-            hlist(1),knopen,knbefore)
+       scp(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),hlist(1),&
+            knopen,knbefore)
 
        ! Idices of the 1-RDM elements
        i=m2c(hlist(1))
@@ -1996,84 +1996,7 @@ contains
     integer(ib)             :: icase
 
     ! Function result
-    real(dp)                :: spincp_coeff(knsp,bnsp)
-    
-    ! Everything else
-    integer(is)             :: nc,na
-
-!----------------------------------------------------------------------
-! Get the pattern index and sub-case bit string for the spin-coupling
-! coefficients
-!----------------------------------------------------------------------
-    ! No. open shells before the created electron
-    nc=nbefore(ac)
-    
-    ! No. open shells before the annihilated electron
-    na=nbefore(ia)
-
-    ! Spin-coupling sub-case bit string
-    icase=get_icase(sop,ac,ia)
-
-    ! Pattern index
-    pattern=pattern_index(sop,ac,ia,nc,na,nopen,icase)
-
-!----------------------------------------------------------------------
-! Fill in the array of spin-coupling coefficients
-!----------------------------------------------------------------------
-    select case(icase)
-    case(i1a)
-       spincp_coeff(1:knsp,1:bnsp)=spincp1(1:knsp,1:bnsp,pattern)
-    case(i1b)
-       spincp_coeff(1:knsp,1:bnsp)=-spincp1(1:knsp,1:bnsp,pattern)
-    case(i2a)
-       spincp_coeff(1:knsp,1:bnsp)=spincp2(1:knsp,1:bnsp,pattern)
-    case(i2b)
-       spincp_coeff(1:knsp,1:bnsp)=transpose(spincp2(1:bnsp,1:knsp,pattern))
-    case default
-       errmsg='Unrecognised icase value in spincp_coeff'
-       call error_control
-    end select
-    
-    return
-    
-  end function spincp_coeff
-
-!######################################################################
-! spincp_coeff: Given a SOP and pair of creation/annihilation operator
-!               indices, returns the complete set of spin-coupling
-!               coefficients
-!######################################################################
-  function spincp_coeff_new(knsp,bnsp,sop,ac,ia,nopen,nbefore)
-
-    use constants
-    use bitglobal
-    use pattern_indices
-    use bitstrings
-    use iomod
-    
-    implicit none
-
-    ! Numbers of ket and bra CSFs
-    integer(is), intent(in) :: knsp,bnsp
-
-    ! SOP
-    integer(ib), intent(in) :: sop(n_int,2)
-    
-    ! Creation/annihilation operator indices
-    integer(is), intent(in) :: ac,ia
-
-    ! Number of open shells
-    integer(is), intent(in) :: nopen
-    
-    ! Number of open shells preceding each MO
-    integer(is), intent(in) :: nbefore(nmo)
-
-    ! Spin-coupling sub-case bit string encodings
-    integer(is)             :: pattern
-    integer(ib)             :: icase
-
-    ! Function result
-    real(dp)                :: spincp_coeff_new(knsp*bnsp)
+    real(dp)                :: spincp_coeff(knsp*bnsp)
     
     ! Everything else
     integer(is)             :: nc,na
@@ -2094,16 +2017,16 @@ contains
 
     ! Pattern index
     transpose=.false.
-    pattern=pattern_index_new(sop,ac,ia,nc,na,nopen,icase,transpose)
+    pattern=pattern_index(sop,ac,ia,nc,na,nopen,icase,transpose)
 
 !----------------------------------------------------------------------
 ! Fill in the array of spin-coupling coefficients
 !----------------------------------------------------------------------
-    spincp_coeff_new=spincp(pattern:pattern+knsp*bnsp-1)
+    spincp_coeff=spincp(pattern:pattern+knsp*bnsp-1)
     
     return
     
-  end function spincp_coeff_new
+  end function spincp_coeff
   
 !######################################################################
   
