@@ -613,6 +613,10 @@ contains
     ! Pattern indices
     integer(is)              :: bpattern(nmo+1),kpattern(nmo+1)
 
+    ! No. CSFs for the intermediate configuration in the spin-coupling
+    ! coefficients <w' omega'|E_i^j E_k^l|w omega>
+    integer(is)             :: insp(nmo)
+    
     ! Integrals
     real(dp)                 :: Vpqrs(nmo)
     
@@ -677,15 +681,14 @@ contains
           case(1)
              call package_integrals_nexci1(&
                   sop(:,:,bcsf),sop(:,:,kcsf),&
-                  pairindx(1),hlist(1),plist(1),bnopen,knopen,&
-                  bpattern,kpattern,Vpqrs,cfg%m2c,socc,nsocc,nbefore,&
-                  Dw,ndiff,icase)
+                  hlist(1),plist(1),bnopen,knopen,bpattern,kpattern,&
+                  Vpqrs,cfg%m2c,socc,nsocc,nbefore,Dw,ndiff,icase,insp)
           case(2)
              call package_integrals_nexci2(&
                   sop(:,:,bcsf),sop(:,:,kcsf),&
-                  pairindx(1:2),hlist(1:2),plist(1:2),bnopen,knopen,&
+                  hlist(1:2),plist(1:2),bnopen,knopen,&
                   bpattern(1:2),kpattern(1:2),Vpqrs(1:2),cfg%m2c,&
-                  nbefore)
+                  nbefore,insp(1:2))
           end select
 
           ! Compute the matrix element
@@ -698,15 +701,16 @@ contains
           case(1) ! Bra and ket configurations linked by a single
                   ! excitation
              subhmat(bcsf,kcsf)=hij_single_mrci(&
-                  omega(bcsf),omega(kcsf),bnopen,knopen,pairindx(1),&
-                  icase,bpattern,kpattern,Vpqrs,socc,nsocc,&
-                  ndiff,hlist(1),plist(1))
+                  omega(bcsf),omega(kcsf),bnopen,knopen,&
+                  bpattern,kpattern,Vpqrs,socc,nsocc,&
+                  ndiff,hlist(1),plist(1),insp)
+
           case(2) ! Bra and ket configurations linked by two
                   ! excitations
              subhmat(bcsf,kcsf)=hij_double_mrci(&
-                  omega(bcsf),omega(kcsf),bnopen,knopen,pairindx(1:2),&
+                  omega(bcsf),omega(kcsf),bnopen,knopen,&
                   bpattern(1:2),kpattern(1:2),Vpqrs(1:2),&
-                  plist(1:2),hlist(1:2))
+                  plist(1:2),hlist(1:2),insp)
           end select
           
           ! DFT/MRCI corrections
