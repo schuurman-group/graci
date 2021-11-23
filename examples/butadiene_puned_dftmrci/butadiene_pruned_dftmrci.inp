@@ -23,9 +23,6 @@
  $dftmrci section
  nstates      = 11
  hamiltonian  = grimme_standard
- autoras      = True
- nhole1       = 2
- nelec3       = 2
- prune        = normal
+ prune        = loose
  $end
 

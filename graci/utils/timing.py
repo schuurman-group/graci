@@ -55,7 +55,8 @@ class Timer:
         self.calls     += 1
         self.running    = True
         self.wall_start = time.time()
-        self.cpu_start  = time.clock()
+#        self.cpu_start  = time.clock()
+        self.cpu_start  = time.process_time()
         self.wall_kids  = 0.
         self.cpu_kids   = 0.
 
@@ -63,7 +64,8 @@ class Timer:
         """Add to wall_time and cpu_time. Returns change in wall and
         CPU times."""
         d_wall = time.time()  - self.wall_start
-        d_cpu  = time.clock() - self.cpu_start
+#        d_cpu  = time.clock() - self.cpu_start
+        d_cpu  = time.process_time() - self.cpu_start
 
         # If cumulative, don't subtract off time spent in nested timers.
         if cumulative:

@@ -492,7 +492,7 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          transpose=.false.
+          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
 
@@ -759,7 +759,7 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          transpose=.false.
+          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
 

@@ -209,7 +209,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
            ipre=2
         endif
      endif
-
+     
      ! ENPT2 guess vectors and the generalised Davidson preconditioner
      ! are not yet available due to laziness
      if (iguess == 2 .and. ipre == 2) ipre=1

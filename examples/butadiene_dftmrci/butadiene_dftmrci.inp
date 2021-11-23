@@ -23,9 +23,5 @@
  $dftmrci section
  nstates      = 11
  hamiltonian  = grimme_standard
- ras1         = 14 15
- ras3         = 16 17 18 19 20 21 22 23 24 25 26
- nhole1       = 2
- nelec3       = 2
  $end
 

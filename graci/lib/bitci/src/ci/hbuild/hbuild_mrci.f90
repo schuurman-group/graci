@@ -177,7 +177,7 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          transpose=.false.
+          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
           
@@ -840,7 +840,7 @@ contains
     integer(is)             :: nsp,insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
     integer(is)             :: bomega,komega
-    integer(is)             :: bpattern,kpattern,kstart,bstart
+    integer(is)             :: pattern,kstart,bstart
     integer(is)             :: count,n
     real(dp)                :: Vijji,product
     logical                 :: transpose
@@ -869,7 +869,7 @@ contains
 !----------------------------------------------------------------------
 ! Case 2b spin-coupling coefficients
 !----------------------------------------------------------------------
-! Note that all other <w omega| E_i^j E_j^i | w omega> terms are zero
+! Note that all other <w omega' | E_i^j E_j^i | w omega> terms are zero
 !----------------------------------------------------------------------
     ! Loop over singly-occupied MOs (creation operator)
     do i=1,nsocc-1
@@ -891,20 +891,17 @@ contains
 
           ! Get the spin coupling coefficient pattern indices
           transpose=.true.
-          bpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
-          transpose=.false.
-          kpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
-               nbefore(ja),nopen,transpose)
-
+          
           ! V_ijji
           Vijji=Vx(i1,j1)
           
           ! Contributions to hij
           count=0
-          kstart=kpattern
+          kstart=pattern
           do komega=1,nsp
-             bstart=bpattern
+             bstart=pattern
              do bomega=1,nsp
                 if (bomega > komega) then
                    count=count+1
@@ -971,7 +968,7 @@ contains
     integer(is)             :: nsp,insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
     integer(is)             :: count
-    integer(is)             :: bpattern,kpattern,bstart,kstart
+    integer(is)             :: pattern,bstart,kstart
     real(dp)                :: Vijji,product
     logical                 :: transpose
 
@@ -999,7 +996,7 @@ contains
 !----------------------------------------------------------------------
 ! Case 2b spin-coupling coefficients
 !----------------------------------------------------------------------
-! Note that all other <w omega| E_i^j E_j^i | w omega> terms are zero
+! Note that all other <w omega' | E_i^j E_j^i | w omega> terms are zero
 !----------------------------------------------------------------------
     ! Loop over singly-occupied MOs (creation operator)
     do i=1,nsocc-1
@@ -1019,20 +1016,17 @@ contains
           ! DFT/HF MO index
           j1=m2c(ja)
 
-          ! Get the spin coupling coefficient pattern indices
+          ! Get the spin coupling coefficient pattern index
           transpose=.true.
-          bpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
-               nbefore(ja),nopen,transpose)
-          transpose=.false.
-          kpattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen,transpose)
           
           ! V_ijji
           Vijji=Vx(i1,j1)
           
           ! Contributions to hij
-          bstart=bpattern+(bomega-1)*insp
-          kstart=kpattern+(komega-1)*insp
+          bstart=pattern+(bomega-1)*insp
+          kstart=pattern+(komega-1)*insp
           product=dot_product(&
                spincp(bstart:bstart+insp-1),&
                spincp(kstart:kstart+insp-1))
