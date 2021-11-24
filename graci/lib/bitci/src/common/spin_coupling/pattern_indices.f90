@@ -81,8 +81,7 @@ contains
 !                 sub-case bitstring encoding, returns a spin
 !                 coupling coefficient pattern index.
 !######################################################################
-  function pattern_index(sop,ic,ja,nc,na,nopen,icase,transpose) &
-       result(pattern)
+  function pattern_index(sop,ic,ja,nc,na,nopen,icase) result(pattern)
 
     use constants
     use bitglobal
@@ -95,23 +94,22 @@ contains
     integer(ib), intent(in) :: sop(n_int,2)
     integer(is), intent(in) :: ic,ja,nc,na,nopen
     integer(ib), intent(in) :: icase
-    logical, intent(in)     :: transpose
     integer(ib)             :: ip
     integer(is)             :: shift
 
     select case(icase)
     
     case(i1a) ! Sub-case 1a
-       pattern=pattern_index_case1a(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case1a(sop,ic,ja,nc,na,nopen)
     
     case(i1b) ! Sub-case 1b
-       pattern=pattern_index_case1b(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case1b(sop,ic,ja,nc,na,nopen)
     
     case(i2a) ! Sub-case 2a
-       pattern=pattern_index_case2a(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case2a(sop,ic,ja,nc,na,nopen)
     
     case(i2b) ! Sub-case 2b
-       pattern=pattern_index_case2b(sop,ic,ja,nc,na,nopen,transpose)
+       pattern=pattern_index_case2b(sop,ic,ja,nc,na,nopen)
     
     case default ! Unrecognised bitstring encoding
        errmsg='Error in pattern_index: unrecognised bitstring encoding'
@@ -130,8 +128,7 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       singly-occupied -> unoccupied excitation
 !######################################################################
-  function pattern_index_case1a(sop,ic,ja,nc,na,nopen,transpose) &
-       result(pattern)
+  function pattern_index_case1a(sop,ic,ja,nc,na,nopen) result(pattern)
 
     use constants
     use bitglobal
@@ -143,7 +140,6 @@ contains
     integer(ib), intent(in) :: sop(n_int,2)
     integer(is), intent(in) :: ic,ja,nopen
     integer(is), intent(in) :: nc,na
-    logical, intent(in)     :: transpose
     integer(ib)             :: ip
     integer(is)             :: shift
 
@@ -161,21 +157,13 @@ contains
        ! ws' ...0...1...
        ip=ibclr(ip,na)
        ip=ibclr(ip,nc)
-       if (transpose) then
-          shift=offspincp(1)
-       else
-          shift=0
-       endif
+       shift=0
     else
        ! ws  ...0...1...
        ! ws' ...1...0...
        ip=ibclr(ip,nc)
        ip=ibclr(ip,na+1)
-       if (transpose) then
-          shift=0
-       else
-          shift=offspincp(1)
-       endif
+       shift=offspincp(1)
     endif
 
 !----------------------------------------------------------------------
@@ -194,8 +182,7 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       doubly-occupied -> singly-occupied excitation
 !######################################################################
-  function pattern_index_case1b(sop,ic,ja,nc,na,nopen,transpose) &
-       result(pattern)
+  function pattern_index_case1b(sop,ic,ja,nc,na,nopen) result(pattern)
 
     use constants
     use bitglobal
@@ -207,7 +194,6 @@ contains
     integer(ib), intent(in) :: sop(n_int,2)
     integer(is), intent(in) :: ic,ja,nopen
     integer(is), intent(in) :: nc,na
-    logical, intent(in)     :: transpose
     integer(ib)             :: ip
     integer(is)             :: shift
     
@@ -225,21 +211,13 @@ contains
        ! ws' ...1...2...
        ip=ibclr(ip,na)
        ip=ibclr(ip,nc+1)
-       if (transpose) then
-          shift=offspincp(3)
-       else
-          shift=offspincp(2)
-       endif
+       shift=offspincp(2)
     else
        ! ws  ...1...2...
        ! ws' ...2...2...
        ip=ibclr(ip,nc)
        ip=ibclr(ip,na)
-       if (transpose) then
-          shift=offspincp(2)
-       else
-          shift=offspincp(3)
-       endif
+       shift=offspincp(3)
     endif
 
 !----------------------------------------------------------------------
@@ -258,8 +236,7 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       doubly-occupied -> unoccupied excitation
 !######################################################################
-  function pattern_index_case2a(sop,ic,ja,nc,na,nopen,transpose) &
-       result(pattern)
+  function pattern_index_case2a(sop,ic,ja,nc,na,nopen) result(pattern)
 
     use constants
     use bitglobal
@@ -271,9 +248,7 @@ contains
     integer(ib), intent(in) :: sop(n_int,2)
     integer(is), intent(in) :: ic,ja,nopen
     integer(is), intent(in) :: nc,na
-    logical, intent(in)     :: transpose
     integer(ib)             :: ip
-    integer(is)             :: shift
 
 !----------------------------------------------------------------------
 ! Compute the pattern number
@@ -296,17 +271,10 @@ contains
        ip=ibclr(ip,na+1)
     endif
 
-    ! Transposition shift
-    if (transpose) then
-       shift=offspincp(4)
-    else
-       shift=0
-    endif
-        
 !----------------------------------------------------------------------
 ! Pattern index
 !----------------------------------------------------------------------
-    pattern=patternmap(ip)+shift
+    pattern=patternmap(ip)
     
     return
     
@@ -319,8 +287,7 @@ contains
 !                       coefficient pattern index, i.e., for a
 !                       singly-occupied -> singly-occupied excitation
 !######################################################################
-  function pattern_index_case2b(sop,ic,ja,nc,na,nopen,transpose) &
-       result(pattern)
+  function pattern_index_case2b(sop,ic,ja,nc,na,nopen) result(pattern)
 
     use constants
     use bitglobal
@@ -332,7 +299,6 @@ contains
     integer(ib), intent(in) :: sop(n_int,2)
     integer(is), intent(in) :: ic,ja,nopen
     integer(is), intent(in) :: nc,na
-    logical, intent(in)     :: transpose
     integer(ib)             :: ip
     integer(is)             :: shift
 
@@ -351,13 +317,8 @@ contains
     ip=ibclr(ip,na)
     ip=ibclr(ip,nc)
 
-    ! Transposition shift
-    if (transpose) then
-       shift=0
-    else
-       shift=offspincp(4)
-    endif
-    
+    shift=offspincp(4)
+        
 !----------------------------------------------------------------------
 ! Pattern index
 !----------------------------------------------------------------------

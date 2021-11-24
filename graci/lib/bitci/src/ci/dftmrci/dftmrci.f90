@@ -334,7 +334,6 @@ contains
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
     real(dp)                :: pJ,pF
-    logical                 :: transpose
     
 !----------------------------------------------------------------------
 ! Return if we are at the base configuration
@@ -492,9 +491,8 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
-               nbefore(ja),nopen,transpose)
+               nbefore(ja),nopen)
 
           ! V_ijji
           Vijji=Vx(i1,j1)
@@ -567,7 +565,6 @@ contains
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
     real(dp)                :: pJ,pF
-    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Diagonal shift: 1/4 Sum_i V_iiii, i singly occupied in the base
@@ -759,9 +756,8 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
-               nbefore(ja),nopen,transpose)
+               nbefore(ja),nopen)
 
           ! V_ijji
           Vijji=Vx(i1,j1)

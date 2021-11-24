@@ -180,7 +180,6 @@ contains
     integer(is)             :: i,k,k1,count
     integer(is)             :: wac,wia
     integer(is)             :: bnsp,knsp
-    logical                 :: transpose
     
 !----------------------------------------------------------------------
 ! Indices of the annihilation and creation operators
@@ -282,16 +281,12 @@ contains
        if (k1 == ac) cycle
        
        ! bra
-       transpose=.true.
        nc_b=n_bits_set_before(bsop(:,1),n_int,k1)
-       bpattern(k)=pattern_index(bsop,k1,ac,nc_b,na_b,bnopen,icase_b,&
-            transpose)
+       bpattern(k)=pattern_index(bsop,k1,ac,nc_b,na_b,bnopen,icase_b)
        
        ! ket
-       transpose=.true.
        nc_k=knbefore(k1)
-       kpattern(k)=pattern_index(ksop,k1,ia,nc_k,na_k,knopen,icase_k,&
-            transpose)
+       kpattern(k)=pattern_index(ksop,k1,ia,nc_k,na_k,knopen,icase_k)
        
     enddo
 
@@ -299,12 +294,10 @@ contains
 ! Pattern index for the spin-coupling coefficients
 ! < w' omega'| E_a^i | w omega > (icase)
 !----------------------------------------------------------------------
-    transpose=.true.
     nc_k=knbefore(ac)
     na_k=knbefore(ia)
     icase=get_icase(ksop,ac,ia)
-    kpattern(nsocc+1)=pattern_index(ksop,ac,ia,nc_k,na_k,knopen,icase,&
-         transpose)
+    kpattern(nsocc+1)=pattern_index(ksop,ac,ia,nc_k,na_k,knopen,icase)
     
 !----------------------------------------------------------------------
 ! Two-electron integrals
@@ -428,7 +421,6 @@ contains
 
     ! Everything else
     integer(is)              :: m
-    logical                  :: transpose
     
 !----------------------------------------------------------------------
 ! Indices of the annihilation and creation operators
@@ -485,28 +477,22 @@ contains
 ! Pattern indices
 !----------------------------------------------------------------------
     ! bra, V_aibj
-    transpose=.true.
     nc=n_bits_set_before(bsop(:,1),n_int,ia)
     na=n_bits_set_before(bsop(:,1),n_int,ac)
-    bpattern(1)=pattern_index(bsop,ia,ac,nc,na,bnopen,icase_b(1),&
-         transpose)
+    bpattern(1)=pattern_index(bsop,ia,ac,nc,na,bnopen,icase_b(1))
     
     ! bra, V_ajbi
     nc=n_bits_set_before(bsop(:,1),n_int,ja)
-    bpattern(2)=pattern_index(bsop,ja,ac,nc,na,bnopen,icase_b(2),&
-         transpose)
+    bpattern(2)=pattern_index(bsop,ja,ac,nc,na,bnopen,icase_b(2))
     
     ! ket, V_aibj
-    transpose=.true.
     nc=knbefore(bc)
     na=knbefore(ja)
-    kpattern(1)=pattern_index(ksop,bc,ja,nc,na,knopen,icase_k(1),&
-         transpose)
+    kpattern(1)=pattern_index(ksop,bc,ja,nc,na,knopen,icase_k(1))
     
     ! ket, V_ajbi
     na=knbefore(ia)
-    kpattern(2)=pattern_index(ksop,bc,ia,nc,na,knopen,icase_k(2),&
-         transpose)
+    kpattern(2)=pattern_index(ksop,bc,ia,nc,na,knopen,icase_k(2))
     
 !----------------------------------------------------------------------
 ! Two-electron integrals scaled by the 1/[(1+delta_ab)*(1+delta_ij)]

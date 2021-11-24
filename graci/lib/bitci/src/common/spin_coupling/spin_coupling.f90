@@ -764,8 +764,8 @@ contains
           !phase=phase_slow(d1(:,iket),hlist,plist,maxex,nexci)
           phase=phase_pure_exc(phase_mask(ispin),hlist(:,ispin),&
                 plist(:,ispin),maxex,nexci)
-          phasemat(iket,ibra)=dble(phase)
-
+          phasemat(ibra,iket)=dble(phase)
+          
        enddo
 
     enddo
@@ -980,14 +980,14 @@ contains
        ! Allocate work arrays
        nsp1=ncsfs(nopen)
        nsp2=ncsfs(nopen+2)
-       allocate(work(nsp1*nsp2), workT(nsp1*nsp2), work2(nsp2,nsp1))
+       allocate(work(nsp1*nsp2), workT(nsp1*nsp2), work2(nsp1,nsp2))
        
        ! Loop over the simplified spatial occupation vectors
        do is1=1,(nopen+2)*(nopen+1)/2
 
           ! Transpose of the Case 2a spin-coupling coefficient matrix
           work=spincp(ioff:ioff+nsp1*nsp2-1)
-          work2=transpose(reshape(work, (/nsp1,nsp2/)))
+          work2=transpose(reshape(work, (/nsp2,nsp1/)))
           workT=reshape(work2, (/nsp1*nsp2/))
           
           ! Case 2b coefficients
@@ -1082,12 +1082,12 @@ contains
     d2=0_ib
 
     ! Phase factor matrix
-    allocate(phasemat(ndet1,ndet2))
+    allocate(phasemat(ndet2,ndet1))
     phasemat=0.0d0
 
     ! Phase factor matrix contracted with the transpose of the CSF
     ! coefficient matrix
-    allocate(pcT(ndet1,ncsf2))
+    allocate(pcT(ndet2,ncsf1))
     pcT=0.0d0
     
     ! Working arrays
@@ -1152,7 +1152,7 @@ contains
     enddo
     
 !----------------------------------------------------------------------
-! Generate the determinants for CSF 2 (the ket CSF, with N+2 singly-
+! Generate the determinants for CSF 2 (the bra CSF, with N+2 singly-
 ! occupied MOs)
 !----------------------------------------------------------------------
     ! Initialise the bit string to all unset bits
@@ -1279,7 +1279,7 @@ contains
           !phase=phase_slow(d1(:,iket),hlist,plist,maxex,nexci)
           phase=phase_pure_exc(phase_mask(ispin),hlist(:,ispin),&
                 plist(:,ispin),maxex,nexci)
-          phasemat(iket,ibra)=dble(phase)
+          phasemat(ibra,iket)=dble(phase)
           
        enddo
        
@@ -1298,15 +1298,15 @@ contains
     ! associated with creating the doubly-occupied MO
     coe1=coe1*docc_phase
     
-    ! Contract the phase matrix with the CSF 2 expansion coefficients,
+    ! Contract the phase matrix with the CSF 1 expansion coefficients,
     ! pcT = phasemat * transpose(csfcoe2)
-    call dgemm('N','T',ndet1,ncsf2,ndet2,1.0d0,phasemat,ndet1,coe2,&
-         ncsf2,0.0d0,pcT,ndet1)
+    call dgemm('N','T',ndet2,ncsf1,ndet1,1.0d0,phasemat,ndet2,coe1,&
+         ncsf1,0.0d0,pcT,ndet2)
     
-    ! Contract the CSF 1 expansion coefficients with the intermediate
+    ! Contract the CSF 2 expansion coefficients with the intermediate
     ! matrix pcT to yield the spin coupling coefficients
-    call dgemm('N','N',ncsf1,ncsf2,ndet1,1.0d0,coe1,ncsf1,pcT,ndet1,&
-         0.0d0,spincoe,ncsf1)
+    call dgemm('N','N',ncsf2,ncsf1,ndet2,1.0d0,coe2,ncsf2,pcT,ndet2,&
+         0.0d0,spincoe,ncsf2)
     
 !----------------------------------------------------------------------
 ! Deallocate arrays

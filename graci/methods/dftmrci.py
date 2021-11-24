@@ -157,10 +157,6 @@ class Dftmrci:
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
             output.print_refdiag_summary(self)
-
-
-            sys.exit('Remove this sys.exit()')
-            
             
             # optional removal of deadwood from the
             # guess reference space

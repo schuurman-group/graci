@@ -57,7 +57,6 @@ contains
     integer(is)             :: insp
     real(dp)                :: focksum,xsum1,xsum2
     real(dp)                :: product,Vijji
-    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Numbers of 'intermediate' CSFs entering into the contractions of the
@@ -177,9 +176,8 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
-               nbefore(ja),nopen,transpose)
+               nbefore(ja),nopen)
           
           ! V_ijji
           Vijji=Vx(i1,j1)
@@ -843,7 +841,6 @@ contains
     integer(is)             :: pattern,kstart,bstart
     integer(is)             :: count,n
     real(dp)                :: Vijji,product
-    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Initialisation
@@ -890,9 +887,8 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern indices
-          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
-               nbefore(ja),nopen,transpose)
+               nbefore(ja),nopen)
           
           ! V_ijji
           Vijji=Vx(i1,j1)
@@ -970,7 +966,6 @@ contains
     integer(is)             :: count
     integer(is)             :: pattern,bstart,kstart
     real(dp)                :: Vijji,product
-    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Initialisation
@@ -1017,9 +1012,8 @@ contains
           j1=m2c(ja)
 
           ! Get the spin coupling coefficient pattern index
-          transpose=.true.
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
-               nbefore(ja),nopen,transpose)
+               nbefore(ja),nopen)
           
           ! V_ijji
           Vijji=Vx(i1,j1)
