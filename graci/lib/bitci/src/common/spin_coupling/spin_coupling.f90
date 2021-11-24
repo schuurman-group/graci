@@ -547,12 +547,12 @@ contains
              ! Case 1b, i>j coefficients
              istart=istart+nspincp(1)
              iend=iend+nspincp(1)
-             spincp(istart:iend)=-work
+             spincp(istart:iend)=-workT
              
              ! Case 1b, i<j coefficients
              istart=istart+nspincp(1)
              iend=iend+nspincp(1)
-             spincp(istart:iend)=-workT
+             spincp(istart:iend)=-work
 
              ! Update the spincp offset
              ioff=ioff+nsp**2
