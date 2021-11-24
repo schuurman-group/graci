@@ -1091,7 +1091,7 @@ contains
     
        ! Loop over bra 1-hole configurations
        do bn=1,cfg%n1h
-       
+
           ! Bra 1-hole configuration in the full MO space
           bconf1h_full=0_ib
           bconf1h_full(1:n_int_I,:)=cfg%conf1h(1:n_int_I,:,bn)
@@ -1598,7 +1598,7 @@ contains
     
        ! Loop over bra 2-hole configurations
        do bn=1,cfg%n2h
-       
+          
           ! Bra 2-hole configuration in the full MO space
           bconf2h_full=0_ib
           bconf2h_full(1:n_int_I,:)=cfg%conf2h(1:n_int_I,:,bn)

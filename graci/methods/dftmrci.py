@@ -158,6 +158,10 @@ class Dftmrci:
             self.ref_ener = ref_ener
             output.print_refdiag_summary(self)
 
+
+            sys.exit('Remove this sys.exit()')
+            
+            
             # optional removal of deadwood from the
             # guess reference space
             if self.ref_prune and self.niter == 0:

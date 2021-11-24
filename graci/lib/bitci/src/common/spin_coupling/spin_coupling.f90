@@ -70,9 +70,6 @@ contains
     ! Verbose output
     logical, intent(in)      :: verbose
 
-    ! Spin-coupling coefficient array dimensions
-    integer(is)              :: nsp1,nsp2
-    
     ! Everything else
     integer(is) :: i
     real(dp)    :: tcpu_start,tcpu_end,twall_start,twall_end
@@ -106,8 +103,7 @@ contains
 ! Allocate the spin coupling coefficient arrays
 !----------------------------------------------------------------------
     call init_spincp_arrays(imult,nocase1,nocase2,ncsfs,nspincp,&
-         npattern1,npattern2,nsp1,nsp2,verbose,spincp,spincpdim,&
-         offspincp)
+         npattern1,npattern2,verbose,spincp,spincpdim,offspincp)
 
 !----------------------------------------------------------------------
 ! Allocate the pattern value -> array index mapping array
@@ -118,14 +114,14 @@ contains
 ! Compute the Case 1 spin coupling coefficients
 !----------------------------------------------------------------------
     call case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-         csfcoe,detvec,nsp1,npattern1,spincpdim,spincp,nspincp,&
-         mapdim,patternmap)
+         csfcoe,detvec,npattern1,spincpdim,spincp,nspincp,mapdim,&
+         patternmap)
     
 !----------------------------------------------------------------------
 ! Compute the Case 2 spin coupling coefficients
 !----------------------------------------------------------------------
     call case2_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
-         detvec,nsp2,spincpdim,spincp,nspincp,mapdim,patternmap)
+         detvec,spincpdim,spincp,nspincp,mapdim,patternmap)
 
 !----------------------------------------------------------------------
 ! Fill in the array of bit strings with N set bits, from which the
@@ -268,7 +264,7 @@ contains
 !                     spin coupling coefficient arrays
 !######################################################################
   subroutine init_spincp_arrays(imult,nocase1,nocase2,ncsfs,nspincp,&
-       npattern1,npattern2,nsp1,nsp2,verbose,spincp,spincpdim,offspincp)
+       npattern1,npattern2,verbose,spincp,spincpdim,offspincp)
 
     use constants
         
@@ -278,7 +274,6 @@ contains
     integer(is), intent(in)  :: ncsfs(0:nocase2)
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(out) :: npattern1,npattern2
-    integer(is), intent(out) :: nsp1,nsp2
     integer(is), intent(out) :: spincpdim(3)
     integer(is), intent(out) :: offspincp(4)
     real(dp), allocatable    :: spincp(:)
@@ -353,15 +348,6 @@ contains
 !----------------------------------------------------------------------
 ! Spin coupling coefficient arrays
 !----------------------------------------------------------------------    
-    ! Maximum no. CSFs
-    if (modulo(imult,2) == 0) then
-       nsp1=ncsfs(nocase1-1)
-       nsp2=ncsfs(nocase2-1)
-    else
-       nsp1=ncsfs(nocase1)
-       nsp2=ncsfs(nocase2)
-    endif
-
     ! All spin coupling coefficients
     allocate(spincp(spincpdim(3)))
     spincp=0.0d0
@@ -429,7 +415,7 @@ contains
 !               numbers of open shells
 !######################################################################
   subroutine case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-       csfcoe,detvec,nsp1,npattern1,spincpdim,spincp,nspincp,mapdim,&
+       csfcoe,detvec,npattern1,spincpdim,spincp,nspincp,mapdim,&
        patternmap)
 
     use constants
@@ -441,14 +427,14 @@ contains
     integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
     real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
-    integer(is), intent(in)  :: nsp1,npattern1
+    integer(is), intent(in)  :: npattern1
     integer(is), intent(in)  :: spincpdim(3)
     real(dp), intent(out)    :: spincp(spincpdim(3))
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim
     integer(is), intent(out) :: patternmap(0:mapdim)
     
-    integer(is)              :: nopen,is1,is2,icsf1,icsf2,indx,nsp
+    integer(is)              :: nopen,is1,is2,icsf1,icsf2,nsp,ndet
     integer(is)              :: ioff,istart,iend
     integer(ib), allocatable :: ws(:,:)
     integer(ib)              :: pattern
@@ -479,20 +465,21 @@ contains
 ! Compute the Case 1 a spin coupling coefficients
 ! < w' omega' | E_i^j | w omega > for i>j
 !----------------------------------------------------------------------
-    ! Initialise the array index counter
-    indx=0
-
     ! Initialise the spincp offset
     ioff=1
     
     ! Loop over numbers of open shells
     do nopen=1,nocase1
 
+       ! No. CSFs and determinants
+       nsp=ncsfs(nopen)
+       ndet=ndets(nopen)
+       
        ! Cycle if there are no CSFs for this number of open shells
-       if (ncsfs(nopen) == 0) cycle
+       if (nsp == 0) cycle
 
        ! Allocate the spin-coupling coefficient work array
-       allocate(work(ncsfs(nopen)**2))
+       allocate(work(nsp**2))
        
        ! Loop over the unique pairs of simplified spatial occupation
        ! vectors
@@ -501,20 +488,19 @@ contains
 
              ! Pattern number and the corresponding array index
              pattern=iand(ws(is1,nopen),ws(is2,nopen))
-             indx=indx+1
              patternmap(pattern)=ioff
              
              ! Evaluate the spin coupling coefficients for all
              ! CSF pairs
              call spincp_coeff_case1(ws(is1,nopen),ws(is2,nopen),&
-                  nopen,indx,nocase1,nocase2,maxcsf,maxdet,ncsfs,&
-                  ndets,nsp1,detvec,csfcoe,ncsfs(nopen),work)
-
+                  nopen,nocase2,maxcsf,maxdet,nsp,ndet,detvec,csfcoe,&
+                  work)
+             
              ! Fill in the spincp array
-             spincp(ioff:ioff+ncsfs(nopen)**2-1)=work
+             spincp(ioff:ioff+nsp**2-1)=work
 
              ! Update the spincp offset
-             ioff=ioff+ncsfs(nopen)**2
+             ioff=ioff+nsp**2
              
           enddo
        enddo
@@ -523,45 +509,39 @@ contains
        deallocate(work)
        
     enddo
-    
+
 !----------------------------------------------------------------------
 ! Fill in the Case 1a i<j and Case 1b spin-coupling coefficients
 !----------------------------------------------------------------------
-    ! Initialise the array index counter
-    indx=npattern1
-
     ! Initialise the spincp offset
     ioff=1
     
     ! Loop over numbers of open shells
     do nopen=1,nocase1
 
+       ! No. CSFs
+       nsp=ncsfs(nopen)
+       
        ! Cycle if there are no CSFs for this number of open shells
-       if (ncsfs(nopen) == 0) cycle
+       if (nsp == 0) cycle
 
        ! Allocate work arrays
-       allocate(work(ncsfs(nopen)**2))
-       allocate(workT(ncsfs(nopen)**2))
-       allocate(work2(ncsfs(nopen),ncsfs(nopen)))
+       allocate(work(nsp**2), work2(nsp,nsp), workT(nsp**2))
        
        ! Loop over the unique pairs of simplified spatial occupation
        ! vectors
        do is1=1,nopen
           do is2=is1+1,nopen+1
 
-             ! Increment th array index counter
-             indx=indx+1
-             
              ! Case 1a, i>j spin-coupling coefficient matrix and its
              ! transpose
-             work=spincp(ioff:ioff+ncsfs(nopen)**2-1)
-             work2=transpose(reshape(work, &
-                  (/ncsfs(nopen),ncsfs(nopen)/)))
-             workT=reshape(work2, (/ncsfs(nopen)**2/))
+             work=spincp(ioff:ioff+nsp**2-1)
+             work2=transpose(reshape(work,(/nsp,nsp/)))
+             workT=reshape(work2,(/nsp**2/))
 
              ! Case 1a, i<j coefficients
              istart=ioff+nspincp(1)
-             iend=ioff+ncsfs(nopen)**2-1+nspincp(1)
+             iend=istart+nsp**2-1
              spincp(istart:iend)=workT
              
              ! Case 1b, i>j coefficients
@@ -573,9 +553,9 @@ contains
              istart=istart+nspincp(1)
              iend=iend+nspincp(1)
              spincp(istart:iend)=-workT
-             
+
              ! Update the spincp offset
-             ioff=ioff+ncsfs(nopen)**2
+             ioff=ioff+nsp**2
              
           enddo
        enddo
@@ -598,8 +578,8 @@ contains
 ! spincp_coeff_case1: Computes a single Case 1 spin coupling
 !                     coefficient
 !######################################################################
-  subroutine spincp_coeff_case1(ws1,ws2,nopen,indx,nocase1,nocase2,&
-       maxcsf,maxdet,ncsfs,ndets,nsp1,detvec,csfcoe,workdim,work)
+  subroutine spincp_coeff_case1(ws1,ws2,nopen,nocase2,maxcsf,maxdet,&
+       nsp,ndet,detvec,csfcoe,spincoe)
     
     use constants
     use bitutils
@@ -608,15 +588,12 @@ contains
     implicit none
 
     integer(ib), intent(in)  :: ws1,ws2
-    integer(is), intent(in)  :: nopen,indx
-
-    integer(is), intent(in)  :: nocase1,nocase2,maxcsf,maxdet
-    integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
-    integer(is), intent(in)  :: nsp1
+    integer(is), intent(in)  :: nopen
+    integer(is), intent(in)  :: nocase2,maxcsf,maxdet
+    integer(is), intent(in)  :: nsp,ndet
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
-    integer(is), intent(in)  :: workdim
-    real(dp), intent(out)    :: work(workdim,workdim)
+    real(dp), intent(out)    :: spincoe(nsp,nsp)
     integer(is)              :: icsf1,icsf2
     integer(is)              :: idet,n,vecindx,iket,ibra,ispin
     integer(is)              :: ic,ia,ih,ip
@@ -629,7 +606,7 @@ contains
     integer(is)              :: plist(maxex,2),hlist(maxex,2)
     integer(is)              :: phase
     real(dp), allocatable    :: phasemat(:,:),pcT(:,:)
-    real(dp), allocatable    :: coe(:,:),spincoe(:,:)
+    real(dp), allocatable    :: coe(:,:)
     
 !----------------------------------------------------------------------
 ! Save the actual value of n_int and then set this to 1 for use in the
@@ -643,25 +620,23 @@ contains
 ! Allocate arrays
 !----------------------------------------------------------------------
     ! Determinant bit strings
-    allocate(d1(2,ndets(nopen)))
-    allocate(d2(2,ndets(nopen)))
+    allocate(d1(2,ndet))
+    allocate(d2(2,ndet))
     d1=0_ib
     d2=0_ib
 
     ! Phase factor matrix
-    allocate(phasemat(ndets(nopen),ndets(nopen)))
+    allocate(phasemat(ndet,ndet))
     phasemat=0.0d0
 
     ! Phase factor matrix contracted with the transpose of the CSF
     ! coefficient matrix
-    allocate(pcT(ndets(nopen),ncsfs(nopen)))
+    allocate(pcT(ndet,nsp))
     pcT=0.0d0
 
     ! Working arrays
-    allocate(coe(ncsfs(nopen),ndets(nopen)))
+    allocate(coe(nsp,ndet))
     coe=0.0d0
-    allocate(spincoe(ncsfs(nopen),ncsfs(nopen)))
-    spincoe=0.0d0
 
 !----------------------------------------------------------------------
 ! Generate the determinants for CSF 1 (the ket CSF)
@@ -682,7 +657,7 @@ contains
        vecindx=vecindx+1
 
        ! Loop over determinants
-       do idet=1,ndets(nopen)
+       do idet=1,ndet
           
           ! Add the next spin orbital
           if (btest(detvec(idet,nopen),vecindx-1)) then
@@ -716,7 +691,7 @@ contains
        vecindx=vecindx+1
        
        ! Loop over determinants
-       do idet=1,ndets(nopen)
+       do idet=1,ndet
           
           ! Add the next spin orbital
           if (btest(detvec(idet,nopen),vecindx-1)) then
@@ -741,7 +716,7 @@ contains
 
     ! Annihilation operator index
     ia=trailz(not(ws2))+1
-    
+
 !----------------------------------------------------------------------
 ! Compute the matrix of phase factors for all pairs of determinants
 !----------------------------------------------------------------------
@@ -752,13 +727,13 @@ contains
 ! the determinants.
 !----------------------------------------------------------------------
     ! Loop over ket determinants
-    do iket=1,ndets(nopen)
+    do iket=1,ndet
 
        ! Compute the phase mask
        call phasemask(d1(:,iket),phase_mask)
        
        ! Loop over bra determinants
-       do ibra=1,ndets(nopen)
+       do ibra=1,ndet
           
           ! Get the excitation degree
           nexci=exc_degree_det(d2(:,ibra),d1(:,iket))
@@ -801,20 +776,17 @@ contains
 !----------------------------------------------------------------------
     ! Working array to avoid run-time warnings about temporary arrays
     ! being created
-    coe=csfcoe(1:ncsfs(nopen),1:ndets(nopen),nopen)
-
+    coe=csfcoe(1:nsp,1:ndet,nopen)
+    
     ! Contract the phase matrix with the CSF expansion coefficients,
     ! pcT = phasemat * transpose(csfcoe)
-    call dgemm('N','T',ndets(nopen),ncsfs(nopen),ndets(nopen),1.0d0,&
-         phasemat,ndets(nopen),coe,ncsfs(nopen),0.0d0,pcT,ndets(nopen))
+    call dgemm('N','T',ndet,nsp,ndet,1.0d0,phasemat,ndet,coe,nsp,&
+         0.0d0,pcT,ndet)
 
     ! Contract the CSF expansion coefficients with the intermediate
     ! matrix pcT to yield the spin coupling coefficients
-    call dgemm('N','N',ncsfs(nopen),ncsfs(nopen),ndets(nopen),1.0d0,&
-         coe,ncsfs(nopen),pcT,ndets(nopen),0.0d0,spincoe,ncsfs(nopen))
-
-    ! Save the spin coupling coefficients
-    work=spincoe
+    call dgemm('N','N',nsp,nsp,ndet,1.0d0,coe,nsp,pcT,ndet,0.0d0,&
+         spincoe,nsp)
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -824,8 +796,7 @@ contains
     deallocate(phasemat)
     deallocate(pcT)
     deallocate(coe)
-    deallocate(spincoe)
-    
+
 !----------------------------------------------------------------------
 ! Reset n_int
 !----------------------------------------------------------------------
@@ -842,7 +813,7 @@ contains
 !               open shells differing by two.
 !######################################################################
   subroutine case2_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-       csfcoe,detvec,nsp2,spincpdim,spincp,nspincp,mapdim,patternmap)
+       csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patternmap)
 
     use constants
     use bitutils
@@ -853,15 +824,14 @@ contains
     integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
     real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
-    integer(is), intent(in)  :: nsp2
     integer(is), intent(in)  :: spincpdim(3)
     real(dp), intent(out)    :: spincp(spincpdim(3))
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim
     integer(is), intent(out) :: patternmap(0:mapdim)
     
-    integer(is)              :: nopen,is1,is2,icsf1,icsf2,indx,lim,i
-    integer(is)              :: ioff,istart,iend,ncsf1,ncsf2
+    integer(is)              :: nopen,is1,is2,icsf1,icsf2,lim,i
+    integer(is)              :: ioff,istart,iend,nsp1,nsp2
     integer(ib), allocatable :: ws(:,:)
     integer(ib)              :: wsp(nocase2)
     integer(ib)              :: pattern
@@ -894,7 +864,7 @@ contains
     
 !----------------------------------------------------------------------
 ! Generate the unique Case 2 simplified initial spatial occupation
-! vectors, i.e, all possible permutations of N 1's and two 0
+! vectors, i.e, all possible permutations of N 1's and two 0's
 ! for N=1,...,nocase2
 !----------------------------------------------------------------------
     !
@@ -924,9 +894,6 @@ contains
 ! Compute the Case 2 spin coupling coefficient for N = 0 (only exists
 ! for singlets)
 !----------------------------------------------------------------------
-    ! Initialise the array index counter
-    indx=0
-
     ! Initialise the spincp offset
     ioff=spincpdim(1)+1
     
@@ -935,7 +902,6 @@ contains
 
        ! Pattern number and corresponding array index
        pattern=iand(ws(1,0),wsp(2))
-       indx=indx+1
        patternmap(pattern)=ioff
        
        ! Evaluate the spin coupling coefficient
@@ -960,29 +926,28 @@ contains
        if (nopen+2 > nocase2) cycle
 
        ! Allocate the spin-coupling coefficient work array
-       ncsf1=ncsfs(nopen)
-       ncsf2=ncsfs(nopen+2)
-       allocate(work(ncsf1*ncsf2))
+       nsp1=ncsfs(nopen)
+       nsp2=ncsfs(nopen+2)
+       allocate(work(nsp1*nsp2))
        
        ! Loop over the simplified spatial occupation vectors
        do is1=1,(nopen+2)*(nopen+1)/2
 
           ! Pattern number and the corresponding array indx
           pattern=iand(ws(is1,nopen),wsp(nopen+2))
-          indx=indx+1
           patternmap(pattern)=ioff
 
           ! Evaluate the spin coupling coefficient for all CSF
           ! pairs
           call spincp_coeff_case2(ws(is1,nopen),wsp(nopen+2),nopen,&
-               nopen+2,indx,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-               nsp2,detvec,csfcoe,ncsf1,ncsf2,work)
+               nopen+2,nocase2,maxcsf,maxdet,ndets,detvec,&
+               csfcoe,nsp1,nsp2,work)
 
           ! Fill in the spincp array
-          spincp(ioff:ioff+ncsf1*ncsf2-1)=work
+          spincp(ioff:ioff+nsp1*nsp2-1)=work
           
           ! Update the spincp offset
-          ioff=ioff+ncsf1*ncsf2
+          ioff=ioff+nsp1*nsp2
           
        enddo
 
@@ -1013,27 +978,25 @@ contains
        if (nopen+2 > nocase2) cycle
 
        ! Allocate work arrays
-       ncsf1=ncsfs(nopen)
-       ncsf2=ncsfs(nopen+2)
-       allocate(work(ncsf1*ncsf2))
-       allocate(workT(ncsf1*ncsf2))
-       allocate(work2(ncsf1,ncsf2))
+       nsp1=ncsfs(nopen)
+       nsp2=ncsfs(nopen+2)
+       allocate(work(nsp1*nsp2), workT(nsp1*nsp2), work2(nsp2,nsp1))
        
        ! Loop over the simplified spatial occupation vectors
        do is1=1,(nopen+2)*(nopen+1)/2
 
           ! Transpose of the Case 2a spin-coupling coefficient matrix
-          work=spincp(ioff:ioff+ncsf1*ncsf2-1)
-          work2=transpose(reshape(work, (/ncsf1,ncsf2/)))
-          workT=reshape(work2, (/ncsf1*ncsf2/))
+          work=spincp(ioff:ioff+nsp1*nsp2-1)
+          work2=transpose(reshape(work, (/nsp1,nsp2/)))
+          workT=reshape(work2, (/nsp1*nsp2/))
           
           ! Case 2b coefficients
           istart=ioff+nspincp(2)
-          iend=ioff+ncsf1*ncsf2-1+nspincp(2)
+          iend=istart+nsp1*nsp2-1
           spincp(istart:iend)=workT
           
           ! Update the spincp offset
-          ioff=ioff+ncsf1*ncsf2
+          ioff=ioff+nsp1*nsp2
           
        enddo
 
@@ -1041,7 +1004,7 @@ contains
        deallocate(work, workT, work2)
        
     enddo
-    
+
     return
     
   end subroutine case2_coeffs
@@ -1054,9 +1017,8 @@ contains
 ! N=nopen1 open shells, and ws2 is the simplified occupation vector
 ! with N+2=nopen2 open shells
 !######################################################################
-  subroutine spincp_coeff_case2(ws1,ws2,nopen1,nopen2,indx,nocase2,&
-       maxcsf,maxdet,ncsfs,ndets,nsp2,detvec,csfcoe,workdim1,workdim2,&
-       work)
+  subroutine spincp_coeff_case2(ws1,ws2,nopen1,nopen2,nocase2,maxcsf,&
+       maxdet,ndets,detvec,csfcoe,ncsf1,ncsf2,spincoe)
 
     use constants
     use bitutils
@@ -1065,14 +1027,13 @@ contains
     implicit none
 
     integer(ib), intent(in)  :: ws1,ws2
-    integer(is), intent(in)  :: nopen1,nopen2,indx
+    integer(is), intent(in)  :: nopen1,nopen2
     integer(is), intent(in)  :: nocase2,maxcsf,maxdet
-    integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
-    integer(is), intent(in)  :: nsp2
+    integer(is), intent(in)  :: ndets(0:nocase2)
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
-    integer(is), intent(in)  :: workdim1,workdim2
-    real(dp), intent(out)    :: work(workdim1,workdim2)
+    integer(is), intent(in)  :: ncsf1,ncsf2
+    real(dp), intent(out)    :: spincoe(ncsf1,ncsf2)
     
     integer(is)              :: icsf1,icsf2
     integer(is)              :: idet,n,vecindx,nunset
@@ -1087,9 +1048,9 @@ contains
     integer(is), parameter   :: maxex=2
     integer(is)              :: plist(maxex,2),hlist(maxex,2)
     integer(is)              :: phase
-    integer(is)              :: ndet1,ndet2,ncsf1,ncsf2
+    integer(is)              :: ndet1,ndet2
     real(dp), allocatable    :: phasemat(:,:),pcT(:,:)
-    real(dp), allocatable    :: coe1(:,:),coe2(:,:),spincoe(:,:)
+    real(dp), allocatable    :: coe1(:,:),coe2(:,:)
 
 
     ! Phase factor accociated with creating the doubly-occupied
@@ -1110,28 +1071,30 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
+    ! Dimensions
+    ndet1=ndets(nopen1)
+    ndet2=ndets(nopen2)
+
     ! Determinant bit strings
-    allocate(d1(2,ndets(nopen1)))
-    allocate(d2(2,ndets(nopen2)))
+    allocate(d1(2,ndet1))
+    allocate(d2(2,ndet2))
     d1=0_ib
     d2=0_ib
 
     ! Phase factor matrix
-    allocate(phasemat(ndets(nopen1),ndets(nopen2)))
+    allocate(phasemat(ndet1,ndet2))
     phasemat=0.0d0
 
     ! Phase factor matrix contracted with the transpose of the CSF
     ! coefficient matrix
-    allocate(pcT(ndets(nopen1),ncsfs(nopen2)))
+    allocate(pcT(ndet1,ncsf2))
     pcT=0.0d0
     
     ! Working arrays
-    allocate(coe1(ncsfs(nopen1),ndets(nopen1)))
+    allocate(coe1(ncsf1,ndet1))
     coe1=0.0d0
-    allocate(coe2(ncsfs(nopen2),ndets(nopen2)))
+    allocate(coe2(ncsf2,ndet2))
     coe2=0.0d0
-    allocate(spincoe(ncsfs(nopen1),ncsfs(nopen2)))
-    spincoe=0.0d0
     
 !----------------------------------------------------------------------
 ! Generate the determinants for CSF 1 (the ket CSF, with N singly-
@@ -1158,7 +1121,7 @@ contains
              n2=n
              ! Doubly-occupied MO: set both alpha and beta string bits
              ! in all determinants
-             do idet=1,ndets(nopen1)
+             do idet=1,ndet1
                 d1(1,idet)=ibset(d1(1,idet),n-1)
                 d1(2,idet)=ibset(d1(2,idet),n-1)
              enddo             
@@ -1173,7 +1136,7 @@ contains
        vecindx=vecindx+1
 
        ! Loop over determinants
-       do idet=1,ndets(nopen1)
+       do idet=1,ndet1
           
           ! Add the next spin orbital
           if (btest(detvec(idet,nopen1),vecindx-1)) then
@@ -1196,7 +1159,7 @@ contains
     d2=0_ib
     
     ! Loop over determinants
-    do idet=1,ndets(nopen2)
+    do idet=1,ndet2
     
        ! Loop over orbitals in the simplified spatial occupation
        do n=1,nopen2
@@ -1279,13 +1242,13 @@ contains
     phasemat=0.0d0
     
     ! Loop over ket determinants
-    do iket=1,ndets(nopen1)
+    do iket=1,ndet1
 
        ! Compute the phase mask
        call phasemask(d1(:,iket),phase_mask)
 
        ! Loop over bra determinants
-       do ibra=1,ndets(nopen2)
+       do ibra=1,ndet2
 
           ! Get the excitation degree
           nexci=exc_degree_det(d2(:,ibra),d1(:,iket))
@@ -1326,12 +1289,6 @@ contains
 ! Compute the matrix of spin coupling coefficients for the current
 ! pattern index
 !----------------------------------------------------------------------
-    ! Dimensions
-    ncsf1=ncsfs(nopen1)
-    ncsf2=ncsfs(nopen2)
-    ndet1=ndets(nopen1)
-    ndet2=ndets(nopen2)
-
     ! Working arrays to avoid run-time warnings about temporary arrays
     ! being created
     coe1=csfcoe(1:ncsf1,1:ndet1,nopen1)
@@ -1351,9 +1308,6 @@ contains
     call dgemm('N','N',ncsf1,ncsf2,ndet1,1.0d0,coe1,ncsf1,pcT,ndet1,&
          0.0d0,spincoe,ncsf1)
     
-    ! Save the spin coupling coefficients
-    work=spincoe
-    
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -1363,8 +1317,7 @@ contains
     deallocate(pcT)
     deallocate(coe1)
     deallocate(coe2)
-    deallocate(spincoe)
-    
+
 !----------------------------------------------------------------------
 ! Reset n_int
 !----------------------------------------------------------------------
