@@ -576,18 +576,18 @@ contains
 
              ! Initialise the spin-coupling coefficient counter
              counter=0
-             
-             ! Loop over bra CSFs
-             bomega=0
-             do ibcsf=cfg%csfs0h(ibconf),cfg%csfs0h(ibconf+1)-1
-                bomega=bomega+1
-                bcoe=vec(ibcsf,ista)
 
-                ! Loop over ket CSFs
-                komega=0
-                do ikcsf=cfg%csfs0h(ikconf),cfg%csfs0h(ikconf+1)-1
-                   komega=komega+1
-                   kcoe=vec(ikcsf,ista)
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=cfg%csfs0h(ikconf),cfg%csfs0h(ikconf+1)-1
+                komega=komega+1
+                kcoe=vec(ikcsf,ista)
+
+                ! Loop over bra CSFs
+                bomega=0
+                do ibcsf=cfg%csfs0h(ibconf),cfg%csfs0h(ibconf+1)-1
+                   bomega=bomega+1
+                   bcoe=vec(ibcsf,ista)
                    counter=counter+1
                    
                    ! Contribution to the 1-RDM
@@ -1717,7 +1717,6 @@ contains
     
     ! Everything else
     integer(is)             :: nc,na
-    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Get the pattern index and sub-case bit string for the spin-coupling
@@ -1733,8 +1732,7 @@ contains
     icase=get_icase(sop,ac,ia)
 
     ! Pattern index
-    transpose=.false.
-    pattern=pattern_index(sop,ac,ia,nc,na,nopen,icase,transpose)
+    pattern=pattern_index(sop,ac,ia,nc,na,nopen,icase)
     
 !----------------------------------------------------------------------
 ! Fill in the array of spin-coupling coefficients

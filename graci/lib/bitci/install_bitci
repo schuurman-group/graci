@@ -17,6 +17,9 @@ done
 args+=" -DHDF5_INC_DIR=/home/simon/software/hdf5-1.12.0/hdf5/include"
 args+=" -DHDF5_LIB_DIR=/home/simon/software/hdf5-1.12.0/hdf5/lib"
 
+#args+=" -DHDF5_INC_DIR=/home/simon/software/hdf5-1.12.1/hdf5/include"
+#args+=" -DHDF5_LIB_DIR=/home/simon/software/hdf5-1.12.1/hdf5/lib"
+
 #args+=" -DHDF5_INC_DIR=/home/schuurm/software/hdf5/include"
 #args+=" -DHDF5_LIB_DIR=/home/schuurm/software/hdf5/lib"
 

@@ -12,7 +12,7 @@ contains
 ! mrci_guess_unit: Generation of guess vectors corresponding to single
 !                  CSFs
 !######################################################################
-  subroutine mrci_guess_unit(guessscr,nguess,dim,subdim,hdiag)
+  subroutine mrci_guess_unit(guessscr,nguess,dim,hdiag)
 
     use constants
     use bitglobal
@@ -27,8 +27,8 @@ contains
     ! Number of guess vectors
     integer(is), intent(in)  :: nguess
     
-    ! Full space and subspace dimensions
-    integer(is), intent(in)  :: dim,subdim
+    ! No. CSFs
+    integer(is), intent(in)  :: dim
 
     ! On-diagonal Hamiltonian matrix elements
     real(dp), intent(in)     :: hdiag(dim)

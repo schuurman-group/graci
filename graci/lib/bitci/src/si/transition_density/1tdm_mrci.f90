@@ -217,8 +217,8 @@ contains
                plist(1:nexci),nexci)
 
           ! Get the spin-coupling coefficients
-          scp(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop_full,plist(1)&
-               ,hlist(1),knopen,nbefore)
+          scp(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop_full,plist(1),&
+               hlist(1),knopen,nbefore)
 
           ! Idices of the 1-TDM elements
           i=cfgB%m2c(hlist(1))
@@ -234,17 +234,17 @@ contains
              ! Initialise the spin-coupling coefficient counter
              counter=0
              
-             ! Loop over bra CSFs
-             bomega=0
-             do ibcsf=cfgB%csfs0h(ibconf),cfgB%csfs0h(ibconf+1)-1
-                bomega=bomega+1
-                bcoe=vecB(ibcsf,Bindx)
+             ! Loop over ket CSFs
+             komega=0
+             do ikcsf=cfgK%csfs0h(ikconf),cfgK%csfs0h(ikconf+1)-1
+                komega=komega+1
+                kcoe=vecK(ikcsf,Kindx)
                 
-                ! Loop over ket CSFs
-                komega=0
-                do ikcsf=cfgK%csfs0h(ikconf),cfgK%csfs0h(ikconf+1)-1
-                   komega=komega+1
-                   kcoe=vecK(ikcsf,Kindx)
+                ! Loop over bra CSFs
+                bomega=0
+                do ibcsf=cfgB%csfs0h(ibconf),cfgB%csfs0h(ibconf+1)-1
+                   bomega=bomega+1
+                   bcoe=vecB(ibcsf,Bindx)
                    counter=counter+1
                    
                    ! Contribution to the 1-TDM
@@ -1928,17 +1928,17 @@ contains
           ! Initialise the spin-coupling coefficient counter
           counter=0
           
-          ! Loop over bra CSFs
-          bomega=0
-          do ibcsf=bcsfs(ibconf),bcsfs(ibconf+1)-1
-             bomega=bomega+1
-             bcoe=vecB(ibcsf,Bindx)
-
-             ! Loop over ket CSFs
-             komega=0
-             do ikcsf=kcsfs(ikconf),kcsfs(ikconf+1)-1
-                komega=komega+1
-                kcoe=vecK(ikcsf,Kindx)
+          ! Loop over ket CSFs
+          komega=0
+          do ikcsf=kcsfs(ikconf),kcsfs(ikconf+1)-1
+             komega=komega+1
+             kcoe=vecK(ikcsf,Kindx)
+             
+             ! Loop over bra CSFs
+             bomega=0
+             do ibcsf=bcsfs(ibconf),bcsfs(ibconf+1)-1
+                bomega=bomega+1
+                bcoe=vecB(ibcsf,Bindx)
                 counter=counter+1
                 
                 ! Contribution to the 1-TDM
@@ -2000,7 +2000,6 @@ contains
     
     ! Everything else
     integer(is)             :: nc,na
-    logical                 :: transpose
 
 !----------------------------------------------------------------------
 ! Get the pattern index and sub-case bit string for the spin-coupling
@@ -2016,8 +2015,7 @@ contains
     icase=get_icase(sop,ac,ia)
 
     ! Pattern index
-    transpose=.false.
-    pattern=pattern_index(sop,ac,ia,nc,na,nopen,icase,transpose)
+    pattern=pattern_index(sop,ac,ia,nc,na,nopen,icase)
 
 !----------------------------------------------------------------------
 ! Fill in the array of spin-coupling coefficients
