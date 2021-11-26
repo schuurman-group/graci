@@ -21,6 +21,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   use spin_coupling
   use precompute
   use hparam
+  use integrals
+  use exactmod
   use iso_c_binding, only: C_CHAR
   
   implicit none
@@ -82,6 +84,13 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
      write(errmsg,'(a,1x,i0)') 'Illegal point group index:',ipg1
      call error_control
   endif
+
+!----------------------------------------------------------------------
+! Set up the integrals type
+!----------------------------------------------------------------------
+  ! Test
+  allocate(exact::ints)
+  call ints%init(1, (/10/), 1, (/1.0d0/))
   
 !----------------------------------------------------------------------
 ! Set the spin multiplicity
