@@ -128,7 +128,6 @@ contains
     use pattern_indices
     use bitstrings
     use mrciutils
-    use int_pyscf
     use hparam
     
     implicit none
@@ -321,7 +320,7 @@ contains
        k1=m2c(socc(k))
 
        ! V_ikka
-       Vpqrs(count)=mo_integral(ia1,k1,k1,ac1)
+       Vpqrs(count)=bitci_ints%mo_int(ia1,k1,k1,ac1)
        
     enddo
 
@@ -343,8 +342,8 @@ contains
 
        ! (V_iakk - 1/2 V_ikka) Delta w_k
        Vpqrs(count)=Vpqrs(count) &
-            +(mo_integral(ia1,ac1,k1,k1) &
-            -0.5d0*mo_integral(ia1,k1,k1,ac1))*Dw(k,2)
+            +(bitci_ints%mo_int(ia1,ac1,k1,k1) &
+            -0.5d0*bitci_ints%mo_int(ia1,k1,k1,ac1))*Dw(k,2)
        
     enddo
 
@@ -352,8 +351,8 @@ contains
     ! 1/2 [ V_aaai w_a + V_aiii (w_i -2) ]
     !
     count=count+1
-    Vpqrs(count)=0.5d0*(mo_integral(ac1,ac1,ac1,ia1)*wac &
-         +mo_integral(ac1,ia1,ia1,ia1)*(wia-2))
+    Vpqrs(count)=0.5d0*(bitci_ints%mo_int(ac1,ac1,ac1,ia1)*wac &
+         +bitci_ints%mo_int(ac1,ia1,ia1,ia1)*(wia-2))
     
     return
     
@@ -376,7 +375,6 @@ contains
     use pattern_indices
     use bitstrings
     use mrciutils
-    use int_pyscf
     
     implicit none
 
@@ -505,10 +503,10 @@ contains
     j1=m2c(ja)
     
     ! V_aibj
-    Vpqrs(1)=mo_integral(a1,i1,b1,j1)
+    Vpqrs(1)=bitci_ints%mo_int(a1,i1,b1,j1)
     
     ! V_ajbi
-    Vpqrs(2)=mo_integral(a1,j1,b1,i1)
+    Vpqrs(2)=bitci_ints%mo_int(a1,j1,b1,i1)
 
     ! Scaling by the prefactor
     if (ac == bc) then

@@ -15,7 +15,6 @@ contains
     use constants
     use bitglobal
     use detutils
-    use int_pyscf
     
     implicit none
 
@@ -60,8 +59,8 @@ contains
 !----------------------------------------------------------------------
     do i=1,nmo
        do j=i,nmo
-          Vc(i,j)=mo_integral(i,i,j,j)
-          Vx(i,j)=mo_integral(i,j,j,i)
+          Vc(i,j)=bitci_ints%mo_int(i,i,j,j)
+          Vx(i,j)=bitci_ints%mo_int(i,j,j,i)
           Vc(j,i)=Vc(i,j)
           Vx(j,i)=Vx(i,j)
        enddo
@@ -74,7 +73,7 @@ contains
     do i=1,nmo
        
        ! Core Hamiltonian contribution
-       fii(i)=h_1e_ij(i,i)
+       fii(i) = bitci_ints%h_1e(i,i)
        
        ! Coulomb and exchange integral contributions
        do j=1,nmo
@@ -96,13 +95,13 @@ contains
           if (ldftmrci .and. i /= j) cycle
           
           ! Core Hamiltonian contribution
-          fock(i,j)=h_1e_ij(i,j)
+          fock(i,j) = bitci_ints%h_1e(i,j)
 
           ! Coulomb and exchange contributions
           do k=1,nmo
              if (iocc(k) == 0) cycle
-             fock(i,j)=fock(i,j)+iocc(k)*(mo_integral(i,j,k,k) &
-                  -0.5d0*mo_integral(i,k,k,j))
+             fock(i,j)=fock(i,j)+iocc(k)*(bitci_ints%mo_int(i,j,k,k) &
+                  -0.5d0*bitci_ints%mo_int(i,k,k,j))
           enddo
 
           ! F_ji=F_ij

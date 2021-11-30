@@ -71,10 +71,9 @@ class Scf:
         output.print_scf_header(self)
 
         # set the file names based on class label
-        # save integrals -- tie them to the mol object for
-        # this file
-        self.moint_1e     = '1e_'+str(self.mol.label).strip()+'.h5'
-        self.moint_2e_eri = '2e_eri_'+str(self.mol.label).strip()+'.h5'
+        # save integrals -- tie them to the scf object for
+        self.moint_1e     = '1e_'+str(self.label).strip()+'.h5'
+        self.moint_2e_eri = '2e_eri_'+str(self.label).strip()+'.h5'
 
         # this is just to tell user the nature of the auxiliary basis
         if self.mol.use_df:
@@ -264,8 +263,10 @@ class Scf:
             # save the auxbasis value: either user requested or the
             # PySCF default
             ij_trans = np.concatenate(([orbs], [orbs]))
+            # comp /= 1 store integrals as (L | ij) -- amenable
+            # to fortran ordering
             df.outcore.general(pymol, ij_trans, self.moint_2e_eri,
-                        auxbasis=self.mol.ri_basis, dataname='eri_mo')
+                        auxbasis=self.mol.ri_basis, dataname='eri_mo', comp=0)
         else:
             eri_ao = pymol.intor('int2e_sph', aosym='s8')
             eri_mo = ao2mo.incore.full(eri_ao, orbs)

@@ -22,6 +22,7 @@ hamiltonians   = ['canonical',
 
 # registry of bitci functions
 bitci_registry = {
+    'bitci_init_integrals'   : ['string', 'string', 'string', 'string']
     'generate_ref_confs'     : ['int32','int32','int32','int32',
                                 'int32','int32','int32','int32',
                                 'int32','int32','int32','int32'],
@@ -167,54 +168,6 @@ def lib_exists(name):
     global lib_objs
 
     return name in lib_objs.keys()
-
-#
-def init_intpyscf(mol, scf):
-    """Initialize the integral interface"""
-    global lib_objs
-
-    # load the bitci library if we haven't already:
-    if 'bitci' not in lib_objs.keys():
-
-        # load the appropriate library
-        lib_str  = '/graci/lib/bitci/lib/libbitci.{}'
-        path_str = os.environ['GRACI'] + lib_str
-        bitci_path = path_str.format('so' if sys.platform != 'darwin' 
-                                                        else 'dylib')
-
-        if not os.path.isfile(bitci_path):
-            raise FileNotFoundError('bitci library not found: '+
-                                                          bitci_path)
-        lib_objs['bitci'] = ctypes.cdll.LoadLibrary(bitci_path)
-
-    # set the variables that have to be passed to intpyscf_initialise
-    f1name   = convert.convert_ctypes(scf.moint_1e, dtype='string')
-    f2name   = convert.convert_ctypes(scf.moint_2e_eri, dtype='string')
-    nmo      = convert.convert_ctypes(scf.nmo, dtype='int32')
-    naux     = convert.convert_ctypes(scf.naux, dtype='int32')
-    use_df   = convert.convert_ctypes(mol.use_df, dtype='logical')
-    thresh   = convert.convert_ctypes(1e-14, dtype='double')
-    max_mem  = convert.convert_ctypes(-1, dtype='int32')
-
-    # call to intpyscf_initialise
-    lib_objs['bitci'].intpyscf_initialise(
-                                  f1name,
-                                  f2name,
-                                  ctypes.byref(nmo),
-                                  ctypes.byref(naux),
-                                  ctypes.byref(use_df),
-                                  ctypes.byref(thresh),
-                                  ctypes.byref(max_mem))
-
-    return
-
-#
-def finalise_intpyscf():
-    """delete the integral buffers"""
-    global lib_objs 
-
-    lib_objs['bitci'].intpyscf_finalise()
-    return
 
 #
 def init_bitci(ci_method):

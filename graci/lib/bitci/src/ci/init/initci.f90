@@ -21,8 +21,6 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   use spin_coupling
   use precompute
   use hparam
-  use integrals
-  use exactmod
   use iso_c_binding, only: C_CHAR
   
   implicit none
@@ -85,13 +83,6 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
      call error_control
   endif
 
-!----------------------------------------------------------------------
-! Set up the integrals type
-!----------------------------------------------------------------------
-  ! Test
-  allocate(exact::ints)
-  call ints%init(1, (/10/), 1, (/1.0d0/))
-  
 !----------------------------------------------------------------------
 ! Set the spin multiplicity
 !----------------------------------------------------------------------
@@ -218,3 +209,92 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 
 end subroutine bitci_initialise
 
+!
+!
+!
+#ifdef CBINDING
+subroutine bitci_init_integrals(integral_src, integral_method, hcore_file, eri_file) bind(c,name="bitci_init_integrals")
+#else
+subroutine bitci_init_integrals(integral_src, integral_method, hcore_file, eri_file)
+#endif
+
+  use constants
+  use bitglobal
+  use exactmod
+  use dfmod
+
+#ifdef CBINDING
+  character(kind=C_CHAR), intent(in) :: integral_src(*)
+  character(kind=C_CHAR), intent(in) :: integral_method(*)
+  character(kind=C_CHAR), intent(in) :: hcore_file(*)
+  character(kind=C_CHAR), intent(in) :: eri_file(*)
+
+  character(len=255)                 :: int_src
+  character(len=255)                 :: int_method
+  character(len=255)                 :: f_core
+  character(len=255)                 :: f_eri
+
+  integer(is)                        :: length
+#else
+  character(len=*), intent(in)       :: integral_src
+  character(len=*), intent(in)       :: integral_method
+  character(len=*), intent(in)       :: hcore_file
+  character(len=*), intent(in)       :: eri_file
+
+  character(len=255)                 :: int_src
+  character(len=255)                 :: int_method
+  character(len=255)                 :: hcore
+  character(len=255)                 :: eri
+#endif
+
+!----------------------------------------------------------------------
+! If C bindings are on, then convert the calculation label from the
+! C char type to the Fortran character type
+!----------------------------------------------------------------------
+#ifdef CBINDING
+  length=cstrlen(integral_src)
+  call c2fstr(integral_src, int_src,length)
+  length=cstrlen(integral_method)
+  call c2fstr(integral_method, int_method,length)
+  length=cstrlen(hcore_file)
+  call c2fstr(hcore_file, f_core,length)
+  length=cstrlen(eri_file)
+  call c2fstr(eri_file, f_eri,length)
+#else
+  int_src    = adjustl(trim(integral_src))
+  int_method = adjustl(trim(integral_method))
+  f_core     = adjustl(trim(hcore_file))
+  f_eri      = adjustl(trim(eri_file))
+#endif
+
+
+  ! --------------------------------------------------------
+  ! first identify what kind of integral method we're using:
+  ! exact, or density df
+  !---------------------------------------------------------
+  if (trim(adjustl(int_method)) .eq. 'exact') then
+    allocate(exact::bitci_ints)
+
+  else if (trim(adjustl(int_method)) .eq. 'df') then
+    allocate(df::bitci_ints)
+
+  else
+    stop 'integral method not recognized in bitci_init_integrals: '//trim(adjustl(int_method))
+
+  endif
+
+  !---------------------------------------------------------
+  ! second: initialize integral object using the appropriate
+  !         interface
+  !---------------------------------------------------------
+  if (trim(adjustl(int_src)) .eq. 'pyscf') then
+    call bitci_ints%init_pyscf(f_core, f_eri)
+
+  else
+    stop 'integral interface not recognized in bitci_init_integrals: '//trim(adjustl(int_src))
+
+  endif
+
+  return
+
+end subroutine bitci_init_integrals

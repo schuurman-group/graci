@@ -36,7 +36,7 @@ subroutine bitci_finalise()
   if (allocated(Vc))          deallocate(Vc)
   if (allocated(Vx))          deallocate(Vx)
   if (allocated(hpar))        deallocate(hpar)
-  
+
   !
   ! To be on the safe side, scrub all other global variables
   !
@@ -70,3 +70,21 @@ subroutine bitci_finalise()
   return
   
 end subroutine bitci_finalise
+
+!
+!
+!
+#ifdef CBINDING
+subroutine bitci_int_finalize() bind(c,name="bitci_int_finalize")
+#else
+subroutine bitci_int_finalize()
+#endif
+
+  use bitglobal
+
+  ! deallocate integral arrays
+  call bitci_ints%finalize()
+
+  return
+
+end subroutine bitci_int_finalize
