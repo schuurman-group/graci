@@ -84,6 +84,7 @@ subroutine bitci_int_finalize()
 
   ! deallocate integral arrays
   call bitci_ints%finalize()
+  if(allocated(bitci_ints)) deallocate(bitci_ints)
 
   return
 

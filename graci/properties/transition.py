@@ -10,7 +10,8 @@ import importlib
 from sympy import LeviCivita
 import graci.utils.timing as timing
 import graci.core.libs as libs
-import graci.citools.mrci_1tdm as mrci_1tdm
+import graci.bitcitools.bitsi_init as bitsi_init
+import graci.bitcitools.mrci_1tdm as mrci_1tdm
 import graci.io.output as output
 import graci.utils.constants as constants
 import sys as sys
@@ -131,7 +132,7 @@ class Transition:
                          ' and basis set')
 
         # initialize the bitsi library
-        libs.init_bitsi(self)
+        bitsi_init.init(self)
 
         # construct the trans_list array
         # currently store them as [initial state, final state]
@@ -158,6 +159,9 @@ class Transition:
         # print the summary output
         self.print_log()
 
+        # finalize the bitsi library
+        bitsi_init.finalize()
+ 
         return
 
     #

@@ -266,7 +266,7 @@ class Scf:
             # comp /= 1 store integrals as (L | ij) -- amenable
             # to fortran ordering
             df.outcore.general(pymol, ij_trans, self.moint_2e_eri,
-                        auxbasis=self.mol.ri_basis, dataname='eri_mo', comp=0)
+                        auxbasis=self.mol.ri_basis, dataname='eri_mo')
         else:
             eri_ao = pymol.intor('int2e_sph', aosym='s8')
             eri_mo = ao2mo.incore.full(eri_ao, orbs)

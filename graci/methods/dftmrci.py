@@ -10,14 +10,15 @@ import numpy as np
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
-import graci.citools.ref_space as ref_space
-import graci.citools.ref_diag as ref_diag
-import graci.citools.ref_prune as ref_prune
-import graci.citools.mrci_space as mrci_space
-import graci.citools.mrci_diag as mrci_diag
-import graci.citools.mrci_refine as mrci_refine
-import graci.citools.mrci_1rdm as mrci_1rdm
-import graci.citools.mrci_wf as mrci_wf
+import graci.bitcitools.bitci_init as bitci_init
+import graci.bitcitools.ref_space as ref_space
+import graci.bitcitools.ref_diag as ref_diag
+import graci.bitcitools.ref_prune as ref_prune
+import graci.bitcitools.mrci_space as mrci_space
+import graci.bitcitools.mrci_diag as mrci_diag
+import graci.bitcitools.mrci_refine as mrci_refine
+import graci.bitcitools.mrci_1rdm as mrci_1rdm
+import graci.bitcitools.mrci_wf as mrci_wf
 import graci.io.output as output
 import graci.properties.moments as moments
 
@@ -108,6 +109,7 @@ class Dftmrci:
     def set_scf(self, scf):
         """set the scf object for the dftmrci class object"""
         self.scf = scf
+
         return
 
     def scf_exists(self):
@@ -128,7 +130,7 @@ class Dftmrci:
         output.print_dftmrci_header(self.label)
 
         # initialize bitci
-        libs.init_bitci(self)
+        bitci_init.init(self)
         
         # create the reference space and mrci wfn objects
         self.ref_wfn  = bitciwfn.Bitciwfn()
@@ -142,6 +144,7 @@ class Dftmrci:
         
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
+
         # set the number of configurations and the scratch file numbers
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
@@ -225,8 +228,8 @@ class Dftmrci:
         # build the natural orbitals
         self.build_nos()
 
-        # Finalise the bitCI library
-        libs.finalise_bitci()
+        # Finalize the bitCI library
+        bitci_init.finalize()
 
         # print orbitals if requested
         if self.print_orbitals:

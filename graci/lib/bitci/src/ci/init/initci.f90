@@ -213,13 +213,14 @@ end subroutine bitci_initialise
 !
 !
 #ifdef CBINDING
-subroutine bitci_init_integrals(integral_src, integral_method, hcore_file, eri_file) bind(c,name="bitci_init_integrals")
+subroutine bitci_int_initialize(integral_src, integral_method, hcore_file, eri_file) bind(c,name="bitci_int_initialize")
 #else
-subroutine bitci_init_integrals(integral_src, integral_method, hcore_file, eri_file)
+subroutine bitci_int_initialize(integral_src, integral_method, hcore_file, eri_file)
 #endif
 
   use constants
   use bitglobal
+  use iomod
   use exactmod
   use dfmod
 
@@ -297,4 +298,4 @@ subroutine bitci_init_integrals(integral_src, integral_method, hcore_file, eri_f
 
   return
 
-end subroutine bitci_init_integrals
+end subroutine bitci_int_initialize

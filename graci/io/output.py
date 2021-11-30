@@ -133,7 +133,7 @@ def print_scf_summary(scf):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         if scf.mol.use_df:
-            outfile.write(' density fitting employed, basis: '+
+            outfile.write('\n\n density fitting employed, basis: '+
                             str(scf.auxbasis)+'\n\n')
 
         outfile.write(' REF energy        = {:16.10f}\n'.format(scf.energy))

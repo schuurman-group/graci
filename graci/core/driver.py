@@ -36,6 +36,15 @@ class Driver:
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
 
+        # Load required libraries
+        #-----------------------------------------------------
+        # for now, assume postscf will require bitci
+        if len(postscf_objs) > 0:
+            libs.lib_load('bitci')
+
+        if len(si_objs) > 0:
+            libs.lib_load('bitsi')
+
         # Molecule sections 
         # ----------------------------------------------------
 
@@ -102,10 +111,16 @@ class Driver:
                 chkpt.write(scf_obj)
 
             # initialize the MO integrals following the SCF run, but
-            # finalise previous integrals if they exist
-            if libs.lib_exists('bitci'):
-                libs.finalise_intpyscf()
-            libs.init_intpyscf(scf_obj.mol, scf_obj)
+            # finalise previous integrals if they exist. Not sure if this
+            # should ultimately go here (probably not), but fine for now
+            if len(postscf_objs) > 0:
+                libs.lib_func('bitci_int_finalize', [])
+                type_str = 'exact'
+                if scf_obj.mol.use_df:
+                    type_str = 'df'
+                lib.lib_func('bitci_int_initialize', 
+                              ['pyscf', type_str, scf_obj.moint_1e, 
+                                scf_obj.moint_2e_eri])
 
             # Post-SCF Sections 
             #-----------------------------------------------------

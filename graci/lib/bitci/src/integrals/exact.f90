@@ -41,10 +41,18 @@ contains
     dset_name = 'hcore_mo'
     exists    = dataset_exists(f_name, dset_name)
 
+    print *,'f_name = '//f_name
+    call flush()
+
     if(.not.exists) stop 'cannot find hcore_mo in file='//f_name
 
     call dataset_dims(f_name, dset_name, rank, dims)
     ints%nmo = dims(1) 
+    print *,'dims=',dims
+    call flush()
+
+    print *,'nmo=',ints%nmo
+    call flush()
 
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
