@@ -858,6 +858,9 @@ class Transition:
         bsym_lbl = self.bra_obj.scf.mol.irreplbl
         ksym_lbl = self.bra_obj.scf.mol.irreplbl
 
+        # print the header
+        output.print_transition_header(self.label)
+
         # print a 'transition table' for each initial state
         for iket in self.ket_list:
             
