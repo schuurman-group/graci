@@ -51,7 +51,7 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    call read_dataset_dble(f_name, dset_name, dims, ints%h_core, dims_read)
+    call read_dataset_dble(f_name, dset_name, ints%h_core, dims_read)
 
     ! load ERI
     !--------------------------------------------------------------
@@ -64,13 +64,17 @@ contains
     call dataset_dims(f_name, dset_name, rank, dims)
     n_ij       = ints%nmo * (ints%nmo + 1)/2
     ints%n_aux = dims(2)    
+    if(dims(1) /= n_ij) stop 'ERI data set wrong size, file='//f_name
 
-    if(any(dims /= (/ints%n_aux, n_ij /))) stop 'ERI data set wrong size, file='//f_name
+    ! dataset written as (n_ij, n_aux) -- we want the transpose
+    dims = (/ints%n_aux, n_ij/)
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
 
-    call read_dataset_dble(f_name, dset_name, dims, ints%bra_ket, dims_read)
+    ! this method performs buffered read of dataset and transposes on the fly
+    ! since the DF tensor from PySCF is stored (n_ij, n_aux)
+    call read_dataset_dble_t(f_name, dset_name, ints%bra_ket, dims_read)
 
     return
 

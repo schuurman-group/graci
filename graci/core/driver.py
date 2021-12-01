@@ -118,7 +118,7 @@ class Driver:
                 type_str = 'exact'
                 if scf_obj.mol.use_df:
                     type_str = 'df'
-                lib.lib_func('bitci_int_initialize', 
+                libs.lib_func('bitci_int_initialize', 
                               ['pyscf', type_str, scf_obj.moint_1e, 
                                 scf_obj.moint_2e_eri])
 

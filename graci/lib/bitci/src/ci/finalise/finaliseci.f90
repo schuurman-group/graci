@@ -83,8 +83,10 @@ subroutine bitci_int_finalize()
   use bitglobal
 
   ! deallocate integral arrays
-  call bitci_ints%finalize()
-  if(allocated(bitci_ints)) deallocate(bitci_ints)
+  if(allocated(bitci_ints)) then
+    call bitci_ints%finalize()
+    deallocate(bitci_ints)
+  endif
 
   return
 

@@ -49,7 +49,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   set(bounds "-fbounds-check")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(dialect "-w -g -O0 -check all -cpp -free -implicitnone -traceback -mkl -qopenmp \
+  set(dialect "-w -g -O0 -check all,noarg_temp_created -cpp -free -implicitnone -traceback -mkl -qopenmp \
     -march=core-avx2 -auto -ipo -qopt-prefetch")
   set(bounds "-check bounds")
 endif()

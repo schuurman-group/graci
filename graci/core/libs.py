@@ -24,7 +24,7 @@ libraries      = ['bitci','bitsi']
 
 # registry of bitci functions
 bitci_registry = {
-    'bitci_initalise'        : ['int32','int32','int32','int64',
+    'bitci_initialise'        : ['int32','int32','int32','int64',
                                 'double','int32','double','int32',
                                 'string'],
     'bitci_finalise'         : [],
@@ -149,9 +149,8 @@ def lib_func(name, args):
     elif name in bitsi_registry:
         arg_list   = bitsi_registry[name]
         arg_intent = bitsi_intent[name]
-        
-    #arg_list   = bitci_registry[name]
-    #arg_intent = bitci_intent[name]
+    else:
+        sys.exit('function: '+str(name)+' not found.') 
 
     arg_ctype = []
     arg_ptr   = []
@@ -172,11 +171,16 @@ def lib_func(name, args):
             arg_ptr.append(ctypes.byref(c_arg))
 
     if name in bitci_registry:
-        getattr(lib_objs['bitci'], name)(*arg_ptr)
+        # this is hacky -- probably a better way
+        if len(args) > 0:
+            getattr(lib_objs['bitci'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['bitci'], name)()
     elif name in bitsi_registry:
-        getattr(lib_objs['bitsi'], name)(*arg_ptr)
-        
-    #getattr(lib_objs['bitci'], name)(*arg_ptr)
+        if len(args) > 0:
+            getattr(lib_objs['bitsi'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['bitsi'], name)()
 
     args_out = ()
     for i in range(len(args)):

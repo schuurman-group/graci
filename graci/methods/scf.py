@@ -263,8 +263,6 @@ class Scf:
             # save the auxbasis value: either user requested or the
             # PySCF default
             ij_trans = np.concatenate(([orbs], [orbs]))
-            # comp /= 1 store integrals as (L | ij) -- amenable
-            # to fortran ordering
             df.outcore.general(pymol, ij_trans, self.moint_2e_eri,
                         auxbasis=self.mol.ri_basis, dataname='eri_mo')
         else:

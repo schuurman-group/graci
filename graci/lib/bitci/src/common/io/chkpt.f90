@@ -67,7 +67,7 @@ module chkpt
     data_set_cf(1, :) = cf_list(:)    
 
     ! write wfn coefficients to dedicated dataset
-    call write_dataset(file_name, data_name, dims, data_set_cf)
+    call write_dataset(file_name, data_name, data_set_cf)
 
     ! Next write the determinant list -- assumes a single common determinant
     ! basis -- only bother writing if it doesn't exist
@@ -77,7 +77,7 @@ module chkpt
       data_set_det(:n_int, :ndet)          = det_list(:n_int, 1, :ndet)
       data_set_det(n_int+1:2*n_int, :ndet) = det_list(:n_int, 2, :ndet)
       ! write wfn bit strings to dedicated dataset
-      call write_dataset(file_name, data_name, dims, data_set_det)
+      call write_dataset(file_name, data_name, data_set_det)
 
       attr = 'nmo'
       call write_attribute(file_name, data_name, attr, nmo)
@@ -118,7 +118,7 @@ module chkpt
     dims             = (/ ndet, 1 /)
 
     ! read the coefficients first
-    call read_dataset(file_name, trim(data_name), dims, data_set_cf, dim_read)
+    call read_dataset(file_name, trim(data_name), data_set_cf, dim_read)
 
     if (any(dims /= dim_read)) then
       print *,'unexpected number of wfn coefficients'
@@ -130,7 +130,7 @@ module chkpt
     dims                                 = (/ 2*n_int, ndet /)
     data_name                            = 'wfn_dets'
 
-    call read_dataset(file_name, data_name, dims, data_set_det, dim_read)
+    call read_dataset(file_name, data_name, data_set_det, dim_read)
 
     if (any(dims /= dim_read)) then
       print *,'unexpected number of determinants'

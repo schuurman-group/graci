@@ -40,7 +40,7 @@ def finalize():
     """finalize the bitci library"""
 
     args = ()
-    lib.lib_func('bitsi_finalise', args)
+    libs.lib_func('bitsi_finalise', args)
 
     return
 
