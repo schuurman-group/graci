@@ -61,7 +61,7 @@ def generate(ci_method):
         # (note that not all mrci-type methods will have pruning
         # attributes)
         try:
-            if ci_method.pmrci:
+            if ci_method.prune:
                 thrsh = ci_method.prune_thresh
                 nextra = ci_method.nextra['prune'][irrep]            
                 args = (thrsh, irrep, nroots, nextra, ci_confunits,
