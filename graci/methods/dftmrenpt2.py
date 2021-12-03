@@ -10,14 +10,15 @@ import numpy as np
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
-import graci.citools.ref_space as ref_space
-import graci.citools.ref_diag as ref_diag
-import graci.citools.ref_prune as ref_prune
-import graci.citools.mrci_space as mrci_space
-import graci.citools.mrenpt2 as mrenpt2
-import graci.citools.mrci_refine as mrci_refine
-import graci.citools.mrci_1rdm as mrci_1rdm
-import graci.citools.mrci_wf as mrci_wf
+import graci.bitcitools.bitci_init as bitci_init
+import graci.bitcitools.ref_space as ref_space
+import graci.bitcitools.ref_diag as ref_diag
+import graci.bitcitools.ref_prune as ref_prune
+import graci.bitcitools.mrci_space as mrci_space
+import graci.bitcitools.mrenpt2 as mrenpt2
+import graci.bitcitools.mrci_refine as mrci_refine
+import graci.bitcitools.mrci_1rdm as mrci_1rdm
+import graci.bitcitools.mrci_wf as mrci_wf
 import graci.io.output as output
 import graci.properties.moments as moments
 
@@ -110,7 +111,7 @@ class Dftmrenpt2:
         output.print_dftmrenpt2_header(self.label)
 
         # initialize bitci
-        libs.init_bitci(self)
+        bitci_init.init(self)
 
         # create the reference space and mrci wfn objects
         self.ref_wfn  = bitciwfn.Bitciwfn()
@@ -206,7 +207,7 @@ class Dftmrenpt2:
         self.build_nos()
 
         # Finalise the bitCI library
-        libs.finalise_bitci()
+        bitci_init.finalize()
 
         # print orbitals if requested
         if self.print_orbitals:

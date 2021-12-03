@@ -121,6 +121,8 @@ def print_scf_header(scf):
             outfile.write('\n\n **** RESTART ACTIVATED ****\n\n')
             outfile.write(' Extracting SCF result from checkpoint file:'
                           + str(file_names['chkpt_file'])+'\n\n')
+        else:
+            outfile.write('\n\n')
 
         outfile.flush()
       
@@ -333,6 +335,26 @@ def print_quad(st, irr, qtensor):
         
     return
 
+def print_transition_header(label):
+    """ print out Transition section header"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'Transition, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN))
+        outfile.flush()
+
+    return
+
 #
 def print_transition_table(init_st, init_sym, final_st, final_sym, 
                                    exc_ener, f0l, f2l, f0v, f2v, f0xyz): 
@@ -342,8 +364,8 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         # print a table of oscillator strengths and transition 
         # dipole vectors
 
-        outfile.write('\n\n\n ------------------------------------------')
-        outfile.write(    '\n Transition Properties')
+        fstr = '\n\n Transitions, initial state = {:3d}({:>3})'
+        outfile.write(fstr.format(init_st, init_sym))
         outfile.write(    '\n ------------------------------------------')
 
         header  = '\n\n  Initial     Final    Exc Ener                  '

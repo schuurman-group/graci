@@ -20,8 +20,16 @@ hamiltonians   = ['canonical',
                   'heil18_standard',
                   'heil18_short']
 
+libraries      = ['bitci','bitsi']
+
 # registry of bitci functions
 bitci_registry = {
+    'bitci_initialise'        : ['int32','int32','int32','int64',
+                                'double','int32','double','int32',
+                                'string'],
+    'bitci_finalise'         : [],
+    'bitci_int_initialize'   : ['string', 'string', 'string', 'string'],
+    'bitci_int_finalize'     : [],
     'generate_ref_confs'     : ['int32','int32','int32','int32',
                                 'int32','int32','int32','int32',
                                 'int32','int32','int32','int32'],
@@ -59,6 +67,11 @@ bitci_registry = {
 }
 
 bitci_intent = {
+    'bitci_initialise'       : ['in','in','in','in','in','in','in',
+                                'in','in'],
+    'bitci_finalise'         : [],
+    'bitci_int_initialize'   : ['in','in','in','in'],
+    'bitci_int_finalize'     : [],
     'generate_ref_confs'     : ['in','in','in','in','in','in','in',
                                 'in','in','in','out','out'],
     'diag_dftcis'            : ['in','in','in','out','in'],
@@ -87,12 +100,17 @@ bitci_intent = {
 
 # registry of bitsi functions
 bitsi_registry = {
+    'bitsi_initialise'        : ['int32','int32','int32','int32','int32',
+                                  'int32'],
+    'bitsi_finalise'          : [],
     'transition_density_mrci' : ['int32','int32','int32','int32','int32',
                                  'int32','double','string','string',
                                  'string','string']
 }
 
 bitsi_intent   = {
+    'bitsi_initialise'        : ['in','in','in','in','in','in'],
+    'bitsi_finalise'          : [],
     'transition_density_mrci' : ['in','in','in','in','in','in','out',
                                  'in','in','in','in']
 }
@@ -100,11 +118,30 @@ bitsi_intent   = {
 # list of existing library objects
 lib_objs = {}
 
+def lib_load(name):
+    """load a library object and add it to lib_objs dictionary"""
+    global lib_objs
+
+    # if we haven't loaded the bitsi object, do so now
+    if name not in lib_objs.keys() and name in libraries:
+        # load the appropriate library
+        rel_path = '/graci/lib/bitci/lib/lib'+str(name)+'.{}'
+        path_str = os.environ['GRACI'] + rel_path
+        lib_path = path_str.format('so' if sys.platform != 'darwin' 
+                                                      else 'dylib')
+
+        if not os.path.isfile(lib_path):
+            raise FileNotFoundError(str(name)+' library not found: '
+                                    + lib_path)
+        lib_objs[str(name)] = ctypes.cdll.LoadLibrary(lib_path)
+
+    return
 
 def lib_func(name, args):
     """call a function from a fortran library"""
     global bitci_registry, bitci_intent
-    global bitsi_registry, bitsi_intent, lib_objs
+    global bitsi_registry, bitsi_intent
+    global lib_objs
 
     if name in bitci_registry:
         arg_list   = bitci_registry[name]
@@ -112,9 +149,8 @@ def lib_func(name, args):
     elif name in bitsi_registry:
         arg_list   = bitsi_registry[name]
         arg_intent = bitsi_intent[name]
-        
-    #arg_list   = bitci_registry[name]
-    #arg_intent = bitci_intent[name]
+    else:
+        sys.exit('function: '+str(name)+' not found.') 
 
     arg_ctype = []
     arg_ptr   = []
@@ -135,11 +171,16 @@ def lib_func(name, args):
             arg_ptr.append(ctypes.byref(c_arg))
 
     if name in bitci_registry:
-        getattr(lib_objs['bitci'], name)(*arg_ptr)
+        # this is hacky -- probably a better way
+        if len(args) > 0:
+            getattr(lib_objs['bitci'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['bitci'], name)()
     elif name in bitsi_registry:
-        getattr(lib_objs['bitsi'], name)(*arg_ptr)
-        
-    #getattr(lib_objs['bitci'], name)(*arg_ptr)
+        if len(args) > 0:
+            getattr(lib_objs['bitsi'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['bitsi'], name)()
 
     args_out = ()
     for i in range(len(args)):
@@ -168,160 +209,3 @@ def lib_exists(name):
 
     return name in lib_objs.keys()
 
-#
-def init_intpyscf(mol, scf):
-    """Initialize the integral interface"""
-    global lib_objs
-
-    # load the bitci library if we haven't already:
-    if 'bitci' not in lib_objs.keys():
-
-        # load the appropriate library
-        lib_str  = '/graci/lib/bitci/lib/libbitci.{}'
-        path_str = os.environ['GRACI'] + lib_str
-        bitci_path = path_str.format('so' if sys.platform != 'darwin' 
-                                                        else 'dylib')
-
-        if not os.path.isfile(bitci_path):
-            raise FileNotFoundError('bitci library not found: '+
-                                                          bitci_path)
-        lib_objs['bitci'] = ctypes.cdll.LoadLibrary(bitci_path)
-
-    # set the variables that have to be passed to intpyscf_initialise
-    f1name   = convert.convert_ctypes(scf.moint_1e, dtype='string')
-    f2name   = convert.convert_ctypes(scf.moint_2e_eri, dtype='string')
-    nmo      = convert.convert_ctypes(scf.nmo, dtype='int32')
-    naux     = convert.convert_ctypes(scf.naux, dtype='int32')
-    use_df   = convert.convert_ctypes(mol.use_df, dtype='logical')
-    thresh   = convert.convert_ctypes(1e-14, dtype='double')
-    max_mem  = convert.convert_ctypes(-1, dtype='int32')
-
-    # call to intpyscf_initialise
-    lib_objs['bitci'].intpyscf_initialise(
-                                  f1name,
-                                  f2name,
-                                  ctypes.byref(nmo),
-                                  ctypes.byref(naux),
-                                  ctypes.byref(use_df),
-                                  ctypes.byref(thresh),
-                                  ctypes.byref(max_mem))
-
-    return
-
-#
-def finalise_intpyscf():
-    """delete the integral buffers"""
-    global lib_objs 
-
-    lib_objs['bitci'].intpyscf_finalise()
-    return
-
-#
-def init_bitci(ci_method):
-    """Initialize the bitci library"""
-    global lib_objs
-    
-    if 'bitci' not in lib_objs.keys():
-        print("\ninit_bitci called, but no bitci object exists." + 
-              "Ensure that the integral initialization routine has "+
-              "already been called")
-        sys.exit(1)
-
-    # set all variable that have to be passed to bitci_initialise
-    # (note that the pgrp and iham variables use Fortran indexing)
-    imult = convert.convert_ctypes(ci_method.scf.mol.mult,               
-            dtype='int32')
-    nel   = convert.convert_ctypes(ci_method.scf.mol.nel,                
-            dtype='int32')
-    nmo   = convert.convert_ctypes(ci_method.scf.nmo, 
-            dtype='int32')
-    mosym = convert.convert_ctypes(np.array(ci_method.scf.orb_sym),  
-            dtype='int64')
-    moen  = convert.convert_ctypes(np.array(ci_method.scf.orb_ener), 
-            dtype='double')
-
-    if ci_method.scf.mol.sym_indx <= 0:
-        isym = 1
-    else:
-        isym = ci_method.scf.mol.sym_indx + 1
-
-    pgrp  = convert.convert_ctypes(isym,                   
-            dtype='int32')
-    escf = convert.convert_ctypes(ci_method.scf.energy,
-            dtype='double')
-    iham  = convert.convert_ctypes(hamiltonians.index(ci_method.hamiltonian)+1,
-            dtype='int32')
-    label = convert.convert_ctypes(ci_method.label, 
-            dtype='string')
-    
-    # call to bitci_initialise
-    lib_objs['bitci'].bitci_initialise(ctypes.byref(imult),
-                               ctypes.byref(nel),
-                               ctypes.byref(nmo),
-                               mosym,
-                               moen,
-                               ctypes.byref(pgrp),
-                               ctypes.byref(escf),     
-                               ctypes.byref(iham),
-                               label)
-    
-    return 
-
-#
-def finalise_bitci():
-    """Finalises the bitci library"""
-    lib_objs['bitci'].bitci_finalise()
-    return
-
-#
-def init_bitsi(si_method):
-    """Initialize the bitsi library"""
-    global lib_objs
-
-    # if we haven't loaded the bitsi object, do so now
-    if 'bitsi' not in lib_objs.keys():
-        # load the appropriate library
-        path_str   = os.environ['GRACI']+'/graci/lib/bitci/lib/libbitsi.{}'
-        bitsi_path = path_str.format('so' if sys.platform != 'darwin' else 'dylib')
-
-        if not os.path.isfile(bitsi_path):
-            raise FileNotFoundError('bitsi library not found: '+bitsi_path)
-        lib_objs['bitsi'] = ctypes.cdll.LoadLibrary(bitsi_path)
-
-    bra = si_method.bra_obj
-    ket = si_method.ket_obj
-
-    # if the number of mos is different between bra and ket, end
-    if bra.scf.nmo != ket.scf.nmo:
-        sys.exit('bra.scf.nmo != ket.scf.nmo init_bitsi')
-    
-    # set all variables that have to be passed to bitsi_initialise
-    # (note that the pgrp uses Fortran indexing)
-    imultBra = convert.convert_ctypes(bra.scf.mol.mult,dtype='int32')
-    imultKet = convert.convert_ctypes(ket.scf.mol.mult,dtype='int32')
-    nelBra   = convert.convert_ctypes(bra.scf.mol.nel, dtype='int32')
-    nelKet   = convert.convert_ctypes(ket.scf.mol.nel, dtype='int32')
-    nmo      = convert.convert_ctypes(bra.scf.nmo, dtype='int32')
-
-    # not sure what this is about...
-    if bra.scf.mol.sym_indx <= 0:
-        isym = 1
-    else:
-        isym = bra.scf.mol.sym_indx + 1
-    pgrp  = convert.convert_ctypes(isym, dtype='int32')
-    
-    # call to bitsi_initialise
-    lib_objs['bitsi'].bitsi_initialise(ctypes.byref(imultBra),
-                               ctypes.byref(imultKet),
-                               ctypes.byref(nelBra),
-                               ctypes.byref(nelKet),
-                               ctypes.byref(nmo),
-                               ctypes.byref(pgrp))
-        
-    return
-
-#
-def finalise_bitsi():
-    """Finalises the bitsi library"""
-    lib_objs['bitsi'].bitsi_finalise()
-    return

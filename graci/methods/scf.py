@@ -71,10 +71,9 @@ class Scf:
         output.print_scf_header(self)
 
         # set the file names based on class label
-        # save integrals -- tie them to the mol object for
-        # this file
-        self.moint_1e     = '1e_'+str(self.mol.label).strip()+'.h5'
-        self.moint_2e_eri = '2e_eri_'+str(self.mol.label).strip()+'.h5'
+        # save integrals -- tie them to the scf object for
+        self.moint_1e     = '1e_'+str(self.label).strip()+'.h5'
+        self.moint_2e_eri = '2e_eri_'+str(self.label).strip()+'.h5'
 
         # this is just to tell user the nature of the auxiliary basis
         if self.mol.use_df:
