@@ -90,7 +90,7 @@ contains
 
     do i = 1,nints
         ij = ints%indx_ut(indices(1,i), indices(2,i))
-        kl = ints%indx_ut(indices(2,i), indices(4,i))
+        kl = ints%indx_ut(indices(3,i), indices(4,i))
         int_vec(i) = ints%bra_ket(ij, kl)
     enddo
 
