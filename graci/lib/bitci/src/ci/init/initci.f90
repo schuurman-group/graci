@@ -32,7 +32,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   real(dp), intent(in)               :: escf1
   real(dp)                           :: s,smax
   logical                            :: verbose
-  
+
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: label1(*)
   character(len=255)                 :: label
@@ -42,6 +42,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   character(len=255)                 :: label
 #endif
 
+  integer(is)                        :: i
+  
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the calculation label from the
 ! C char type to the Fortran character type
@@ -136,6 +138,17 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 !        DFT/MRCI calculation
 !----------------------------------------------------------------------
   escf=escf1
+
+!----------------------------------------------------------------------
+! Determine the index of the last non-frozen virtual MO
+!----------------------------------------------------------------------
+  lastvirt=nmo
+  do i=1,nmo
+     if (moen(i) >= efreeze) then
+        lastvirt=i-1
+        exit
+     endif
+  enddo
   
 !----------------------------------------------------------------------
 ! Set the bitstring integer array lengths
@@ -209,13 +222,15 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 
 end subroutine bitci_initialise
 
-!
-!
-!
+!######################################################################
+! bitci_int_initialize: Initialises the bitci integrals class object
+!######################################################################
 #ifdef CBINDING
-subroutine bitci_int_initialize(integral_src, integral_method, hcore_file, eri_file) bind(c,name="bitci_int_initialize")
+subroutine bitci_int_initialize(integral_src, integral_method, &
+     hcore_file, eri_file) bind(c,name="bitci_int_initialize")
 #else
-subroutine bitci_int_initialize(integral_src, integral_method, hcore_file, eri_file)
+subroutine bitci_int_initialize(integral_src, integral_method, &
+     hcore_file, eri_file)
 #endif
 
   use constants
@@ -268,34 +283,30 @@ subroutine bitci_int_initialize(integral_src, integral_method, hcore_file, eri_f
   f_eri      = adjustl(trim(eri_file))
 #endif
 
-
-  ! --------------------------------------------------------
-  ! first identify what kind of integral method we're using:
-  ! exact, or density df
-  !---------------------------------------------------------
+!----------------------------------------------------------------------
+! first identify what kind of integral method we're using:
+! exact, or density df
+!----------------------------------------------------------------------
   if (trim(adjustl(int_method)) .eq. 'exact') then
-    allocate(exact::bitci_ints)
-
+     allocate(exact::bitci_ints)
   else if (trim(adjustl(int_method)) .eq. 'df') then
-    allocate(df::bitci_ints)
-
+     allocate(df::bitci_ints)
   else
-    stop 'integral method not recognized in bitci_init_integrals: '//trim(adjustl(int_method))
-
+     stop 'integral method not recognized in bitci_init_integrals: '&
+          //trim(adjustl(int_method))
   endif
 
-  !---------------------------------------------------------
-  ! second: initialize integral object using the appropriate
-  !         interface
-  !---------------------------------------------------------
+!----------------------------------------------------------------------
+! second: initialize integral object using the appropriate
+!         interface
+!----------------------------------------------------------------------
   if (trim(adjustl(int_src)) .eq. 'pyscf') then
-    call bitci_ints%init_pyscf(f_core, f_eri)
-
+     call bitci_ints%init_pyscf(f_core, f_eri)
   else
-    stop 'integral interface not recognized in bitci_init_integrals: '//trim(adjustl(int_src))
-
+     stop 'integral interface not recognized in bitci_init_integrals: '&
+          //trim(adjustl(int_src))
   endif
 
   return
-
+  
 end subroutine bitci_int_initialize

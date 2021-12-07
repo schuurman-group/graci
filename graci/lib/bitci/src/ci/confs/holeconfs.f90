@@ -17,7 +17,7 @@ contains
     use constants
     use bitglobal
     use conftype
-        
+
     implicit none
     
     ! MRCI configurations
@@ -32,7 +32,7 @@ contains
     
     ! Everything else
     integer(is)                :: modus
-    
+
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
 !----------------------------------------------------------------------
@@ -62,7 +62,7 @@ contains
 !----------------------------------------------------------------------
     modus=1
     call builder_1hole(modus,cfgM,icvs,lcvs,E0max)
-    
+
     return
     
   end subroutine generate_1hole_confs
@@ -307,7 +307,7 @@ contains
 !----------------------------------------------------------------------
     modus=1
     call builder_2hole(modus,cfgM,icvs,lcvs,E0max)
-
+    
     return
     
   end subroutine generate_2hole_confs

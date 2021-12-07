@@ -125,7 +125,7 @@ contains
     if (modus == 0) cfgM%n1E=0
     checksym=.true.
     counter=0
-    
+
 !----------------------------------------------------------------------    
 ! Generate the 1E configurations
 !----------------------------------------------------------------------
@@ -133,8 +133,8 @@ contains
     do n=1,n1h
 
        ! Loop over external MOs
-       do iext=nmoI+1,nmo
-
+       do iext=nmoI+1,lastvirt
+       
           ! Block index
           k=(iext-1)/64+1
           
@@ -356,7 +356,7 @@ contains
        enddo
 
     endif
-    
+
 !----------------------------------------------------------------------    
 ! Generate the 2E configurations
 !----------------------------------------------------------------------
@@ -372,8 +372,8 @@ contains
        if (ldftmrci .and. sum2h(n) > elim) cycle
        
        ! Loop over the first creation operator
-       do iext1=nmoI+1,nmo
-
+       do iext1=nmoI+1,lastvirt
+          
           ! If this is a DFT/MRCI calculation, cycle if the current
           ! 1H1E configuration doesn't satisfy the energy selection
           ! criterion
@@ -400,8 +400,8 @@ contains
           if (.not. ok) cycle
 
           ! Loop over the second creation operator
-          do iext2=iext1,nmo
-
+          do iext2=iext1,lastvirt
+          
              ! If this is a DFT/MRCI calculation, cycle if the current
              ! 2E configuration satisfying the energy selection
              ! criterion
@@ -917,7 +917,7 @@ contains
        enddo
        
     endif
-       
+
 !----------------------------------------------------------------------
 ! Generate the 1H1E configurations
 !----------------------------------------------------------------------
@@ -937,8 +937,8 @@ contains
        if (ldftmrci .and. sum1h1I(n) > elim) cycle
 
        ! Loop over external MOs
-       do iext=nmoI+1,nmo
-
+       do iext=nmoI+1,lastvirt
+       
           ! Block index
           k=(iext-1)/64+1
 
