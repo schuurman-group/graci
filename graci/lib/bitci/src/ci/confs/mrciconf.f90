@@ -159,12 +159,12 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole configurations
 !----------------------------------------------------------------------
-  call generate_1hole_confs(cfgM,icvs,E0max)
+  call generate_1hole_confs(cfgM,icvs)
 
 !----------------------------------------------------------------------
 ! Generate the 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_2hole_confs(cfgM,icvs,E0max)
+  call generate_2hole_confs(cfgM,icvs)
   
 !----------------------------------------------------------------------
 ! Apply the internal creation operators to the 2-hole configurations,
@@ -176,7 +176,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 
   call get_times(tw1,tc1)
 
-  call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs,E0max)
+  call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
 
   call get_times(tw2,tc2)
 
