@@ -157,14 +157,9 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   cfgM%c2m=c2m
   
 !----------------------------------------------------------------------
-! Generate the 1-hole configurations
+! Generate the 1- and 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_1hole_confs(cfgM,icvs)
-
-!----------------------------------------------------------------------
-! Generate the 2-hole configurations
-!----------------------------------------------------------------------
-  call generate_2hole_confs(cfgM,icvs)
+  call generate_hole_confs(cfgM,icvs)
   
 !----------------------------------------------------------------------
 ! Apply the internal creation operators to the 2-hole configurations,
