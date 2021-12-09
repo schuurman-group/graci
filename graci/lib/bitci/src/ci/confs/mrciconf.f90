@@ -157,7 +157,7 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   cfgM%c2m=c2m
   
 !----------------------------------------------------------------------
-! Generate the 1- and 2-hole configurations
+! Generate the 1-hole, 2-hole configurations
 !----------------------------------------------------------------------
   call generate_hole_confs(cfgM,icvs)
   
@@ -173,9 +173,27 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 
   call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
 
+  print*,''
+  print*,'n1h1I:',n1h1I
+  
   call get_times(tw2,tc2)
-
+  
   print*,'1H1I:',tw2-tw1
+
+
+  call get_times(tw1,tc1)
+
+  call generate_1hole_1I_confs_new(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+
+  print*,''
+  print*,'n1h1I:',n1h1I
+  
+  call get_times(tw2,tc2)
+  
+  print*,'1H1I:',tw2-tw1
+  
+
+  STOP
   
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
@@ -289,8 +307,10 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
   ! Configuration information
   write(iscratch) cfgM%confR
   write(iscratch) cfgM%conf1h
+  write(iscratch) cfgM%a1h
   write(iscratch) cfgM%off1h
   write(iscratch) cfgM%conf2h
+  write(iscratch) cfgM%a2h
   write(iscratch) cfgM%off2h
   write(iscratch) cfgM%conf0h
   if (cfgM%n1I > 0) then
