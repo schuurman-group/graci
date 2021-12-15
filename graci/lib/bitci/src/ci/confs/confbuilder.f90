@@ -63,7 +63,8 @@ contains
     integer(ib), allocatable   :: conf(:,:),confI(:,:)
     
     ! Everything else
-    integer(is)                :: i,j,k,n,np,imo,i1,i2,i3,ioff,i2h
+    integer(is)                :: i,j,k,n,np,imo,imo1,imo2,i1,i2,i3,&
+                                  ioff,i2h
     integer(is)                :: n_int_I,nmoI
     integer(is)                :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
     integer(is)                :: ic,counter
@@ -195,30 +196,30 @@ contains
           
           ! Creation of 1H1I confs by the addition of electrons to
           ! the current 2-hole conf
-          do imo=1,nmoI
+          do imo1=1,nmoI
           
              ! Cycle if this is a CVS-MRCI calculation and we are creating
              ! an electron in a flagged core MO
-             if (lcvs .and. icvs(cfgM%m2c(imo)) == 1) cycle
+             if (lcvs .and. icvs(cfgM%m2c(imo1)) == 1) cycle
           
              ! Block index
-             k=(imo-1)/64+1
+             k=(imo1-1)/64+1
              
              ! Postion of the external MO within the kth block
-             i=imo-(k-1)*64-1          
+             i=imo1-(k-1)*64-1          
           
              ! Cycle if this MO is doubly-occupied
              if (btest(cfgM%conf2h(k,2,i2h),i)) cycle
           
              ! Cycle if this this creation operator will yield
              ! a duplicate conf
-             if (icreate1(imo) == 0) cycle
+             if (icreate1(imo1) == 0) cycle
           
              ! Update the no. 1H1I confs
              n1h1I=n1h1I+1
 
              ! Generate the 1H1I conf bit string
-             confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,imo)
+             confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,imo1)
 
              ! Initialise the list of 2nd creation operators
              icreate2=icreate1
@@ -226,18 +227,31 @@ contains
              ! If we have created an electron in a singly-occupied MO
              ! of the 2-hole conf, then remove it from the list of
              ! allowed 2nd creation operators
-             if (btest(confI(k,2),i)) icreate2(imo)=0
+             if (btest(confI(k,2),i)) icreate2(imo1)=0
              
              ! Before adding the second electron to create the 2I
              ! and 1I1E confs, we need to flag those creation operators
              ! that would lead to duplicate confs based on the
              ! excitations linking the ref confs
-             call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,imo,&
+             call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,imo1,&
                   icreate2)
-                          
-             ! Generate all the 2I and 1I1E confs that arise from
-             ! the addition of a single internal or external electron
-             ! to this 1H1I conf             
+             
+             ! Generate all the 2I confs that arise from the addition
+             ! of a single internal to the current1H1I conf             
+             do imo2=1,nmoI
+                
+                ! Cycle if this this creation operator will yield a
+                ! duplicate conf
+                if (icreate1(imo2) == 0) cycle
+
+                ! Cycle if this is a CVS-MRCI calculation and we are
+                ! creating an electron in a flagged core MO
+                if (lcvs .and. icvs(cfgM%m2c(imo2)) == 1) cycle
+
+             enddo
+                
+
+             
              
           enddo
           
@@ -629,6 +643,102 @@ contains
        ! 2-hole annihilation operators
        itmp=ia
        jtmp=ja
+
+       if (rhp(1,np) == 1) then
+          ! Single excitation linking ref confs n and np:
+          ! If any one of the annihilation operators of the 2-hole conf
+          ! matches that of the excitation linking the ref confs, then
+          ! creating an electron in the orbital corresponding to the
+          ! creation operator of the excitation linking the ref confs
+          ! will yield duplicate confs
+          ! Futhermore, if the creation operator equals that of the
+          ! 1H1I conf, then all creation operations must be removed
+          
+          if (ia == rhp(2,np) .or. ja == rhp(2,np)) then
+             if (ic == rhp(5,np)) then
+                icreate=0
+                return
+             else
+                icreate(rhp(5,np))=0
+             endif
+          endif
+
+       else if (rhp(1,np) == 2) then
+          ! Double excitation linking ref confs n and np:
+          ! If there are matched annihilators *and* the 1H1I creator
+          ! matches one the the R_n -> R-np excitation, each creator
+          ! of the R_n -> R-np excitation has to be removed if:
+          ! (1) the 1H1I creator doesn't match the R_n -> R-np creator
+          ! (2) the 1H1I creator does match the R_n -> R-np creator
+          !     *and* the R_n -> R-np creators are equal
+          
+          ! How many matched annihilation operators do we have
+          nmatch=0
+          do j=1,2
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+             endif
+          enddo
+
+          ! Cycle if there are no matched annihilation operators
+          if (nmatch == 0) cycle
+
+          ! Cycle if the creation operator of the 1H1I conf doesn't
+          ! match one of the R_n -> R-np excitation
+          if (ic /= rhp(5,np) .and. ic /= rhp(6,np)) cycle
+
+          ! Loop over R_n -> R-np creation operators
+          do j=1,2
+
+             if (ic /= rhp(4+j,np)) then
+                ! Unmatched creation operators: remove the
+                ! R_n -> R-np creation operator from the list
+                icreate(rhp(4+j,np))=0
+             else
+                ! Matched creation operators: remove the
+                ! R_n -> R-np creation operator from the list if
+                ! the two R_n -> R-np creation operator are not
+                ! equal
+                if (rhp(5,np) == rhp(6,np)) icreate(rhp(j,np))=0
+             endif
+             
+          enddo
+
+       else if (rhp(1,np) == 3) then
+          ! Triple excitation linking ref confs n and np:
+          ! If there are two matched annihilators, then the
+          ! creators of the R_n -> R_np excitation
+          ! have to be removed, up to the first one that matches
+          ! with the creator of the 1H1I conf
+          
+          ! How many matched annihilation operators do we have
+          nmatch=0
+          do j=1,3
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+             endif
+          enddo
+
+          ! Cycle we do not have 2 matched annihilation operators
+          if (nmatch /= 2) cycle
+
+          ! Flag the creation operators of the R_n -> R_np
+          ! excitation as forbidden, up to the first match
+          ! with the creation operator of the 1H1I conf
+          do j=1,3
+             if (ic == rhp(4+j,np)) exit 
+             icreate(rhp(4+j,np))=0
+          enddo
+          
+       endif
        
     enddo
     
