@@ -10,6 +10,633 @@ module confbuilder
 contains
 
 !######################################################################
+! generate_2I_1I1E_confs: generates all allowable configurations with
+!                         two internal holes and: (i) two internal
+!                         electrons, or; (ii) one internal and one
+!                         external electron
+!######################################################################
+  subroutine generate_2I_1I1E_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    use hparam
+    use iomod
+    
+    implicit none
+
+    ! 1H1I configurations
+    integer(is), intent(out)   :: n1h1I
+    integer(ib), allocatable   :: conf1h1I(:,:,:)
+    integer(is), allocatable   :: indx1h1I(:,:)
+
+    ! MRCI configurations
+    type(mrcfg), intent(inout) :: cfgM
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)    :: icvs(nmo)
+    logical                    :: lcvs
+
+    ! Orbital classes
+    integer(is), allocatable   :: socc(:),docc(:),unocc(:)
+    integer(is)                :: nopen,nsocc,ndocc,nunocc
+
+    ! Difference configuration information
+    integer(is)                :: Dw(nmo,2)
+    integer(is)                :: ndiff
+
+    ! 2-hole SOPs
+    integer(ib), allocatable   :: sop2h(:,:,:)
+    
+    ! Lists of hole/particle indices linking ref confs
+    integer(is), parameter     :: maxexci=3
+    integer(is)                :: hlist(maxexci),plist(maxexci)
+    
+    ! Allowable creation operator indices
+    integer(is)                :: icreate1(lastvirt),icreate2(lastvirt)
+
+    ! Difference configuration information
+    integer(is), allocatable   :: rhp(:,:)
+
+    ! Work conf bit strings
+    integer(ib), allocatable   :: conf(:,:),confI(:,:)
+    
+    ! Everything else
+    integer(is)                :: i,j,k,n,np,imo,i1,i2,i3,ioff,i2h
+    integer(is)                :: n_int_I,nmoI
+    integer(is)                :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
+    integer(is)                :: ic,counter
+
+!----------------------------------------------------------------------
+! Is this a CVS-MRCI calculation
+!----------------------------------------------------------------------
+    if (sum(icvs) > 0) then
+       lcvs=.true.
+    else
+       lcvs=.false.
+    endif
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    nmoI=cfgM%nmoI
+    n_int_I=cfgM%n_int_I
+
+    allocate(conf(n_int,2))
+    conf=0_ib
+    
+    allocate(confI(n_int_I,2))
+    confI=0_ib
+    
+    allocate(sop2h(n_int_I,2,cfgM%n2h))
+    sop2h=0_ib
+
+    allocate(rhp(7,cfgM%nR))
+    rhp=0
+
+!----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    n1h1I=0
+    counter=0
+
+!----------------------------------------------------------------------
+! Generate the 2-hole SOPs
+!----------------------------------------------------------------------    
+    ! Loop over 2-hole configurations
+    do i=1,cfgM%n2h
+
+       ! Generate the next 2-hole SOP
+       confI=cfgM%conf2h(:,:,i)
+       sop2h(:,:,i)=conf_to_sop(confI,n_int_I)
+
+    enddo
+
+!----------------------------------------------------------------------
+! Generate the 2-hole configurations
+!----------------------------------------------------------------------
+    ! Loop over reference configurations
+    i2h=0
+    do n=1,cfgM%nR
+
+       ! Initialise the array of inter-ref-conf annihilation/creation
+       ! operator indices
+       rhp=0
+       
+       ! Loop over all other reference configurations
+       do np=1,cfgM%nR
+          if (n == np) cycle
+       
+          ! Determine the excitation degree between the to reference
+          ! configurations
+          nexci=exc_degree_conf(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
+               n_int_I)
+
+          ! Cycle if the excitation degree is greater than 3
+          if (nexci > 3) cycle
+
+          ! Determine the indices of the creation/annihilation
+          ! operators linking the two ref confs
+          call get_exci_indices(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
+               n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+
+          ! Excitation degree
+          rhp(1,np)=nexci
+
+          ! Creation/annihilation operator indices in ascending order
+          if (nexci == 1) then
+             rhp(2,np)=hlist(1)
+             rhp(5,np)=plist(1)
+          else if (nexci == 2) then
+             rhp(2,np)=min(hlist(1),hlist(2))
+             rhp(3,np)=max(hlist(1),hlist(2))
+             rhp(5,np)=min(plist(1),plist(2))
+             rhp(6,np)=max(plist(1),plist(2))
+          else if (nexci == 3) then
+             rhp(2,np)=min(hlist(1),hlist(2),hlist(3))
+             rhp(4,np)=max(hlist(1),hlist(2),hlist(3))
+             hlist(minloc(hlist))=0
+             hlist(maxloc(hlist))=0
+             rhp(3,np)=max(hlist(1),hlist(2),hlist(3))
+             rhp(5,np)=min(plist(1),plist(2),plist(3))
+             rhp(7,np)=max(plist(1),plist(2),plist(3))
+             plist(minloc(plist))=0
+             plist(maxloc(plist))=0
+             rhp(6,np)=max(plist(1),plist(2),plist(3))
+          endif
+             
+       enddo
+       
+       ! Loop over the 2-hole configurations generated by the current
+       ! reference configuration
+       do ioff=cfgM%off2h(n),cfgM%off2h(n+1)-1
+
+          ! Increment the 2-hole conf counter
+          i2h=i2h+1
+
+          ! 2-hole annihilation operator indices
+          ia2h=cfgM%a2h(1,i2h)
+          ja2h=cfgM%a2h(2,i2h)
+
+          ! Initialise the creation operator index
+          icreate1=1
+          
+          ! Remove the 2-hole annihilation operator indices from the
+          ! list of allowed creation operators: these would lead to
+          ! duplicate confs
+          icreate1(ia2h)=0
+          icreate1(ja2h)=0
+
+          ! Flag creation operators as forbidden if they will
+          ! produce duplicate confs based on the excitations linking
+          ! the current ref conf to all other ref confs
+          call remove_creators_1H1I(n,cfgM%nR,rhp,ia2h,ja2h,icreate1)
+          
+          ! Creation of 1H1I confs by the addition of electrons to
+          ! the current 2-hole conf
+          do imo=1,nmoI
+          
+             ! Cycle if this is a CVS-MRCI calculation and we are creating
+             ! an electron in a flagged core MO
+             if (lcvs .and. icvs(cfgM%m2c(imo)) == 1) cycle
+          
+             ! Block index
+             k=(imo-1)/64+1
+             
+             ! Postion of the external MO within the kth block
+             i=imo-(k-1)*64-1          
+          
+             ! Cycle if this MO is doubly-occupied
+             if (btest(cfgM%conf2h(k,2,i2h),i)) cycle
+          
+             ! Cycle if this this creation operator will yield
+             ! a duplicate conf
+             if (icreate1(imo) == 0) cycle
+          
+             ! Update the no. 1H1I confs
+             n1h1I=n1h1I+1
+
+             ! Generate the 1H1I conf bit string
+             confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,imo)
+
+             ! Initialise the list of 2nd creation operators
+             icreate2=icreate1
+             
+             ! If we have created an electron in a singly-occupied MO
+             ! of the 2-hole conf, then remove it from the list of
+             ! allowed 2nd creation operators
+             if (btest(confI(k,2),i)) icreate2(imo)=0
+             
+             ! Before adding the second electron to create the 2I
+             ! and 1I1E confs, we need to flag those creation operators
+             ! that would lead to duplicate confs based on the
+             ! excitations linking the ref confs
+             call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,imo,&
+                  icreate2)
+                          
+             ! Generate all the 2I and 1I1E confs that arise from
+             ! the addition of a single internal or external electron
+             ! to this 1H1I conf             
+             
+          enddo
+          
+          
+       enddo
+          
+    enddo
+       
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(conf)
+    deallocate(confI)
+    deallocate(sop2h)
+    deallocate(rhp)
+
+    return
+    
+  end subroutine generate_2I_1I1E_confs
+
+!######################################################################
+! remove_creators_1H1I: given a 2-hole conf (defined by a ref conf n
+!                       and annihilation operators ia and ja), flags
+!                       those creation operators that, when operating
+!                       on the 2-hole conf, will yield duplicate confs
+!######################################################################
+  subroutine remove_creators_1H1I(n,nR,rhp,ia,ja,icreate)
+
+    use constants
+    use bitglobal
+    
+    implicit none
+    
+    ! Index of the current ref conf
+    integer(is), intent(in)    :: n
+
+    ! Excitations linking the current ref conf to all others
+    integer(is), intent(in)    :: nR
+    integer(is), intent(in)    :: rhp(7,nR)
+
+    ! Indices of the 2-hole annihilation operators
+    integer(is), intent(in)    :: ia,ja
+
+    ! List of allowed/disallowed creation operators
+    integer(is), intent(inout) :: icreate(lastvirt)
+
+    ! Everything else
+    integer(is)                :: j,np,itmp,jtmp,nmatch
+    
+!----------------------------------------------------------------------
+! Excitations linking the current ref conf to the preceding ones
+!----------------------------------------------------------------------
+    ! Loop over preceding ref confs
+    do np=1,n-1
+
+       ! Greater than triple excitation between ref confs n and np:
+       ! no creation operators need to be removed
+       if (rhp(1,np) > 3) cycle
+       
+       ! 2-hole annihilation operators
+       itmp=ia
+       jtmp=ja
+             
+       if (rhp(1,np) == 1) then
+                
+          ! Single excitation bewtween ref confs n and np:
+          ! Creating an electron in the orbital corresponding
+          ! to the creation operator of the excitation linking
+          ! the two ref confs will lead to duplicate confs
+          
+          ! Flag the creation operator linking the ref confs
+          ! as forbidden
+          icreate(rhp(5,np))=0
+
+       else if (rhp(1,np) == 2) then
+                
+          ! Double excitation bewtween ref confs n and np:
+          ! If one of the two annihilation operators linking
+          ! the ref confs matches one of the annihilation
+          ! operators of the 2-hole conf, then duplicate
+          ! confs will be formed from excitations into the
+          ! orbitals corresponding to the creation operators
+          ! linking the ref confs
+
+          ! How many matched annihilation operators do we have?
+          nmatch=0
+          do j=1,2
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+             endif
+          enddo
+          
+          ! If we have a single matched annihilation operator,
+          ! then flag the creation operators linking the ref
+          ! confs as forbidden
+          if (nmatch == 1) then
+             icreate(rhp(5,np))=0
+             icreate(rhp(6,np))=0
+          endif
+          
+       else if (rhp(1,np) == 3) then
+          
+          ! Triple excitation bewtween ref confs n and np:
+          ! If two of the two annihilation operators linking
+          ! the ref confs match the annihilation operators
+          ! of the 2-hole conf, then duplicate confs will be
+          ! formed from excitations into the orbitals
+          ! corresponding to the creation operators linking
+          ! the ref confs
+          
+          ! How many matched annihilation operators do we have?
+          nmatch=0
+          do j=1,3
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+             endif
+          enddo
+          
+          ! If we have two matched annihilation operators,
+          ! then flag the creation operators linking the ref
+          ! confs as forbidden
+          if (nmatch == 2) then
+             icreate(rhp(5,np))=0
+             icreate(rhp(6,np))=0
+             icreate(rhp(7,np))=0
+          endif
+                
+       endif
+             
+    enddo
+
+!----------------------------------------------------------------------
+! Excitations linking the current ref conf to the proceding ones
+!----------------------------------------------------------------------
+    ! Loop over proceding ref confs
+    do np=n+1,nR
+
+       ! Greater than double excitation between ref confs n and np:
+       ! no creation operators need to be removed
+       if (rhp(1,np) > 2) cycle
+       
+       ! 2-hole annihilation operators
+       itmp=ia
+       jtmp=ja
+             
+       if (rhp(1,np) == 1) then
+
+          ! Single excitation between ref confs n and np:
+          ! If the annihilation operator linking the two
+          ! ref confs matchs either of the 2-hole conf
+          ! annihilation operators, then duplicate confs
+          ! will be formed by creating an electron in the
+          ! orbital corresponding to the creation operators
+          ! linking the ref confs
+                
+          if (ia == rhp(2,np) .or. ja == rhp(2,np)) &
+               icreate(rhp(5,np))=0
+          
+       else if (rhp(1,np) == 2) then
+          ! Double excitation bewtween ref confs n and np:
+          ! If both of the two annihilation operators linking
+          ! the ref confs match of the annihilation
+          ! operators of the 2-hole conf, then duplicate
+          ! confs will be formed from excitations into the
+          ! orbitals corresponding to the creation operators
+          ! linking the ref confs
+          
+          ! How many matched annihilation operators do we have?
+          nmatch=0
+          do j=1,2
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+                if (nmatch == 2) exit
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+                if (nmatch == 2) exit
+             endif
+          enddo
+
+          ! If we have two matched annihilation operators,
+          ! then flag the creation operators linking the ref
+          ! confs as forbidden
+          if (nmatch == 2) then
+             icreate(rhp(5,np))=0
+             icreate(rhp(6,np))=0
+          endif
+          
+       endif
+       
+    enddo
+    
+    return
+    
+  end subroutine remove_creators_1H1I
+
+!######################################################################
+! remove_creators_2I_1I1E: given a 1H1I conf (defined by a ref conf n,
+!                          annihilation operators ia and ja and a
+!                          creation operator ic), flags those creation
+!                          operators that, when operating on the 1H1I
+!                          conf, will yield duplicate confs
+!######################################################################
+  subroutine remove_creators_2I_1I1E(n,nR,rhp,ia,ja,ic,icreate)
+
+    use constants
+    use bitglobal
+
+    implicit none
+
+    ! Index of the current ref conf
+    integer(is), intent(in)    :: n
+
+    ! Excitations linking the current ref conf to all others
+    integer(is), intent(in)    :: nR
+    integer(is), intent(in)    :: rhp(7,nR)
+
+    ! Indices of the 2-hole annihilation operators
+    integer(is), intent(in)    :: ia,ja
+
+    ! Index of the 1H1I creation operator
+    integer(is), intent(in)    :: ic
+    
+    ! List of allowed/disallowed creation operators
+    integer(is), intent(inout) :: icreate(lastvirt)
+
+    ! Everything else
+    integer(is)                :: j,np,itmp,jtmp,nmatch,icmatch
+
+!----------------------------------------------------------------------
+! Excitations linking the current ref conf to the preceding ones
+!----------------------------------------------------------------------
+    ! Loop over preceding ref confs
+    do np=1,n-1
+
+       ! Greater than triple excitation between ref confs n and np:
+       ! no creation operators need to be removed
+       if (rhp(1,np) > 3) cycle
+       
+       ! 2-hole annihilation operators
+       itmp=ia
+       jtmp=ja
+
+       if (rhp(1,np) == 2) then
+          ! Double excitation between ref confs n an np:
+          !
+          ! (i)  If neither of the annihilation operators
+          !      linking the ref confs match the annihilation
+          !      operators of the 1H1I conf *and* there is
+          !      a matched creation operator, then excitations
+          !      into the orbitals above the matched creation
+          !      operator will give rise to duplicate confs
+          !
+          ! (ii) If one of the annihilation operators
+          !      linking the ref confs matches an annihilation
+          !      operator of the 1H1I conf *and* there are no
+          !      matched creators, then excitations into the
+          !      orbitals of the creation operators linking
+          !      the ref confs will give rise to duplicate
+          !      configurations
+          
+          ! Number of matched annihilation operators
+          nmatch=0
+          
+          ! Comparison of the annihilation operators
+          ! of the 2-hole conf and those linking the
+          ! ref confs
+          do j=1,2
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+             endif
+          enddo
+          
+          ! Comparison of the 1H1I creation operator
+          ! with those of the excitation linking the
+          ! ref confs
+          icmatch=0
+          do j=1,2
+             if (ic == rhp(4+j,np)) then
+                icmatch=j
+                exit
+             endif
+          enddo
+          
+          ! Zero matched annihilation operators and a
+          ! matched creation operator: remove all the
+          ! creation operator past the matched one
+          if (nmatch == 0 .and. icmatch == 1) &
+               icreate(rhp(6,np))=0
+          
+          ! One matched annihilation operator and zero
+          ! matched creation operators: remove all the
+          ! creation operators
+          if (nmatch == 1 .and. icmatch == 0) then
+             icreate(rhp(5,np))=0
+             icreate(rhp(6,np))=0
+          endif
+             
+       else if (rhp(1,np) == 3) then
+          ! Triple excitation between ref confs n an np:
+          !
+          ! (i)  If one of the annihilation operators
+          !      linking the ref confs matches an annihilation
+          !      operator of the 1H1I conf *and* there is
+          !      a matched creation operator, then excitations
+          !      into the orbitals above the matched creation
+          !      operator will give rise to duplicate confs
+          !
+          ! (ii) If two of the annihilation operators
+          !      linking the ref confs matches an annihilation
+          !      operator of the 1H1I conf *and* there are no
+          !      matched creators, then excitations into the
+          !      orbitals of the creation operators linking
+          !      the ref confs will give rise to duplicate
+          !      configurations
+          
+          ! Number of matched annihilation operators
+          nmatch=3
+             
+          ! Comparison of the annihilation operators
+          ! of the 2-hole conf and those linking the
+          ! ref confs
+          do j=1,3
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+             endif
+          enddo
+          
+          ! Comparison of the 1H1I creation operator
+          ! with those of the excitation linking the
+          ! ref confs
+          icmatch=0
+          do j=1,3
+             if (ic == rhp(4+j,np)) then
+                icmatch=j
+                exit
+             endif
+          enddo
+             
+          ! One matched annihilation operator and a
+          ! matched creation operator: remove all the
+          ! creation operator past the matched one
+          if (nmatch == 0 .and. icmatch /= 0) then
+             do j=icmatch+1,3
+                icreate(rhp(4+j,np))=0
+             enddo
+          endif
+          
+          ! Two matched annihilation operator and zero
+          ! matched creation operators: remove all the
+          ! creation operators
+          if (nmatch == 1 .and. icmatch == 0) then
+             icreate(rhp(5,np))=0
+             icreate(rhp(6,np))=0
+             icreate(rhp(7,np))=0
+          endif
+                   
+       endif
+                
+    enddo
+
+!----------------------------------------------------------------------
+! Excitations linking the current ref conf to the proceding ones
+!----------------------------------------------------------------------
+    ! Loop over proceding ref confs
+    do np=n+1,nR
+
+       ! Greater than triple excitation between ref confs n and np:
+       ! no creation operators need to be removed
+       if (rhp(1,np) > 3) cycle
+
+       ! 2-hole annihilation operators
+       itmp=ia
+       jtmp=ja
+       
+    enddo
+    
+    return
+    
+  end subroutine remove_creators_2I_1I1E
+    
+!######################################################################
 ! generate_1E_confs: for a given irrep, generates all the
 !                    allowable configurations with one internal hole
 !                    and one external electron
@@ -1548,5 +2175,5 @@ contains
   end function lowest_particle_index
   
 !######################################################################
-
+  
 end module confbuilder

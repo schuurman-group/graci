@@ -183,8 +183,8 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 
   call get_times(tw1,tc1)
 
-  call generate_1hole_1I_confs_new(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
-
+  call generate_2I_1I1E_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+  
   print*,''
   print*,'n1h1I:',n1h1I
   
