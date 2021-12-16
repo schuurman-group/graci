@@ -15,7 +15,8 @@ contains
 !                         electrons, or; (ii) one internal and one
 !                         external electron
 !######################################################################
-  subroutine generate_2I_1I1E_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+  subroutine generate_2I_1I1E_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs,&
+                                    E0max)
 
     use constants
     use bitglobal
@@ -38,13 +39,12 @@ contains
     integer(is), intent(in)    :: icvs(nmo)
     logical                    :: lcvs
 
+    ! Energy of the highest-lying reference space state of interest
+    real(dp), intent(in)       :: E0max
+    
     ! Orbital classes
     integer(is)                :: socc(nmo),docc(nmo),unocc(nmo)
     integer(is)                :: nopen,nsocc,ndocc,nunocc
-
-    ! Difference configuration information
-    integer(is)                :: Dw(nmo,2)
-    integer(is)                :: ndiff
 
     ! 2-hole SOPs
     integer(ib), allocatable   :: sop2h(:,:,:)
@@ -62,10 +62,15 @@ contains
 
     ! Work conf bit strings
     integer(ib), allocatable   :: conf(:,:),confI(:,:)
+
+    ! Sums of KS orbital energies multipled by occupation
+    ! differences relative to the base conf
+    real(dp)                   :: esumR,esum2H,esum1H1I,esum1I1E,&
+                                  esum2I
     
     ! Everything else
-    integer(is)                :: i,j,k,n,np,imo,imo1,imo2,i1,i2,i3,&
-                                  ioff,i2h
+    integer(is)                :: i,j,k,n,np,imo1,i1,i2,i3
+    integer(is)                :: ioff,i2h,iext,iint
     integer(is)                :: n_int_I,nmoI
     integer(is)                :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
     integer(is)                :: ic,counter
@@ -108,7 +113,9 @@ contains
 !----------------------------------------------------------------------
     n1h1I=0
     counter=0
-
+    cfgM%n1I1E=0
+    cfgM%n2I=0
+    
 !----------------------------------------------------------------------
 ! Generate the 2-hole SOPs
 !----------------------------------------------------------------------    
@@ -128,6 +135,9 @@ contains
     i2h=0
     do n=1,cfgM%nR
 
+       ! Sum_p F_pp^(KS) Delta W_p for the reference configuration
+       esumR=esum(cfgM%confR(:,:,n),n_int_I,cfgM%m2c)
+       
        ! Initialise the array of inter-ref-conf annihilation/creation
        ! operator indices
        rhp=0
@@ -187,6 +197,9 @@ contains
           ia2h=cfgM%a2h(1,i2h)
           ja2h=cfgM%a2h(2,i2h)
 
+          ! Sum_p F_pp^(KS) Delta W_p for the 2-hole configuration
+          esum2H=esumR-moen(cfgM%m2c(ia2h))-moen(cfgM%m2c(ja2h))
+          
           ! Initialise the creation operator array
           ncreate1=nmoI
           icreate1=1
@@ -241,10 +254,13 @@ contains
              ! Cycle if this this creation operator will yield
              ! a duplicate conf
              if (icreate1(imo1) == 0) cycle
-          
+             
              ! Update the no. 1H1I confs
              n1h1I=n1h1I+1
 
+             ! Sum_p F_pp^(KS) Delta W_p for the 1H1I configuration
+             esum1H1I=esum2H+moen(cfgM%m2c(imo1))
+             
              ! Generate the 1H1I conf bit string
              confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,imo1)
 
@@ -268,22 +284,104 @@ contains
                   call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,&
                   imo1,icreate2,ncreate2)
 
-             if (ncreate2 == 0) print*,'ncreate2:',ncreate2
-             
              ! Debugging check
              if (ncreate2 < 0) then
                 errmsg='ncreate2 < 0'
                 call error_control
              endif
-             
+
+             !
              ! Generate all the 1I1E confs resulting from the addition
              ! of an external electron to the current 1H1I conf
+             !
+             ! Loop over external MOs
+             do iext=nmoI+1,lastvirt
 
+                ! Sum_p F_pp^(KS) Delta W_p for the 1I1E configuration
+                esum1I1E=esum1H1I+moen(cfgM%m2c(iext))
+                
+                ! If this is a DFT/MRCI calculation, then skip this
+                ! configuration if it doesn't satisfy the energy-based
+                ! selection criterion
+                if (ldftmrci .and. esum1I1E > E0max + desel) cycle
 
+                ! Block index
+                k=(iext-1)/64+1
+                
+                ! Postion of the external MO within the kth block
+                i=iext-(k-1)*64-1
+
+                ! Full configuration
+                conf=0_ib
+                conf(1:n_int_I,:)=confI
+                conf(k,1)=ibset(conf(k,1),i)
+
+                ! Skip this configuration if the excitation degree
+                ! relative to the base configuration is too high
+                nexci=exc_degree_conf(conf,conf0,n_int)
+                if (nexci > nexmax) cycle
+
+                ! Update the number of 1I1E confs
+                cfgM%n1I1E=cfgM%n1I1E+1
+
+                ! Save the 1I1E conf
+                
+             enddo
+                
+             !
              ! Generate all the 1I1E confs resulting from the addition
              ! of an external electron to the current 1H1I conf
+             !
+             ! Cycle if there are no allowable internal creation
+             ! operators
              if (ncreate2 == 0) cycle
              
+             ! Loop over internal MOs
+             do iint=1,nmoI
+
+                ! Cycle if this is a non-allowed creation operator
+                if (icreate2(iint) == 0) cycle
+
+                ! Cycle if this is a CVS-MRCI calculation and we are
+                ! creating an electron in a flagged core MO
+                if (lcvs .and. icvs(cfgM%m2c(iint)) == 1) cycle
+
+                ! Sum_p F_pp^(KS) Delta W_p for the 2I configuration
+                esum2I=esum1H1I+moen(cfgM%m2c(iint))
+                
+                ! If this is a DFT/MRCI calculation, then skip this
+                ! configuration if it doesn't satisfy the energy-based
+                ! selection criterion
+                if (ldftmrci .and. esum2I > E0max + desel) cycle
+                
+                ! Block index
+                k=(iint-1)/64+1
+                
+                ! Postion of the external MO within the kth block
+                i=iint-(k-1)*64-1
+
+                ! Full configuration
+                conf=0_ib
+                conf(1:n_int_I,:)=confI
+                if (btest(conf(k,1),i)) then
+                   ! Creation of a doubly-occupied internal MO
+                   conf(k,2)=ibset(conf(k,2),i)
+                else
+                   ! Creation of a singly-occupied internal MO
+                   conf(k,1)=ibset(conf(k,1),i)
+                endif
+
+                ! Skip this configuration if the excitation degree
+                ! relative to the base configuration is too high
+                nexci=exc_degree_conf(conf,conf0,n_int)
+                if (nexci > nexmax) cycle
+
+                ! Update the number of 2I confs
+                cfgM%n2I=cfgM%n2I+1
+
+                ! Save the 2I conf
+                
+             enddo
              
           enddo
           
@@ -2371,6 +2469,62 @@ contains
     return
     
   end function lowest_particle_index
+  
+!######################################################################
+! esum: given a configuration conf, returns Sum_p F_pp^(KS) Delta w_p
+!       relative to the base configuration
+!######################################################################
+  function esum(conf,ldc,m2c)
+
+    use constants
+    use bitglobal
+    use mrciutils
+    
+    implicit none
+
+    ! Function result
+    real(dp) :: esum
+
+    ! Configuration
+    integer(is), intent(in) :: ldc
+    integer(ib), intent(in) :: conf(ldc,2)
+
+    ! Difference configuration information
+    integer(is)             :: Dw(nmo,2)
+    integer(is)             :: ndiff
+
+    ! MO mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! Everything else
+    integer(is)             :: i,i1,Dwi
+    
+    !
+    ! Compute the difference configuration relative to the base
+    ! configuration
+    !
+    call diffconf(conf,ldc,Dw,nmo,ndiff)
+
+    !
+    ! Sum_i (F_ii^KS) Dw_i
+    !
+    esum=0.0d0
+    do i=1,ndiff
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+       
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       ! Sum the contribution
+       esum=esum+moen(i1)*Dwi
+       
+    enddo
+    
+    return
+    
+  end function esum
   
 !######################################################################
   
