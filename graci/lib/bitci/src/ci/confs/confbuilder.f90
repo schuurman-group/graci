@@ -39,7 +39,7 @@ contains
     logical                    :: lcvs
 
     ! Orbital classes
-    integer(is), allocatable   :: socc(:),docc(:),unocc(:)
+    integer(is)                :: socc(nmo),docc(nmo),unocc(nmo)
     integer(is)                :: nopen,nsocc,ndocc,nunocc
 
     ! Difference configuration information
@@ -53,8 +53,9 @@ contains
     integer(is), parameter     :: maxexci=3
     integer(is)                :: hlist(maxexci),plist(maxexci)
     
-    ! Allowable creation operator indices
-    integer(is)                :: icreate1(lastvirt),icreate2(lastvirt)
+    ! Allowable internal creation operator indices
+    integer(is)                :: ncreate1,ncreate2
+    integer(is), allocatable   :: icreate1(:),icreate2(:)
 
     ! Difference configuration information
     integer(is), allocatable   :: rhp(:,:)
@@ -84,6 +85,12 @@ contains
     nmoI=cfgM%nmoI
     n_int_I=cfgM%n_int_I
 
+    allocate(icreate1(nmoI))
+    icreate1=0
+
+    allocate(icreate2(nmoI))
+    icreate2=0
+    
     allocate(conf(n_int,2))
     conf=0_ib
     
@@ -180,19 +187,39 @@ contains
           ia2h=cfgM%a2h(1,i2h)
           ja2h=cfgM%a2h(2,i2h)
 
-          ! Initialise the creation operator index
+          ! Initialise the creation operator array
+          ncreate1=nmoI
           icreate1=1
           
           ! Remove the 2-hole annihilation operator indices from the
           ! list of allowed creation operators: these would lead to
           ! duplicate confs
           icreate1(ia2h)=0
-          icreate1(ja2h)=0
+          ncreate1=ncreate1-1
+          if (ia2h /= ja2h) then
+             icreate1(ja2h)=0
+             ncreate1=ncreate1-1
+          endif
+
+          ! Remove the doubly-occupied MOs from the list
+          ! of allowed creation operators
+          call sop_docc_list(sop2h(:,:,i2h),n_int_I,docc,nmo,ndocc)
+          do j=1,ndocc
+             icreate1(docc(j))=0
+             ncreate1=ncreate1-1
+          enddo
 
           ! Flag creation operators as forbidden if they will
           ! produce duplicate confs based on the excitations linking
           ! the current ref conf to all other ref confs
-          call remove_creators_1H1I(n,cfgM%nR,rhp,ia2h,ja2h,icreate1)
+          call remove_creators_1H1I(n,cfgM%nR,rhp,ia2h,ja2h,icreate1,&
+               ncreate1)
+
+          ! Debugging check
+          if (ncreate1 < 0) then
+             errmsg='ncreate1 < 0'
+             call error_control
+          endif
           
           ! Creation of 1H1I confs by the addition of electrons to
           ! the current 2-hole conf
@@ -223,34 +250,39 @@ contains
 
              ! Initialise the list of 2nd creation operators
              icreate2=icreate1
+             ncreate2=ncreate1
              
              ! If we have created an electron in a singly-occupied MO
              ! of the 2-hole conf, then remove it from the list of
              ! allowed 2nd creation operators
-             if (btest(confI(k,2),i)) icreate2(imo1)=0
-             
+             if (btest(confI(k,2),i)) then
+                icreate2(imo1)=0
+                ncreate2=ncreate2-1
+             endif
+                
              ! Before adding the second electron to create the 2I
              ! and 1I1E confs, we need to flag those creation operators
              ! that would lead to duplicate confs based on the
              ! excitations linking the ref confs
-             call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,imo1,&
-                  icreate2)
+             if (ncreate2 /= 0) &
+                  call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,&
+                  imo1,icreate2,ncreate2)
+
+             if (ncreate2 == 0) print*,'ncreate2:',ncreate2
              
-             ! Generate all the 2I confs that arise from the addition
-             ! of a single internal to the current1H1I conf             
-             do imo2=1,nmoI
-                
-                ! Cycle if this this creation operator will yield a
-                ! duplicate conf
-                if (icreate1(imo2) == 0) cycle
+             ! Debugging check
+             if (ncreate2 < 0) then
+                errmsg='ncreate2 < 0'
+                call error_control
+             endif
+             
+             ! Generate all the 1I1E confs resulting from the addition
+             ! of an external electron to the current 1H1I conf
 
-                ! Cycle if this is a CVS-MRCI calculation and we are
-                ! creating an electron in a flagged core MO
-                if (lcvs .and. icvs(cfgM%m2c(imo2)) == 1) cycle
 
-             enddo
-                
-
+             ! Generate all the 1I1E confs resulting from the addition
+             ! of an external electron to the current 1H1I conf
+             if (ncreate2 == 0) cycle
              
              
           enddo
@@ -263,6 +295,8 @@ contains
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
+    deallocate(icreate1)
+    deallocate(icreate2)
     deallocate(conf)
     deallocate(confI)
     deallocate(sop2h)
@@ -278,7 +312,7 @@ contains
 !                       those creation operators that, when operating
 !                       on the 2-hole conf, will yield duplicate confs
 !######################################################################
-  subroutine remove_creators_1H1I(n,nR,rhp,ia,ja,icreate)
+  subroutine remove_creators_1H1I(n,nR,rhp,ia,ja,icreate,ncreate)
 
     use constants
     use bitglobal
@@ -298,6 +332,9 @@ contains
     ! List of allowed/disallowed creation operators
     integer(is), intent(inout) :: icreate(lastvirt)
 
+    ! Number of allowed creation operators
+    integer(is), intent(inout) :: ncreate
+    
     ! Everything else
     integer(is)                :: j,np,itmp,jtmp,nmatch
     
@@ -324,8 +361,11 @@ contains
           
           ! Flag the creation operator linking the ref confs
           ! as forbidden
-          icreate(rhp(5,np))=0
-
+          if (icreate(rhp(5,np)) /= 0) then
+             icreate(rhp(5,np))=0
+             ncreate=ncreate-1
+          endif
+             
        else if (rhp(1,np) == 2) then
                 
           ! Double excitation bewtween ref confs n and np:
@@ -352,8 +392,12 @@ contains
           ! then flag the creation operators linking the ref
           ! confs as forbidden
           if (nmatch == 1) then
-             icreate(rhp(5,np))=0
-             icreate(rhp(6,np))=0
+             do j=1,2
+                if (icreate(rhp(4+j,np)) /= 0) then
+                   icreate(rhp(4+j,np))=0
+                   ncreate=ncreate-1
+                endif
+             enddo
           endif
           
        else if (rhp(1,np) == 3) then
@@ -382,9 +426,12 @@ contains
           ! then flag the creation operators linking the ref
           ! confs as forbidden
           if (nmatch == 2) then
-             icreate(rhp(5,np))=0
-             icreate(rhp(6,np))=0
-             icreate(rhp(7,np))=0
+             do j=1,3
+                if (icreate(rhp(4+j,np)) /= 0) then
+                   icreate(rhp(4+j,np))=0
+                   ncreate=ncreate-1
+                endif
+             enddo
           endif
                 
        endif
@@ -415,8 +462,12 @@ contains
           ! orbital corresponding to the creation operators
           ! linking the ref confs
                 
-          if (ia == rhp(2,np) .or. ja == rhp(2,np)) &
-               icreate(rhp(5,np))=0
+          if (ia == rhp(2,np) .or. ja == rhp(2,np)) then
+             if (icreate(rhp(5,np)) /= 0) then
+                icreate(rhp(5,np))=0
+                ncreate=ncreate-1
+             endif
+          endif
           
        else if (rhp(1,np) == 2) then
           ! Double excitation bewtween ref confs n and np:
@@ -445,8 +496,12 @@ contains
           ! then flag the creation operators linking the ref
           ! confs as forbidden
           if (nmatch == 2) then
-             icreate(rhp(5,np))=0
-             icreate(rhp(6,np))=0
+             do j=1,2
+                if (icreate(rhp(4+j,np)) /= 0) then
+                   icreate(rhp(4+j,np))=0
+                   ncreate=ncreate-1
+                endif
+             enddo
           endif
           
        endif
@@ -464,7 +519,7 @@ contains
 !                          operators that, when operating on the 1H1I
 !                          conf, will yield duplicate confs
 !######################################################################
-  subroutine remove_creators_2I_1I1E(n,nR,rhp,ia,ja,ic,icreate)
+  subroutine remove_creators_2I_1I1E(n,nR,rhp,ia,ja,ic,icreate,ncreate)
 
     use constants
     use bitglobal
@@ -487,6 +542,9 @@ contains
     ! List of allowed/disallowed creation operators
     integer(is), intent(inout) :: icreate(lastvirt)
 
+    ! Number of allowed/disallowed creation operators
+    integer(is), intent(inout) :: ncreate
+    
     ! Everything else
     integer(is)                :: j,np,itmp,jtmp,nmatch,icmatch
 
@@ -552,15 +610,23 @@ contains
           ! Zero matched annihilation operators and a
           ! matched creation operator: remove all the
           ! creation operator past the matched one
-          if (nmatch == 0 .and. icmatch == 1) &
-               icreate(rhp(6,np))=0
-          
+          if (nmatch == 0 .and. icmatch == 1) then
+             if (icreate(rhp(6,np)) /= 0) then
+                icreate(rhp(6,np))=0
+                ncreate=ncreate-1
+             endif
+          endif
+               
           ! One matched annihilation operator and zero
           ! matched creation operators: remove all the
           ! creation operators
           if (nmatch == 1 .and. icmatch == 0) then
-             icreate(rhp(5,np))=0
-             icreate(rhp(6,np))=0
+             do j=1,2
+                if (icreate(rhp(4+j,np)) /= 0) then
+                   icreate(rhp(4+j,np))=0
+                   ncreate=ncreate-1
+                endif
+             enddo
           endif
              
        else if (rhp(1,np) == 3) then
@@ -613,7 +679,10 @@ contains
           ! creation operator past the matched one
           if (nmatch == 0 .and. icmatch /= 0) then
              do j=icmatch+1,3
-                icreate(rhp(4+j,np))=0
+                if (icreate(rhp(4+j,np)) /= 0) then
+                   icreate(rhp(4+j,np))=0
+                   ncreate=ncreate-1
+                endif
              enddo
           endif
           
@@ -621,9 +690,12 @@ contains
           ! matched creation operators: remove all the
           ! creation operators
           if (nmatch == 1 .and. icmatch == 0) then
-             icreate(rhp(5,np))=0
-             icreate(rhp(6,np))=0
-             icreate(rhp(7,np))=0
+             do j=1,3
+                if (icreate(rhp(4+j,np)) /= 0) then
+                   icreate(rhp(4+j,np))=0
+                   ncreate=ncreate-1
+                endif
+             enddo
           endif
                    
        endif
@@ -657,9 +729,13 @@ contains
           if (ia == rhp(2,np) .or. ja == rhp(2,np)) then
              if (ic == rhp(5,np)) then
                 icreate=0
+                ncreate=0
                 return
              else
-                icreate(rhp(5,np))=0
+                if (icreate(rhp(5,np)) /= 0) then
+                   icreate(rhp(5,np))=0
+                   ncreate=ncreate-1
+                endif
              endif
           endif
 
@@ -697,13 +773,22 @@ contains
              if (ic /= rhp(4+j,np)) then
                 ! Unmatched creation operators: remove the
                 ! R_n -> R-np creation operator from the list
-                icreate(rhp(4+j,np))=0
+                if (icreate(rhp(4+j,np)) /= 0) then
+                   icreate(rhp(4+j,np))=0
+                   ncreate=ncreate-1
+                endif
              else
                 ! Matched creation operators: remove the
                 ! R_n -> R-np creation operator from the list if
                 ! the two R_n -> R-np creation operator are not
                 ! equal
-                if (rhp(5,np) == rhp(6,np)) icreate(rhp(j,np))=0
+                if (rhp(5,np) == rhp(6,np)) then
+                   if (icreate(rhp(j,np)) /= 0) then
+                      icreate(rhp(j,np))=0
+                      ncreate=ncreate-1
+                   endif
+                endif
+                   
              endif
              
           enddo
@@ -734,8 +819,11 @@ contains
           ! excitation as forbidden, up to the first match
           ! with the creation operator of the 1H1I conf
           do j=1,3
-             if (ic == rhp(4+j,np)) exit 
-             icreate(rhp(4+j,np))=0
+             if (ic == rhp(4+j,np)) exit
+             if (icreate(rhp(4+j,np)) /= 0) then
+                icreate(rhp(4+j,np))=0
+                ncreate=ncreate-1
+             endif
           enddo
           
        endif
