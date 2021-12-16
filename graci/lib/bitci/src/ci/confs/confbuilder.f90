@@ -24,7 +24,7 @@ contains
     use mrciutils
     use hparam
     use iomod
-    
+
     implicit none
 
     ! 1H1I configurations
@@ -69,8 +69,8 @@ contains
                                   esum2I
     
     ! Everything else
-    integer(is)                :: i,j,k,n,np,imo1,i1,i2,i3
-    integer(is)                :: ioff,i2h,iext,iint
+    integer(is)                :: i,j,k,n,np,i1,i2,i3
+    integer(is)                :: ioff,i2h,iext,iint1,iint2
     integer(is)                :: n_int_I,nmoI
     integer(is)                :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
     integer(is)                :: ic,counter
@@ -236,43 +236,40 @@ contains
           
           ! Creation of 1H1I confs by the addition of electrons to
           ! the current 2-hole conf
-          do imo1=1,nmoI
-          
-             ! Cycle if this is a CVS-MRCI calculation and we are creating
-             ! an electron in a flagged core MO
-             if (lcvs .and. icvs(cfgM%m2c(imo1)) == 1) cycle
-          
-             ! Block index
-             k=(imo1-1)/64+1
-             
-             ! Postion of the external MO within the kth block
-             i=imo1-(k-1)*64-1          
-          
-             ! Cycle if this MO is doubly-occupied
-             if (btest(cfgM%conf2h(k,2,i2h),i)) cycle
-          
+          do iint1=1,nmoI
+
              ! Cycle if this this creation operator will yield
              ! a duplicate conf
-             if (icreate1(imo1) == 0) cycle
+             if (icreate1(iint1) == 0) cycle
              
+             ! Cycle if this is a CVS-MRCI calculation and we are creating
+             ! an electron in a flagged core MO
+             if (lcvs .and. icvs(cfgM%m2c(iint1)) == 1) cycle
+
              ! Update the no. 1H1I confs
              n1h1I=n1h1I+1
-
-             ! Sum_p F_pp^(KS) Delta W_p for the 1H1I configuration
-             esum1H1I=esum2H+moen(cfgM%m2c(imo1))
-             
-             ! Generate the 1H1I conf bit string
-             confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,imo1)
 
              ! Initialise the list of 2nd creation operators
              icreate2=icreate1
              ncreate2=ncreate1
              
+             ! Sum_p F_pp^(KS) Delta W_p for the 1H1I configuration
+             esum1H1I=esum2H+moen(cfgM%m2c(iint1))
+             
+             ! Generate the 1H1I conf bit string
+             confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,iint1)
+
+             ! Block index
+             k=(iint1-1)/64+1
+
+             ! Postion of the external MO within the kth block
+             i=iint1-(k-1)*64-1
+             
              ! If we have created an electron in a singly-occupied MO
              ! of the 2-hole conf, then remove it from the list of
              ! allowed 2nd creation operators
              if (btest(confI(k,2),i)) then
-                icreate2(imo1)=0
+                icreate2(iint1)=0
                 ncreate2=ncreate2-1
              endif
                 
@@ -282,7 +279,7 @@ contains
              ! excitations linking the ref confs
              if (ncreate2 /= 0) &
                   call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,&
-                  imo1,icreate2,ncreate2)
+                  iint1,icreate2,ncreate2)
 
              ! Debugging check
              if (ncreate2 < 0) then
@@ -336,18 +333,18 @@ contains
              ! operators
              if (ncreate2 == 0) cycle
              
-             ! Loop over internal MOs
-             do iint=1,nmoI
+             ! Loop over the second internal MO
+             do iint2=iint1,nmoI
 
                 ! Cycle if this is a non-allowed creation operator
-                if (icreate2(iint) == 0) cycle
+                if (icreate2(iint2) == 0) cycle
 
                 ! Cycle if this is a CVS-MRCI calculation and we are
                 ! creating an electron in a flagged core MO
-                if (lcvs .and. icvs(cfgM%m2c(iint)) == 1) cycle
+                if (lcvs .and. icvs(cfgM%m2c(iint2)) == 1) cycle
 
                 ! Sum_p F_pp^(KS) Delta W_p for the 2I configuration
-                esum2I=esum1H1I+moen(cfgM%m2c(iint))
+                esum2I=esum1H1I+moen(cfgM%m2c(iint2))
                 
                 ! If this is a DFT/MRCI calculation, then skip this
                 ! configuration if it doesn't satisfy the energy-based
@@ -355,10 +352,10 @@ contains
                 if (ldftmrci .and. esum2I > E0max + desel) cycle
                 
                 ! Block index
-                k=(iint-1)/64+1
+                k=(iint2-1)/64+1
                 
-                ! Postion of the external MO within the kth block
-                i=iint-(k-1)*64-1
+                ! Postion of the internal MO within the kth block
+                i=iint2-(k-1)*64-1
 
                 ! Full configuration
                 conf=0_ib
@@ -378,8 +375,9 @@ contains
 
                 ! Update the number of 2I confs
                 cfgM%n2I=cfgM%n2I+1
-
+                
                 ! Save the 2I conf
+                
                 
              enddo
              
