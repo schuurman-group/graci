@@ -20,9 +20,9 @@ contains
 
     implicit none
     
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
+    ! MRCI configuration derived types for all irreps
+    type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
+    
     ! CVS-MRCI: core MOs
     integer(is), intent(in)    :: icvs(nmo)
     logical                    :: lcvs
@@ -38,44 +38,72 @@ contains
     else
        lcvs=.false.
     endif
-    
+
 !----------------------------------------------------------------------
 ! 1-hole configurations
 !----------------------------------------------------------------------
     ! First pass: determine the no. 1-hole configurations
     modus=0
-    call builder_1hole(modus,cfgM,icvs,lcvs)
+    call builder_1hole(modus,cfgM(0),icvs,lcvs)
 
     ! Allocate and initialise arrays
-    allocate(cfgM%conf1h(cfgM%n_int_I,2,cfgM%n1h))
-    allocate(cfgM%off1h(cfgM%nR+1))
-    allocate(cfgM%a1h(cfgM%n1h))
-    cfgM%conf1h=0_ib
-    cfgM%off1h=0
-    cfgM%a1h=0
+    allocate(cfgM(0)%conf1h(cfgM(0)%n_int_I,2,cfgM(0)%n1h))
+    allocate(cfgM(0)%off1h(cfgM(0)%nR+1))
+    allocate(cfgM(0)%a1h(cfgM(0)%n1h))
+    cfgM(0)%conf1h=0_ib
+    cfgM(0)%off1h=0
+    cfgM(0)%a1h=0
 
     ! Second pass: fill in the 1-hole configuration and offset arrays
     modus=1
-    call builder_1hole(modus,cfgM,icvs,lcvs)
+    call builder_1hole(modus,cfgM(0),icvs,lcvs)
 
 !----------------------------------------------------------------------
 ! 2-hole configurations
 !----------------------------------------------------------------------
     ! First pass: determine the no. 2-hole configurations
     modus=0
-    call builder_2hole(modus,cfgM,icvs,lcvs)
+    call builder_2hole(modus,cfgM(0),icvs,lcvs)
     
     ! Allocate and initialise arrays
-    allocate(cfgM%conf2h(cfgM%n_int_I,2,cfgM%n2h))
-    allocate(cfgM%off2h(cfgM%nR+1))
-    allocate(cfgM%a2h(2,cfgM%n2h))
-    cfgM%conf2h=0_ib
-    cfgM%off2h=0
-    cfgM%a2h=0
+    allocate(cfgM(0)%conf2h(cfgM(0)%n_int_I,2,cfgM(0)%n2h))
+    allocate(cfgM(0)%off2h(cfgM(0)%nR+1))
+    allocate(cfgM(0)%a2h(2,cfgM(0)%n2h))
+    cfgM(0)%conf2h=0_ib
+    cfgM(0)%off2h=0
+    cfgM(0)%a2h=0
 
     ! Second pass: fill in the 2-hole configuration and offset arrays
     modus=1
-    call builder_2hole(modus,cfgM,icvs,lcvs)
+    call builder_2hole(modus,cfgM(0),icvs,lcvs)
+
+!----------------------------------------------------------------------
+! Fill in the MRCI configuration derived types for the remaining irreps
+!----------------------------------------------------------------------
+    ! Loop over remaining irreps
+    do i=1,nirrep-1
+
+       ! No. 1-hole and 2-hole configurations
+       cfgM(i)%n1h=cfgM(0)%n1h
+       cfgM(i)%n2h=cfgM(0)%n2h
+
+       ! 1-hole configurations and offsets
+       allocate(cfgM(i)%conf1h(cfgM(i)%n_int_I,2,cfgM(i)%n1h))
+       allocate(cfgM(i)%off1h(cfgM(i)%nR+1))
+       allocate(cfgM(i)%a1h(cfgM(i)%n1h))
+       cfgM(i)%conf1h=cfgM(0)%conf1h
+       cfgM(i)%off1h=cfgM(0)%off1h
+       cfgM(i)%a1h=cfgM(0)%a1h
+
+       ! 2-hole configurations and offsets
+       allocate(cfgM(i)%conf2h(cfgM(i)%n_int_I,2,cfgM(i)%n2h))
+       allocate(cfgM(i)%off2h(cfgM(i)%nR+1))
+       allocate(cfgM(i)%a2h(2,cfgM(i)%n2h))
+       cfgM(i)%conf2h=cfgM(0)%conf2h
+       cfgM(i)%off2h=cfgM(0)%off2h
+       cfgM(i)%a2h=cfgM(0)%a2h
+       
+    enddo
 
     return
     
