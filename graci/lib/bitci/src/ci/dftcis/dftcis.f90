@@ -237,7 +237,7 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
 
   ! MO selection threshold
   real(dp), parameter      :: targ=0.9025d0
-  
+    
   ! Everything else
   integer(is)              :: k,n
   integer(is), allocatable :: indx(:)

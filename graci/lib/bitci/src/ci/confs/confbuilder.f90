@@ -10,13 +10,10 @@ module confbuilder
 contains
 
 !######################################################################
-! generate_2I_1I1E_confs: generates all allowable configurations with
-!                         two internal holes and: (i) two internal
-!                         electrons, or; (ii) one internal and one
-!                         external electron
+! generate_2I_1I1E_confs: for all irreps, generates all the allowable
+!                         2I and 1I1E confs
 !######################################################################
-  subroutine generate_2I_1I1E_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs,&
-                                    E0max)
+  subroutine generate_2I_1I1E_confs(n1h1I,cfgM,icvs,E0max)
 
     use constants
     use bitglobal
@@ -29,8 +26,6 @@ contains
 
     ! 1H1I configurations
     integer(is), intent(out)   :: n1h1I
-    integer(ib), allocatable   :: conf1h1I(:,:,:)
-    integer(is), allocatable   :: indx1h1I(:,:)
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
@@ -41,40 +36,97 @@ contains
 
     ! Energy of the highest-lying reference space state of interest
     real(dp), intent(in)       :: E0max
+
+    ! Configuration scratch files
+    integer(is)                :: nrec2I,nrec1I1E
+    character(len=60)          :: file2I,file1I1E
+    
+!----------------------------------------------------------------------
+! (1) Generate the 2I and 1I1E configurations for all irreps
+!----------------------------------------------------------------------
+    call builder_2I_1I1E(n1h1I,cfgM,icvs,E0max,file2I,file1I1E,&
+         nrec2I,nrec1I1E)
+
+!----------------------------------------------------------------------
+! (2) Sort the 2I and 1I1E configurations by irrep
+!----------------------------------------------------------------------
+    call sort_2I_1I1E(cfgM,file2I,file1I1E,nrec2I,nrec1I1E)
+    
+    return
+    
+  end subroutine generate_2I_1I1E_confs
+
+!######################################################################
+! builder_2I_1I1E: peforms all the heavy lifting involved in the
+!                  generation of the 2I and 1I1E configurations
+!                  across all irreps
+!######################################################################
+  subroutine builder_2I_1I1E(n1h1I,cfgM,icvs,E0max,file2I,file1I1E,&
+       nrec2I,nrec1I1E)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    use hparam
+    use iomod
+
+    implicit none
+
+    ! 1H1I configurations
+    integer(is), intent(out)       :: n1h1I
+
+    ! MRCI configurations
+    type(mrcfg), intent(inout)     :: cfgM
+
+    ! CVS-MRCI: core MOs
+    integer(is), intent(in)        :: icvs(nmo)
+    logical                        :: lcvs
+
+    ! Energy of the highest-lying reference space state of interest
+    real(dp), intent(in)           :: E0max
+
+    ! Configuration bit string buffers
+    integer(is), intent(out)       :: nrec2I,nrec1I1E
+    character(len=60), intent(out) :: file2I,file1I1E
+    integer(is)                    :: nbuf2I,nbuf1I1E
+    integer(is), allocatable       :: ibuf2I(:),ibuf1I1E(:)
+    integer(ib), allocatable       :: cbuf2I(:,:,:),cbuf1I1E(:,:,:)
+    integer(is)                    :: iscratch2I,iscratch1I1E
     
     ! Orbital classes
-    integer(is)                :: socc(nmo),docc(nmo),unocc(nmo)
-    integer(is)                :: nopen,nsocc,ndocc,nunocc
+    integer(is)                    :: socc(nmo),docc(nmo),unocc(nmo)
+    integer(is)                    :: nopen,nsocc,ndocc,nunocc
 
     ! 2-hole SOPs
-    integer(ib), allocatable   :: sop2h(:,:,:)
+    integer(ib), allocatable       :: sop2h(:,:,:)
     
     ! Lists of hole/particle indices linking ref confs
-    integer(is), parameter     :: maxexci=3
-    integer(is)                :: hlist(maxexci),plist(maxexci)
+    integer(is), parameter         :: maxexci=3
+    integer(is)                    :: hlist(maxexci),plist(maxexci)
     
     ! Allowable internal creation operator indices
-    integer(is)                :: ncreate1,ncreate2
-    integer(is), allocatable   :: icreate1(:),icreate2(:)
+    integer(is)                    :: ncreate1,ncreate2
+    integer(is), allocatable       :: icreate1(:),icreate2(:)
 
     ! Difference configuration information
-    integer(is), allocatable   :: rhp(:,:)
+    integer(is), allocatable       :: rhp(:,:)
 
     ! Work conf bit strings
-    integer(ib), allocatable   :: conf(:,:),confI(:,:)
+    integer(ib), allocatable       :: conf(:,:),confI(:,:)
 
     ! Sums of KS orbital energies multipled by occupation
     ! differences relative to the base conf
-    real(dp)                   :: esumR,esum2H,esum1H1I,esum1I1E,&
-                                  esum2I
+    real(dp)                       :: esumR,esum2H,esum1H1I,esum1I1E,&
+                                      esum2I
     
     ! Everything else
-    integer(is)                :: i,j,k,n,np,i1,i2,i3
-    integer(is)                :: ioff,i2h,iext,iint1,iint2
-    integer(is)                :: n_int_I,nmoI
-    integer(is)                :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
-    integer(is)                :: ic,counter
-
+    integer(is)                    :: i,j,k,n,np,i1,i2,i3
+    integer(is)                    :: ioff,i2h,iext,iint1,iint2
+    integer(is)                    :: n_int_I,nmoI
+    integer(is)                    :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
+    integer(is)                    :: ic,counter
+    
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
 !----------------------------------------------------------------------
@@ -108,6 +160,32 @@ contains
     allocate(rhp(7,cfgM%nR))
     rhp=0
 
+    allocate(ibuf2I(bufsize))
+    ibuf2I=0
+
+    allocate(ibuf1I1E(bufsize))
+    ibuf1I1E=0
+    
+    allocate(cbuf2I(n_int,2,bufsize))
+    cbuf2I=0_ib
+
+    allocate(cbuf1I1E(n_int,2,bufsize))
+    cbuf1I1E=0_ib
+
+!----------------------------------------------------------------------
+! Open the configuration scratch files
+!----------------------------------------------------------------------
+    ! 2I confs and the indices of their parent 2-hole confs
+    call freeunit(iscratch2I)
+    call scratch_name('2I',file2I)
+    open(iscratch2I,file=file2I,form='unformatted',status='unknown')
+
+    ! 1I1E confs and the indices of their parent 2-hole confs
+    call freeunit(iscratch1I1E)
+    call scratch_name('1I1E',file1I1E)
+    open(iscratch1I1E,file=file1I1E,form='unformatted',&
+         status='unknown')
+
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
@@ -115,6 +193,10 @@ contains
     counter=0
     cfgM%n1I1E=0
     cfgM%n2I=0
+    nbuf2I=0
+    nbuf1I1E=0
+    nrec2I=0
+    nrec1I1E=0
     
 !----------------------------------------------------------------------
 ! Generate the 2-hole SOPs
@@ -322,12 +404,20 @@ contains
                 cfgM%n1I1E=cfgM%n1I1E+1
 
                 ! Save the 1I1E conf
+                nbuf1I1E=nbuf1I1E+1
+                cbuf1I1E(:,:,nbuf1I1E)=conf
+                ibuf1I1E(nbuf1I1E)=i2h
+                if (nbuf1I1E == bufsize) then
+                   nrec1I1E=nrec1I1E+1
+                   write(iscratch1I1E) bufsize,cbuf1I1E,ibuf1I1E
+                   nbuf1I1E=0
+                endif
                 
              enddo
                 
              !
-             ! Generate all the 1I1E confs resulting from the addition
-             ! of an external electron to the current 1H1I conf
+             ! Generate all the 2I confs resulting from the addition
+             ! of an internal electron to the current 1H1I conf
              !
              ! Cycle if there are no allowable internal creation
              ! operators
@@ -377,7 +467,14 @@ contains
                 cfgM%n2I=cfgM%n2I+1
                 
                 ! Save the 2I conf
-                
+                nbuf2I=nbuf2I+1
+                cbuf2I(:,:,nbuf2I)=conf
+                ibuf2I(nbuf2I)=i2h
+                if (nbuf2I == bufsize) then
+                   nrec2I=nrec2I+1
+                   write(iscratch2I) bufsize,cbuf2I,ibuf2I
+                   nbuf2I=0
+                endif
                 
              enddo
              
@@ -387,7 +484,28 @@ contains
        enddo
           
     enddo
-       
+
+!----------------------------------------------------------------------
+! Write any non-empty conf buffers to disk    
+!----------------------------------------------------------------------
+    ! 1I1E
+    if (nbuf1I1E /= 0) then
+       nrec1I1E=nrec1I1E+1
+       write(iscratch1I1E) nbuf1I1E,cbuf1I1E,ibuf1I1E
+    endif
+
+    ! 2I
+    if (nbuf2I /= 0) then
+       nrec2I=nrec2I+1
+       write(iscratch2I) nbuf2I,cbuf2I,ibuf2I
+    endif
+
+!----------------------------------------------------------------------
+! Close the configuration scratch files
+!----------------------------------------------------------------------
+    close(iscratch2I)
+    close(iscratch1I1E)
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -397,11 +515,15 @@ contains
     deallocate(confI)
     deallocate(sop2h)
     deallocate(rhp)
-
+    deallocate(ibuf2I)
+    deallocate(ibuf1I1E)
+    deallocate(cbuf2I)
+    deallocate(cbuf1I1E)
+    
     return
     
-  end subroutine generate_2I_1I1E_confs
-
+  end subroutine builder_2I_1I1E
+    
 !######################################################################
 ! remove_creators_1H1I: given a 2-hole conf (defined by a ref conf n
 !                       and annihilation operators ia and ja), flags
@@ -929,7 +1051,103 @@ contains
     return
     
   end subroutine remove_creators_2I_1I1E
+
+!######################################################################
+! sort_2I_1I1E: sorts and saves the 2I and 1I1E confg=igurations by
+!               irrep
+!######################################################################
+  subroutine sort_2I_1I1E(cfgM,file2I,file1I1E,nrec2I,nrec1I1E)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    use iomod
     
+    implicit none
+
+    ! MRCI configurations
+    type(mrcfg), intent(inout)    :: cfgM
+
+    ! Configuration scratch files
+    integer(is), intent(in)       :: nrec2I,nrec1I1E
+    character(len=60), intent(in) :: file2I,file1I1E
+    integer(ib), allocatable      :: cbuf(:,:,:)
+    integer(is), allocatable      :: ibuf(:)
+    integer(is)                   :: iscratch2I,iscratch1I1E
+
+    ! Working arrays
+    integer(ib), allocatable      :: sop(:,:)
+    
+    ! Everything else
+    integer(is)                   :: nbuf,i,irec,irrep
+    integer(is)                   :: nconf2I(0:nirrep-1),&
+                                     nconf1I1E(0:nirrep-1)
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(ibuf(bufsize))
+    allocate(cbuf(n_int,2,bufsize))
+    ibuf=0
+    cbuf=0_ib
+
+    allocate(sop(n_int,2))
+    sop=0_ib
+    
+!----------------------------------------------------------------------
+! Open the configuration scratch files
+!----------------------------------------------------------------------
+    ! 2I confs and the indices of their parent 2-hole confs
+    call freeunit(iscratch2I)
+    call scratch_name('2I',file2I)
+    open(iscratch2I,file=file2I,form='unformatted',status='unknown')
+
+    ! 1I1E confs and the indices of their parent 2-hole confs
+    call freeunit(iscratch1I1E)
+    call scratch_name('1I1E',file1I1E)
+    open(iscratch1I1E,file=file1I1E,form='unformatted',&
+         status='unknown')
+
+!----------------------------------------------------------------------
+! Determine the no. confs per irrep
+!----------------------------------------------------------------------
+    !
+    ! 2I
+    !
+    ! Loop over records
+    do irec=1,nrec2I
+
+       ! Read in the next batch of confs
+       read(iscratch2I) nbuf,cbuf,ibuf
+
+       ! Determine the irreps generated by the confs
+       do i=1,nbuf
+          sop=conf_to_sop(cbuf(:,:,i),n_int)
+          irrep=sop_sym_mrci(sop,cfgM%m2c)
+       enddo
+       
+    enddo
+
+    STOP
+    
+!----------------------------------------------------------------------
+! Close the configuration scratch files
+!----------------------------------------------------------------------
+    close(iscratch2I)
+    close(iscratch1I1E)
+
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(ibuf)
+    deallocate(cbuf)
+    deallocate(sop)
+    
+    return
+    
+  end subroutine sort_2I_1I1E
+  
 !######################################################################
 ! generate_1E_confs: for a given irrep, generates all the
 !                    allowable configurations with one internal hole

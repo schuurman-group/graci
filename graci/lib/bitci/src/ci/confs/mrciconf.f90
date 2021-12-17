@@ -159,7 +159,13 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole, 2-hole configurations
 !----------------------------------------------------------------------
+  call get_times(tw1,tc1)
+
   call generate_hole_confs(cfgM,icvs)
+
+  call get_times(tw2,tc2)
+
+  print*,'1H & 2H:',tw2-tw1
   
 !----------------------------------------------------------------------
 ! Apply the internal creation operators to the 2-hole configurations,
@@ -168,16 +174,21 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 ! 1H1I configurations, from which the 2I and 1I1E configurations
 ! will be generated
 !----------------------------------------------------------------------
-  call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+  !call generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
 
-  print*,''
-  print*,'n1h1I old:',n1h1I
-  
+  !print*,''
+  !print*,'n1h1I old:',n1h1I
 
-  call generate_2I_1I1E_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs,E0max)
+  call get_times(tw1,tc1)
+
+  call generate_2I_1I1E_confs(n1h1I,cfgM,icvs,E0max)
   
-  print*,''
-  print*,'n1h1I new:',n1h1I
+  call get_times(tw2,tc2)
+
+  print*,'2I & 1I1E:',tw2-tw1
+  
+  !print*,''
+  !print*,'n1h1I new:',n1h1I
   
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
@@ -218,44 +229,44 @@ subroutine generate_mrci_confs(irrep,nroots,conf0scr,confscr,nconf,&
 
   print*,'1I:',tw2-tw1
   
-!----------------------------------------------------------------------
-! Generate the configurations with two internal holes, one internal
-! electron and one external electron
-!----------------------------------------------------------------------
-
-  call get_times(tw1,tc1)
-
-  print*,''
-  print*,'n1I1E new:',cfgM%n1I1E
-  
-  call generate_1I_1E_confs(irrep,E0max,conf1h1I,indx1h1I,&
-       n_int_I,n1h1I,cfgM)
-
-  print*,'n1I1E old:',cfgM%n1I1E
-  
-  call get_times(tw2,tc2)
-
-  print*,'1I1E:',tw2-tw1
-
-  
-!----------------------------------------------------------------------
-! Generate the configurations with two internal holes, two internal
-! electrons
-!----------------------------------------------------------------------
-
-  call get_times(tw1,tc1)
-
-  print*,''
-  print*,'n2I new:',cfgM%n2I
-  
-  call generate_2I_confs(irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
-       n1h1I,cfgM,icvs)
-
-  print*,'n2I old:',cfgM%n2I
-  
-  call get_times(tw2,tc2)
-
-  print*,'2I:',tw2-tw1
+!!----------------------------------------------------------------------
+!! Generate the configurations with two internal holes, one internal
+!! electron and one external electron
+!!----------------------------------------------------------------------
+!
+!  call get_times(tw1,tc1)
+!
+!  print*,''
+!  print*,'n1I1E new:',cfgM%n1I1E
+!  
+!  call generate_1I_1E_confs(irrep,E0max,conf1h1I,indx1h1I,&
+!       n_int_I,n1h1I,cfgM)
+!
+!  print*,'n1I1E old:',cfgM%n1I1E
+!  
+!  call get_times(tw2,tc2)
+!
+!  print*,'1I1E:',tw2-tw1
+!
+!  
+!!----------------------------------------------------------------------
+!! Generate the configurations with two internal holes, two internal
+!! electrons
+!!----------------------------------------------------------------------
+!
+!  call get_times(tw1,tc1)
+!
+!  print*,''
+!  print*,'n2I new:',cfgM%n2I
+!  
+!  call generate_2I_confs(irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
+!       n1h1I,cfgM,icvs)
+!
+!  print*,'n2I old:',cfgM%n2I
+!  
+!  call get_times(tw2,tc2)
+!
+!  print*,'2I:',tw2-tw1
 
   STOP
   
