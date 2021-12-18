@@ -185,18 +185,6 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !!----------------------------------------------------------------------
 !  call generate_1I_confs(irrep,E0max,cfgM,icvs)
 !  
-!!!----------------------------------------------------------------------
-!!! Generate the configurations with two internal holes, one internal
-!!! electron and one external electron
-!!!----------------------------------------------------------------------
-!!  call generate_1I_1E_confs(irrep,E0max,conf1h1I,indx1h1I,&
-!!       n_int_I,n1h1I,cfgM)
-!!!----------------------------------------------------------------------
-!!! Generate the configurations with two internal holes, two internal
-!!! electrons
-!!!----------------------------------------------------------------------
-!!  call generate_2I_confs(irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
-!!       n1h1I,cfgM,icvs)
 !!----------------------------------------------------------------------
 !! Filter out any hole configurations which do not generate any
 !! full configurations
