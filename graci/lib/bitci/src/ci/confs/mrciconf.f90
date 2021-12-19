@@ -167,16 +167,24 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
   call generate_2I_1I1E_confs(cfgM,icvs,E0max)
 
-!!----------------------------------------------------------------------
-!! Generate the configurations with one internal hole and one external
-!! electron
-!!----------------------------------------------------------------------
-!  call generate_1E_confs(irrep,E0max,cfgM)
-!
+!----------------------------------------------------------------------
+! Generate the configurations with one internal hole and one external
+! electron
+!----------------------------------------------------------------------
+  call generate_1E_confs_new(E0max,cfgM)
+
 !!----------------------------------------------------------------------
 !! Generate the configurations with two internal holes and two external
 !! electrons
 !!----------------------------------------------------------------------
+
+  !*********************************************************
+  ! We should combine the generation of the 1E and 2E confs
+  !*********************************************************
+  ! This will eliminate a good deal of repeated work, e.g.
+  ! checking esum's and nexci
+  !*********************************************************
+  
 !  call generate_2E_confs(irrep,E0max,cfgM)
 !  
 !!----------------------------------------------------------------------
