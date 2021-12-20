@@ -116,7 +116,8 @@ contains
     integer(is), allocatable       :: rhp(:,:)
 
     ! Work conf bit strings
-    integer(ib), allocatable       :: conf(:,:),confI(:,:),sop(:,:)
+    integer(ib), allocatable       :: conf(:,:),confI(:,:),sop(:,:),&
+                                      conf_int(:,:)
 
     ! Sums of KS orbital energies multipled by occupation
     ! differences relative to the base conf
@@ -129,7 +130,8 @@ contains
     integer(is)                    :: n_int_I,nmoI
     integer(is)                    :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
     integer(is)                    :: ic,counter
-    
+    integer(is)                    :: nacR,nac2H,nac1H1I,nac1I1E,nac2I
+
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
 !----------------------------------------------------------------------
@@ -157,6 +159,9 @@ contains
     allocate(confI(n_int_I,2))
     confI=0_ib
 
+    allocate(conf_int(n_int_I,2))
+    conf_int=0_ib
+    
     allocate(sop(n_int,2))
     sop=0_ib
     
@@ -224,6 +229,11 @@ contains
        sop(1:n_int_I,:)=cfgM%sopR(:,:,n)
        irrepR=sop_sym_mrci(sop,cfgM%m2c)
 
+       ! Number of creation and annihilation operators linking the
+       ! reference and base configurations
+       conf_int=conf0(1:n_int_I,:)
+       nacR=n_create_annihilate(cfgM%confR(:,:,n),conf_int,n_int_I)
+       
        ! Initialise the array of inter-ref-conf annihilation/creation
        ! operator indices
        rhp=0
@@ -288,7 +298,56 @@ contains
           ib2=ieor(ib1,mosym(cfgM%m2c(ia2h)))
           ib1=ieor(ib2,mosym(cfgM%m2c(ja2h)))
           irrep2H=ib1
-                    
+
+          ! Number of creation and annihilation operators linking the
+          ! 2-hole and base configurations
+          nac2H=nacR
+          ! First annihilation operator
+          k=(ia2h-1)/64+1
+          i=ia2h-(k-1)*64-1
+          if (iocc0(ia2h) == 0) then
+             ! Unoccupied MO in the base conf
+             nac2H=nac2H-1
+          else if (iocc0(ia2h) == 1) then
+             ! Singly-occupied MO in the base conf
+             if (btest(cfgM%confR(k,2,n),i)) then
+                ! Doubly-occupied MO in the ref conf
+                nac2H=nac2H-1
+             else
+                ! Singly-occupied MO in the ref conf
+                nac2H=nac2H+1
+             endif
+          else if (iocc0(ia2h) == 2) then
+             ! Doubly-occupied MO in the base conf
+             nac2H=nac2H+1
+          endif
+          !
+          ! Second annihilation operator
+          k=(ja2h-1)/64+1
+          i=ja2h-(k-1)*64-1
+          if (iocc0(ja2h) == 0) then
+             ! Unoccupied MO in the base conf
+             nac2H=nac2H-1
+          else if (iocc0(ja2h) == 1) then
+             ! Singly-occupied MO in the base conf
+             if (btest(cfgM%confR(k,2,n),i)) then
+                ! Doubly-occupied MO in the ref conf
+                if (ia2h == ja2h) then
+                   ! Both electrons annihilated
+                   nac2H=nac2H+1
+                else
+                   ! One electron annihilated
+                   nac2H=nac2H-1
+                endif
+             else
+                ! Singly-occupied MO in the ref conf
+                nac2H=nac2H+1
+             endif
+          else if (iocc0(ja2h) == 2) then
+             ! Doubly-occupied MO in the base conf
+             nac2H=nac2H+1
+          endif
+
           ! Initialise the creation operator array
           ncreate1=nmoI
           icreate1=1
@@ -349,15 +408,35 @@ contains
              ib1=irrep2H
              ib2=ieor(ib1,mosym(cfgM%m2c(iint1)))
              irrep1H1I=ib2
-             
-             ! Generate the 1H1I conf bit string
-             confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,iint1)
 
              ! Block index
              k=(iint1-1)/64+1
 
              ! Postion of the external MO within the kth block
              i=iint1-(k-1)*64-1
+             
+             ! Number of creation and annihilation operators linking the
+             ! 1H1I and base configurations
+             nac1H1I=nac2H
+             if (iocc0(iint1) == 0) then
+                ! Unoccupied MO in the base conf
+                nac1H1I=nac1H1I+1
+             else if (iocc0(iint1) == 1) then
+                ! Singly-occupied MO in the base conf
+                if (btest(cfgM%conf2h(k,1,i2h),i)) then
+                   ! Singly-occupied MO in the 2-hole conf
+                   nac1H1I=nac1H1I+11
+                else
+                   ! Unoccupied MO in the 2-hole conf
+                   nac1H1I=nac1H1I-1
+                endif
+             else if (iocc0(iint1) == 2) then
+                ! Doubly-occupied MO in the base conf
+                nac1H1I=nac1H1I-1
+             endif
+             
+             ! Generate the 1H1I conf bit string
+             confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,iint1)
              
              ! If we have created an electron in a singly-occupied MO
              ! of the 2-hole conf, then remove it from the list of
@@ -407,11 +486,15 @@ contains
                 conf(1:n_int_I,:)=confI
                 conf(k,1)=ibset(conf(k,1),i)
 
+                ! Number of creation and annihilation operators
+                ! linking the 1I1E and base configurations
+                nac1I1E=nac1H1I+1
+                
                 ! Skip this configuration if the excitation degree
                 ! relative to the base configuration is too high
-                nexci=exc_degree_conf(conf,conf0,n_int)
+                nexci=nac1I1E/2
                 if (nexci > nexmax) cycle
-
+                
                 ! Irrep generated by the 1I1E configuration
                 ib1=irrep1H1I
                 ib2=ieor(ib1,mosym(cfgM%m2c(iext)))
@@ -477,11 +560,31 @@ contains
                    conf(k,1)=ibset(conf(k,1),i)
                 endif
 
+                ! Number of creation and annihilation operators linking the
+                ! 2I and base configurations
+                nac2I=nac1H1I
+                if (iocc0(iint2) == 0) then
+                   ! Unoccupied MO in the base conf
+                   nac2I=nac2I+1
+                else if (iocc0(iint2) == 1) then
+                   ! Singly-occupied MO in the base conf
+                   if (btest(confI(k,1),i)) then
+                      ! Singly-occupied MO in the 1H1I conf
+                      nac2I=nac2I+1
+                   else
+                      ! Unoccupied MO in the 1H1I conf
+                      nac2I=nac2I-1
+                   endif
+                else if (iocc0(iint2) == 2) then
+                   ! Doubly-occupied MO in the base conf
+                   nac2I=nac2I-1
+                endif
+                
                 ! Skip this configuration if the excitation degree
                 ! relative to the base configuration is too high
-                nexci=exc_degree_conf(conf,conf0,n_int)
+                nexci=nac2I/2
                 if (nexci > nexmax) cycle
-
+                
                 ! Irrep generated by the 2I configuration
                 ib1=irrep1H1I
                 ib2=ieor(ib1,mosym(cfgM%m2c(iint2)))
@@ -539,6 +642,7 @@ contains
     deallocate(icreate2)
     deallocate(conf)
     deallocate(confI)
+    deallocate(conf_int)
     deallocate(sop)
     deallocate(sop2h)
     deallocate(rhp)

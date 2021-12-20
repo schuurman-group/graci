@@ -167,6 +167,10 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
   call generate_2I_1I1E_confs(cfgM,icvs,E0max)
 
+  do i=0,nirrep-1
+     print*,i,cfgM(i)%n2I,cfgM(i)%n1I1E
+  enddo
+  
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
 ! electron
