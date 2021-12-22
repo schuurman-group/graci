@@ -158,7 +158,7 @@ contains
     ! Everything else
     integer(is)                :: n_int_I,n,np,nexci,imo,i1
     integer(is)                :: counter
-    
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -199,7 +199,7 @@ contains
                n_int_I,hlist,plist,1)
           
           iannihilate(hlist(1))=0
-          
+
        enddo
 
        ! Get the lists of singly- and doubly-occupied MOs
@@ -282,7 +282,7 @@ contains
 !----------------------------------------------------------------------
     deallocate(hconf)
     deallocate(ngen)
-    
+
     return
     
   end subroutine builder_1hole

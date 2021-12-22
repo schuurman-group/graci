@@ -61,7 +61,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 
   ! Active MO information
   integer(is)                :: nactive
-  integer(is)                :: active(nmo)
+  integer(is)                :: active(nmo),iact(nmo)
   
   ! Scratch file variables
   integer(is)                :: iscratch
@@ -71,11 +71,11 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   ! Timing variables
   real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
-
+  
   ! Everything else
-  integer(is)                :: i,n,ntotal,counter,irrep
-
-
+  integer(is)                :: i,n,counter,irrep
+  integer(is)                :: ntotal(0:nirrep-1)
+  
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -85,7 +85,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Output what we are doing
 !----------------------------------------------------------------------
   write(6,'(/,72a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'MRCI configuration generation'
+  write(6,'(3(x,a))') 'MRCI configuration generation for all irreps'
   write(6,'(72a)') ('-',i=1,52)
 
 !----------------------------------------------------------------------
@@ -185,139 +185,162 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
   call generate_1I_confs_new(E0max,cfgM,icvs)
 
-  print*,''
-  do i=0,nirrep-1
-     print*,i,cfgM(i)%n1I
+!----------------------------------------------------------------------
+! Filter out any hole configurations which do not generate any
+! full configurations
+!----------------------------------------------------------------------
+  do irrep=0,nirrep-1
+     call filter_hole_confs(cfgM(irrep))
   enddo
+     
+!----------------------------------------------------------------------
+! Set the total number of configurations per irrep
+!----------------------------------------------------------------------
+  do irrep=0,nirrep-1
+     ntotal(irrep)=cfgM(irrep)%n0h+cfgM(irrep)%n1I+cfgM(irrep)%n1E &
+          +cfgM(irrep)%n2E+cfgM(irrep)%n1I1E+cfgM(irrep)%n2I
+     nconf(irrep)=ntotal(irrep)
+  enddo
+     
+!----------------------------------------------------------------------
+! Write the configurations to disk
+!----------------------------------------------------------------------
+  ! Loop over irreps
+  do irrep=0,nirrep-1
 
-  print*,''
-  do i=0,nirrep-1
-     call generate_1I_confs(i,E0max,cfgM(i),icvs)
-     print*,i,cfgM(i)%n1I
-  enddo
+     ! Register the scratch file
+     write(amult,'(i0)') imult
+     write(airrep,'(i0)') irrep
+     call scratch_name('mrciconf.mult'//trim(amult)//&
+          '.sym'//trim(airrep),vecfile)
+     call register_scratch_file(confscr(irrep),vecfile)
+     
+     ! Open the scratch file
+     iscratch=scrunit(confscr(irrep))
+     open(iscratch,file=scrname(confscr(irrep)),form='unformatted',&
+          status='unknown')
+
+     ! Subspace dimensions
+     write(iscratch) n_int_I
+     write(iscratch) nmoI
+     write(iscratch) nmoE
+     write(iscratch) ntotal
+     write(iscratch) cfgM(irrep)%nR
+     write(iscratch) cfgM(irrep)%n1h
+     write(iscratch) cfgM(irrep)%n2h
+     write(iscratch) cfgM(irrep)%n0h
+     write(iscratch) cfgM(irrep)%n1I
+     write(iscratch) cfgM(irrep)%n2I
+     write(iscratch) cfgM(irrep)%n1E
+     write(iscratch) cfgM(irrep)%n2E
+     write(iscratch) cfgM(irrep)%n1I1E
   
-!!----------------------------------------------------------------------
-!! Filter out any hole configurations which do not generate any
-!! full configurations
-!!----------------------------------------------------------------------
-!  call filter_hole_confs(cfgM)
-!  
-!!----------------------------------------------------------------------
-!! Set the total number of configurations
-!!----------------------------------------------------------------------
-!  ntotal=cfgM%n0h+cfgM%n1I+cfgM%n1E+cfgM%n2E+cfgM%n1I1E+cfgM%n2I
-!  nconf(irrep)=ntotal
-!
-!!----------------------------------------------------------------------
-!! Write the configurations to disk
-!!----------------------------------------------------------------------
-!  ! Register the scratch file
-!  write(amult,'(i0)') imult
-!  write(airrep,'(i0)') irrep
-!  call scratch_name('mrciconf.mult'//trim(amult)//&
-!       '.sym'//trim(airrep),vecfile)
-!  call register_scratch_file(confscr(irrep),vecfile)
-!
-!  ! Open the scratch file
-!  iscratch=scrunit(confscr(irrep))
-!  open(iscratch,file=scrname(confscr(irrep)),form='unformatted',&
-!       status='unknown')
-!
-!  ! Subspace dimensions
-!  write(iscratch) n_int_I
-!  write(iscratch) nmoI
-!  write(iscratch) nmoE
-!  write(iscratch) ntotal
-!  write(iscratch) cfgM%nR
-!  write(iscratch) cfgM%n1h
-!  write(iscratch) cfgM%n2h
-!  write(iscratch) cfgM%n0h
-!  write(iscratch) cfgM%n1I
-!  write(iscratch) cfgM%n2I
-!  write(iscratch) cfgM%n1E
-!  write(iscratch) cfgM%n2E
-!  write(iscratch) cfgM%n1I1E
-!  
-!  ! Configuration information
-!  write(iscratch) cfgM%confR
-!  write(iscratch) cfgM%conf1h
-!  write(iscratch) cfgM%a1h
-!  write(iscratch) cfgM%off1h
-!  write(iscratch) cfgM%conf2h
-!  write(iscratch) cfgM%a2h
-!  write(iscratch) cfgM%off2h
-!  write(iscratch) cfgM%conf0h
-!  if (cfgM%n1I > 0) then
-!     write(iscratch) cfgM%a1I
-!     write(iscratch) cfgM%off1I
-!  endif
-!  if (cfgM%n2I > 0) then
-!     write(iscratch) cfgM%a2I
-!     write(iscratch) cfgM%off2I
-!  endif
-!  if (cfgM%n1E > 0) then
-!     write(iscratch) cfgM%a1E
-!     write(iscratch) cfgM%off1E
-!  endif
-!  if (cfgM%n2E > 0) then
-!     write(iscratch) cfgM%a2E
-!     write(iscratch) cfgM%off2E
-!  endif
-!  if (cfgM%n1I1E > 0 ) then
-!     write(iscratch) cfgM%a1I1E
-!     write(iscratch) cfgM%off1I1E
-!  endif
-!
-!  ! MO mapping arrays
-!  write(iscratch) cfgM%m2c
-!  write(iscratch) cfgM%c2m
-!  
-!  ! Close the scratch file
-!  close(iscratch)
-!
-!!----------------------------------------------------------------------
-!! Output the various configuration subspace dimensions
-!!----------------------------------------------------------------------
-!  ! Table of subspace dimensions
-!  write(6,'(/,x,20a)') ('-',i=1,20)
-!  write(6,'(2x,a)') 'Class | Nconf'
-!  write(6,'(x,20a)') ('-',i=1,20)
-!  write(6,'(2x,a,x,i0)') '1H    |',cfgM%n1h
-!  write(6,'(2x,a,x,i0)') '2H    |',cfgM%n2h
-!  write(6,'(2x,a,x,i0)') ' R    |',cfgM%n0h
-!  write(6,'(2x,a,x,i0)') ' I    |',cfgM%n1I
-!  write(6,'(2x,a,x,i0)') ' E    |',cfgM%n1E
-!  write(6,'(2x,a,x,i0)') 'II    |',cfgM%n2I
-!  write(6,'(2x,a,x,i0)') 'IE    |',cfgM%n1I1E
-!  write(6,'(2x,a,x,i0)') 'EE    |',cfgM%n2E
-!  write(6,'(x,20a)') ('-',i=1,20)
-!
-!  ! Total number of configurations
-!  write(6,'(/,x,a,x,i0)') &
-!       'Total number of MRCI configurations:',ntotal
-!  
-!!----------------------------------------------------------------------
-!! Debugging: check for duplicate configurations
-!!----------------------------------------------------------------------
-!  !call check_confs(ntotal,n_int_I,nmoI,cfgM)
-!  
-!!----------------------------------------------------------------------
-!! Check on the number of 'active' MOs. That is, the number of variably
-!! occupied MOs across all configurations
-!!----------------------------------------------------------------------
-!  ! Construct the full configuration derived type including the SOPs,
-!  ! etc.
-!  call cfgM%finalise
-!  call cfgM%initialise(irrep,confscr(irrep))
-!  
-!  ! Determine the active MO indices
-!  call get_active_mos(cfgM,nactive,active)
-!
-!  ! Deallocate the configuration derived type
-!  call cfgM%finalise
-!
-!  ! Output the no. active MOs
-!  write(6,'(/,x,a,x,i0)') 'Number of active MOs:',nactive
+     ! Configuration information
+     write(iscratch) cfgM(irrep)%confR
+     write(iscratch) cfgM(irrep)%conf1h
+     write(iscratch) cfgM(irrep)%a1h
+     write(iscratch) cfgM(irrep)%off1h
+     write(iscratch) cfgM(irrep)%conf2h
+     write(iscratch) cfgM(irrep)%a2h
+     write(iscratch) cfgM(irrep)%off2h
+     write(iscratch) cfgM(irrep)%conf0h
+     if (cfgM(irrep)%n1I > 0) then
+        write(iscratch) cfgM(irrep)%a1I
+        write(iscratch) cfgM(irrep)%off1I
+     endif
+     if (cfgM(irrep)%n2I > 0) then
+        write(iscratch) cfgM(irrep)%a2I
+        write(iscratch) cfgM(irrep)%off2I
+     endif
+     if (cfgM(irrep)%n1E > 0) then
+        write(iscratch) cfgM(irrep)%a1E
+        write(iscratch) cfgM(irrep)%off1E
+     endif
+     if (cfgM(irrep)%n2E > 0) then
+        write(iscratch) cfgM(irrep)%a2E
+        write(iscratch) cfgM(irrep)%off2E
+     endif
+     if (cfgM(irrep)%n1I1E > 0 ) then
+        write(iscratch) cfgM(irrep)%a1I1E
+        write(iscratch) cfgM(irrep)%off1I1E
+     endif
+     
+     ! MO mapping arrays
+     write(iscratch) cfgM(irrep)%m2c
+     write(iscratch) cfgM(irrep)%c2m
+     
+     ! Close the scratch file
+     close(iscratch)
+
+  enddo
+     
+!----------------------------------------------------------------------
+! Output the various configuration subspace dimensions
+!----------------------------------------------------------------------
+  ! Loop over irreps
+  do irrep=0,nirrep-1
+
+     ! Table of subspace dimensions
+     write(6,'(/,x,20a)') ('-',i=1,20)
+     write(6,'(2x,a)') 'Irrep: '//trim(irreplbl(irrep,ipg))
+     write(6,'(x,20a)') ('-',i=1,20)
+     write(6,'(2x,a)') 'Class | Nconf'
+     write(6,'(x,20a)') ('-',i=1,20)
+     write(6,'(2x,a,x,i0)') '1H    |',cfgM(irrep)%n1h
+     write(6,'(2x,a,x,i0)') '2H    |',cfgM(irrep)%n2h
+     write(6,'(2x,a,x,i0)') ' R    |',cfgM(irrep)%n0h
+     write(6,'(2x,a,x,i0)') ' I    |',cfgM(irrep)%n1I
+     write(6,'(2x,a,x,i0)') ' E    |',cfgM(irrep)%n1E
+     write(6,'(2x,a,x,i0)') 'II    |',cfgM(irrep)%n2I
+     write(6,'(2x,a,x,i0)') 'IE    |',cfgM(irrep)%n1I1E
+     write(6,'(2x,a,x,i0)') 'EE    |',cfgM(irrep)%n2E
+     write(6,'(x,20a)') ('-',i=1,20)
+     write(6,'(2x,a,x,i0)') 'Total |',ntotal(irrep)
+     write(6,'(x,20a)') ('-',i=1,20)
+
+  enddo
+     
+!----------------------------------------------------------------------
+! Debugging: check for duplicate configurations
+!----------------------------------------------------------------------
+  !do irrep=0,nirrep-1
+  !   call check_confs(ntotal(irrep),n_int_I,nmoI,cfgM(irrep))
+  !enddo
+     
+!----------------------------------------------------------------------
+! Check on the number of 'active' MOs. That is, the number of variably
+! occupied MOs across all configurations
+!----------------------------------------------------------------------
+  ! Initialisation
+  nactive=0
+  iact=0
+
+  ! Loop over irreps
+  do irrep=0,nirrep-1
+
+     ! Construct the full configuration derived type including the
+     ! SOPs, etc.
+     call cfgM(irrep)%finalise
+     call cfgM(irrep)%initialise(irrep,confscr(irrep))
+     
+     ! Determine the active MO indices for this irrep
+     call get_active_mos(cfgM(irrep),n,active)
+     
+     ! Update the total number of active MOs
+     do i=1,n
+        if (iact(active(i)) == 0) then
+           nactive=nactive+1
+           iact(active(i))=1
+        endif
+     enddo
+          
+     ! Deallocate the configuration derived type
+     call cfgM(irrep)%finalise
+
+  enddo
+     
+  ! Output the no. active MOs
+  write(6,'(/,x,a,x,i0)') 'Total number of active MOs:',nactive
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -330,10 +353,6 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Flush stdout
 !----------------------------------------------------------------------
   flush(6)
-
-
-  STOP
-  
   
   return
 
