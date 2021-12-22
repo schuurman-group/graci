@@ -403,7 +403,7 @@ contains
 
        ! Initialise the array of inter-ref-conf annihilation
        ! operator indices
-       if (n > 1) rholes(:,1:n-1)=0
+       rholes=0
               
        ! Loop over preceding reference configurations
        do np=1,n-1
@@ -446,10 +446,10 @@ contains
           iannihilate=1
           
           ! Flag annihilation operator indices as forbidden based
-          ! on the condition that the 2nd index has to be less
+          ! on the condition that the 2nd index has to be greater
           ! than or equal to the 1st index
-          iannihilate(ia1h+1:nmo)=0
-
+          iannihilate(1:ia1h-1)=0
+          
           ! Flag annihilation operator indices as forbidden based
           ! on the excitations linking the current ref conf to those
           ! preceding it
@@ -459,10 +459,10 @@ contains
                 iannihilate(rholes(2,np))=0
              else if (rholes(1,np) == 2) then
                 ! Double excitation
-                if (ia1h == rholes(3,np)) iannihilate(rholes(2,np))=0
+                if (ia1h == rholes(2,np)) iannihilate(rholes(3,np))=0
              endif
           enddo
-
+          
           ! Get the lists of singly- and doubly-occupied MOs
           ! for the current 1-hole configuration
           call sop_socc_list(sop1h(:,:,i),n_int_I,socc,nmo,nsocc)

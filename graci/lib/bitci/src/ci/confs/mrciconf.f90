@@ -303,10 +303,10 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Debugging: check for duplicate configurations
 !----------------------------------------------------------------------
-  !do irrep=0,nirrep-1
-  !   call check_confs(ntotal(irrep),n_int_I,nmoI,cfgM(irrep))
-  !enddo
-     
+  do irrep=0,nirrep-1
+     call check_confs(ntotal(irrep),n_int_I,nmoI,cfgM(irrep))
+  enddo
+  
 !----------------------------------------------------------------------
 ! Check on the number of 'active' MOs. That is, the number of variably
 ! occupied MOs across all configurations
@@ -548,7 +548,7 @@ subroutine check_confs(ntotal,n_int_I,nmoI,cfgM)
      enddo
 
   endif
-     
+  
 !----------------------------------------------------------------------
 ! 1I1E configurations
 !----------------------------------------------------------------------
@@ -589,6 +589,9 @@ subroutine check_confs(ntotal,n_int_I,nmoI,cfgM)
 ! Did we generate any duplicate configurations?
 !----------------------------------------------------------------------
   if (h%n_keys_stored /= ntotal) then
+     
+     print*,'No. duplicates:',ntotal-h%n_keys_stored
+     
      errmsg='Duplicate configurations found in check_confs'
      call error_control
   endif

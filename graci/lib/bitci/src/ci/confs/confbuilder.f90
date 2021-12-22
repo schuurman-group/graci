@@ -69,7 +69,8 @@ contains
     use mrciutils
     use hparam
     use iomod
-
+    use dethash
+    
     implicit none
 
     ! Number of 1H1I, 2I and 1I1E configurations
@@ -123,6 +124,12 @@ contains
     ! differences relative to the base conf
     real(dp)                       :: esumR,esum2H,esum1H1I,esum1I1E,&
                                       esum2I
+
+    ! Hash table
+    type(dhtbl)                    :: h
+    integer(is)                    :: initial_size
+    integer(is)                    :: nold
+    integer(ib)                    :: key(n_int,2)
     
     ! Everything else
     integer(is)                    :: i,j,k,n,np,i1,i2,i3
@@ -131,7 +138,7 @@ contains
     integer(is)                    :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
     integer(is)                    :: ic,counter
     integer(is)                    :: nacR,nac2H,nac1H1I,nac1I1E,nac2I
-
+    
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
 !----------------------------------------------------------------------
@@ -202,6 +209,25 @@ contains
     nbuf1I1E=0
     nrec2I=0
     nrec1I1E=0
+
+!----------------------------------------------------------------------
+! Initialise the hash table
+!----------------------------------------------------------------------
+    ! Initialisation
+    initial_size=2**15
+    call h%initialise_table(initial_size)
+
+    !! Insertion of the 1H confs
+    !do n=1,cfgM%n1H
+    !   key=0_ib
+    !   key(1:n_int_I,:)=cfgM%conf1H(:,:,n)
+    !   call h%insert_key(key)
+    !enddo
+    !
+    !! No. keys inserted
+    !nold=h%n_keys_stored
+
+    nold=0
     
 !----------------------------------------------------------------------
 ! Generate the 2-hole SOPs
@@ -366,8 +392,10 @@ contains
           ! of allowed creation operators
           call sop_docc_list(sop2h(:,:,i2h),n_int_I,docc,nmo,ndocc)
           do j=1,ndocc
-             icreate1(docc(j))=0
-             ncreate1=ncreate1-1
+             if (icreate1(docc(j)) /= 0) then
+                icreate1(docc(j))=0
+                ncreate1=ncreate1-1
+             endif
           enddo
 
           ! Flag creation operators as forbidden if they will
@@ -431,22 +459,21 @@ contains
              
              ! Generate the 1H1I conf bit string
              confI=create_electron(cfgM%conf2h(:,:,i2h),n_int_I,iint1)
-             
+
              ! If we have created an electron in a singly-occupied MO
              ! of the 2-hole conf, then remove it from the list of
              ! allowed 2nd creation operators
-             if (btest(confI(k,2),i)) then
+             if (btest(confI(k,2),i) .and. icreate2(iint1) /= 0) then
                 icreate2(iint1)=0
                 ncreate2=ncreate2-1
              endif
-                
+
              ! Before adding the second electron to create the 2I
-             ! and 1I1E confs, we need to flag those creation operators
-             ! that would lead to duplicate confs based on the
-             ! excitations linking the ref confs
-             if (ncreate2 /= 0) &
-                  call remove_creators_2I_1I1E(n,cfgM%nR,rhp,ia2h,ja2h,&
-                  iint1,icreate2,ncreate2)
+             ! confs, we need to flag those creation operators that
+             ! would lead to duplicate confs based on the excitations
+             ! linking the ref confs
+             if (ncreate2 /= 0) call remove_creators_2I(n,cfgM%nR,rhp,&
+                  ia2h,ja2h,iint1,icreate2,ncreate2)
 
              !
              ! Generate all the 1I1E confs resulting from the addition
@@ -547,7 +574,27 @@ contains
                    ! Creation of a singly-occupied internal MO
                    conf(k,1)=ibset(conf(k,1),i)
                 endif
+                
 
+                ! TEST
+                !if (h%key_exists(conf)) then
+                !   print*,'here!'
+                !   stop
+                !endif
+                !call h%insert_key(conf)
+                !if (h%n_keys_stored /= nold) then
+                !   nold=h%n_keys_stored
+                !else
+                !   print*,''
+                !   print*,'Duplicate 2I conf:'
+                !   print*,'ia2h, ja2h:',ia2h,ja2h
+                !   print*,'iint1, iint2:',iint1,iint2
+                !   write(6,'(B64)') conf(1,1)
+                !   write(6,'(B64)') conf(1,2)
+                !endif
+                ! TEST
+                
+                
                 ! Number of creation and annihilation operators linking the
                 ! 2I and base configurations
                 nac2I=nac1H1I
@@ -819,11 +866,9 @@ contains
              if (itmp == rhp(1+j,np)) then
                 nmatch=nmatch+1
                 itmp=-1
-                if (nmatch == 2) exit
              else if (jtmp == rhp(1+j,np)) then
                 nmatch=nmatch+1
                 jtmp=-1
-                if (nmatch == 2) exit
              endif
           enddo
 
@@ -848,13 +893,13 @@ contains
   end subroutine remove_creators_1H1I
 
 !######################################################################
-! remove_creators_2I_1I1E: given a 1H1I conf (defined by a ref conf n,
-!                          annihilation operators ia and ja and a
-!                          creation operator ic), flags those creation
-!                          operators that, when operating on the 1H1I
-!                          conf, will yield duplicate confs
+! remove_creators_2I: given a 1H1I conf (defined by a ref conf n,
+!                     annihilation operators ia and ja and a
+!                     creation operator ic), flags those creation
+!                     operators that, when operating on the 1H1I
+!                     conf, will yield duplicate confs
 !######################################################################
-  subroutine remove_creators_2I_1I1E(n,nR,rhp,ia,ja,ic,icreate,ncreate)
+  subroutine remove_creators_2I(n,nR,rhp,ia,ja,ic,icreate,ncreate)
 
     use constants
     use bitglobal
@@ -882,7 +927,8 @@ contains
     
     ! Everything else
     integer(is)                :: j,np,itmp,jtmp,nmatch,icmatch
-
+    logical                    :: match1
+    
 !----------------------------------------------------------------------
 ! Excitations linking the current ref conf to the preceding ones
 !----------------------------------------------------------------------
@@ -983,8 +1029,8 @@ contains
           !      configurations
           
           ! Number of matched annihilation operators
-          nmatch=3
-             
+          nmatch=0
+          
           ! Comparison of the annihilation operators
           ! of the 2-hole conf and those linking the
           ! ref confs
@@ -992,9 +1038,11 @@ contains
              if (itmp == rhp(1+j,np)) then
                 nmatch=nmatch+1
                 itmp=-1
+                if (nmatch == 2) exit
              else if (jtmp == rhp(1+j,np)) then
                 nmatch=nmatch+1
                 jtmp=-1
+                if (nmatch == 2) exit
              endif
           enddo
           
@@ -1008,11 +1056,11 @@ contains
                 exit
              endif
           enddo
-             
+          
           ! One matched annihilation operator and a
           ! matched creation operator: remove all the
           ! creation operator past the matched one
-          if (nmatch == 0 .and. icmatch /= 0) then
+          if (nmatch == 1 .and. icmatch /= 0) then
              do j=icmatch+1,3
                 if (icreate(rhp(4+j,np)) /= 0) then
                    icreate(rhp(4+j,np))=0
@@ -1021,10 +1069,10 @@ contains
              enddo
           endif
           
-          ! Two matched annihilation operator and zero
+          ! Two matched annihilation operators and zero
           ! matched creation operators: remove all the
           ! creation operators
-          if (nmatch == 1 .and. icmatch == 0) then
+          if (nmatch == 2 .and. icmatch == 0) then
              do j=1,3
                 if (icreate(rhp(4+j,np)) /= 0) then
                    icreate(rhp(4+j,np))=0
@@ -1032,7 +1080,7 @@ contains
                 endif
              enddo
           endif
-                   
+          
        endif
                 
     enddo
@@ -1104,7 +1152,6 @@ contains
 
           ! Loop over R_n -> R-np creation operators
           do j=1,2
-
              if (ic /= rhp(4+j,np)) then
                 ! Unmatched creation operators: remove the
                 ! R_n -> R-np creation operator from the list
@@ -1118,14 +1165,12 @@ contains
                 ! the two R_n -> R-np creation operator are not
                 ! equal
                 if (rhp(5,np) == rhp(6,np)) then
-                   if (icreate(rhp(j,np)) /= 0) then
-                      icreate(rhp(j,np))=0
+                   if (icreate(rhp(4+j,np)) /= 0) then
+                      icreate(rhp(4+j,np))=0
                       ncreate=ncreate-1
                    endif
                 endif
-                   
              endif
-             
           enddo
 
        else if (rhp(1,np) == 3) then
@@ -1150,15 +1195,28 @@ contains
           ! Cycle we do not have 2 matched annihilation operators
           if (nmatch /= 2) cycle
 
+          ! Cycle if we don't have a matched creation operator
+          if (ic /= rhp(5,np) .and. ic /= rhp(6,np) &
+               .and. ic /=rhp(7,np)) cycle
+          
           ! Flag the creation operators of the R_n -> R_np
-          ! excitation as forbidden, up to the first match
-          ! with the creation operator of the 1H1I conf
+          ! excitation as forbidden, *not* including the first
+          ! match with the creation operator of the 1H1I conf
+          match1=.false.
           do j=1,3
-             if (ic == rhp(4+j,np)) exit
+
+             ! Skip the first matched creation operator
+             if (ic == rhp(4+j,np) .and. .not. match1) then
+                match1=.true.
+                cycle
+             endif
+
+             ! Flag the remaining ones as forbidden
              if (icreate(rhp(4+j,np)) /= 0) then
                 icreate(rhp(4+j,np))=0
                 ncreate=ncreate-1
              endif
+             
           enddo
           
        endif
@@ -1167,7 +1225,7 @@ contains
     
     return
     
-  end subroutine remove_creators_2I_1I1E
+  end subroutine remove_creators_2I
 
 !######################################################################
 ! sort_2I_1I1E: sorts and saves the 2I and 1I1E confg=igurations by
@@ -3596,10 +3654,7 @@ contains
     use mrciutils
     use hparam
     use iomod
-
-    ! TEST
     use dethash
-    ! TEST
     
     implicit none
 
