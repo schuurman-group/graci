@@ -560,7 +560,7 @@ contains
 !                          application of internal creation
 !                          operators
 !######################################################################
-  subroutine generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
+  subroutine generate_1hole_1I_hash(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -757,7 +757,7 @@ contains
     
     return
     
-  end subroutine generate_1hole_1I_confs
+  end subroutine generate_1hole_1I_hash
     
 !######################################################################
 ! save_1h1I: buffered saving of the 1H1I configurations

@@ -3,8 +3,7 @@
 !**********************************************************************
 
 !######################################################################
-! generate_mrci_confs: generates the int-ext representation of the
-!                      MRCI configurations for a all irreps
+! generate_mrci_confs: generates the MRCI configurations for all irreps
 !######################################################################
 #ifdef CBINDING
 subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
@@ -75,6 +74,13 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   ! Everything else
   integer(is)                :: i,n,counter,irrep
   integer(is)                :: ntotal(0:nirrep-1)
+
+  ! TEST
+  ! 1H1I configurations
+  integer(is)                :: n1h1I
+  integer(ib), allocatable   :: conf1h1I(:,:,:)
+  integer(is), allocatable   :: indx1h1I(:,:)
+  ! TEST
   
 !----------------------------------------------------------------------
 ! Start timing
@@ -158,6 +164,24 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Generate the 1-hole, 2-hole configurations
 !----------------------------------------------------------------------
   call generate_hole_confs(cfgM,icvs)
+  
+!----------------------------------------------------------------------
+! Generate the configurations with one internal hole and one external
+! electron
+!----------------------------------------------------------------------
+  call generate_1E_confs(E0max,cfgM)
+
+!----------------------------------------------------------------------
+! Generate the configurations with two internal holes and two external
+! electrons
+!----------------------------------------------------------------------
+  call generate_2E_confs(E0max,cfgM)
+  
+!----------------------------------------------------------------------
+! Generate the configurations with one internal hole and one internal
+! electron
+!----------------------------------------------------------------------
+  call generate_1I_confs(E0max,cfgM,icvs)
 
 !----------------------------------------------------------------------
 ! Generate the configurations with:
@@ -165,26 +189,8 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! (b) Two internal holes, one internal electron and one external
 !     electron
 !----------------------------------------------------------------------
-  call generate_2I_1I1E_confs(cfgM,icvs,E0max)
+  call generate_2I_1I1E_confs(E0max,cfgM,icvs)
   
-!----------------------------------------------------------------------
-! Generate the configurations with one internal hole and one external
-! electron
-!----------------------------------------------------------------------
-  call generate_1E_confs_new(E0max,cfgM)
-
-!----------------------------------------------------------------------
-! Generate the configurations with two internal holes and two external
-! electrons
-!----------------------------------------------------------------------
-  call generate_2E_confs_new(E0max,cfgM)
-  
-!----------------------------------------------------------------------
-! Generate the configurations with one internal hole and one internal
-! electron
-!----------------------------------------------------------------------
-  call generate_1I_confs_new(E0max,cfgM,icvs)
-
 !----------------------------------------------------------------------
 ! Filter out any hole configurations which do not generate any
 ! full configurations
@@ -303,9 +309,9 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Debugging: check for duplicate configurations
 !----------------------------------------------------------------------
-  do irrep=0,nirrep-1
-     call check_confs(ntotal(irrep),n_int_I,nmoI,cfgM(irrep))
-  enddo
+  !do irrep=0,nirrep-1
+  !   call check_confs(ntotal(irrep),n_int_I,nmoI,cfgM(irrep))
+  !enddo
   
 !----------------------------------------------------------------------
 ! Check on the number of 'active' MOs. That is, the number of variably
@@ -589,9 +595,6 @@ subroutine check_confs(ntotal,n_int_I,nmoI,cfgM)
 ! Did we generate any duplicate configurations?
 !----------------------------------------------------------------------
   if (h%n_keys_stored /= ntotal) then
-     
-     print*,'No. duplicates:',ntotal-h%n_keys_stored
-     
      errmsg='Duplicate configurations found in check_confs'
      call error_control
   endif

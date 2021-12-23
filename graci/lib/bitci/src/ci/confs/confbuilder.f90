@@ -6,14 +6,14 @@
 module confbuilder
 
   implicit none
-
+  
 contains
 
 !######################################################################
 ! generate_2I_1I1E_confs: for all irreps, generates all the allowable
 !                         2I and 1I1E confs
 !######################################################################
-  subroutine generate_2I_1I1E_confs(cfgM,icvs,E0max)
+  subroutine generate_2I_1I1E_confs(E0max,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -23,15 +23,15 @@ contains
 
     implicit none
 
+    ! Energy of the highest-lying reference space state of interest
+    real(dp), intent(in)       :: E0max
+    
     ! MRCI configurations for all irreps
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
 
     ! CVS-MRCI: core MOs
     integer(is), intent(in)    :: icvs(nmo)
     logical                    :: lcvs
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
 
     ! No. 1H1I, 2I and 1I1E configurations
     integer(is)                :: n1h1I,n2I,n1I1E
@@ -68,8 +68,8 @@ contains
     use conftype
     use mrciutils
     use hparam
+    use utils
     use iomod
-    use dethash
     
     implicit none
 
@@ -106,8 +106,9 @@ contains
     integer(ib)                    :: ib1,ib2
     
     ! Lists of hole/particle indices linking ref confs
-    integer(is), parameter         :: maxexci=3
+    integer(is), parameter         :: maxexci=4
     integer(is)                    :: hlist(maxexci),plist(maxexci)
+    integer(is)                    :: indx(maxexci)
     
     ! Allowable internal creation operator indices
     integer(is)                    :: ncreate1,ncreate2
@@ -124,12 +125,6 @@ contains
     ! differences relative to the base conf
     real(dp)                       :: esumR,esum2H,esum1H1I,esum1I1E,&
                                       esum2I
-
-    ! Hash table
-    type(dhtbl)                    :: h
-    integer(is)                    :: initial_size
-    integer(is)                    :: nold
-    integer(ib)                    :: key(n_int,2)
     
     ! Everything else
     integer(is)                    :: i,j,k,n,np,i1,i2,i3
@@ -175,7 +170,7 @@ contains
     allocate(sop2h(n_int_I,2,cfgM%n2h))
     sop2h=0_ib
 
-    allocate(rhp(7,cfgM%nR))
+    allocate(rhp(9,cfgM%nR))
     rhp=0
 
     allocate(ibuf2I(4,bufsize))
@@ -183,7 +178,7 @@ contains
 
     allocate(ibuf1I1E(4,bufsize))
     ibuf1I1E=0
-    
+
 !----------------------------------------------------------------------
 ! Open the configuration scratch files
 !----------------------------------------------------------------------
@@ -210,25 +205,6 @@ contains
     nrec2I=0
     nrec1I1E=0
 
-!----------------------------------------------------------------------
-! Initialise the hash table
-!----------------------------------------------------------------------
-    ! Initialisation
-    initial_size=2**15
-    call h%initialise_table(initial_size)
-
-    !! Insertion of the 1H confs
-    !do n=1,cfgM%n1H
-    !   key=0_ib
-    !   key(1:n_int_I,:)=cfgM%conf1H(:,:,n)
-    !   call h%insert_key(key)
-    !enddo
-    !
-    !! No. keys inserted
-    !nold=h%n_keys_stored
-
-    nold=0
-    
 !----------------------------------------------------------------------
 ! Generate the 2-hole SOPs
 !----------------------------------------------------------------------    
@@ -263,7 +239,7 @@ contains
        ! Initialise the array of inter-ref-conf annihilation/creation
        ! operator indices
        rhp=0
-       
+
        ! Loop over all other reference configurations
        do np=1,cfgM%nR
           if (n == np) cycle
@@ -274,8 +250,8 @@ contains
                n_int_I)
 
           ! Cycle if the excitation degree is greater than 3
-          if (nexci > 3) cycle
-
+          if (nexci > 4) cycle
+          
           ! Determine the indices of the creation/annihilation
           ! operators linking the two ref confs
           call get_exci_indices(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
@@ -285,27 +261,16 @@ contains
           rhp(1,np)=nexci
 
           ! Creation/annihilation operator indices in ascending order
-          if (nexci == 1) then
-             rhp(2,np)=hlist(1)
-             rhp(5,np)=plist(1)
-          else if (nexci == 2) then
-             rhp(2,np)=min(hlist(1),hlist(2))
-             rhp(3,np)=max(hlist(1),hlist(2))
-             rhp(5,np)=min(plist(1),plist(2))
-             rhp(6,np)=max(plist(1),plist(2))
-          else if (nexci == 3) then
-             rhp(2,np)=min(hlist(1),hlist(2),hlist(3))
-             rhp(4,np)=max(hlist(1),hlist(2),hlist(3))
-             hlist(minloc(hlist))=0
-             hlist(maxloc(hlist))=0
-             rhp(3,np)=max(hlist(1),hlist(2),hlist(3))
-             rhp(5,np)=min(plist(1),plist(2),plist(3))
-             rhp(7,np)=max(plist(1),plist(2),plist(3))
-             plist(minloc(plist))=0
-             plist(maxloc(plist))=0
-             rhp(6,np)=max(plist(1),plist(2),plist(3))
-          endif
-          
+          call i4sortindx('A',nexci,hlist(1:nexci),indx(1:nexci))
+          do i=1,nexci
+             rhp(1+i,np)=hlist(indx(i))
+          enddo
+
+          call i4sortindx('A',nexci,plist(1:nexci),indx(1:nexci))
+          do i=1,nexci
+             rhp(5+i,np)=plist(indx(i))
+          enddo
+
        enddo
        
        ! Loop over the 2-hole configurations generated by the current
@@ -574,27 +539,7 @@ contains
                    ! Creation of a singly-occupied internal MO
                    conf(k,1)=ibset(conf(k,1),i)
                 endif
-                
-
-                ! TEST
-                !if (h%key_exists(conf)) then
-                !   print*,'here!'
-                !   stop
-                !endif
-                !call h%insert_key(conf)
-                !if (h%n_keys_stored /= nold) then
-                !   nold=h%n_keys_stored
-                !else
-                !   print*,''
-                !   print*,'Duplicate 2I conf:'
-                !   print*,'ia2h, ja2h:',ia2h,ja2h
-                !   print*,'iint1, iint2:',iint1,iint2
-                !   write(6,'(B64)') conf(1,1)
-                !   write(6,'(B64)') conf(1,2)
-                !endif
-                ! TEST
-                
-                
+                                
                 ! Number of creation and annihilation operators linking the
                 ! 2I and base configurations
                 nac2I=nac1H1I
@@ -706,7 +651,7 @@ contains
 
     ! Excitations linking the current ref conf to all others
     integer(is), intent(in)    :: nR
-    integer(is), intent(in)    :: rhp(7,nR)
+    integer(is), intent(in)    :: rhp(9,nR)
 
     ! Indices of the 2-hole annihilation operators
     integer(is), intent(in)    :: ia,ja
@@ -743,8 +688,8 @@ contains
           
           ! Flag the creation operator linking the ref confs
           ! as forbidden
-          if (icreate(rhp(5,np)) /= 0) then
-             icreate(rhp(5,np))=0
+          if (icreate(rhp(6,np)) /= 0) then
+             icreate(rhp(6,np))=0
              ncreate=ncreate-1
           endif
              
@@ -775,8 +720,8 @@ contains
           ! confs as forbidden
           if (nmatch == 1) then
              do j=1,2
-                if (icreate(rhp(4+j,np)) /= 0) then
-                   icreate(rhp(4+j,np))=0
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
                    ncreate=ncreate-1
                 endif
              enddo
@@ -809,8 +754,8 @@ contains
           ! confs as forbidden
           if (nmatch == 2) then
              do j=1,3
-                if (icreate(rhp(4+j,np)) /= 0) then
-                   icreate(rhp(4+j,np))=0
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
                    ncreate=ncreate-1
                 endif
              enddo
@@ -845,8 +790,8 @@ contains
           ! linking the ref confs
                 
           if (ia == rhp(2,np) .or. ja == rhp(2,np)) then
-             if (icreate(rhp(5,np)) /= 0) then
-                icreate(rhp(5,np))=0
+             if (icreate(rhp(6,np)) /= 0) then
+                icreate(rhp(6,np))=0
                 ncreate=ncreate-1
              endif
           endif
@@ -877,8 +822,8 @@ contains
           ! confs as forbidden
           if (nmatch == 2) then
              do j=1,2
-                if (icreate(rhp(4+j,np)) /= 0) then
-                   icreate(rhp(4+j,np))=0
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
                    ncreate=ncreate-1
                 endif
              enddo
@@ -911,7 +856,7 @@ contains
 
     ! Excitations linking the current ref conf to all others
     integer(is), intent(in)    :: nR
-    integer(is), intent(in)    :: rhp(7,nR)
+    integer(is), intent(in)    :: rhp(9,nR)
 
     ! Indices of the 2-hole annihilation operators
     integer(is), intent(in)    :: ia,ja
@@ -935,10 +880,10 @@ contains
     ! Loop over preceding ref confs
     do np=1,n-1
 
-       ! Greater than triple excitation between ref confs n and np:
+       ! Greater than quadruple excitation between ref confs n and np:
        ! no creation operators need to be removed
-       if (rhp(1,np) > 3) cycle
-       
+       if (rhp(1,np) > 4) cycle
+              
        ! 2-hole annihilation operators
        itmp=ia
        jtmp=ja
@@ -982,7 +927,7 @@ contains
           ! ref confs
           icmatch=0
           do j=1,2
-             if (ic == rhp(4+j,np)) then
+             if (ic == rhp(5+j,np)) then
                 icmatch=j
                 exit
              endif
@@ -992,8 +937,8 @@ contains
           ! matched creation operator: remove all the
           ! creation operator past the matched one
           if (nmatch == 0 .and. icmatch == 1) then
-             if (icreate(rhp(6,np)) /= 0) then
-                icreate(rhp(6,np))=0
+             if (icreate(rhp(7,np)) /= 0) then
+                icreate(rhp(7,np))=0
                 ncreate=ncreate-1
              endif
           endif
@@ -1003,8 +948,8 @@ contains
           ! creation operators
           if (nmatch == 1 .and. icmatch == 0) then
              do j=1,2
-                if (icreate(rhp(4+j,np)) /= 0) then
-                   icreate(rhp(4+j,np))=0
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
                    ncreate=ncreate-1
                 endif
              enddo
@@ -1051,7 +996,7 @@ contains
           ! ref confs
           icmatch=0
           do j=1,3
-             if (ic == rhp(4+j,np)) then
+             if (ic == rhp(5+j,np)) then
                 icmatch=j
                 exit
              endif
@@ -1062,8 +1007,8 @@ contains
           ! creation operator past the matched one
           if (nmatch == 1 .and. icmatch /= 0) then
              do j=icmatch+1,3
-                if (icreate(rhp(4+j,np)) /= 0) then
-                   icreate(rhp(4+j,np))=0
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
                    ncreate=ncreate-1
                 endif
              enddo
@@ -1074,13 +1019,64 @@ contains
           ! creation operators
           if (nmatch == 2 .and. icmatch == 0) then
              do j=1,3
-                if (icreate(rhp(4+j,np)) /= 0) then
-                   icreate(rhp(4+j,np))=0
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
                    ncreate=ncreate-1
                 endif
              enddo
           endif
+
+       else if (rhp(1,np) == 4) then
+          ! Quadruple excitation between ref confs n an np:
+          !
+          ! If two of the annihilation operators
+          ! linking the ref confs matches an annihilation
+          ! operator of the 1H1I conf *and* there is a
+          ! matched creator, then excitations into the orbitals
+          ! above the matched creation operator will give rise
+          ! to duplicate confs
           
+          ! Number of matched annihilation operators
+          nmatch=0
+          
+          ! Comparison of the annihilation operators
+          ! of the 2-hole conf and those linking the
+          ! ref confs
+          do j=1,4
+             if (itmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                itmp=-1
+                if (nmatch == 2) exit
+             else if (jtmp == rhp(1+j,np)) then
+                nmatch=nmatch+1
+                jtmp=-1
+                if (nmatch == 2) exit
+             endif
+          enddo
+
+          ! Comparison of the 1H1I creation operator
+          ! with those of the excitation linking the
+          ! ref confs
+          icmatch=0
+          do j=1,4
+             if (ic == rhp(5+j,np)) then
+                icmatch=j
+                exit
+             endif
+          enddo
+          
+          ! Two matched annihilation operators and a
+          ! matched creation operator: remove all the
+          ! creation operator past the matched one
+          if (nmatch == 2 .and. icmatch /= 0) then
+             do j=icmatch+1,4
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
+                   ncreate=ncreate-1
+                endif
+             enddo
+          endif
+
        endif
                 
     enddo
@@ -1110,13 +1106,13 @@ contains
           ! 1H1I conf, then all creation operations must be removed
           
           if (ia == rhp(2,np) .or. ja == rhp(2,np)) then
-             if (ic == rhp(5,np)) then
+             if (ic == rhp(6,np)) then
                 icreate=0
                 ncreate=0
                 return
              else
-                if (icreate(rhp(5,np)) /= 0) then
-                   icreate(rhp(5,np))=0
+                if (icreate(rhp(6,np)) /= 0) then
+                   icreate(rhp(6,np))=0
                    ncreate=ncreate-1
                 endif
              endif
@@ -1148,15 +1144,15 @@ contains
 
           ! Cycle if the creation operator of the 1H1I conf doesn't
           ! match one of the R_n -> R-np excitation
-          if (ic /= rhp(5,np) .and. ic /= rhp(6,np)) cycle
+          if (ic /= rhp(6,np) .and. ic /= rhp(7,np)) cycle
 
           ! Loop over R_n -> R-np creation operators
           do j=1,2
-             if (ic /= rhp(4+j,np)) then
+             if (ic /= rhp(5+j,np)) then
                 ! Unmatched creation operators: remove the
                 ! R_n -> R-np creation operator from the list
-                if (icreate(rhp(4+j,np)) /= 0) then
-                   icreate(rhp(4+j,np))=0
+                if (icreate(rhp(5+j,np)) /= 0) then
+                   icreate(rhp(5+j,np))=0
                    ncreate=ncreate-1
                 endif
              else
@@ -1164,9 +1160,9 @@ contains
                 ! R_n -> R-np creation operator from the list if
                 ! the two R_n -> R-np creation operator are not
                 ! equal
-                if (rhp(5,np) == rhp(6,np)) then
-                   if (icreate(rhp(4+j,np)) /= 0) then
-                      icreate(rhp(4+j,np))=0
+                if (rhp(6,np) == rhp(7,np)) then
+                   if (icreate(rhp(5+j,np)) /= 0) then
+                      icreate(rhp(5+j,np))=0
                       ncreate=ncreate-1
                    endif
                 endif
@@ -1196,8 +1192,8 @@ contains
           if (nmatch /= 2) cycle
 
           ! Cycle if we don't have a matched creation operator
-          if (ic /= rhp(5,np) .and. ic /= rhp(6,np) &
-               .and. ic /=rhp(7,np)) cycle
+          if (ic /= rhp(6,np) .and. ic /= rhp(7,np) &
+               .and. ic /= rhp(8,np)) cycle
           
           ! Flag the creation operators of the R_n -> R_np
           ! excitation as forbidden, *not* including the first
@@ -1206,14 +1202,14 @@ contains
           do j=1,3
 
              ! Skip the first matched creation operator
-             if (ic == rhp(4+j,np) .and. .not. match1) then
+             if (ic == rhp(5+j,np) .and. .not. match1) then
                 match1=.true.
                 cycle
              endif
 
              ! Flag the remaining ones as forbidden
-             if (icreate(rhp(4+j,np)) /= 0) then
-                icreate(rhp(4+j,np))=0
+             if (icreate(rhp(5+j,np)) /= 0) then
+                icreate(rhp(5+j,np))=0
                 ncreate=ncreate-1
              endif
              
@@ -1472,11 +1468,11 @@ contains
   end subroutine sort_2I_1I1E
   
 !######################################################################
-! generate_1E_confs: for a given irrep, generates all the
-!                    allowable configurations with one internal hole
-!                    and one external electron
+! generate_1E_hash: for a given irrep, generates all the allowable
+!                   configurations with one internal hole and one
+!                   external electron
 !######################################################################
-  subroutine generate_1E_confs(irrep,E0max,cfgM)
+  subroutine generate_1E_hash(irrep,E0max,cfgM)
 
     use constants
     use bitglobal
@@ -1501,7 +1497,7 @@ contains
 ! correct symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1E(modus,irrep,E0max,cfgM)
+    call builder_1E_hash(modus,irrep,E0max,cfgM)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1524,18 +1520,18 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1E(modus,irrep,E0max,cfgM)
+    call builder_1E_hash(modus,irrep,E0max,cfgM)
 
     return
     
-  end subroutine generate_1E_confs
+  end subroutine generate_1E_hash
   
 !######################################################################
-! 1E_builder: performs all the heavy lifting involved in the
-!             generation of the configurations with one internal hole
-!             and one external electron
+! 1E_builder_hash: performs all the heavy lifting involved in the
+!                  generation of the configurations with one internal
+!                  hole and one external electron
 !######################################################################
-  subroutine builder_1E(modus,irrep,E0max,cfgM)
+  subroutine builder_1E_hash(modus,irrep,E0max,cfgM)
 
     use constants
     use bitglobal
@@ -1656,14 +1652,14 @@ contains
     
     return
     
-  end subroutine builder_1E
+  end subroutine builder_1E_hash
 
 !######################################################################
-! generate_2E_confs: for a given irrep, generates all the
-!                    allowable configurations with two internal holes
-!                    and two external electrons
+! generate_2E_confs_hash: for a given irrep, generates all the
+!                         allowable configurations with two internal
+!                         holes and two external electrons
 !######################################################################
-  subroutine generate_2E_confs(irrep,E0max,cfgM)
+  subroutine generate_2E_hash(irrep,E0max,cfgM)
 
     use constants
     use bitglobal
@@ -1688,7 +1684,7 @@ contains
 ! correct symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_2E(modus,irrep,E0max,cfgM)
+    call builder_2E_hash(modus,irrep,E0max,cfgM)
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1711,18 +1707,18 @@ contains
 ! 2-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_2E(modus,irrep,E0max,cfgM)
+    call builder_2E_hash(modus,irrep,E0max,cfgM)
     
     return
     
-  end subroutine generate_2E_confs
+  end subroutine generate_2E_hash
 
 !######################################################################
-! builder_2E: performs all the heavy lifting involved in the
-!             generation of the configurations with two internal
-!             holes and two external electrons
+! builder_2E_hash: performs all the heavy lifting involved in the
+!                  generation of the configurations with two internal
+!                  holes and two external electrons
 !######################################################################
-  subroutine builder_2E(modus,irrep,E0max,cfgM)
+  subroutine builder_2E_hash(modus,irrep,E0max,cfgM)
 
     use constants
     use bitglobal
@@ -1939,14 +1935,14 @@ contains
     
     return
     
-  end subroutine builder_2E
+  end subroutine builder_2E_hash
 
 !######################################################################
-! generate_1I_confs: for a given irrep, generates all the
-!                    allowable configurations with one internal hole
-!                    and one internal electron
+! generate_1I_hash: for a given irrep, generates all the allowable
+!                   configurations with one internal hole and one
+!                   internal electron
 !######################################################################
-  subroutine generate_1I_confs(irrep,E0max,cfgM,icvs)
+  subroutine generate_1I_hash(irrep,E0max,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -1984,7 +1980,7 @@ contains
 ! correct symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1I(modus,irrep,E0max,cfgM,icvs,lcvs)
+    call builder_1I_hash(modus,irrep,E0max,cfgM,icvs,lcvs)
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -2007,18 +2003,18 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1I(modus,irrep,E0max,cfgM,icvs,lcvs)
+    call builder_1I_hash(modus,irrep,E0max,cfgM,icvs,lcvs)
     
     return
     
-  end subroutine generate_1I_confs
+  end subroutine generate_1I_hash
 
 !######################################################################
-! builder_1I: performs all the heavy lifting involved in the
-!             generation of the configurations with one internal hole
-!             and one internal electron
+! builder_1I_hash: performs all the heavy lifting involved in the
+!                  generation of the configurations with one internal
+!                  hole and one internal electron
 !######################################################################
-  subroutine builder_1I(modus,irrep,E0max,cfgM,icvs,lcvs)
+  subroutine builder_1I_hash(modus,irrep,E0max,cfgM,icvs,lcvs)
 
     use constants
     use bitglobal
@@ -2203,15 +2199,14 @@ contains
     
     return
     
-  end subroutine builder_1I
+  end subroutine builder_1I_hash
 
 !######################################################################
-! generate_1I_1E_confs: for a given irrep, generates all the
-!                       allowable configurations with two internal
-!                       holes, one internal electron and one
-!                       external electron
+! generate_1I1E_hash: for a given irrep, generates all the allowable
+!                      configurations with two internal holes, one
+!                      internal electron and one external electron
 !######################################################################
-  subroutine generate_1I_1E_confs(irrep,E0max,conf1h1I,indx1h1I,&
+  subroutine generate_1I1E_hash(irrep,E0max,conf1h1I,indx1h1I,&
        n_int_I,n1h1I,cfgM)
 
     use constants
@@ -2242,7 +2237,7 @@ contains
 ! symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1I_1E(modus,irrep,E0max,conf1h1I,indx1h1I,&
+    call builder_1I1E_hash(modus,irrep,E0max,conf1h1I,indx1h1I,&
          n_int_I,n1h1I,cfgM)
 
 !----------------------------------------------------------------------
@@ -2266,20 +2261,20 @@ contains
 ! generated by each 2-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1I_1E(modus,irrep,E0max,conf1h1I,indx1h1I,&
+    call builder_1I1E_hash(modus,irrep,E0max,conf1h1I,indx1h1I,&
          n_int_I,n1h1I,cfgM)
     
     return
     
-  end subroutine generate_1I_1E_confs
+  end subroutine generate_1I1E_hash
 
 !######################################################################
-! builder_1I_1E: performs all the heavy lifting involved in the
-!                generation of the configurations with with two
-!                internal holes, one internal electron and one
-!                external electron
+! builder_1I1E_hash: performs all the heavy lifting involved in the
+!                    generation of the configurations with with two
+!                    internal holes, one internal electron and one
+!                    external electron
 !######################################################################  
-  subroutine builder_1I_1E(modus,irrep,E0max,conf1h1I,indx1h1I,&
+  subroutine builder_1I1E_hash(modus,irrep,E0max,conf1h1I,indx1h1I,&
        n_int_I,n1h1I,cfgM)
 
     use constants
@@ -2460,14 +2455,14 @@ contains
     
     return
     
-  end subroutine builder_1I_1E
+  end subroutine builder_1I1E_hash
 
 !######################################################################
-! generate_2I_confs: for a given irrep, generates all the allowable
-!                    configurations with two internal holes, two
-!                    internal electrons
+! generate_2I_hash: for a given irrep, generates all the allowable
+!                   configurations with two internal holes, two
+!                   internal electrons
 !######################################################################
-  subroutine generate_2I_confs(irrep,E0max,conf1h1I,indx1h1I,&
+  subroutine generate_2I_hash(irrep,E0max,conf1h1I,indx1h1I,&
        n_int_I,n1h1I,cfgM,icvs)
 
     use constants
@@ -2511,7 +2506,7 @@ contains
 ! symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_2I(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
+    call builder_2I_hash(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
          n1h1I,cfgM,icvs,lcvs)
 
 !----------------------------------------------------------------------
@@ -2535,19 +2530,19 @@ contains
 ! 2-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_2I(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
+    call builder_2I_hash(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
          n1h1I,cfgM,icvs,lcvs)
     
     return
     
-  end subroutine generate_2I_confs
+  end subroutine generate_2I_hash
 
 !######################################################################
-! builder_2I: performs all the heavy lifting involved in the
-!             generation of the configurations with with two
-!             internal holes, two internal electrons
+! builder_2I_hash: performs all the heavy lifting involved in the
+!                  generation of the configurations with with two
+!                  internal holes, two internal electrons
 !######################################################################  
-  subroutine builder_2I(modus,irrep,E0max,conf1h1I,indx1h1I,&
+  subroutine builder_2I_hash(modus,irrep,E0max,conf1h1I,indx1h1I,&
        n_int_I,n1h1I,cfgM,icvs,lcvs)
     
     use constants
@@ -2829,7 +2824,7 @@ contains
     
     return
     
-  end subroutine builder_2I
+  end subroutine builder_2I_hash
     
 !######################################################################
 ! allowable_conf: Determines whether a given configuration is
@@ -3070,7 +3065,7 @@ contains
 !                    configurations with one internal hole and one
 !                    external electron
 !######################################################################
-  subroutine generate_1E_confs_new(E0max,cfgM)
+  subroutine generate_1E_confs(E0max,cfgM)
 
     use constants
     use bitglobal
@@ -3092,7 +3087,7 @@ contains
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1E_new(modus,E0max,cfgM)
+    call builder_1E(modus,E0max,cfgM)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -3120,18 +3115,18 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1E_new(modus,E0max,cfgM)
+    call builder_1E(modus,E0max,cfgM)
     
     return
     
-  end subroutine generate_1E_confs_new
+  end subroutine generate_1E_confs
 
 !######################################################################
 ! 1E_builder: performs all the heavy lifting involved in the
 !             generation of the configurations with one internal hole
 !             and one external electron
 !######################################################################
-  subroutine builder_1E_new(modus,E0max,cfgM)
+  subroutine builder_1E(modus,E0max,cfgM)
 
     use constants
     use bitglobal
@@ -3303,14 +3298,14 @@ contains
     
     return
     
-  end subroutine builder_1E_new
+  end subroutine builder_1E
 
 !######################################################################
 ! generate_2E_confs: for all irreps, generates all the allowable
 !                    configurations with two internal holes and two
 !                    external electrons
 !######################################################################
-  subroutine generate_2E_confs_new(E0max,cfgM)
+  subroutine generate_2E_confs(E0max,cfgM)
 
     use constants
     use bitglobal
@@ -3332,7 +3327,7 @@ contains
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_2E_new(modus,E0max,cfgM)
+    call builder_2E(modus,E0max,cfgM)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -3360,18 +3355,18 @@ contains
 ! 2-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_2E_new(modus,E0max,cfgM)
+    call builder_2E(modus,E0max,cfgM)
     
     return
     
-  end subroutine generate_2E_confs_new
+  end subroutine generate_2E_confs
 
 !######################################################################
 ! 2E_builder: performs all the heavy lifting involved in the
 !             generation of the configurations with two internal holes
 !             and two external electrons
 !######################################################################
-  subroutine builder_2E_new(modus,E0max,cfgM)
+  subroutine builder_2E(modus,E0max,cfgM)
 
     use constants
     use bitglobal
@@ -3565,14 +3560,14 @@ contains
     
     return
 
-  end subroutine builder_2E_new
+  end subroutine builder_2E
 
 !######################################################################
 ! generate_1I_confs: for all irreps, generates all the allowable
 !                    configurations with one internal hole and one
 !                    external electron
 !######################################################################
-  subroutine generate_1I_confs_new(E0max,cfgM,icvs)
+  subroutine generate_1I_confs(E0max,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -3607,7 +3602,7 @@ contains
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1I_new(modus,E0max,cfgM,icvs,lcvs)
+    call builder_1I(modus,E0max,cfgM,icvs,lcvs)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -3635,18 +3630,18 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1I_new(modus,E0max,cfgM,icvs,lcvs)
+    call builder_1I(modus,E0max,cfgM,icvs,lcvs)
     
     return
     
-  end subroutine generate_1I_confs_new
+  end subroutine generate_1I_confs
 
 !######################################################################
 ! 1I_builder: performs all the heavy lifting involved in the
 !             generation of the configurations with one internal hole
 !             and one internal electron
 !######################################################################
-  subroutine builder_1I_new(modus,E0max,cfgM,icvs,lcvs)
+  subroutine builder_1I(modus,E0max,cfgM,icvs,lcvs)
 
     use constants
     use bitglobal
@@ -4076,7 +4071,7 @@ contains
     
     return
     
-  end subroutine builder_1I_new
+  end subroutine builder_1I
     
 !######################################################################
   
