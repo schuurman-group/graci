@@ -49,13 +49,13 @@ def generate(ci_method):
 
     # Pruning: bitci Q-space energy correction scracth file numbers
     eq_units = np.zeros(nirr, dtype=int)
+
+    # Generate the MRCI configurations for all irreps
+    args = (nroots, ref_confunits, ci_confunits, nconf, emax, cvsflag)
+    (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
     
     # Loop over irreps
     for irrep in range(nirr):
-
-        args = (irrep, nroots, ref_confunits, ci_confunits, \
-                nconf, emax, cvsflag)
-        (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
         
         # Optional pruning of the configuration space
         # (note that not all mrci-type methods will have pruning

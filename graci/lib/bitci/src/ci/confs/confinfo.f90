@@ -270,5 +270,63 @@ contains
   end subroutine get_active_mos
 
 !######################################################################
+! ndocc_ref: returns the dimension of the subspace of MOs that are
+!            doubly-occupied across all reference configurations
+!######################################################################
+  function ndocc_ref(cfg)
+
+    use constants
+    use bitglobal
+    use bitutils
+    use conftype
+    
+    implicit none
+
+    ! Function result: the dimension of the doubly-occupied inactive
+    ! space for the reference configurations
+    integer(is)             :: ndocc_ref
+
+    ! Configuration derived data type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Bit string encodings of the doubly-occupied inactive MOs
+    integer(ib)             :: Id(n_int)
+
+    ! Everything else
+    integer(is)             :: n,k
+    
+!----------------------------------------------------------------------
+! Compute the bit string encoding of the doubly-occupied inactive MOs
+!----------------------------------------------------------------------
+    ! Initialisation
+    Id=0_ib
+    Id(1:cfg%n_int_I)=cfg%sop0h(:,2,1)
+
+    ! Loop over reference configurations
+    do n=2,cfg%n0h
+
+       ! Loop over blocks
+       do k=1,cfg%n_int_I
+
+          ! Doubly-occupied encoding
+          Id(k)=iand(Id(k), cfg%sop0h(k,2,n))
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Number of doubly-occupied inactive MOs
+!----------------------------------------------------------------------
+    ndocc_ref=0
+    do k=1,n_int
+       ndocc_ref=ndocc_ref+popcnt(Id(k))
+    enddo
+
+    return
+    
+  end function ndocc_ref
+  
+!######################################################################
   
 end module confinfo
