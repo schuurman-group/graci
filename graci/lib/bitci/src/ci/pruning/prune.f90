@@ -118,7 +118,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
   call cfg%initialise(irrep,confscr(irrep))
-
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------

@@ -928,7 +928,7 @@ contains
     ! Everything else
     integer(is)                :: n,iref,nok,counter,nlastI,nlastE,&
                                   countlastI,countlastE
-
+    
 !----------------------------------------------------------------------
 ! Determine the number of 1-hole configurations that generate full
 ! configurations

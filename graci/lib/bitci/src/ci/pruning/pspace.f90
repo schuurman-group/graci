@@ -314,15 +314,19 @@ contains
     
     allocate(cfg_new%conf1h(n_int_I,2,cfg_new%n1h))
     allocate(cfg_new%off1h(cfg_new%nR+1))
+    allocate(cfg_new%a1h(cfg_new%n1h))
     cfg_new%conf1h=cfg%conf1h
     cfg_new%off1h=cfg%off1h
-
+    cfg_new%a1h=cfg%a1h
+    
     ! 2-hole confs
     cfg_new%n2h=cfg%n2h
     allocate(cfg_new%conf2h(n_int_I,2,cfg_new%n2h))
     allocate(cfg_new%off2h(cfg_new%nR+1))
+    allocate(cfg_new%a2h(2,cfg_new%n2h))
     cfg_new%conf2h=cfg%conf2h
     cfg_new%off2h=cfg%off2h
+    cfg_new%a2h=cfg%a2h
     
 !----------------------------------------------------------------------
 ! 1I configurations
@@ -414,8 +418,10 @@ contains
     ! Configuration information
     write(iscratch) cfg_new%confR
     write(iscratch) cfg_new%conf1h
+    write(iscratch) cfg_new%a1h
     write(iscratch) cfg_new%off1h
     write(iscratch) cfg_new%conf2h
+    write(iscratch) cfg_new%a2h
     write(iscratch) cfg_new%off2h
     write(iscratch) cfg_new%conf0h
     if (cfg_new%n1I > 0) then

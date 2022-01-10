@@ -198,7 +198,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   do irrep=0,nirrep-1
      call filter_hole_confs(cfgM(irrep))
   enddo
-     
+
 !----------------------------------------------------------------------
 ! Set the total number of configurations per irrep
 !----------------------------------------------------------------------
