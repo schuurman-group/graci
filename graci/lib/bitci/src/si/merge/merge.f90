@@ -700,6 +700,26 @@ contains
     deallocate(conf)
 
 !----------------------------------------------------------------------
+! 1-hole annihilation operator indices
+!----------------------------------------------------------------------
+    ! Allocate the work array
+    allocate(a1(cfg%n1h))
+    a1=0
+    
+    ! Convert the annihilation operator indices to the new MO ordering
+    a1=cfg%a1h
+    do k=1,cfg%n1h
+       i=cfg%m2c(a1(k))
+       a1(k)=c2m(i)
+    enddo
+
+    ! Write to disk
+    write(iscratch) a1
+    
+    ! Deallocate the work array
+    deallocate(a1)
+    
+!----------------------------------------------------------------------
 ! 1-hole offsets
 !----------------------------------------------------------------------
     write(iscratch) cfg%off1h
@@ -723,6 +743,28 @@ contains
     ! Deallocate the work array
     deallocate(conf)
 
+!----------------------------------------------------------------------
+! 2-hole annihilation operator indices
+!----------------------------------------------------------------------
+    ! Allocate the work array
+    allocate(a2(2,cfg%n2h))
+    a2=0
+    
+    ! Convert the annihilation operator indices to the new MO ordering
+    a2=cfg%a2h
+    do k=1,cfg%n2h
+       i=cfg%m2c(a2(1,k))
+       a2(1,k)=c2m(i)
+       i=cfg%m2c(a2(2,k))
+       a2(2,k)=c2m(i)
+    enddo
+    
+    ! Write to disk
+    write(iscratch) a2
+    
+    ! Deallocate the work array
+    deallocate(a2)
+    
 !----------------------------------------------------------------------
 ! 2-hole offsets
 !----------------------------------------------------------------------
