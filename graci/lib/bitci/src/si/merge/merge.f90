@@ -337,6 +337,10 @@ contains
     ! Bra
     call refill_cfg(cfgB,cfgB%confdim,n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B,&
          iBclass,nmoI,nmoE,m2c,c2m)
+
+    ! Ket
+    call refill_cfg(cfgK,cfgK%confdim,n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K,&
+         iKclass,nmoI,nmoE,m2c,c2m)
     
     return
     
