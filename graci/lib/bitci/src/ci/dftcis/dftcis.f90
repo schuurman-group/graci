@@ -218,7 +218,7 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
   integer(is), intent(in)  :: nroots
 
   ! CVS-MRCI: core MOs
-  integer(is), intent(in)    :: icvs(nmo)
+  integer(is), intent(in)  :: icvs(nmo)
   
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
@@ -237,7 +237,7 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
 
   ! MO selection threshold
   real(dp), parameter      :: targ=0.9025d0
-    
+  
   ! Everything else
   integer(is)              :: k,n
   integer(is), allocatable :: indx(:)
@@ -289,7 +289,7 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
 
         ! Squared norm
         sumsq=sumsq+vec(indx(n),k)**2
-
+        
         ! Particle index
         domph(iph(1,indx(n)))=1
         
@@ -302,7 +302,7 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
      enddo
      
   enddo
-  
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
