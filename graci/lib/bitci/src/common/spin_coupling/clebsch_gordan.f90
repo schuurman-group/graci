@@ -6,9 +6,9 @@ contains
 
 !######################################################################
 ! cgcoeff_eigen: For a given pair of subsystem angular momentum quantum
-!                numbers (j1,m1) and (j2,m2), computes the Clebsh-
-!                Gordan coefficients for total angular momentum J and
-!                all possible -J <= M <= J values
+!                numbers j1 and j2, computes the Clebsh-Gordan
+!                coefficients for total angular momentum J and all
+!                possible (m1,m2,M) tuples
 !                
 !                Phases are fixed according the Condon-Shortley
 !                convention
@@ -21,7 +21,7 @@ contains
 !                Follows the algorithm given in the Appendix of
 !                J. Chem. Phys., 151, 034106 (2019)
 !######################################################################
-  subroutine cgcoeff(j1,m1,j2,m2,J,cg)
+  subroutine cgcoeff(j1,j2,J,cg)
 
     use constants
     use iomod
@@ -29,7 +29,7 @@ contains
     implicit none
 
     ! Angular momentum quantum numbers
-    real(dp), intent(in)     :: j1,m1,j2,m2,J
+    real(dp), intent(in)     :: j1,j2,J
 
     ! Output array of Clebsch-Gordan coefficients
     real(dp)                 :: cg(:,:)
@@ -56,9 +56,9 @@ contains
     real(dp), allocatable    :: work(:)
         
     ! Evertything else
-    integer(is)              :: ibra,iket,i,k,l,i1,i2,n,M,info
+    integer(is)              :: ibra,iket,i,k,l,i1,i2,n,info
     integer(is), allocatable :: indx(:)
-    real(dp)                 :: m1val,m2val
+    real(dp)                 :: M,m1val,m2val
     real(dp)                 :: fac
     real(dp), parameter      :: shift=100.0d0
     real(dp), parameter      :: thrsh=1e-10_dp
@@ -81,16 +81,6 @@ contains
        call error_control
     endif
     
-    if (mod(m1,0.5d0) /= 0.0d0 .or. m1 < -j1 .or. m1 > j1) then
-       errmsg='Error in cgcoeff: illegal input value of m1'
-       call error_control
-    endif
-
-    if (mod(m2,0.5d0) /= 0.0d0 .or. m2 < -j2 .or. m2 > j2) then
-       errmsg='Error in cgcoeff: illegal input value of m1'
-       call error_control
-    endif
-       
 !----------------------------------------------------------------------
 ! Size of the direct product basis |j1,m1> x |j2,m2>
 !----------------------------------------------------------------------
