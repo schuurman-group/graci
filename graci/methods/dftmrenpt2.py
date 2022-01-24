@@ -37,6 +37,7 @@ class Dftmrenpt2:
     """Class constructor for DFT/MR-ENPT2 objects"""
     def __init__(self):        
         # user defined quanties
+        self.mult           = None
         self.nstates        = []
         self.hamiltonian    = 'canonical'
         self.ras1           = []
@@ -107,6 +108,10 @@ class Dftmrenpt2:
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
 
+        # Default spin multiplicity: inherited from the scf object
+        if self.mult is None:
+            self.mult = self.scf.mol.mult
+            
         # write the output logfile header for this run
         output.print_dftmrenpt2_header(self.label)
 

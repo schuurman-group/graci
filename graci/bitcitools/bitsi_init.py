@@ -2,11 +2,12 @@
 Module for loading/finalizing bitci library
 """
 
+import sys as sys
 import numpy as np
 import graci.core.libs as libs
 
 #
-def init(si_method):
+def init(si_method, calctype):
     """Initialize the bitci library"""
 
     bra = si_method.bra_obj
@@ -18,12 +19,12 @@ def init(si_method):
 
     # set all variables that have to be passed to bitsi_initialise
     # (note that the pgrp uses Fortran indexing)
-    multBra = bra.scf.mol.mult
-    multKet = ket.scf.mol.mult
-    nelBra   = bra.scf.mol.nel
-    nelKet   = ket.scf.mol.nel
-    nmo      = bra.scf.nmo
-
+    multBra = bra.mult
+    multKet = ket.mult
+    nelBra  = bra.scf.mol.nel
+    nelKet  = ket.scf.mol.nel
+    nmo     = bra.scf.nmo
+    
     # not sure what this is about...
     if bra.scf.mol.sym_indx <= 0:
         pgrp = 1
@@ -31,7 +32,7 @@ def init(si_method):
         pgrp = bra.scf.mol.sym_indx + 1
 
     # call to bitsi_initialise
-    args = (multBra, multKet, nelBra, nelKet, nmo, pgrp)
+    args = (multBra, multKet, nelBra, nelKet, nmo, pgrp, calctype)
     libs.lib_func('bitsi_initialise', args)
 
     return

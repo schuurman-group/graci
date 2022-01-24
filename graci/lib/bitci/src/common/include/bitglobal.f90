@@ -167,5 +167,23 @@ module bitglobal
   integer(is) :: nelB,nelB_alpha,nelB_beta,nelB_spin(2)
   integer(is) :: nelK,nelK_alpha,nelK_beta,nelK_spin(2)
 
+  !
+  ! Bra and ket CSFs
+  !
+  integer(is)              :: ncsfsB(0:nocase2),& ! Number of CSFs as a function of
+                              ncsfsK(0:nocase2)   ! the number of open shells
+  integer(is)              :: maxcsfB,maxcsfK     ! Maximum number of CSFs across
+                                                  ! all numbers of open shells
+  real(dp), allocatable    :: csfcoeB(:,:,:),&    ! CSF expansion coefficients
+                              csfcoeK(:,:,:)
+  integer(is)              :: ndetsB(0:nocase2),& ! Number of determinants as a
+                              ndetsK(0:nocase2)   ! function of the number of open
+                                                  ! shells
+  integer(is)              :: maxdetB,maxdetK     ! Maximum number of determinants
+                                                  ! across all numbers of open
+                                                  ! shells
+  integer(ib), allocatable :: detvecB(:,:),&      ! Encoding of the determinants
+                              detvecK(:,:)        ! contributing to the CSFs
+  
 end module bitglobal
 

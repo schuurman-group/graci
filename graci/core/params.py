@@ -32,7 +32,8 @@ scf_kword      = {'xc'             : str,
                   'label'          : str}
 
 # MRCI section input keywords and data types
-dftmrci_kword  = {'nstates'        : int,
+dftmrci_kword  = {'mult'           : int,
+                  'nstates'        : int,
                   'hamiltonian'    : str,
                   'ras1'           : int,
                   'ras2'           : int,
@@ -59,7 +60,8 @@ dftmrci_kword  = {'nstates'        : int,
                  }
 
 # DFT/MR-ENPT2 section input keywords and data types
-dftmrenpt2_kword  = {'nstates'        : int,
+dftmrenpt2_kword  = {'mult'           : int,
+                     'nstates'        : int,
                      'hamiltonian'    : str,
                      'ras1'           : int,
                      'ras2'           : int,
@@ -90,11 +92,14 @@ transition_kword = {'init_states'      : int,
                    }
 
 # molecule section input keywords and data typess
-spinorbit_kword = {'bra_states' : int,
-                   'ket_states' : int,
-                   'bra_label'  : str,
-                   'ket_label'  : str,
-                   'label'      : str
+spinorbit_kword = {'init_states'      : int, 
+                   'final_states'     : int,
+                   'init_states_sym'  : float,
+                   'final_states_sym' : float,
+                   'all_final_states' : bool,
+                   'init_label'       : str,
+                   'final_label'      : str,
+                   'label'            : str
                    }
 
 #----------------------------------------------------

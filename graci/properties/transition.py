@@ -1,6 +1,5 @@
 """
-module for compute moments of the dipole operator
-for a given electronic state
+module to compute functions of the 1-TDM
 """
 import os as os
 import numpy as np
@@ -27,10 +26,10 @@ class Transition:
         self.init_states_sym  = None
         self.final_states_sym = None
         self.all_final_states = False
-        self.init_label      = None
-        self.final_label     = None
-        self.print_orbitals  = False
-        self.label           = 'Transition'
+        self.init_label       = None
+        self.final_label      = None
+        self.print_orbitals   = False
+        self.label            = 'Transition'
 
         # global variables
         # method object for the bra states
@@ -131,8 +130,8 @@ class Transition:
                 sys.exit('transition moments require same geometry'+
                          ' and basis set')
 
-        # initialize the bitsi library
-        bitsi_init.init(self)
+        # initialize the bitsi library for the calculation of 1-TDMs
+        bitsi_init.init(self, 'tdm')
 
         # construct the trans_list array
         # currently store them as [initial state, final state]

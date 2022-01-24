@@ -101,7 +101,7 @@ bitci_intent = {
 # registry of bitsi functions
 bitsi_registry = {
     'bitsi_initialise'        : ['int32','int32','int32','int32','int32',
-                                  'int32'],
+                                  'int32','string'],
     'bitsi_finalise'          : [],
     'transition_density_mrci' : ['int32','int32','int32','int32','int32',
                                  'int32','double','string','string',
@@ -109,7 +109,7 @@ bitsi_registry = {
 }
 
 bitsi_intent   = {
-    'bitsi_initialise'        : ['in','in','in','in','in','in'],
+    'bitsi_initialise'        : ['in','in','in','in','in','in','in'],
     'bitsi_finalise'          : [],
     'transition_density_mrci' : ['in','in','in','in','in','in','out',
                                  'in','in','in','in']
