@@ -3,12 +3,13 @@ module to compute spin-orbit coupling matrix
 elements
 """
 
+import sys as sys
+import numpy as np
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
 import graci.io.output as output
 import graci.utils.constants as constants
-import sys as sys
 
 class Spinorbit:
     """Spin orbit coupling class. For now will only accept calculations
@@ -22,7 +23,7 @@ class Spinorbit:
         self.all_final_states = False
         self.init_label       = None
         self.final_label      = None
-        self.label      = 'spinorbit'
+        self.label            = 'spinorbit'
 
         # global variables
         # method object for the bra states
@@ -111,5 +112,23 @@ class Spinorbit:
             and self.bra_obj.label == self.ket_obj.label):
             self.braket_iden = True
 
+        mol_bra = self.bra_obj.scf.mol
+        mol_ket = self.ket_obj.scf.mol
 
-        sys.exit('\n here...')
+        scf_bra = self.bra_obj.scf
+        scf_ket = self.ket_obj.scf
+            
+        if not self.braket_iden:
+            # sanity check that orbitals and geometry are the same
+            if np.any(scf_bra.orbs != scf_ket.orbs):
+                sys.exit('spin-orbit coupling requires same'+
+                         'bra/ket orbs')
+
+            if mol_bra.pymol().atom != mol_ket.pymol().atom:
+                sys.exit('spin-orbit coupling requires same geometry'+
+                         ' and basis set')
+
+            # initialize the bitsi library for the calculation of
+            # spin-orbit matrix elements
+            bitsi_init.init(self, 'soc')
+            

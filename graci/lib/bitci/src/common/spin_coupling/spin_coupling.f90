@@ -1,6 +1,6 @@
 !**********************************************************************
 ! Routines for the pre-computation of the unique spin coupling
-! coefficients.
+! coefficients for the singlet spin tensor operators E_p^q
 !**********************************************************************
 ! Follows the formalism detailed in R. W. Wetmore and G. A. Segal,
 ! Chem. Phys. Lett., 36, 478 (1975).

@@ -17,6 +17,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   use setsym
   use csf
   use spin_coupling
+  use spin_coupling_triplet
   use iomod
   
   implicit none
@@ -41,7 +42,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   integer(is), intent(in) :: ipg1
   
   ! Calculation type
-  logical                 :: samemult,soc,tdm,dyson
+  logical                 :: samemult
   
   ! Everything else
   real(dp)                :: s,smax,sb,sk
@@ -159,7 +160,25 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
 
   ! Number of irreps
   nirrep=pgdim(ipg)
-  
+
+!----------------------------------------------------------------------
+! Make sure that the calculation type is recognised
+!----------------------------------------------------------------------
+  select case(calctype)
+
+  case('tdm')
+     continue
+
+  case('soc')
+     continue
+
+  case default
+     errmsg='Error in bitsi_intialise: unrecognised calculation type:'&
+          //' '//trim(calctype)
+     call error_control
+
+  end select
+        
 !----------------------------------------------------------------------
 ! Sanity checks on the bra and ket spin multiplicities
 !----------------------------------------------------------------------
@@ -168,7 +187,6 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   case('tdm')
      ! Calculation of matrix elements over the singlet excitation
      ! operators: used in the calculation of 1-TDMs
-     tdm=.true.
 
      ! Bra and ket spin multiplicities have to be equal
      if (imultB /= imultK) then
@@ -180,7 +198,6 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   case('soc')
      ! Calculation of matrix elements over the triplet excitation
      ! operators: used in the calculation of SOC matrix elemens
-     soc=.true.
 
      ! SOC calculations don't make sense unless
      ! Delta S = 0, -1, or +1
@@ -191,35 +208,22 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
         call error_control
      endif
      
-  case('dyson')
-     ! Calculation of Dyson orbital expansion coefficients in the
-     ! MO basis
-     dyson=.true.
-
-     ! Currently not supported: die here
-     errmsg='Dyson orbital calculations not yet supported in bitSI'
-     call error_control
-     
-  case default
-     ! Unrecognised calculation type: die here
-     errmsg='Error in bitsi_intialise: unrecognised calculation type:'&
-          //' '//trim(calctype)
-     call error_control
   end select
      
 !----------------------------------------------------------------------
 ! Generate the bra and ket CSFs
 !----------------------------------------------------------------------
-  ! 1-TDM calculation: equal bra and ket spin multiplicities
-  if (tdm) then
+  select case(calctype)
+
+  case('tdm')
+     ! 1-TDM calculation: equal bra and ket spin multiplicities
      verbose=.false.
      call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,maxdet,&
           csfcoe,detvec,verbose)
-  endif
-     
-  ! SOC calculation: potentially non-equal bra and ket spin
-  !                  multiplicities
-  if (soc) then
+
+  case('soc')
+     ! SOC calculation: potentially non-equal bra and ket spin
+     !                  multiplicities
      if (imultB /= imultK) then
         verbose=.true.
      else
@@ -231,40 +235,50 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
      ! Ket CSFs
      call generate_csfs(imultK,nocase2,ncsfsK,ndetsK,maxcsfK,maxdetK,&
           csfcoeK,detvecK,verbose)
-  endif
+
+  end select
   
 !----------------------------------------------------------------------
 ! Compute the spin-coupling coefficients
 !----------------------------------------------------------------------
-  ! 1-TDM calculation: calculation of spin-coupling coefficients over
-  !                    the singlet excitation operators E_pq
-  if (tdm) then
+  select case(calctype)
+
+  case('tdm')
+     ! 1-TDM calculation: calculation of spin-coupling coefficients
+     !                    over the singlet excitation operators E_pq
      verbose=.false.
      call generate_coupling_coefficients(imultB,nocase1,nocase2,&
           maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
           npattern2,nspincp,N1s,verbose,spincp,patternmap,offspincp)
-  endif
-     
-  ! SOC calculation: calculation of spin-coupling coefficients over
-  !                  the triplet excitation operators T_pq^(1,k),
-  !                  k = 0 or +1
-  if (soc) then
-     verbose=.true.
 
+  case('soc')
+     ! SOC calculation: calculation of spin-coupling coefficients for
+     !                  the triplet excitation operators
+     !                  T_pq^(1,k), k = 0 or +1
+     verbose=.true.
      if (imultB == imultK) then
         ! Same spin multiplicities: compute spin-coupling coefficients
-        ! over T_pq^(1,k=0)
-
+        ! for T_pq^(1,k=0)
+        call generate_triplet_coupling_coefficients(0,&
+             imultB,imultK,&
+             nocase1,nocase2,&
+             maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
+             maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
+             npattern1,npattern2,nspincp,&
+             N1s,verbose,spincp,patternmap,offspincp)
      else
         ! Different spin multiplicities: compute spin-coupling
-        ! coefficients over T_pq^(1,k=+1)
-
+        ! coefficients for T_pq^(1,k=+1)
+        call generate_triplet_coupling_coefficients(1,&
+             imultB,imultK,&
+             nocase1,nocase2,&
+             maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
+             maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
+             npattern1,npattern2,nspincp,&
+             N1s,verbose,spincp,patternmap,offspincp)
      endif
      
-     errmsg='SOC calculations not yet supported in bitSI'
-     call error_control
-     
-  endif
+  end select
   
 !----------------------------------------------------------------------
 ! Scratch directory: the top-level bitscratch directory is assumed to
