@@ -9,6 +9,10 @@ module spin_coupling
 
   implicit none
 
+  private
+
+  public :: generate_coupling_coefficients
+  
 contains
 
 !######################################################################
@@ -97,7 +101,7 @@ contains
 !----------------------------------------------------------------------
 ! Output some information about what we are doing
 !----------------------------------------------------------------------
-    call print_spincp_info(imult,nspincp,verbose)
+    if (verbose) call print_spincp_info(imult,nspincp)
 
 !----------------------------------------------------------------------
 ! Allocate the spin coupling coefficient arrays
@@ -136,6 +140,11 @@ contains
     if (verbose) call report_times(twall_end-twall_start,&
          tcpu_end-tcpu_start,'generate_coupling_coefficients')
 
+!----------------------------------------------------------------------    
+! Flush stdout
+!----------------------------------------------------------------------
+    flush(6)
+    
     return
   
   end subroutine generate_coupling_coefficients
@@ -186,7 +195,7 @@ contains
 ! This covers excitations from a doubly-occupied orbital into an
 ! unoccupied orbital or from a singly-occupied orbital into another
 ! singly-occupied orbital
-!---------------------------------------------------------------------- 
+!----------------------------------------------------------------------
     ! N=0 contribution
     if (imult == 1) then
        nspincp(2)=1
@@ -218,7 +227,7 @@ contains
 ! print_spincp_info: Printing of some information about the spin
 !                    coupling coefficients being calculated
 !######################################################################
-  subroutine print_spincp_info(imult,nspincp,verbose)
+  subroutine print_spincp_info(imult,nspincp)
 
     use constants
         
@@ -226,35 +235,30 @@ contains
 
     integer(is), intent(in) :: imult
     integer(is), intent(in) :: nspincp(2)
-    logical, intent(in)     :: verbose
     
     integer(is)             :: n,i
 
 !----------------------------------------------------------------------
 ! Spin multiplicity
 !----------------------------------------------------------------------
-    if (verbose) write(6,'(/,x,a,x,i0)') 'Spin multiplicity:',imult
+    write(6,'(/,x,a,x,i0)') 'Spin multiplicity:',imult
     
 !----------------------------------------------------------------------
 ! Number of unique spin-coupling coefficients
 !----------------------------------------------------------------------
-    if (verbose) then
-       
-       ! Total number of spin-coupling coefficients
-       write(6,'(/,x,a,2x,i0)') &
-            'Total number of spin coupling coefficients:',&
-            sum(nspincp)
-       
-       ! Number of Case 1 spin-coupling coefficients
-       write(6,'(x,a,x,i0)') &
-            'Number of Case 1 spin coupling coefficients:',nspincp(1)
-
-       ! Number of Case 2 spin-coupling coefficients
-       write(6,'(x,a,x,i0)') &
-            'Number of Case 2 spin coupling coefficients:',nspincp(2)
-
-    endif
-       
+    ! Total number of spin-coupling coefficients
+    write(6,'(/,x,a,2x,i0)') &
+         'Total number of spin coupling coefficients:',&
+         sum(nspincp)
+    
+    ! Number of Case 1 spin-coupling coefficients
+    write(6,'(x,a,x,i0)') &
+         'Number of Case 1 spin coupling coefficients:',nspincp(1)
+    
+    ! Number of Case 2 spin-coupling coefficients
+    write(6,'(x,a,x,i0)') &
+         'Number of Case 2 spin coupling coefficients:',nspincp(2)
+    
     return
     
   end subroutine print_spincp_info

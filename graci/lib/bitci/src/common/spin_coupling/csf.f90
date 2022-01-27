@@ -183,10 +183,12 @@ contains
     ncsfs=0
     ndets=0
 
-    ! Closed shell case
-    ncsfs(0)=1
-    ndets(0)=1
-    
+    ! Closed shell singlet case
+    if (imult == 1) then
+       ncsfs(0)=1
+       ndets(0)=1
+    endif
+       
     ! Total spin
     S=dble(imult-1)/2.0d0
 
