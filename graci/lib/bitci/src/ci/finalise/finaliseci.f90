@@ -23,6 +23,7 @@ subroutine bitci_finalise()
   if (allocated(patternmap))  deallocate(patternmap)
   if (allocated(N1s))         deallocate(N1s)
   if (allocated(spincp))      deallocate(spincp)
+  if (allocated(offspincp))   deallocate(offspincp)
   if (allocated(det0))        deallocate(det0)
   if (allocated(conf0))       deallocate(conf0)
   if (allocated(iopen0))      deallocate(iopen0)
@@ -44,8 +45,6 @@ subroutine bitci_finalise()
   maxunits=0
   nscratch=0
   nspincp=0
-  npattern1=0
-  npattern2=0
   nmo=0
   nel=0
   nel_alpha=0

@@ -174,8 +174,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 !----------------------------------------------------------------------
   verbose=.true.
   call generate_coupling_coefficients(imult1,nocase1,nocase2,maxcsf,&
-       maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,npattern2,&
-       nspincp,N1s,verbose,spincp,patternmap,offspincp)
+       maxdet,ncsfs,ndets,csfcoe,detvec,nspincp,N1s,verbose,spincp,&
+       patternmap,offspincp)
 
 !----------------------------------------------------------------------
 ! Generate the base determinant and base configuration

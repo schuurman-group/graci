@@ -1,7 +1,7 @@
 !**********************************************************************
 ! Routines for the pre-computation of the unique spin-coupling
 ! coefficients <w omega| T_pq^(1,k) |w' omega'> for triplet spin tensor
-! operators T_pq^(1,k), k=0,+1
+! operators T_pq^(1,k), k=+1
 !**********************************************************************
 ! Follows the formalism detailed in
 !
@@ -17,37 +17,28 @@
 !           coefficients between nomax and nomax+2 open shells are not
 !           currently computed.
 !**********************************************************************
-module spin_coupling_triplet
+module spin_coupling_k1
 
   implicit none
 
   private
   
-  public :: generate_triplet_coupling_coefficients
+  public :: scc_k1
   
 contains
   
 !######################################################################
-! generate_triplet_coupling_coefficients:
-!
-! Generates the unique triplet spin-coupling coefficients for a given
-! pair of bra and ket spin multiplicities
-!
-! Considers a single component of the triplet spin tensor operator
-! T^(1,k) indexed by the input variable kindx 
+! scc_k1: Generates the unique k=+1 component triplet spin-coupling
+!         coefficients for a given pair of bra and ket spin
+!         multiplicities
 !######################################################################
-  subroutine generate_triplet_coupling_coefficients(kindx,imultB,&
-       imultK,nocase1,nocase2,maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,&
-       detvecB,maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
-       npattern1,npattern2,nspincp,N1s,verbose,spincp,patternmap,&
-       offspincp)
+  subroutine scc_k1(imultB,imultK,nocase1,nocase2,maxcsfB,maxdetB,&
+       ncsfsB,ndetsB,csfcoeB,detvecB,maxcsfK,maxdetK,ncsfsK,ndetsK,&
+       csfcoeK,detvecK,nspincp,N1s,verbose,spincp,patternmap,offspincp)
 
     use constants
     use iomod
     use timing
-
-    ! Component of the triplet spin tensor operator to use
-    integer(is), intent(in) :: kindx
 
     ! Bra and ket spin multiplicities
     integer(is), intent(in) :: imultB,imultK
@@ -74,9 +65,6 @@ contains
     integer(ib), intent(in)  :: detvecB(maxdetB,nocase2)
     integer(ib), intent(in)  :: detvecK(maxdetK,nocase2)
     
-    ! Number of Case 1 and Case 2 patterns
-    integer(is), intent(out) :: npattern1,npattern2
-
     ! Number of unique spin coupling coefficients
     integer(is), intent(out) :: nspincp(2)
 
@@ -96,12 +84,7 @@ contains
 
     ! Spin coupling coefficient offsets for the various
     ! different cases
-
-    ! THIS WILL NEED RE-DIMENSIONING DEPENDING ON THE
-    ! SPIN-TENSOR OPERATOR CONSIDERED
-    ! SO, IN GENERAL, WE SHOULD MAKE THIS ARRAY ALLOCATABLE
-    ! IN BITGLOBAL
-    integer(is), intent(out) :: offspincp(4)
+    integer(is), allocatable :: offspincp(:)
 
     ! Timing variables
     real(dp)                 :: tcpu_start,tcpu_end,twall_start,twall_end
@@ -126,68 +109,40 @@ contains
     endif
 
 !----------------------------------------------------------------------
-! Check on the component of the triplet spin tensor operator under
-! consideration
-!----------------------------------------------------------------------
-! Note that we only support the calculation of coupling coefficients
-! for the k=0 and k=+1 components, as the k=-1 and +1 components are
-! linked via T^(1,k=+1) = -[T^(1,k=-1)]^\dagger
-!----------------------------------------------------------------------
-    if (kindx /= 0 .and. kindx /= 1) then
-       write(ak,'(i0)') kindx
-       errmsg='Illegal input spin tensor operator component:' &
-            //trim(ak)
-       call error_control
-    endif
-
-!----------------------------------------------------------------------
 ! Check on the bra and ket spin multiplicities
 !----------------------------------------------------------------------
-    ! k=0 only makes sense for equal bra and ket spin multiplicities
-    if (kindx == 0 .and. imultB /= imultK) then
-       errmsg='Bra and ket multiplicities not the same: ' &
-            //'k=0 makes no sense'
+    ! k=+1 only makes sense if the bra and ket total spins differ
+    ! by one
+    SB=0.5d0*(dble(imultB)-1.0d0)
+    SK=0.5d0*(dble(imultK)-1.0d0)
+    if (abs(SB-SK) /= 1.0d0) then
+       errmsg='|S_bra - S_ket| != 0: k=+1 makes no sense'
        call error_control
     endif
 
-    ! k=+1 only makes sense if the bra and ket total spins differ
-    ! by one
-    if (kindx == 1) then
-       SB=0.5d0*(dble(imultB)-1.0d0)
-       SK=0.5d0*(dble(imultK)-1.0d0)
-       if (abs(SB-SK) /= 1.0d0) then
-          errmsg='|S_bra - S_ket| != 0: k=+1 makes no sense'
-          call error_control
-       endif
-    endif
-    
 !----------------------------------------------------------------------
 ! Compute the number of unique spin coupling coefficients for the
 ! spin multiplicity under consideration
 !----------------------------------------------------------------------
-    select case(kindx)
-    case(0)
-       ! k=0       
-       errmsg='k=0 not yet implemented'
-       call error_control
-    case(1)
-       ! k=1
-       call get_nunique_kplus(kindx,imultB,imultK,nocase1,nocase2,&
-            ncsfsB,ncsfsK,nspincp)
-    end select
-
+    call get_nunique_k1(imultB,imultK,nocase1,nocase2,ncsfsB,ncsfsK,&
+         nspincp)
+    
 !----------------------------------------------------------------------
 ! Output some information about what we are doing
 !----------------------------------------------------------------------
-    if (verbose) call print_triplet_spincp_info(kindx,imultB,imultK,&
-         nspincp)
+    if (verbose) call print_spincp_info_k1(imultB,imultK,nspincp)
 
 !----------------------------------------------------------------------
 ! Allocate the spin coupling coefficient arrays
 !----------------------------------------------------------------------
-    call init_triplet_spincp_arrays(kindx,imultB,imultK,nocase1,&
-         nocase2,ncsfsB,ncsfsK,nspincp,npattern1,npattern2,verbose,&
-         spincp,spincpdim,offspincp)
+    call init_spincp_k1(imultB,imultK,nocase1,nocase2,ncsfsB,ncsfsK,&
+         nspincp,verbose,spincp,spincpdim,offspincp)
+
+!----------------------------------------------------------------------
+! Allocate the pattern value -> array index mapping array
+!----------------------------------------------------------------------
+    call init_patternmap_k1(imultB,imultB,nocase1,nocase2,ncsfsB,&
+         ncsfsK,patternmap,mapdim)
     
     STOP
 
@@ -205,23 +160,22 @@ contains
     
     return
     
-  end subroutine generate_triplet_coupling_coefficients
+  end subroutine scc_k1
 
 !######################################################################
-! get_nunique_kplus: Computes the total number of unique spin coupling
-!                    coefficients as a function of the bra and ket spin
-!                    multiplicities and the maximum number of open
-!                    shells
+! get_nunique_k1: Computes the total number of *unique* spin
+!                 coupling coefficients as a function of the bra
+!                 and ket spin multiplicities and the maximum number
+!                 of open shells
 !######################################################################
-  subroutine get_nunique_kplus(kindx,imultB,imultK,nocase1,nocase2,&
-       ncsfsB,ncsfsK,nspincp)
+  subroutine get_nunique_k1(imultB,imultK,nocase1,nocase2,ncsfsB,&
+       ncsfsK,nspincp)
 
     use constants
-    use math
-    
+        
     implicit none
 
-    integer(is), intent(in)  :: kindx,imultB,imultK,nocase1,nocase2
+    integer(is), intent(in)  :: imultB,imultK,nocase1,nocase2
     integer(is), intent(in)  :: ncsfsB(0:nocase2),ncsfsK(0:nocase2)
     integer(is), intent(out) :: nspincp(2)
     
@@ -237,7 +191,6 @@ contains
     nspincp(1)=0
 
     ! Loop over numbers of open shells
-    ! *** This is implicitly assuming that k=+1 ***
     do nopen=1,nocase1
        
        ! Number of patterns
@@ -259,7 +212,6 @@ contains
     nspincp(2)=0
     
     ! Loop over numbers of open shells
-    ! *** This is implicitly assuming that k=+1 ***
     do nopen=2,nocase1
 
        ! Number of patterns
@@ -276,35 +228,28 @@ contains
     
     return
     
-  end subroutine get_nunique_kplus
+  end subroutine get_nunique_k1
 
 !######################################################################
-! print_triplt_spincp_info: Printing of some information about the
-!                           triplet spin coupling coefficients being
-!                           calculated
+! print_spincp_info_k1: Printing of some information about the
+!                       k=+1 component triplet spin coupling
+!                       coefficients being calculated
 !######################################################################
-  subroutine print_triplet_spincp_info(kindx,imultB,imultK,nspincp)
+  subroutine print_spincp_info_k1(imultB,imultK,nspincp)
     
     use constants
         
     implicit none
 
-    integer(is), intent(in) :: kindx,imultB,imultK
+    integer(is), intent(in) :: imultB,imultK
     integer(is), intent(in) :: nspincp(2)
     
     integer(is)             :: n,i
-    character(len=10)       :: ak
     
 !----------------------------------------------------------------------
 ! Triplet spin tensor component
 !----------------------------------------------------------------------
-    if (kindx == 0) then
-       ak='0'
-    else if (kindx == 1) then
-       ak='+1'
-    endif
-    
-    write(6,'(/,x,a)') 'Spin tensor component: '//trim(ak)
+    write(6,'(/,x,a)') 'Spin tensor component: +1'
     
 !----------------------------------------------------------------------
 ! Spin multiplicities
@@ -330,37 +275,160 @@ contains
         
     return
     
-  end subroutine print_triplet_spincp_info
+  end subroutine print_spincp_info_k1
     
 !######################################################################
-! init_triplet_spincp_arrays: Allocation and initialisation of the
-!                             various spin coupling coefficient arrays
+! init_spincp_k1: Allocation and initialisation of the various spin
+!                 coupling coefficient arrays for the k=+1 component
+!                 of the triplet spin tensor operator
 !######################################################################
-  subroutine init_triplet_spincp_arrays(kindx,imultB,imultK,nocase1,&
-       nocase2,ncsfsB,ncsfsK,nspincp,npattern1,npattern2,verbose,&
-       spincp,spincpdim,offspincp)
+  subroutine init_spincp_k1(imultB,imultK,nocase1,nocase2,ncsfsB,&
+       ncsfsK,nspincp,verbose,spincp,spincpdim,offspincp)
 
     use constants
-
+    
     implicit none
 
-    integer(is), intent(in)  :: kindx,imultB,imultK,nocase1,nocase2
+    integer(is), intent(in)  :: imultB,imultK,nocase1,nocase2
     integer(is), intent(in)  :: ncsfsB(0:nocase2),ncsfsK(0:nocase2)
     integer(is), intent(in)  :: nspincp(2)
-    integer(is), intent(out) :: npattern1,npattern2
     integer(is), intent(out) :: spincpdim(3)
-    integer(is), intent(out) :: offspincp(4)
+    integer(is), allocatable :: offspincp(:)
     real(dp), allocatable    :: spincp(:)
     logical, intent(in)      :: verbose
         
-    integer(is)              :: nopen
+    integer(is)              :: nopen,npat,n1,n2a,n2b
     real(dp)                 :: mem
 
+!----------------------------------------------------------------------
+! Numbers of spin coupling coefficients to be stored in the spincp
+! array
+!----------------------------------------------------------------------
+    ! Case 1 coefficients
+    ! We will explicitly store: (i) 1a i>j, (ii) 1a i<j,
+    !                         (iii) 1b i>j, (iv) 1b i<j
+    spincpdim(1)=2*nspincp(1)
+       
+    ! Case 1 coefficients
+    ! We will explicitly store: (i) 2a i>j, (ii) 2a i<j,
+    !                         (iii) 2b i>j, (iv) 2b i<j
+    spincpdim(2)=2*nspincp(2)
+    
+    ! Total number of coefficients
+    spincpdim(3)=sum(spincpdim(1:2))
+
+!----------------------------------------------------------------------
+! Allocate the spin coupling coefficient and offset arrays
+!----------------------------------------------------------------------    
+    ! Spin coupling coefficients
+    allocate(spincp(spincpdim(3)))
+    spincp=0.0d0
+
+    ! Offsets
+    allocate(offspincp(6))
+    offspincp=0
+    
+!----------------------------------------------------------------------
+! Number of unique Case 1a, 1b, 2a and 2b coefficients
+!----------------------------------------------------------------------
+    ! Case 1a and 1b
+    n1=nspincp(1)/2
+
+    ! Case 2a and 2b
+    n2a=0
+    n2b=0
+    ! Loop over numbers of open shells
+    do nopen=2,nocase1
+       ! Number of patterns
+       npat=(nopen)*(nopen-1)/2
+       ! Case 2a: N_bra = N_ket + 2
+       n2a=n2a+npat*ncsfsB(nopen)*ncsfsK(nopen-2)
+       ! Case 2b: N_bra = N_ket - 2
+       n2b=n2b+npat*ncsfsB(nopen-2)*ncsfsK(nopen)
+    enddo
+       
+!----------------------------------------------------------------------
+! Offsets for the various different spin coupling coefficients within
+! the spincp array
+!----------------------------------------------------------------------
+! The spin coupling coefficients will be stored in the order
+! ([1a i>j], [1a i<j], [1b i>j], [1b i<j], [2a i>j], [2a i<j],
+!  [2b i>j], [2b i<j])
+!----------------------------------------------------------------------
+! The offsets correspond to the shifts that will be needed to be added
+! to the pattern indices to reach each block of coefficients in the
+! spincp array
+!----------------------------------------------------------------------
+    ! Case 1a, i<j
+    offspincp(1)=n1
+    
+    ! Case 1b, i>j
+    offspincp(2)=2*n1
+    
+    ! Case 1b, i<j
+    offspincp(3)=3*n1
+    
+    ! Case 2a, i<j
+    offspincp(4)=n2a
+    
+    ! Case 2b, i>j
+    offspincp(5)=2*n2a
+    
+    ! Case 2b, i<j
+    offspincp(6)=2*n2a+n2b
+
+!----------------------------------------------------------------------
+! Output the memory used
+!----------------------------------------------------------------------
+    mem=spincpdim(3)*8/1024.0d0**2
+    
+    if (verbose) write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',&
+         mem,'MB'
     
     return
     
-  end subroutine init_triplet_spincp_arrays
+  end subroutine init_spincp_k1
 
 !######################################################################
+! init_patternmap_k1: Allocation and initialisation of the array
+!                     holding the pattern value -> array index mapping
+!######################################################################
+  subroutine init_patternmap_k1(imultB,imultK,nocase1,nocase2,ncsfsB,&
+       ncsfsK,patternmap,mapdim)
+
+    use constants
+    
+    implicit none
+
+    integer(is), intent(in)  :: imultB,imultK
+    integer(is), intent(in)  :: nocase1,nocase2
+    integer(is), intent(in)  :: ncsfsB(0:nocase2),ncsfsK(0:nocase2)
+    integer(is), intent(out) :: mapdim
+    integer(is), allocatable :: patternmap(:)
+
+!----------------------------------------------------------------------
+! Maximum possible pattern value
+!----------------------------------------------------------------------
+    ! Case 1 pattern values
+
+    ! Where did this come from?
+    !if (ncsfs(nocase1) /= 0) then
+    !   mapdim=2**(nocase1+1)-4
+    !else
+    !   mapdim=2**nocase1-4
+    !endif
+
+    ! Case 2 pattern values
+
+    ! HOW DOES THIS CHANGE NOW THAT WE ARE ONLY CONSIDERING
+    ! 1-ELECTRON MATRIX ELEMENTS?
+    ! I.E., NOW THAT WE ARE ONLY CONSIDERING NUMBERS OF OPEN SHELLS
+    ! UP TO NOCASE1=NOMAX
+    
+    return
+    
+  end subroutine init_patternmap_k1
+    
+!######################################################################
   
-end module spin_coupling_triplet
+end module spin_coupling_k1

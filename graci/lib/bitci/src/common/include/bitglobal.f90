@@ -49,13 +49,11 @@ module bitglobal
   !
   integer(is)              :: nspincp(2)      ! Number of unique spin coupling
                                               ! coefficients 
-  integer(is)              :: npattern1,&     ! Number of Case 1 and Case 2
-                              npattern2       ! patterns
   integer(ib), allocatable :: N1s(:)          ! Bit strings comprised of N 1's
 
   integer(is), allocatable :: patternmap(:)   ! Pattern value -> array index
                                               ! mapping
-  integer(is)              :: offspincp(4)    ! Spincp array offsets for the
+  integer(is), allocatable :: offspincp(:)    ! Spincp array offsets for the
                                               ! different coefficient cases
   real(dp), allocatable    :: spincp(:)       ! All spin coupling coefficients
   

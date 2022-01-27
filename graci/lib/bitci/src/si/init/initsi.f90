@@ -17,7 +17,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   use setsym
   use csf
   use spin_coupling
-  use spin_coupling_triplet
+  use spin_coupling_k1
   use iomod
   
   implicit none
@@ -248,8 +248,8 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
      !                    over the singlet excitation operators E_pq
      verbose=.false.
      call generate_coupling_coefficients(imultB,nocase1,nocase2,&
-          maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
-          npattern2,nspincp,N1s,verbose,spincp,patternmap,offspincp)
+          maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,nspincp,N1s,&
+          verbose,spincp,patternmap,offspincp)
 
   case('soc')
      ! SOC calculation: calculation of spin-coupling coefficients for
@@ -259,23 +259,16 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
      if (imultB == imultK) then
         ! Same spin multiplicities: compute spin-coupling coefficients
         ! for T_pq^(1,k=0)
-        call generate_triplet_coupling_coefficients(0,&
-             imultB,imultK,&
-             nocase1,nocase2,&
-             maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
-             maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
-             npattern1,npattern2,nspincp,&
-             N1s,verbose,spincp,patternmap,offspincp)
+        errmsg='The k=0 SCC code needs writing'
+        call error_control
      else
         ! Different spin multiplicities: compute spin-coupling
         ! coefficients for T_pq^(1,k=+1)
-        call generate_triplet_coupling_coefficients(1,&
-             imultB,imultK,&
+        call scc_k1(imultB,imultK,&
              nocase1,nocase2,&
              maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
              maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
-             npattern1,npattern2,nspincp,&
-             N1s,verbose,spincp,patternmap,offspincp)
+             nspincp,N1s,verbose,spincp,patternmap,offspincp)
      endif
      
   end select
