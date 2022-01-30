@@ -618,7 +618,7 @@ contains
     do n=1,nopen+1
 
        ! Cycle if we are at an unset bit
-       if (.not.btest(ws1,n-1)) cycle
+       if (.not. btest(ws1,n-1)) cycle
 
        ! Increment the detvec open shell orbital counter
        vecindx=vecindx+1
@@ -652,7 +652,7 @@ contains
     do n=1,nopen+1
 
        ! Cycle if we are at an unset bit
-       if (.not.btest(ws2,n-1)) cycle
+       if (.not. btest(ws2,n-1)) cycle
 
        ! Increment the detvec open shell orbital counter
        vecindx=vecindx+1
