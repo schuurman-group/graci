@@ -1064,6 +1064,18 @@ contains
        deallocate(work)
        
     enddo
+
+!----------------------------------------------------------------------
+! Fill in the Case 2a i<j and 2b i<j spin-coupling coefficients
+!----------------------------------------------------------------------
+! Note that for the k=+1 component of the triplet spin tensor operator,
+! the following relations hold:
+!
+! (i)  2a i<j = - 2a i>j
+!
+! (ii) 2b i<j = - 2b i>j
+!----------------------------------------------------------------------
+    
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -1278,10 +1290,10 @@ contains
 ! wsK, i.e., the indices of the first and second unset bits.
 !----------------------------------------------------------------------
 ! As we are considering 2a i>j coefficients here, we are taking the
-! first zero in wsK to correspond to the doubly-occupied MO. If we
-! ever change this, then the creation operator index will have to be
-! determined before the annihilation operator index due to the use of
-! the bit clearing operation.
+! first zero in wsK to correspond to the doubly-occupied MO, i.e., to
+! the annihilator index. If we ever change this, then the creation
+! operator index will have to be determined before the annihilation
+! operator index due to the use of the bit clearing operation.
 !----------------------------------------------------------------------
     ! Temporary bit string array
     b=not(wsK)
@@ -1436,6 +1448,268 @@ contains
 
     ! Here we are considering excitations of the form
     ! Ket: 1 1 -> Bra: 0 2
+
+!----------------------------------------------------------------------
+! Save the actual value of n_int and then set this to 1 for use in the
+! following. This allows us to use the slater_condon module to
+! calculate the spin coupling coefficients.
+!----------------------------------------------------------------------
+    n_int_save=n_int
+    n_int=1
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    ! Dimensions
+    ndetK=ndetsK(nopenK)
+    ndetB=ndetsB(nopenB)
+
+    ! Determinant bit strings
+    allocate(dK(2,ndetK))
+    allocate(dB(2,ndetB))
+    dK=0_ib
+    dB=0_ib
+
+    ! Phase factor matrix
+    allocate(phasemat(ndetB,ndetK))
+    phasemat=0.0d0
+
+    ! Phase factor matrix contracted with the transpose of the CSF
+    ! coefficient matrix
+    allocate(pcT(ndetB,ncsfK))
+    pcT=0.0d0
+    
+    ! Working arrays
+    allocate(coeK(ncsfK,ndetK))
+    coeK=0.0d0
+    allocate(coeB(ncsfB,ndetB))
+    coeB=0.0d0
+
+!----------------------------------------------------------------------
+! Generate the determinants the bra CSF, with N singly-occupied MOs,
+! one doubly occupied MO, and one unoccupied MO
+!----------------------------------------------------------------------
+    ! Initialise the bit string to all unset bits
+    dB=0_ib
+
+    ! Initialise the detvec open shell counter
+    vecindx=0
+
+    ! Initialise the unset bit counter
+    nunset=0
+
+    ! Loop over orbitals in the spatial occupation
+    do n=1,nopenB+2
+
+       ! We are considering 2b i>j terms here
+       ! So, if we are at the first unset bit, then treat it as an
+       ! unoccupied MO, else treat it as a doubly-occupied MO
+       if (.not. btest(wsB,n-1)) then
+          nunset=nunset+1
+          if (nunset == 1) then
+             ! Unoccupied MO: cycle
+             cycle
+          else if (nunset == 2) then
+             ! Position of the doubly-occupied MO
+             n2=n
+             ! Doubly-occupied MO: set both alpha and beta string bits
+             ! in all determinants
+             do idet=1,ndetB
+                dB(1,idet)=ibset(dB(1,idet),n-1)
+                dB(2,idet)=ibset(dB(2,idet),n-1)
+             enddo
+             cycle
+          endif
+       endif
+
+       ! Increment the detvec open shell orbital counter
+       vecindx=vecindx+1
+
+       ! Loop over bra determinants
+       do idet=1,ndetB
+          
+          ! Add the next spin orbital
+          if (btest(detvecB(idet,nopenB),vecindx-1)) then
+             ! Occupied alpha spin-orbital
+             dB(1,idet)=ibset(dB(1,idet),n-1)
+          else
+             ! Occupied beta spin-orbital
+             dB(2,idet)=ibset(dB(2,idet),n-1)
+          endif
+
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Generate the determinants for the ket CSFs, with N+2 singly-occupied
+! MOs
+!----------------------------------------------------------------------
+    ! Initialise the bit string to all unset bits
+    dK=0_ib
+
+    ! Loop over ket determinants
+    do idet=1,ndetK
+    
+       ! Loop over orbitals in the simplified spatial occupation
+       do n=1,nopenK
+
+          ! Add the next spin orbital
+          if (btest(detvecK(idet,nopenK),n-1)) then
+             ! Occupied alpha spin-orbital
+             dK(1,idet)=ibset(dK(1,idet),n-1)
+          else
+             ! Occupied beta spin-orbital
+             dK(2,idet)=ibset(dK(2,idet),n-1)
+          endif
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Determine the phase factors associated with operating on the
+! open-shell-only determinants to yield the bra determinants (which
+! contain a single doubly-occupied MO).
+! Note that the phase factor will be the same for all determinants
+! with the same spatial configuration.
+!----------------------------------------------------------------------
+    ! Number of unpaired alpha electrons
+    noa=popcnt(dB(1,1))
+
+    ! Number of electrons before the index of the alpha-spin
+    ! creation operator
+    n2a=0
+    if (n2 > 1) then
+       do i=1,n2-1
+          if (btest(dB(1,1),i-1)) n2a=n2a+1
+       enddo
+    endif
+
+    ! Number of electrons before the index of the beta-spin
+    ! creation operator
+    n2b=noa+1
+    if (n2 > 1) then
+       do i=1,n2-1
+          if (btest(dB(2,1),i-1)) n2b=n2b+1
+       enddo
+    endif
+    
+    ! Phase factor
+    docc_phase=(-1)**(n2a+n2b)
+
+!----------------------------------------------------------------------
+! Determine the indices of the triplet excitation operator
+! T_ij^(1,k=+1)
+!----------------------------------------------------------------------
+! Remember that these are given by the positions of the two 0's in
+! wsB, i.e., the indices of the first and second unset bits.
+!----------------------------------------------------------------------
+! As we are considering 2b i>j coefficients here, we are taking the
+! first zero in wsB to correspond to the unoccupied MO, i.e., to the
+! annihilator index. If we ever change this, then the creation operator
+! index will have to be determined before the annihilation operator
+! index due to the use of the bit clearing operation.
+!----------------------------------------------------------------------
+    ! Temporary bit string array
+    b=not(wsB)
+
+    ! Annihilation operator index
+    ia=trailz(b)+1
+    
+    ! Creation operator index
+    b=ibclr(b,ia-1)
+    ic=trailz(b)+1
+
+!----------------------------------------------------------------------
+! Compute the matrix of phase factors for all pairs of determinants
+! for the spin-flip excitation operator a_ic,alpha^\dagger a_ia,beta
+!----------------------------------------------------------------------
+! phasemat(I,J) = < det_I | a_ic,alpha^\dagger a_ia,beta | det_J >
+!----------------------------------------------------------------------
+    ! Initialisation
+    phasemat=0.0d0
+
+    ! Loop over ket determinants
+    do iket=1,ndetK
+
+       ! Loop over bra determinants
+       do ibra=1,ndetB
+
+          ! Get the excitation degree
+          nexci=exc_degree_det(dB(:,ibra),dK(:,iket))
+          
+          ! Cycle if the excitation degree is not equal to 1
+          if (nexci /= 1) cycle
+
+          ! Get the indices of the spin-orbitals involved in the
+          ! excitations linking the bra and ket determinants
+          call exc(dK(:,iket),dB(:,ibra),p,h)
+          call list_from_bitstring(p(ialpha),plist(:,ialpha),maxex)
+          call list_from_bitstring(h(ialpha),hlist(:,ialpha),maxex)
+          call list_from_bitstring(p(ibeta),plist(:,ibeta),maxex)
+          call list_from_bitstring(h(ibeta),hlist(:,ibeta),maxex)
+
+          ! Make sure that the hole is in a beta spin orbital
+          if (hlist(1,2) == 0) cycle
+
+          ! Cycle if the indices do not match those of the creation
+          ! and annihilation operators
+          ip=plist(1,1)
+          ih=hlist(1,2)
+          if (ip /= ic .or. ih /= ia) cycle
+
+          ! Phase factor
+          phase=phase_slow(dK(:,iket),hlist,plist,maxex,nexci)
+          phasemat(ibra,iket)=dble(phase)
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Compute the matrix of spin coupling coefficients for the current
+! pattern index
+!----------------------------------------------------------------------
+    ! Working coefficient arrays
+    coeB=csfcoeB(1:ncsfB,1:ndetB,nopenB)
+    coeK=csfcoeK(1:ncsfK,1:ndetK,nopenK)
+
+    ! Multiply the bra CSF expansion coefficients by the phase factors
+    ! associated with creating the doubly-occupied MO
+    coeB=coeB*docc_phase
+
+    ! Contract the phase matrix with the ket CSF expansion coefficients,
+    ! pcT = phasemat * transpose(csfcoeK)
+    call dgemm('N','T',ndetB,ncsfK,ndetK,1.0d0,phasemat,ndetB,coeK,&
+         ncsfK,0.0d0,pcT,ndetB)
+
+    ! Contract the bra CSF expansion coefficients with the intermediate
+    ! matrix pcT to yield the spin coupling coefficients
+    call dgemm('N','N',ncsfB,ncsfK,ndetB,1.0d0,coeB,ncsfB,pcT,ndetB,&
+         0.0d0,spincoe,ncsfB)
+
+    ! Up to now, we have computed the matrix elements
+    ! < CSF_B | a_ialpha^dagger a_jbeta | CSF_K >
+    !
+    ! Multiply by -1 to get the matrix elements
+    ! < CSF_B | T_ij^(1,k=+1) | CSF_K >
+    spincoe=-spincoe
+
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(dK)
+    deallocate(dB)
+    deallocate(phasemat)
+    deallocate(pcT)
+    deallocate(coeK)
+    deallocate(coeB)
+    
+!----------------------------------------------------------------------
+! Reset n_int
+!----------------------------------------------------------------------
+    n_int=n_int_save
     
     return
     
