@@ -1019,7 +1019,6 @@ contains
     real(dp), allocatable    :: phasemat(:,:),pcT(:,:)
     real(dp), allocatable    :: coe1(:,:),coe2(:,:)
 
-
     ! Phase factor accociated with creating the doubly-occupied
     ! MO in the ket determinants from the determinants with
     ! only unoccupied MOs
@@ -1081,7 +1080,7 @@ contains
 
        ! If we are at the first unset bit, then treat it as a
        ! doubly-occupied MO, else treat it as an unoccupied MO
-       if (.not.btest(ws1,n-1)) then
+       if (.not. btest(ws1,n-1)) then
           nunset=nunset+1
           if (nunset == 1) then
              ! Position of the doubly-occupied MO
@@ -1266,7 +1265,7 @@ contains
     coe1=coe1*docc_phase
     
     ! Contract the phase matrix with the CSF 1 expansion coefficients,
-    ! pcT = phasemat * transpose(csfcoe2)
+    ! pcT = phasemat * transpose(csfcoe1)
     call dgemm('N','T',ndet2,ncsf1,ndet1,1.0d0,phasemat,ndet2,coe1,&
          ncsf1,0.0d0,pcT,ndet2)
     
