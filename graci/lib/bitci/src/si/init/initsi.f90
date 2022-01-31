@@ -199,12 +199,14 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
      ! Calculation of matrix elements over the triplet excitation
      ! operators: used in the calculation of SOC matrix elemens
 
-     ! SOC calculations don't make sense unless
-     ! Delta S = 0, -1, or +1
+     ! SOC calculations don't make sense unless Delta S = 0, +1
+     ! because we are only considering the matrix elements
+     ! over T_pq^(1,k), k=0,+1 (the k=-1 terms can be generated
+     ! from the k=+1 ones)
      sb=dble(imultB-1)/2.0
      sk=dble(imultk-1)/2.0
-     if (abs(sb-sk) > 1.0d0+tiny) then
-        errmsg='Error in bitsi_intialise: |S_bra-S_ket|>1'
+     if (sb-sk > 1.0d0+tiny .or. sb-sk < 0.0d0-tiny) then
+        errmsg='Error in bitsi_intialise: |S_bra-S_ket| = 0 or 1'
         call error_control
      endif
      

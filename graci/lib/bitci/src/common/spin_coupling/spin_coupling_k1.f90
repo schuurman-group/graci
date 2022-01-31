@@ -149,7 +149,7 @@ contains
 !----------------------------------------------------------------------
     call case1_coeffs_k1(nocase1,nocase2,maxcsfB,maxcsfK,maxdetB,&
          maxdetK,ncsfsB,ncsfsK,ndetsB,ndetsK,csfcoeB,csfcoeK,detvecB,&
-         detvecK,spincpdim,spincp,nspincp,mapdim,patternmap)
+         detvecK,spincpdim,spincp,nspincp,mapdim,patternmap,offspincp)
     
     STOP
 
@@ -448,7 +448,7 @@ contains
 !######################################################################
   subroutine case1_coeffs_k1(nocase1,nocase2,maxcsfB,maxcsfK,maxdetB,&
        maxdetK,ncsfsB,ncsfsK,ndetsB,ndetsK,csfcoeB,csfcoeK,detvecB,&
-       detvecK,spincpdim,spincp,nspincp,mapdim,patternmap)
+       detvecK,spincpdim,spincp,nspincp,mapdim,patternmap,offspincp)
 
     use constants
     use bitutils
@@ -468,6 +468,7 @@ contains
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim
     integer(is), intent(out) :: patternmap(0:mapdim)
+    integer(is), intent(in)  :: offspincp(6)
     
     integer(is)              :: nopen,is1,is2,icsf1,icsf2
     integer(is)              :: nspB,nspK,ndetB,ndetK
@@ -475,7 +476,7 @@ contains
     integer(ib), allocatable :: ws(:,:)
     integer(ib)              :: pattern
     real(dp)                 :: coeff
-    real(dp), allocatable    :: work(:),workT(:),work2(:,:)
+    real(dp), allocatable    :: work(:),workgt(:),worklt(:)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -499,7 +500,7 @@ contains
 
 !----------------------------------------------------------------------
 ! Compute the Case 1 a triplet spin coupling coefficients
-! < w' omega' | T_ij^(1,k=+1) | w omega > for i>j
+! < w' omega' | T_ij^(1,k=+1) | w omega > for i>j and i<j
 !----------------------------------------------------------------------
     ! Initialise the spincp offset
     ioff=1
@@ -519,8 +520,8 @@ contains
        ! Allocate the spin-coupling coefficient work array
        allocate(work(nspB*nspK))
 
-       ! Loop over the unique pairs of simplified spatial occupation
-       ! vectors
+       ! Loop over the *upper triangle* of unique pairs of simplified
+       ! spatial occupation vectors
        do is1=1,nopen
           do is2=is1+1,nopen+1
 
@@ -528,18 +529,91 @@ contains
              pattern=iand(ws(is1,nopen),ws(is2,nopen))
              patternmap(pattern)=ioff
 
-             ! Evaluate the Case 1a i>j spin coupling coefficients
-             ! for all bra and ket CSF pairs
-             call spincp_1a_igtj(ws(is1,nopen),ws(is2,nopen),&
-                  nopen,nocase2,maxcsfB,maxcsfK,maxdetB,maxdetK,nspB,&
-                  nspK,ndetB,ndetK,detvecB,detvecK,csfcoeB,csfcoeK,&
-                  work)
+             ! Compute the 1a i>j spin coupling coefficients
+             call spincp_1a(ws(is1,nopen),ws(is2,nopen),nopen,nocase2,&
+                  maxcsfB,maxcsfK,maxdetB,maxdetK,nspB,nspK,ndetB,&
+                  ndetK,detvecB,detvecK,csfcoeB,csfcoeK,work)
+
+             ! Save the 1a i>j spin coupling coefficients
+             istart=ioff
+             iend=ioff+nspB*nspK-1
+             spincp(istart:iend)=work
+
+             ! Compute the 1a i<j spin coupling coefficients
+             call spincp_1a(ws(is2,nopen),ws(is1,nopen),nopen,nocase2,&
+                  maxcsfB,maxcsfK,maxdetB,maxdetK,nspB,nspK,ndetB,&
+                  ndetK,detvecB,detvecK,csfcoeB,csfcoeK,work)
+
+             ! Save the 1a i<j spin coupling coefficients
+             istart=istart+offspincp(1)
+             iend=iend+offspincp(1)
+             spincp(istart:iend)=work
+             
+             ! Update the spincp offset
+             ioff=ioff+nspB*nspK
              
           enddo
        enddo
           
        ! Deallocate the spin-coupling coefficient work array
        deallocate(work)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the Case 1b spin-coupling coefficients
+!----------------------------------------------------------------------
+! Note that for the k=+1 component of the triplet spin tensor operator,
+! the following relations hold:
+!
+! (i)  1b i>j = 1a i<j
+!
+! (ii) 1b i<j = 1a i>j
+!----------------------------------------------------------------------
+    ! Initialise the spincp offset
+    ioff=1
+
+    ! Loop over numbers of open shells
+    do nopen=1,nocase1
+
+       ! No. bra and ket CSFs
+       nspB=ncsfsB(nopen)
+       nspK=ncsfsK(nopen)
+
+       ! Cycle if there are no bra or ket CSFs for this number of
+       ! open shells
+       if (nspB == 0 .or. nspK == 0) cycle
+
+       ! Allocate work arrays
+       allocate(workgt(nspB*nspK),worklt(nspB*nspK))
+
+       ! Loop over the *upper triangle* of unique pairs of simplified
+       ! spatial occupation vectors
+       do is1=1,nopen
+          do is2=is1+1,nopen+1
+
+             ! 1a i>j
+             istart=ioff
+             iend=ioff+nspB*nspK-1
+             workgt=spincp(istart:iend)
+
+             ! 1a i<j
+             worklt=spincp(istart+offspincp(1):iend+offspincp(1))
+
+             ! 1b i>j
+             spincp(istart+offspincp(2):iend+offspincp(2))=worklt
+
+             ! 1b i<j
+             spincp(istart+offspincp(3):iend+offspincp(3))=workgt
+             
+             ! Update the spincp offset
+             ioff=ioff+nspB*nspK
+             
+          enddo
+       enddo
+          
+       ! Deallocate work arrays
+       deallocate(workgt,worklt)
        
     enddo
        
@@ -553,13 +627,13 @@ contains
   end subroutine case1_coeffs_k1
 
 !######################################################################
-! spincp_1a_igtj: Computes a single batch of Case 1a i>j spin coupling
-!                 coefficients for the k=+1 component of the triplet
-!                 spin tensor operator
+! spincp_1a: Computes a single batch of Case 1a spin coupling
+!            coefficients for the k=+1 component of the triplet spin
+!            tensor operator
 !######################################################################
-  subroutine spincp_1a_igtj(ws1,ws2,nopen,nocase2,maxcsfB,maxcsfK,&
-       maxdetB,maxdetK,nspB,nspK,ndetB,ndetK,detvecB,detvecK,csfcoeB,&
-       csfcoeK,spincoe)
+  subroutine spincp_1a(ws1,ws2,nopen,nocase2,maxcsfB,maxcsfK,maxdetB,&
+       maxdetK,nspB,nspK,ndetB,ndetK,detvecB,detvecK,csfcoeB,csfcoeK,&
+       spincoe)
 
     use constants
     use bitutils
@@ -787,7 +861,7 @@ contains
     
     return
     
-  end subroutine spincp_1a_igtj
+  end subroutine spincp_1a
 
 !######################################################################
   
