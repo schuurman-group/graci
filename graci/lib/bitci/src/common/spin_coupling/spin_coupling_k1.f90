@@ -982,7 +982,7 @@ contains
 
 !----------------------------------------------------------------------
 ! Compute the Case 2a i>j spin coupling coefficients for N > 0
-! i.e., < w' omega' | T_ij^(1,k=+1) | w omega > for i>j
+! i.e., Ket: 2 0 -> Bra: 1 1
 !----------------------------------------------------------------------
     ! Loop over numbers of ket open shells
     do nopen=1,nocase1-2
@@ -1007,6 +1007,11 @@ contains
                nopen+2,nocase2,maxcsfB,maxcsfK,maxdetB,maxdetK,&
                ndetsB,ndetsK,detvecB,detvecK,csfcoeB,csfcoeK,nspK,&
                nspB,work)
+
+          ! Save the 2a i>j spin coupling coefficients
+          istart=ioff
+          iend=ioff+nspB*nspK-1
+          spincp(istart:iend)=work
           
           ! Update the spincp offset
           ioff=ioff+nspB*nspK
@@ -1016,6 +1021,48 @@ contains
        ! Deallocate the spin-coupling coefficient work array
        deallocate(work)
 
+    enddo
+
+!----------------------------------------------------------------------
+! Compute the Case 2b i>j spin coupling coefficients
+! i.e., Ket: 1 1 -> Bra: 0 2
+!----------------------------------------------------------------------
+    ! Initialise the spincp offset
+    ioff=spincpdim(1)+offspincp(5)+1
+
+    ! Loop over numbers of ket open shells
+    do nopen=2,nocase1
+
+       ! Cycle if there are no bra or ket CSFs
+       if (ncsfsB(nopen-2) == 0 .or. ncsfsK(nopen) == 0) cycle
+
+       ! Allocate the spin-coupling coefficient work array
+       nspK=ncsfsK(nopen)
+       nspB=ncsfsB(nopen-2)
+       allocate(work(nspB*nspK))
+
+       ! Loop over the bra simplified spatial occupation vectors
+       do is2=1,(nopen)*(nopen-1)/2
+
+          ! Compute the 2b i>j spin coupling coefficients
+          call spincp_2b_k1(wsp(nopen),ws(is2,nopen-2),nopen,&
+               nopen-2,nocase2,maxcsfB,maxcsfK,maxdetB,maxdetK,&
+               ndetsB,ndetsK,detvecB,detvecK,csfcoeB,csfcoeK,nspK,&
+               nspB,work)
+          
+          ! Save the 2b i>j spin coupling coefficients
+          istart=ioff
+          iend=ioff+nspB*nspK-1
+          spincp(istart:iend)=work
+          
+          ! Update the spincp offset
+          ioff=ioff+nspB*nspK
+          
+       enddo
+          
+       ! Deallocate the spin-coupling coefficient work array
+       deallocate(work)
+       
     enddo
     
 !----------------------------------------------------------------------
@@ -1028,12 +1075,8 @@ contains
   end subroutine case2_coeffs_k1
 
 !######################################################################
-! spincp_2a_k1: Computes a batch of 2a k=+1 triplet spin-coupling
+! spincp_2a_k1: Computes a batch of 2a i>j k=+1 triplet spin-coupling
 !               coefficients
-!######################################################################
-! Note that here ws1 is the ket simplified occupation vector with
-! N=nopen1 open shells, and ws2 is the bra simplified occupation vector
-! with N+2=nopen2 open shells
 !######################################################################
   subroutine spincp_2a_k1(wsK,wsB,nopenK,nopenB,nocase2,maxcsfB,&
        maxcsfK,maxdetB,maxdetK,ndetsB,ndetsK,detvecB,detvecK,csfcoeB,&
@@ -1343,6 +1386,60 @@ contains
     return
     
   end subroutine spincp_2a_k1
+
+!######################################################################
+! spincp_2b_k1: Computes a batch of 2b i>j k=+1 triplet spin-coupling
+!               coefficients
+!######################################################################
+  subroutine spincp_2b_k1(wsK,wsB,nopenK,nopenB,nocase2,maxcsfB,&
+       maxcsfK,maxdetB,maxdetK,ndetsB,ndetsK,detvecB,detvecK,csfcoeB,&
+       csfcoeK,ncsfK,ncsfB,spincoe)
+
+    use constants
+    use bitutils
+    use slater_condon
+
+    integer(ib), intent(in)  :: wsK,wsB
+    integer(is), intent(in)  :: nopenK,nopenB,nocase2
+    integer(is), intent(in)  :: maxcsfB,maxcsfK,maxdetB,maxdetK
+    integer(is), intent(in)  :: ndetsB(0:nocase2),ndetsK(0:nocase2)
+    integer(ib), intent(in)  :: detvecB(maxdetB,nocase2)
+    integer(ib), intent(in)  :: detvecK(maxdetK,nocase2)
+    real(dp), intent(in)     :: csfcoeB(maxcsfB,maxdetB,nocase2)
+    real(dp), intent(in)     :: csfcoeK(maxcsfK,maxdetK,nocase2)
+    integer(is), intent(in)  :: ncsfK,ncsfB
+    real(dp), intent(out)    :: spincoe(ncsfB,ncsfK)
+    
+    integer(is)              :: icsfB,icsfK
+    integer(is)              :: idet,n,vecindx,nunset
+    integer(is)              :: iket,ibra,ispin
+    integer(is)              :: ic,ia,ih,ip
+    integer(ib)              :: b
+    integer(ib), allocatable :: dK(:,:),dB(:,:)
+    integer(is)              :: n_int_save
+    integer(ib)              :: phase_mask(2)
+    integer(is)              :: nexci
+    integer(ib)              :: p(2),h(2)
+    integer(is), parameter   :: maxex=2
+    integer(is)              :: plist(maxex,2),hlist(maxex,2)
+    integer(is)              :: phase
+    integer(is)              :: ndetK,ndetB
+    real(dp), allocatable    :: phasemat(:,:),pcT(:,:)
+    real(dp), allocatable    :: coeK(:,:),coeB(:,:)
+
+    ! Phase factor accociated with creating the doubly-occupied
+    ! MO in the ket determinants from the determinants with
+    ! only unoccupied MOs
+    integer(is)              :: docc_phase
+    integer(is)              :: n2,n2a,n2b,i
+    integer(is)              :: noa
+
+    ! Here we are considering excitations of the form
+    ! Ket: 1 1 -> Bra: 0 2
+    
+    return
+    
+  end subroutine spincp_2b_k1
 
 !######################################################################
   
