@@ -17,16 +17,19 @@ subroutine bitsi_finalise()
   !
   ! Deallocate arrays
   !
-  if (allocated(scrunit))     deallocate(scrunit)
-  if (allocated(scrname))     deallocate(scrname)
-  if (allocated(patternmap))  deallocate(patternmap)
-  if (allocated(N1s))         deallocate(N1s)
-  if (allocated(spincp))      deallocate(spincp)
-  if (allocated(offspincp))   deallocate(offspincp)
-  if (allocated(det0))        deallocate(det0)
-  if (allocated(conf0))       deallocate(conf0)
-  if (allocated(csfcoe))      deallocate(csfcoe)
-  if (allocated(detvec))      deallocate(detvec)
+  if (allocated(scrunit))      deallocate(scrunit)
+  if (allocated(scrname))      deallocate(scrname)
+  if (allocated(patternmap))   deallocate(patternmap)
+  if (allocated(patternmap1))  deallocate(patternmap1)
+  if (allocated(patternmap2a)) deallocate(patternmap2a)
+  if (allocated(patternmap2b)) deallocate(patternmap2b)
+  if (allocated(N1s))          deallocate(N1s)
+  if (allocated(spincp))       deallocate(spincp)
+  if (allocated(offspincp))    deallocate(offspincp)
+  if (allocated(det0))         deallocate(det0)
+  if (allocated(conf0))        deallocate(conf0)
+  if (allocated(csfcoe))       deallocate(csfcoe)
+  if (allocated(detvec))       deallocate(detvec)
 
   !
   ! To be on the safe side, scrub all other global variables

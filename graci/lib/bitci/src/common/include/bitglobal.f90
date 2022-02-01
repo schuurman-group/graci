@@ -182,6 +182,16 @@ module bitglobal
                                                   ! shells
   integer(ib), allocatable :: detvecB(:,:),&      ! Encoding of the determinants
                               detvecK(:,:)        ! contributing to the CSFs
+
+  !
+  ! Triplet spin-coupling coefficients
+  !
+  integer(is), allocatable :: patternmap1(:)  ! Case 1 pattern value -> array index
+                                              ! mapping
+  integer(is), allocatable :: patternmap2a(:) ! Case 2a pattern value -> array index
+                                              ! mapping
+  integer(is), allocatable :: patternmap2b(:) ! Case 2b pattern value -> array index
+                                              ! mapping
   
 end module bitglobal
 

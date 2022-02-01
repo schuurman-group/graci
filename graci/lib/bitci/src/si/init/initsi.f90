@@ -270,7 +270,8 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
              nocase1,nocase2,&
              maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
              maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
-             nspincp,N1s,verbose,spincp,patternmap,offspincp)
+             nspincp,N1s,verbose,spincp,patternmap1,patternmap2a,&
+             patternmap2b,offspincp)
      endif
      
   end select
