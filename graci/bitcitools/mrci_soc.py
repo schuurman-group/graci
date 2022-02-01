@@ -1,6 +1,6 @@
 """
-Module for the calculation of MRCI one-electron reduced
-transition density matrices
+Module for the calculation of MRCI triplet transition density
+matrices <psi_m|T_ij^(1,k)|psi'_n>, k=0,+1
 """
 
 import sys as sys
@@ -10,10 +10,10 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 
 @timing.timed
-def tdm(bra, ket, trans_list):
-    """Calculation of the MRCI 1-TDMs for all pairs of 
-      states in trans_list"""
-
+def triplet_tdm(bra, ket, trans_list):
+    """Calculation of the MRCI triplet TDMs for all pairs of
+       states in trans_list"""
+    
     # number of irreps
     nirr_ket = ket.n_irrep()
     nirr_bra = bra.n_irrep()
@@ -21,15 +21,15 @@ def tdm(bra, ket, trans_list):
     # number of molecular orbitals
     nmo = bra.scf.nmo
 
-    # bitci bra mrci wfn object
+     # bitci bra mrci wfn object
     bra_wfn = bra.bitci_mrci()
    
     # bitci ket mrci wfn object
     ket_wfn = ket.bitci_mrci()
 
-    # 1-TDMs for all irreps
-    rho = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
-    
+    # Triplet TDMs for all irreps
+    Tmat = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
+
     # Loop over pairs of irreps for the initial and final manifolds
     for ket_irr in range(nirr_ket):
         for bra_irr in range(nirr_bra):
@@ -49,8 +49,8 @@ def tdm(bra, ket, trans_list):
             bra_tot = bra.n_state_sym(bra_irr)
             ket_tot = ket.n_state_sym(ket_irr)
 
-            # 1-TDM array
-            rhoij = np.zeros((nmo*nmo*npairs), dtype=np.float64)
+            # Triplet TDM array
+            Tij = np.zeros((nmo*nmo*npairs), dtype=np.float64)
 
             # configuration and eigenvector files: bra wfn
             bra_conf = bra_wfn.conf_name[bra_irr]
@@ -60,27 +60,10 @@ def tdm(bra, ket, trans_list):
             ket_conf = ket_wfn.conf_name[ket_irr]
             ket_vec  = ket_wfn.ci_name[ket_irr]
 
-            # Compute the 1-TDMs for all states in this irrep
+            # Compute the triplet TDMs for all states in this irrep
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
-                    tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
+                    tdm_pairs, Tij,  bra_conf, bra_vec, ket_conf, 
                     ket_vec)
-            rhoij = libs.lib_func('transition_density_mrci', args)
-
-            # Add the 1-TDMs to the list
-            rho[bra_irr][ket_irr] = np.reshape(rhoij, 
-                                          (nmo, nmo, npairs),
-                                           order='F')
+            Tij  = libs.lib_func('soc_mrci', args)
             
-            ## Temporary: save the 1-TDMs to disk
-            #pairs = np.reshape(tdm_pairs, (npairs, 2), order='F')
-            #for n in range(npairs):
-            #    ibra = pairs[n][0]
-            #    iket = pairs[n][1]
-            #    if bra_irr == ket_irr and ibra == iket:
-            #        continue
-            #    f = 'xdm_'+str(bra_irr)+str(ibra)+'_' \
-            #        +str(ket_irr)+str(iket)
-            #    np.save(f, rho[bra_irr][ket_irr][:,:,n])
-
-    return rho
-
+    return Tmat

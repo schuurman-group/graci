@@ -5,87 +5,27 @@ elements
 
 import sys as sys
 import numpy as np
+import graci.properties.interaction as interaction
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
+import graci.bitcitools.mrci_soc as mrci_soc
 import graci.io.output as output
 import graci.utils.constants as constants
 
-class Spinorbit:
+class Spinorbit(interaction.Interaction):
     """Spin orbit coupling class. For now will only accept calculations
        for which the 'Molecule and 'Scf' objects are the same"""
     def __init__(self):
+        # parent attributes
+        super().__init__()
+        
         # user defined quanties 
-        self.init_states      = None
-        self.final_states     = None
-        self.init_states_sym  = None
-        self.final_states_sym = None
-        self.all_final_states = False
-        self.init_label       = None
-        self.final_label      = None
-        self.label            = 'spinorbit'
+        self.label = 'spinorbit'
 
         # global variables
-        # method object for the bra states
-        self.bra_obj        = None
-        # method object for the ket states
-        self.ket_obj        = None
-        # comprehensive list of all transition pairs
-        self.trans_list     = None
-        # list of transition pairs, grouped by irrep
-        # (format for bitci)
-        self.trans_list_sym = None
-        # convenient to just keep track of initial states
-        # for printing purposes
-        self.ket_list       = None
-        # simple boolean that is true if bra and ket objects
-        # are identical. If this is true, default behavior is 
-        # to only consider unique bra/ket pairs
-        self.braket_iden    = False
-
-    #
-    def name(self):
-        """ return the name of the class object as a string"""
-        return 'spinorbit'
-
-    #
-    def set_ket(self, ket_method):
-        """set the method used to compute the ket state(s)"""
-
-        try:
-            self.init_label = ket_method.label
-        except:
-            self.init_label = None
-            return
-
-        self.ket_obj = ket_method
-        return
- 
-    # 
-    def ket_exists(self):
-        """return True is self.ket_obj is not None"""
-
-        return self.ket_obj is not None
-    
-
-    #
-    def set_bra(self, bra_method):
-        """set the method used to compute the bra state(s)"""
-
-        try:
-            self.final_label = bra_method.label
-        except:
-            self.final_label = None
-            return
-
-        self.bra_obj = bra_method
-        return
-
-    #
-    def bra_exists(self):
-        """return True if self.bra_obj is not None"""
-
-        return self.bra_obj is not None
+        # Class name
+        self.class_name = 'spinorbit'
 
     #
     @timing.timed
@@ -132,3 +72,21 @@ class Spinorbit:
             # spin-orbit matrix elements
             bitsi_init.init(self, 'soc')
             
+            # construct the trans_list array
+            # currently store them as [initial state, final state]
+            self.build_trans_list()
+
+            # get the triplet transition density matrices
+            # <psi_m|T_ij^(1,k)|psi'_n>, k=0,+1
+            self.build_triplet_tdms()
+
+
+    #
+    @timing.timed
+    def build_triplet_tdms(self):
+        """grab the triplet TDMs from bitsi and then reshape the list
+           of triplet TDMs into a more usable format"""
+
+        # gran the triplet TDMs
+        tdm_list = mrci_soc.triplet_tdm(self.bra_obj, self.ket_obj,
+                                        self.trans_list_sym)

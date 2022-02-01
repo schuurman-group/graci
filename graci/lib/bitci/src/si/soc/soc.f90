@@ -7,11 +7,11 @@
 !**********************************************************************
 #ifdef CBINDING
 subroutine soc_mrci(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     rhoij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in) &
+     Tij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in) &
      bind(c,name='soc_mrci')
 #else
 subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     rhoij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in)
+     Tij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -45,8 +45,8 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   integer(is), intent(in)  :: npairs
   integer(is), intent(in)  :: iroots(npairs,2)
   
-  ! Transition density matrix
-  real(dp), intent(out)    :: rhoij(nmo,nmo,npairs)
+  ! Triplet transition density matrix
+  real(dp), intent(out)    :: Tij(nmo,nmo,npairs)
 
   ! MRCI configuration derived types
   type(mrcfg)              :: cfgB,cfgK

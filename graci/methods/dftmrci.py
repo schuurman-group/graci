@@ -458,7 +458,7 @@ class Dftmrci:
             self.sym_sorted.append([iirr, istate[iirr]])
             # increment the number of elements in the sorted array,
             # and the irrep state index of irrep just chosen
-            n_srt         += 1
+            n_srt        += 1
             istate[iirr] += 1
 
         return
