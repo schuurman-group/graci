@@ -19,7 +19,6 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   use constants
   use bitglobal
   use iomod
-  
   use conftype
   use merge
   use tdm

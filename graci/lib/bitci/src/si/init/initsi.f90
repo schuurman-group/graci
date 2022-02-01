@@ -82,7 +82,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
 
 !----------------------------------------------------------------------
 ! Exit if the requested spin multiplicity is not supported by the
-! maximum number of openshells
+! maximum number of open shells
 !----------------------------------------------------------------------
   ! S_max
   smax=dble(nomax)/2.0d0

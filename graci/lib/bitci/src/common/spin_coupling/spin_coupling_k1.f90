@@ -162,15 +162,19 @@ contains
          csfcoeK,detvecB,detvecK,spincpdim,spincp,nspincp,mapdim2,&
          patternmap2a,patternmap2b,offspincp)
     
-    STOP
+!----------------------------------------------------------------------
+! Fill in the array of bit strings with N set bits, from which the
+! pattern numbers will be derived by clearing bits
+!----------------------------------------------------------------------
+    call fill_N1s(nocase2,N1s)
 
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
     call get_times(twall_end,tcpu_end)
     if (verbose) call report_times(twall_end-twall_start,&
-         tcpu_end-tcpu_start,'generate_coupling_coefficients_triplet')
-
+         tcpu_end-tcpu_start,'scc_k1')
+    
 !----------------------------------------------------------------------    
 ! Flush stdout
 !----------------------------------------------------------------------
@@ -1774,6 +1778,44 @@ contains
     
   end subroutine spincp_2b_k1
 
+!######################################################################
+! fill_N1s: Fills in the array of bit strings with the first N bits
+!           set. The spin coupling coefficient pattern numbers will
+!           be obtained by unsetting bits in these strings.
+!######################################################################
+  subroutine fill_N1s(nocase2,N1s)
+
+    use constants
+    
+    implicit none
+
+    integer(is), intent(in)  :: nocase2
+    integer(ib), allocatable :: N1s(:)
+    
+    integer(is)              :: i
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(N1s(nocase2+2))
+    
+!----------------------------------------------------------------------
+! Fill in the arrays of N set bits
+!----------------------------------------------------------------------
+    ! Initialisation
+    N1s=0_ib
+    N1s(1)=ibset(N1s(1),0)
+    
+    ! Loop over number of bits
+    do i=2,nocase2+2
+       ! Bit string with only the first i bits set
+       N1s(i)=ibset(N1s(i-1),i-1)
+    enddo
+    
+    return
+    
+  end subroutine fill_N1s
+  
 !######################################################################
   
 end module spin_coupling_k1
