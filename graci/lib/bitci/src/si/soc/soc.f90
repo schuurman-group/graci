@@ -110,12 +110,10 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
   write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
 
-  stop
-  
 !----------------------------------------------------------------------
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------
-  !call merge_ref_space(cfgB,cfgK,ncsfsB,ncsfsK)
+  call merge_ref_space(cfgB,cfgK)
   
   return
   

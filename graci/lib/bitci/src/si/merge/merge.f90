@@ -2,11 +2,6 @@
 ! Routines for the merging the reference spaces of a pair of bra and
 ! ket configuration derived types
 !**********************************************************************
-! IMPORTANT: We currently do not account for 1E, 2E and 1I1E confs
-!            becoming R confs in the unified ref space. This is fine
-!            for, e.g., valence -> CVS TDMs, but needs to be changed
-!            before SOC terms can be computed.
-!**********************************************************************
 module merge
 
   implicit none
@@ -19,7 +14,7 @@ contains
 !                  to correspond to the union of the two reference
 !                  spaces
 !######################################################################
-  subroutine merge_ref_space(cfgB,cfgK,nspB,nspK)
+  subroutine merge_ref_space(cfgB,cfgK)
 
     use constants
     use bitglobal
@@ -31,14 +26,10 @@ contains
     ! Bra and ket MRCI configuration derived types
     type(mrcfg), intent(inout) :: cfgB,cfgK
 
-    ! Numbers of bra and ket CSFs as a function of the number of
-    integer(is), intent(in)    :: nspB(0:nocase2),nspK(0:nocase2)
-    
     ! Merged internal & external MO information
-    integer(is)                :: nmoI,nmoE
+    integer(is)                :: nmoI,nmoE,n_int_I
     integer(is)                :: Ilist(nmo),Elist(nmo)
     integer(is)                :: m2c(nmo),c2m(nmo)
-    integer(is)                :: n_int_I
     
 !----------------------------------------------------------------------
 ! Do nothing if the two reference spaces are the same
@@ -49,15 +40,16 @@ contains
 ! Get the indices of the MOs in the union of the bra and ket reference
 ! spaces
 !----------------------------------------------------------------------
-    call internal_union(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m)
+    call internal_union(cfgB,cfgK,nmoI,nmoE,n_int_I,Ilist,Elist,m2c,&
+         c2m)
 
 !----------------------------------------------------------------------
 ! Rearrange the bra and ket configuration bit strings to correspond
 ! to the new internal-external partitioning. Here we will refill the
 ! bra and ket MRCI configuration derived types.
 !----------------------------------------------------------------------
-    call rearrange_confs(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m,&
-         nspB,nspK)
+    call rearrange_confs(cfgB,cfgK,nmoI,nmoE,n_int_I,Ilist,Elist,m2c,&
+         c2m)
     
     return
     
@@ -130,7 +122,8 @@ contains
 !                 types, determines the union of the sets of internal
 !                 MO indices
 !######################################################################
-  subroutine internal_union(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m)
+  subroutine internal_union(cfgB,cfgK,nmoI,nmoE,n_int_I,Ilist,Elist,&
+       m2c,c2m)
 
     use constants
     use bitglobal
@@ -144,7 +137,7 @@ contains
     type(mrcfg), intent(in)  :: cfgB,cfgK
 
     ! Merged internal & external MO information
-    integer(is), intent(out) :: nmoI,nmoE
+    integer(is), intent(out) :: nmoI,nmoE,n_int_I
     integer(is), intent(out) :: Ilist(nmo),Elist(nmo)
     integer(is), intent(out) :: m2c(nmo),c2m(nmo)
 
@@ -255,6 +248,11 @@ contains
 ! Construct the merged canonical-to-MRCI MO index mapping array
 !----------------------------------------------------------------------
     call get_mo_mapping(nmoI,nmoE,Ilist,Elist,m2c,c2m)
+
+!----------------------------------------------------------------------
+! Set the new value of n_int_I
+!----------------------------------------------------------------------
+    n_int_I=(nmoI-1)/64+1
     
     return
     
@@ -265,8 +263,8 @@ contains
 !                  correspond to the new internal-external MO
 !                  partitioning
 !######################################################################
-  subroutine rearrange_confs(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m,&
-       nspB,nspK)
+  subroutine rearrange_confs(cfgB,cfgK,nmoI,nmoE,n_int_I,Ilist,Elist,&
+       m2c,c2m)
 
     use constants
     use bitglobal
@@ -279,31 +277,28 @@ contains
     type(mrcfg), intent(inout) :: cfgB,cfgK
 
     ! Merged internal & external MO information
-    integer(is), intent(in)    :: nmoI,nmoE
+    integer(is), intent(in)    :: nmoI,nmoE,n_int_I
     integer(is), intent(in)    :: Ilist(nmo),Elist(nmo)
     integer(is), intent(in)    :: m2c(nmo),c2m(nmo)
 
-    ! Numbers of bra and ket CSFs as a function of the number of
-    integer(is), intent(in)    :: nspB(0:nocase2),nspK(0:nocase2)
-    
-    ! Sets of bra and ket ref confs that are not in the intersection
-    ! of the two sets
-    integer(is)                :: nUc_B,nUc_K
-    integer(is), allocatable   :: Uc_B(:),Uc_K(:)
+    ! Bra and ket ref confs that are unique to the bra and ket
+    ! ref spaces
+    integer(is)                :: nuc_B,nuc_K
+    integer(ib), allocatable   :: confuc_K(:,:,:),confuc_B(:,:,:)
     
     ! New configuration classes
-    integer(is)                :: n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B
-    integer(is)                :: n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K
+    integer(is)                :: n0h_B,n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B
+    integer(is)                :: n0h_K,n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K
     integer(is), allocatable   :: iBclass(:),iKclass(:)
         
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(Uc_B(cfgB%n0h))
-    Uc_B=0
+    allocate(confuc_B(n_int,2,cfgB%n0h))
+    confuc_B=0_ib
 
-    allocate(Uc_K(cfgB%n0h))
-    Uc_K=0
+    allocate(confuc_K(n_int,2,cfgK%n0h))
+    confuc_K=0_ib
     
     allocate(iBclass(cfgB%confdim))
     ibclass=0
@@ -335,39 +330,40 @@ contains
 !----------------------------------------------------------------------
 ! Determine the complement of the intersection of the sets of bra and
 ! ket reference configurations
+! i.e., the ref confs that are unique to the bra and ket ref spaces
 !----------------------------------------------------------------------
-    call new_ref_confs(cfgB,cfgK,cfgB%n0h,cfgK%n0h,Uc_B,Uc_K,nUc_B,&
-         nUc_K)
+    call unique_ref_confs(cfgB,cfgK,cfgB%n0h,cfgK%n0h,confuc_B,&
+         confuc_K,nuc_B,nuc_K)
     
 !----------------------------------------------------------------------
 ! Determine the number of configurations in each class
 !----------------------------------------------------------------------
     ! Bra
     call class_dimensions(cfgB,cfgB%confall,cfgB%confdim,nmoI,nelB,&
-         n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B,iBclass)
+         n0h_B,n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B,iBclass,nuc_K,confuc_K)
 
     ! Ket
     call class_dimensions(cfgK,cfgK%confall,cfgK%confdim,nmoI,nelK,&
-         n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K,iKclass)
-
+         n0h_K,n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K,iKclass,nuc_B,confuc_B)
+    
 !----------------------------------------------------------------------
 ! Save some memory by deallocating the concatenated configuration
 ! arrays now that we are done with them
 !----------------------------------------------------------------------
-    deallocate(cfgB%confall, cfgB%sopall, cfgB%csfsall)
-    deallocate(cfgK%confall, cfgK%sopall, cfgK%csfsall)
+!    deallocate(cfgB%confall, cfgB%sopall, cfgB%csfsall)
+!    deallocate(cfgK%confall, cfgK%sopall, cfgK%csfsall)
     
 !----------------------------------------------------------------------
 ! Fill in the new configuration and offset arrays
 !----------------------------------------------------------------------
     ! Bra
-    call refill_cfg(cfgB,cfgB%confdim,n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B,&
-         iBclass,nmoI,nmoE,m2c,c2m,nspB)
+    call refill_cfg(cfgB,cfgB%confdim,n0h_B,n1I_B,n2I_B,n1E_B,n2E_B,&
+         n1I1E_B,iBclass,nmoI,nmoE,n_int_I,m2c,c2m)
 
     ! Ket
-    call refill_cfg(cfgK,cfgK%confdim,n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K,&
-         iKclass,nmoI,nmoE,m2c,c2m,nspK)
-    
+    call refill_cfg(cfgK,cfgK%confdim,n0h_K,n1I_K,n2I_K,n1E_K,n2E_K,&
+         n1I1E_K,iKclass,nmoI,nmoE,n_int_I,m2c,c2m)
+
     return
     
   end subroutine rearrange_confs
@@ -376,11 +372,13 @@ contains
 ! new_ref_confs: determines the sets of bra and ket ref confs that are
 !                *not* in the intersection of the two sets
 !######################################################################
-  subroutine new_ref_confs(cfgB,cfgK,n0h_B,n0h_K,Uc_B,Uc_K,nUc_B,nUc_K)
+  subroutine unique_ref_confs(cfgB,cfgK,n0h_B,n0h_K,confuc_B,&
+       confuc_K,nuc_B,nuc_K)
 
     use constants
     use bitglobal
     use conftype
+    use dethash
     
     implicit none
 
@@ -392,12 +390,98 @@ contains
     
     ! Sets of bra and ket ref confs that are not in the intersection
     ! of the two sets
-    integer(is), intent(out)   :: nUc_B,nUc_K
-    integer(is), intent(out)   :: Uc_B(:),Uc_K(:)
+    integer(is), intent(out)   :: nuc_B,nuc_K
+    integer(ib), intent(out)   :: confuc_B(n_int,2,n0h_B)
+    integer(ib), intent(out)   :: confuc_K(n_int,2,n0h_K)
+    
+    ! Hash table
+    type(dhtbl)                :: h
+    integer(is)                :: hsize
+
+    ! Working arrays
+    integer(ib), allocatable   :: key(:,:)
+    
+    ! Everything else
+    integer(is)                :: i
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(key(n_int,2))
+    key=0_ib
+    
+!----------------------------------------------------------------------
+! Determine the contribution of the *ket* ref confs to the complement
+! of the union of the bra and ket ref spaces
+!----------------------------------------------------------------------
+    ! Initialise the hash table
+    hsize=2**15
+    call h%initialise_table(hsize)
+
+    ! Insert the bra ref confs into the hash table
+    do i=1,cfgB%n0h
+       key=cfgB%confall(:,:,i)
+       call h%insert_key(key)
+    enddo
+
+    ! Number of confs unique to to the ket ref space
+    nuc_K=0
+
+    ! Loop over ket ref confs
+    do i=1,cfgK%n0h
+
+       ! Is this conf unique to the ket ref space?
+       key=cfgK%confall(:,:,i)
+       if (.not. h%key_exists(key)) then
+          nuc_K=nuc_K+1
+          confuc_K(:,:,nuc_K)=key
+       endif
+       
+    enddo
+
+    ! Delete the hash table
+    call h%delete_table
+
+!----------------------------------------------------------------------
+! Determine the contribution of the *bra* ref confs to the complement
+! of the union of the bra and ket ref spaces
+!----------------------------------------------------------------------
+    ! Initialise the hash table
+    hsize=2**15
+    call h%initialise_table(hsize)
+
+    ! Insert the ket ref confs into the hash table
+    do i=1,cfgK%n0h
+       key=cfgK%confall(:,:,i)
+       call h%insert_key(key)
+    enddo
+
+    ! Number of confs unique to to the bra ref space
+    nuc_B=0
+
+    ! Loop over bra ref confs
+    do i=1,cfgB%n0h
+
+       ! Is this conf unique to the bra ref space?
+       key=cfgB%confall(:,:,i)
+       if (.not. h%key_exists(key)) then
+          nuc_B=nuc_B+1
+          confuc_B(:,:,nuc_B)=key
+       endif
+       
+    enddo
+
+    ! Delete the hash table
+    call h%delete_table
+    
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(key)
     
     return
     
-  end subroutine new_ref_confs
+  end subroutine unique_ref_confs
   
 !######################################################################
 ! class_dimensions: determines the number of configurations in each
@@ -410,12 +494,13 @@ contains
 !                   4 <-> 2E
 !                   5 <-> 1I1E
 !######################################################################
-  subroutine class_dimensions(cfg,conf,confdim,nmoI,nelectrons,n1I,&
-       n2I,n1E,n2E,n1I1E,iclass)
+  subroutine class_dimensions(cfg,conf,confdim,nmoI,nelectrons,n0h,&
+       n1I,n2I,n1E,n2E,n1I1E,iclass,nuc,confuc)
 
     use constants
     use bitglobal
     use conftype
+    use dethash
     use iomod
     
     implicit none
@@ -426,7 +511,7 @@ contains
     ! Dimensions
     integer(is), intent(in)  :: confdim
     integer(is), intent(in)  :: nmoI,nelectrons
-    integer(is), intent(out) :: n1I,n2I,n1E,n2E,n1I1E
+    integer(is), intent(out) :: n0h,n1I,n2I,n1E,n2E,n1I1E
 
     ! Configurations
     integer(ib), intent(in)  :: conf(n_int,2,confdim)
@@ -434,20 +519,52 @@ contains
     ! Configuration class integer labels
     integer(is), intent(out) :: iclass(confdim)
 
-    ! Everything else
-    integer(is)              :: counter,iconf,next,k
+    ! Ref confs from the union of the bra and ket ref spaces which
+    ! are not in the current ref space
+    integer(is), intent(in)  :: nuc
+    integer(ib), intent(in)  :: confuc(n_int,2,nuc)
 
+    ! Hash table
+    type(dhtbl)              :: h
+    integer(is)              :: hsize
+    integer(ib), allocatable :: key(:,:)
+    
+    ! Everything else
+    integer(is)              :: counter,iconf,next,i
+    logical                  :: lref
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(key(n_int,2))
+    key=0_ib
+    
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
     iclass=-1
     counter=0
 
-    n1I=cfg%n1I
-    n2I=cfg%n2I
+    n0h=cfg%n0h
+    n1I=0
+    n2I=0
     n1E=0
     n2E=0
     n1I1E=0
+
+!----------------------------------------------------------------------
+! Insert the ref confs from the union of the bra and ket ref spaces
+! which are not in the current ref space into the hash table
+!----------------------------------------------------------------------
+    ! Initialise the hash table
+    hsize=2**15
+    call h%initialise_table(hsize)
+
+    ! Insert the confs into the hash table
+    do i=1,nuc
+       key=confuc(:,:,i)
+       call h%insert_key(key)
+    enddo
     
 !----------------------------------------------------------------------
 ! Reference configurations: cannot change class
@@ -464,21 +581,32 @@ contains
     enddo
     
 !----------------------------------------------------------------------
-! 1I configurations: cannot change class
+! 1I configurations: possible to change to ref confs
 !----------------------------------------------------------------------
     ! Loop over 1I confs
     do iconf=1,cfg%n1I
-
+       
        ! Increment the counter
        counter=counter+1
 
-       ! Set the class integer label
-       iclass(counter)=1
-
-    enddo
+       ! Does this conf exist in the union of the set of bra and ket
+       ! ref confs?
+       key=conf(:,:,counter)
+       lref=h%key_exists(key)
        
+       ! Set the class integer label
+       if (lref) then
+          n0h=n0h+1
+          iclass(counter)=0
+       else
+          n1I=n1I+1
+          iclass(counter)=1
+       endif
+       
+    enddo
+    
 !----------------------------------------------------------------------
-! 2I configurations: cannot change class
+! 2I configurations: possible to change to ref confs
 !----------------------------------------------------------------------
     ! Loop over 2I confs
     do iconf=1,cfg%n2I
@@ -486,13 +614,24 @@ contains
        ! Increment the counter
        counter=counter+1
 
+       ! Does this conf exist in the union of the set of bra and ket
+       ! ref confs?
+       key=conf(:,:,counter)
+       lref=h%key_exists(key)
+       
        ! Set the class integer label
-       iclass(counter)=2
+       if (lref) then
+          n0h=n0h+1
+          iclass(counter)=0
+       else
+          n2I=n2I+1
+          iclass(counter)=2
+       endif
 
     enddo
 
 !----------------------------------------------------------------------
-! 1E configurations: possible change to 1I configurations (and Ref?)
+! 1E configurations: possible change to 1I and ref configurations
 !----------------------------------------------------------------------
     ! Loop over 1E confs
     do iconf=1,cfg%n1E
@@ -508,8 +647,15 @@ contains
           n1E=n1E+1
           iclass(counter)=3
        else if (next == 0) then
-          n1I=n1I+1
-          iclass(counter)=1
+          key=conf(:,:,counter)
+          lref=h%key_exists(key)
+          if (lref) then
+             n0h=n0h+1
+             iclass(counter)=0
+          else
+             n1I=n1I+1
+             iclass(counter)=1
+          endif
        else
           errmsg='Nonsensical 1E next value in class_dimensions'
           call error_control
@@ -518,8 +664,7 @@ contains
     enddo
     
 !----------------------------------------------------------------------
-! 2E configurations: possible change to 1I1E and 2I configurations
-!                    (and Ref?)
+! 2E configurations: possible change to 1I1E, 2I and ref configurations
 !----------------------------------------------------------------------
     ! Loop over 2E confs
     do iconf=1,cfg%n2E
@@ -538,8 +683,15 @@ contains
           n1I1E=n1I1E+1
           iclass(counter)=5
        else if (next == 0) then
-          n2I=n2I+1
-          iclass(counter)=2
+          key=conf(:,:,counter)
+          lref=h%key_exists(key)
+          if (lref) then
+             n0h=n0h+1
+             iclass(counter)=0
+          else
+             n2I=n2I+1
+             iclass(counter)=2
+          endif
        else
           errmsg='Nonsensical 2E next value in class_dimensions'
           call error_control
@@ -548,7 +700,7 @@ contains
     enddo
 
 !----------------------------------------------------------------------
-! 1I1E configurations: possible change to 2I configurations (and Ref?)
+! 1I1E configurations: possible change to 2I and ref configurations
 !----------------------------------------------------------------------
     ! Loop over 1I1E confs
     do iconf=1,cfg%n1I1E
@@ -564,15 +716,27 @@ contains
           n1I1E=n1I1E+1
           iclass(counter)=5
        else if (next == 0) then
-          n2I=n2I+1
-          iclass(counter)=2
+          key=conf(:,:,counter)
+          lref=h%key_exists(key)
+          if (lref) then
+             n0h=n0h+1
+             iclass(counter)=0
+          else
+             n2I=n2I+1
+             iclass(counter)=2
+          endif
        else
           errmsg='Nonsensical 1I1E next value in class_dimensions'
           call error_control
        endif
           
     enddo
-
+    
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(key)
+    
     return
     
   end subroutine class_dimensions
@@ -648,12 +812,13 @@ contains
 !             the confs, SOPs, offsets, and creation operator indices
 !             corresponding to the new, merged MO indexing
 !######################################################################
-  subroutine refill_cfg(cfg,confdim,n1I,n2I,n1E,n2E,n1I1E,iclass,&
-       nmoI,nmoE,m2c,c2m,nsp)
+  subroutine refill_cfg(cfg,confdim,n0h,n1I,n2I,n1E,n2E,n1I1E,iclass,&
+       nmoI,nmoE,n_int_I,m2c,c2m)
 
     use constants
     use bitglobal
     use conftype
+    use filter_confs
     use mrciutils
     use iomod
     
@@ -663,19 +828,15 @@ contains
     type(mrcfg), intent(inout) :: cfg
     
     ! Dimensions
-    integer(is), intent(in)    :: confdim,n1I,n2I,n1E,n2E,n1I1E
+    integer(is), intent(in)    :: confdim,n0h,n1I,n2I,n1E,n2E,n1I1E
 
     ! Configuration class integer labels
     integer(is), intent(in)    :: iclass(confdim)
 
     ! Merged internal & external MO information
-    integer(is), intent(in)    :: nmoI,nmoE
+    integer(is), intent(in)    :: nmoI,nmoE,n_int_I
     integer(is), intent(in)    :: m2c(nmo),c2m(nmo)
 
-    ! Numbers of CSFs as a function of the number of open shells
-    ! (only needed to call cfg%initialise)
-    integer(is), intent(in)    :: nsp(0:nocase2)
-    
     ! I/O
     integer(is)                :: iscratch,scrnum
     character(len=255)         :: filename
@@ -687,7 +848,6 @@ contains
     integer(is), allocatable   :: a1(:),a2(:,:)
     
     ! Everything else
-    integer(is)                :: n_int_I
     integer(is)                :: n,ioff,counter,k,i,irrep
     integer(is)                :: counter1I,counter2I,counter1E,&
                                   counter2E,counter1I1E
@@ -702,12 +862,10 @@ contains
     ! Open the scratch file
     iscratch=scrunit(scrnum)
     open(iscratch,file=filename,form='unformatted',status='unknown')
-    
+
 !----------------------------------------------------------------------
 ! Subspace dimensions
 !----------------------------------------------------------------------
-    n_int_I=(nmoI-1)/64+1
-
     write(iscratch) n_int_I
     write(iscratch) nmoI
     write(iscratch) nmoE
@@ -715,13 +873,13 @@ contains
     write(iscratch) cfg%nR
     write(iscratch) cfg%n1h
     write(iscratch) cfg%n2h
-    write(iscratch) cfg%n0h
+    write(iscratch) n0h
     write(iscratch) n1I
     write(iscratch) n2I
     write(iscratch) n1E
     write(iscratch) n2E
     write(iscratch) n1I1E
-
+    
 !----------------------------------------------------------------------
 ! Ref confs across all irreps
 !----------------------------------------------------------------------
@@ -834,15 +992,23 @@ contains
 !----------------------------------------------------------------------
 ! Ref confs for this irrep
 !----------------------------------------------------------------------
-    ! Fill in the work array    
-    allocate(conf(n_int,2,cfg%n0h))
-    conf=0_ib
-    conf(1:cfg%n_int_I,:,:)=cfg%conf0h(:,:,:)
-    
-    ! Re-order to correspond to the new internal-external MO
-    ! partitioning
-    call reorder_confs(cfg%m2c,conf,cfg%n0h)
-    call reorder_confs(c2m,conf,cfg%n0h)
+    ! Fill in the work array
+    allocate(conf(n_int_I,2,n0h))
+    k=0
+    do i=1,confdim
+
+       ! Are we at a new ref conf?
+       if (iclass(i) == 0) then
+
+          ! Increment the new ref conf counter
+          k=k+1
+
+          ! Save the new ref conf
+          conf(:,:,k)=cfg%confall(1:n_int_I,:,i)
+          
+       endif
+       
+    enddo
 
     ! Write to disk
     write(iscratch) conf(1:n_int_I,:,:)
@@ -1324,7 +1490,7 @@ contains
 !----------------------------------------------------------------------
 ! Number of CSFs as a function of the the number of open shells
 !----------------------------------------------------------------------
-    write(iscratch) nsp
+    write(iscratch) cfg%ncsfs
     
 !----------------------------------------------------------------------
 ! Close the new configuration scratch file
@@ -1342,6 +1508,12 @@ contains
 
     ! Fill the derived type with the new configuration information
     call cfg%initialise(irrep,scrnum)
+
+!----------------------------------------------------------------------
+! Filter out those hole configurations that do not generate any full
+! configurations    
+!----------------------------------------------------------------------
+    call filter_hole_confs(cfg)
     
     return
     

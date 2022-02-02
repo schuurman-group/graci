@@ -150,9 +150,10 @@ contains
     deallocate(h%full)
     deallocate(h%deleted)
     
-    ! Zero the number of buckets and keys stored
+    ! Zero the number of buckets, keys stored, and collisions
     h%n_buckets=0
     h%n_keys_stored=0
+    h%n_collisions=0
     
     return
     

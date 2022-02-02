@@ -226,7 +226,7 @@ contains
     use constants
     use bitglobal
     use conftype
-    use holeconfs
+    use filter_confs
     use iomod
     
     implicit none

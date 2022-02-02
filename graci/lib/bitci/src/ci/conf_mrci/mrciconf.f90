@@ -19,6 +19,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   use conftype
   use holeconfs
   use confbuilder
+  use filter_confs
   use confinfo
   use timing
 
