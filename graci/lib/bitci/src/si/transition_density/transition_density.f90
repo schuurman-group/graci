@@ -117,7 +117,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
 !----------------------------------------------------------------------
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------
-  call merge_ref_space(cfgB,cfgK)
+  call merge_ref_space(cfgB,cfgK,ncsfs,ncsfs)
 
 !----------------------------------------------------------------------
 ! Which eigenvectors are needed?

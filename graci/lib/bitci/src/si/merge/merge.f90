@@ -19,7 +19,7 @@ contains
 !                  to correspond to the union of the two reference
 !                  spaces
 !######################################################################
-  subroutine merge_ref_space(cfgB,cfgK)
+  subroutine merge_ref_space(cfgB,cfgK,nspB,nspK)
 
     use constants
     use bitglobal
@@ -31,6 +31,9 @@ contains
     ! Bra and ket MRCI configuration derived types
     type(mrcfg), intent(inout) :: cfgB,cfgK
 
+    ! Numbers of bra and ket CSFs as a function of the number of
+    integer(is), intent(in)    :: nspB(0:nocase2),nspK(0:nocase2)
+    
     ! Merged internal & external MO information
     integer(is)                :: nmoI,nmoE
     integer(is)                :: Ilist(nmo),Elist(nmo)
@@ -53,7 +56,8 @@ contains
 ! to the new internal-external partitioning. Here we will refill the
 ! bra and ket MRCI configuration derived types.
 !----------------------------------------------------------------------
-    call rearrange_confs(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m)
+    call rearrange_confs(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m,&
+         nspB,nspK)
     
     return
     
@@ -261,7 +265,8 @@ contains
 !                  correspond to the new internal-external MO
 !                  partitioning
 !######################################################################
-  subroutine rearrange_confs(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m)
+  subroutine rearrange_confs(cfgB,cfgK,nmoI,nmoE,Ilist,Elist,m2c,c2m,&
+       nspB,nspK)
 
     use constants
     use bitglobal
@@ -278,6 +283,14 @@ contains
     integer(is), intent(in)    :: Ilist(nmo),Elist(nmo)
     integer(is), intent(in)    :: m2c(nmo),c2m(nmo)
 
+    ! Numbers of bra and ket CSFs as a function of the number of
+    integer(is), intent(in)    :: nspB(0:nocase2),nspK(0:nocase2)
+    
+    ! Sets of bra and ket ref confs that are not in the intersection
+    ! of the two sets
+    integer(is)                :: nUc_B,nUc_K
+    integer(is), allocatable   :: Uc_B(:),Uc_K(:)
+    
     ! New configuration classes
     integer(is)                :: n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B
     integer(is)                :: n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K
@@ -286,6 +299,12 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
+    allocate(Uc_B(cfgB%n0h))
+    Uc_B=0
+
+    allocate(Uc_K(cfgB%n0h))
+    Uc_K=0
+    
     allocate(iBclass(cfgB%confdim))
     ibclass=0
     
@@ -314,6 +333,13 @@ contains
     call reorder_confs(c2m,cfgK%confall,cfgK%confdim)
 
 !----------------------------------------------------------------------
+! Determine the complement of the intersection of the sets of bra and
+! ket reference configurations
+!----------------------------------------------------------------------
+    call new_ref_confs(cfgB,cfgK,cfgB%n0h,cfgK%n0h,Uc_B,Uc_K,nUc_B,&
+         nUc_K)
+    
+!----------------------------------------------------------------------
 ! Determine the number of configurations in each class
 !----------------------------------------------------------------------
     ! Bra
@@ -336,16 +362,43 @@ contains
 !----------------------------------------------------------------------
     ! Bra
     call refill_cfg(cfgB,cfgB%confdim,n1I_B,n2I_B,n1E_B,n2E_B,n1I1E_B,&
-         iBclass,nmoI,nmoE,m2c,c2m)
+         iBclass,nmoI,nmoE,m2c,c2m,nspB)
 
     ! Ket
     call refill_cfg(cfgK,cfgK%confdim,n1I_K,n2I_K,n1E_K,n2E_K,n1I1E_K,&
-         iKclass,nmoI,nmoE,m2c,c2m)
+         iKclass,nmoI,nmoE,m2c,c2m,nspK)
     
     return
     
   end subroutine rearrange_confs
+
+!######################################################################
+! new_ref_confs: determines the sets of bra and ket ref confs that are
+!                *not* in the intersection of the two sets
+!######################################################################
+  subroutine new_ref_confs(cfgB,cfgK,n0h_B,n0h_K,Uc_B,Uc_K,nUc_B,nUc_K)
+
+    use constants
+    use bitglobal
+    use conftype
     
+    implicit none
+
+    ! Bra and ket MRCI configuration derived types
+    type(mrcfg), intent(inout) :: cfgB,cfgK
+
+    ! Dimensions of the bra and ket reference spaces
+    integer(is), intent(in)    :: n0h_B,n0h_K
+    
+    ! Sets of bra and ket ref confs that are not in the intersection
+    ! of the two sets
+    integer(is), intent(out)   :: nUc_B,nUc_K
+    integer(is), intent(out)   :: Uc_B(:),Uc_K(:)
+    
+    return
+    
+  end subroutine new_ref_confs
+  
 !######################################################################
 ! class_dimensions: determines the number of configurations in each
 !                   class (1I, 1E, etc.) as well as the integer class
@@ -596,7 +649,7 @@ contains
 !             corresponding to the new, merged MO indexing
 !######################################################################
   subroutine refill_cfg(cfg,confdim,n1I,n2I,n1E,n2E,n1I1E,iclass,&
-       nmoI,nmoE,m2c,c2m)
+       nmoI,nmoE,m2c,c2m,nsp)
 
     use constants
     use bitglobal
@@ -618,6 +671,10 @@ contains
     ! Merged internal & external MO information
     integer(is), intent(in)    :: nmoI,nmoE
     integer(is), intent(in)    :: m2c(nmo),c2m(nmo)
+
+    ! Numbers of CSFs as a function of the number of open shells
+    ! (only needed to call cfg%initialise)
+    integer(is), intent(in)    :: nsp(0:nocase2)
     
     ! I/O
     integer(is)                :: iscratch,scrnum
@@ -1263,6 +1320,11 @@ contains
 !----------------------------------------------------------------------
     write(iscratch) m2c
     write(iscratch) c2m
+
+!----------------------------------------------------------------------
+! Number of CSFs as a function of the the number of open shells
+!----------------------------------------------------------------------
+    write(iscratch) nsp
     
 !----------------------------------------------------------------------
 ! Close the new configuration scratch file

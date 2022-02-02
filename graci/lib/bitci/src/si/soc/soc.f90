@@ -64,9 +64,58 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   integer(is), allocatable :: Bmap(:),Kmap(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
 
-  print*,''
-  print*,'here'
+!----------------------------------------------------------------------
+! Output what we are doing
+!----------------------------------------------------------------------
+  write(6,'(/,52a)') ('-',i=1,52)
+  write(6,'(3(x,a))') 'Triplet transition density matrix calculation'
+  write(6,'(52a)') ('-',i=1,52)
+
+!----------------------------------------------------------------------
+! If C bindings are on, then convert the MRCI configuration and
+! eigenvector file names from the C char type to the Fortran character
+! type
+!----------------------------------------------------------------------
+#ifdef CBINDING
+  length=cstrlen(conffileB_in)
+  call c2fstr(conffileB_in,conffileB,length)
+  length=cstrlen(vecfileB_in)
+  call c2fstr(vecfileB_in,vecfileB,length)
+  length=cstrlen(conffileK_in)
+  call c2fstr(conffileK_in,conffileK,length)
+  length=cstrlen(vecfileK_in)
+  call c2fstr(vecfileK_in,vecfileK,length)
+#else
+  conffileB=adjustl(trim(conffileB_in))
+  vecfileB=adjustl(trim(conffileB_in))
+  conffileK=adjustl(trim(conffileK_in))
+  vecfileK=adjustl(trim(conffileK_in))
+#endif
+
+!----------------------------------------------------------------------
+! Register the configuration and eigenvector scratch files
+!----------------------------------------------------------------------
+  call register_scratch_file(confscrB,conffileB)
+  call register_scratch_file(vecscrB,vecfileB)
+
+  call register_scratch_file(confscrK,conffileK)
+  call register_scratch_file(vecscrK,vecfileK)
+  
+!----------------------------------------------------------------------
+! Set up the bra and ket configuration derived types
+!----------------------------------------------------------------------
+  call cfgB%initialise(irrepB,confscrB)
+  call cfgK%initialise(irrepK,confscrK)
+  
+  write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
+  write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
+
   stop
+  
+!----------------------------------------------------------------------
+! Merge the bra and ket reference spaces
+!----------------------------------------------------------------------
+  !call merge_ref_space(cfgB,cfgK,ncsfsB,ncsfsK)
   
   return
   

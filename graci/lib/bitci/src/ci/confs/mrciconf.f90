@@ -274,6 +274,9 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
      ! MO mapping arrays
      write(iscratch) cfgM(irrep)%m2c
      write(iscratch) cfgM(irrep)%c2m
+
+     ! Number of CSFs as a function of the the number of open shells
+     write(iscratch) ncsfs
      
      ! Close the scratch file
      close(iscratch)
