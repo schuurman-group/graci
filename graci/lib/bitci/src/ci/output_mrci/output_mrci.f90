@@ -95,6 +95,11 @@ contains
     call sort_energies(ener,nroot_max,nroot_tot,nroots,sindx)
     
 !----------------------------------------------------------------------
+! Output the base conf
+!----------------------------------------------------------------------
+    call print_base_conf
+    
+!----------------------------------------------------------------------
 ! Output the energies and dominant CSFs for each state
 !----------------------------------------------------------------------
     minrnorm=1.0d0

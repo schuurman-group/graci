@@ -553,5 +553,98 @@ contains
   end subroutine deadwood
   
 !######################################################################
+! print_base_conf: prints the base configuration
+!######################################################################
+  subroutine print_base_conf
+
+    use constants
+    use bitglobal
+    use detutils
+    use iomod
+    
+    implicit none
+
+    integer(is)                                 :: ihomo,imo,k,i,occ
+    integer(is)                                 :: ind
+    character(len=60)                           :: string1,string2
+    character(len=1), parameter, dimension(0:2) :: aocc= ['0', '1', '2']
+    
+    !
+    ! Get the idex of the HOMO
+    !
+    ihomo=homo_index(conf0)
+
+    !
+    ! Write the full base conf character string
+    !
+    string1=''
+    ind=0
+    do imo=1,ihomo
+
+       ! Block index
+       k=(imo-1)/64+1
+       
+       ! Orbital position with the block
+       i=imo-1-(k-1)*64
+
+       ! Orbital occupancy
+       occ=0
+       if (btest(conf0(k,1),i)) occ=occ+1
+       if (btest(conf0(k,2),i)) occ=occ+1
+
+       ! Add the orbital occupancy to the character string
+       write(string1(imo:imo), '(a1)') aocc(occ)
+
+       ! Save the position of the first non-doubly-occupied MO
+       if (occ /= 2 .and. ind == 0) ind=imo
+       
+    enddo
+    
+    if (ind == 0) ind=ihomo+1
+    
+    !
+    ! Write the truncated base conf character string
+    !
+    string2=''
+
+    ! String of doubly-occupied MOs
+    write(string2(1:16),'(a)') 'base conf: |2...'
+    if (ind /= 2) then
+       write(string2(17:17),'(a)') '2'
+       k=18
+    else
+       k=17
+    endif
+
+    ! Remaining MOs
+    do imo=ind,ihomo
+       write(string2(k:k),'(a)') string1(imo:imo)
+       k=k+1
+    enddo
+
+    ! Ket end
+    write(string2(k:k),'(a)') '>'
+
+    !
+    ! Print the base conf
+    !
+    write(6,'(2/,x,a)') trim(string2)
+
+    !
+    ! Print the last doubly-occupied MO index
+    !
+    string1=''
+    write(string1(1:17),'(16a,a)') (' ', k=1,16), achar(094)
+    write(6,'(x,a)') trim(string1)
+    string1=''
+    write(string1(1:16),'(16a)') (' ', k=1,16)
+    write(string1(17:),'(i0)') ind-1
+    write(6,'(x,a)') trim(string1)
+    
+    return
+    
+  end subroutine print_base_conf
   
+!######################################################################
+ 
 end module output_common
