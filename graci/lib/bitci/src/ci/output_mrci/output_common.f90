@@ -628,18 +628,18 @@ contains
     !
     ! Print the base conf
     !
-    write(6,'(2/,x,a)') trim(string2)
+    write(6,'(2/,2x,a)') trim(string2)
 
     !
     ! Print the last doubly-occupied MO index
     !
     string1=''
     write(string1(1:17),'(16a,a)') (' ', k=1,16), achar(094)
-    write(6,'(x,a)') trim(string1)
+    write(6,'(2x,a)') trim(string1)
     string1=''
     write(string1(1:16),'(16a)') (' ', k=1,16)
     write(string1(17:),'(i0)') ind-1
-    write(6,'(x,a)') trim(string1)
+    write(6,'(2x,a)') trim(string1)
     
     return
     

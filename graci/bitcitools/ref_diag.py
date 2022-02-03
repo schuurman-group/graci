@@ -88,7 +88,7 @@ def n_extra(ci_method):
     
     # If pruning is off and ENPT2 guess vectors are not being used,
     # then nextra = 0
-    if ci_method.prune == 'off' and ci_method.diag_guess != 'enpt2':
+    if ci_method.prune == False and ci_method.diag_guess != 'enpt2':
         for key in nextra:
             nextra[key] = [0 for n in range(nirr)]
         return nextra
@@ -114,5 +114,5 @@ def n_extra(ci_method):
     for n in range(nirr):
         nextra['max'].append(max([nextra[key][n] for key in nextra
                                   if key != 'max']))
-            
+
     return nextra
