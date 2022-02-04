@@ -21,8 +21,8 @@ def init(si_method, calctype):
     # (note that the pgrp uses Fortran indexing)
     multBra = bra.mult
     multKet = ket.mult
-    nelBra  = bra.scf.mol.nel
-    nelKet  = ket.scf.mol.nel
+    nelBra  = bra.nel
+    nelKet  = ket.nel
     nmo     = bra.scf.nmo
     
     # not sure what this is about...

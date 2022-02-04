@@ -28,8 +28,6 @@ class Molecule:
         # in params module
         self.xyz_file = None
         self.units    = 'Angstrom'
-        self.mult     = 1
-        self.charge   = 0.
         self.use_sym  = False
         self.basis    = dict() 
         self.ri_basis = None 
@@ -39,11 +37,11 @@ class Molecule:
 
         # the following are determined based on user
         # input
+        self.charge   = 0
+        self.mult     = 1
         self.asym     = []
         self.crds     = None 
         self.masses   = []
-        self.nel      = 0
-        self.spin     = 0
         self.full_sym = ''
         self.comp_sym = ''
         self.sym_indx = -1
@@ -76,16 +74,13 @@ class Molecule:
         self.masses = np.array([atom_mass[atom_name.index(atm_strip[i])]
                           for i in range(len(self.asym))], dtype=float)
 
-        # set the spin
-        self.spin = 0.5*(self.mult - 1.)
-
         self.mol_obj = gto.M(
                      dump_input = False,
                      parse_arg  = False,
                      verbose    = logger.NOTE,
                      atom       = mol_str,
                      charge     = self.charge,
-                     spin       = int(2*self.spin),
+                     spin       = self.mult-1,
                      output     = None,
                      cart       = self.ao_cart,
                      basis      = self.basis,
@@ -94,8 +89,6 @@ class Molecule:
 
         # the nuclear repulsion energy
         self.enuc     = self.mol_obj.energy_nuc()
-        # the number of electrons
-        self.nel      = int(sum(self.mol_obj.nelec))
         # full point group symmetry of the molecule
         self.full_sym = self.mol_obj.topgroup.lower()
         # point group to be used for computation
@@ -192,11 +185,6 @@ class Molecule:
             return nirrep[self.sym_indx]
         else:
             return 1
-
-    #
-    def charge(self, charge):
-        """ses the molecular charge"""
-        return self.charge
 
     # 
     def cart(self):

@@ -12,8 +12,6 @@ import graci.properties.spinorbit as spinorbit
 # molecule section input keywords and data types
 molecule_kword =     {'xyz_file' : str,
                       'units'    : str,
-                      'charge'   : int,
-                      'mult'     : int,
                       'basis'    : str,
                       'ri_basis' : str,
                       'ao_cart'  : bool,
@@ -29,10 +27,13 @@ scf_kword      = {'xc'             : str,
                   'restart'        : bool,
                   'print_orbitals' : bool,
                   'verbose'        : int,
+                  'charge'         : int,
+                  'mult'           : int,
                   'label'          : str}
 
 # MRCI section input keywords and data types
 dftmrci_kword  = {'mult'           : int,
+                  'charge'         : int,
                   'nstates'        : int,
                   'hamiltonian'    : str,
                   'ras1'           : int,
@@ -61,6 +62,7 @@ dftmrci_kword  = {'mult'           : int,
 
 # DFT/MR-ENPT2 section input keywords and data types
 dftmrenpt2_kword  = {'mult'           : int,
+                     'charge'         : int,
                      'nstates'        : int,
                      'hamiltonian'    : str,
                      'ras1'           : int,

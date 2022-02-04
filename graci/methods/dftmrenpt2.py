@@ -37,6 +37,7 @@ class Dftmrenpt2:
     """Class constructor for DFT/MR-ENPT2 objects"""
     def __init__(self):        
         # user defined quanties
+        self.charge         = 0
         self.mult           = None
         self.nstates        = []
         self.hamiltonian    = 'canonical'
@@ -54,6 +55,8 @@ class Dftmrenpt2:
         self.label          = 'Dftmrenpt2'
 
         # class variables
+        # total number of electrons
+        self.nel            = 0
         self.scf            = None
         # No. extra ref space roots needed
         self.nextra         = {}
@@ -65,6 +68,8 @@ class Dftmrenpt2:
         self.mrci_wfn       = None
         # print quadrupoles
         self.print_quad     = False
+        # reference occupation vector
+        self.ref_occ        = None
         # reference space energies
         self.ref_ener       = None
         # ci energies, by adiabatic state
@@ -92,6 +97,31 @@ class Dftmrenpt2:
     def set_scf(self, scf):
         """set the scf object for the dftmrci class object"""
         self.scf = scf
+        self.nel = scf.nel
+
+        # Default spin multiplicity: inherited from the scf object
+        if self.mult is None:
+            self.mult = scf.mult
+
+        # Default charge: inherited from the scf object
+        if self.charge is None or self.charge == scf.charge:
+            self.charge  = scf.charge
+            self.ref_occ = copy.copy(scf.orb_occ)
+
+        # if the number of electrons have changed update ref_occ
+        if self.charge != scf.charge:
+            self.nel = scf.nel + (scf.charge - self.charge)
+            # set the occupation vector to yield the multiplicity
+            # with a maximum number of closed shells
+            nopen = self.mult - 1
+            nclsd = int(0.5 * (self.nel - nopen))
+            if 2*nclsd + nopen != self.nel:
+                sys.exit('Inconsistent charge='+str(self.charge)+
+                                      ' / multp='+str(self.mult))
+            self.ref_occ = np.zeros(self.scf.nmo, dtype=float)
+            self.ref_occ[:nclsd]            = 2.
+            self.ref_occ[nclsd:nclsd+nopen] = 1.
+
         return
 
     def scf_exists(self):
@@ -108,10 +138,6 @@ class Dftmrenpt2:
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
 
-        # Default spin multiplicity: inherited from the scf object
-        if self.mult is None:
-            self.mult = self.scf.mol.mult
-            
         # write the output logfile header for this run
         output.print_dftmrenpt2_header(self.label)
 

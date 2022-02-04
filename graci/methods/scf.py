@@ -26,9 +26,12 @@ class Scf:
         self.label          = 'Scf'
         self.verbose        = 0
         self.restart        = False
+        self.mult           = 0
+        self.charge         = 0
         
         # computed quantities
         self.mol          = None 
+        self.nel          = None
         self.energy       = None
         self.orbs         = None
         self.orb_occ      = None
@@ -50,6 +53,19 @@ class Scf:
         """set the mol object for the scf object"""
         self.mol = mol
 
+        # set the charge and multiplicity to the appropriate
+        # values for this object
+        self.mol.charge = self.charge
+
+        # pyscf spin = 2*S
+        self.mol.mult   = self.mult
+       
+        # build the PySCF molecule object 
+        self.mol.run()
+
+        # save the number of electrons
+        self.nel = self.mol.pymol().nelectron
+
     def mol_exists(self):
         """return True is self.mol is not None"""
         try:
@@ -61,9 +77,12 @@ class Scf:
     def run(self):
         """compute the DFT energy and KS orbitals"""
     
-        # construct the molecule object
-        pymol = self.mol.pymol()
-        
+        # returns the PySCF molecule object needed to run SCF
+        if self.mol_exists():
+            pymol = self.mol.pymol()
+        else:
+            sys.exit('ERROR: mol object not set in scf')        
+
         # set the verbosity of the output
         pymol.verbose = self.verbose
        
@@ -98,6 +117,8 @@ class Scf:
         self.orb_occ   = scf_pyscf.mo_occ
         # orb_ener is the array of MO energies
         self.orb_ener  = scf_pyscf.mo_energy
+        # number of electrons
+        self.nel       = pymol.nelectron
         # number of MOs
         self.nmo       = len(scf_pyscf.mo_occ)
         # number of auxiliary AOs
@@ -207,14 +228,14 @@ class Scf:
         # if self.xc='hf', use canonical hf orbitals
         if self.xc == 'hf':
             if self.mol.use_df:
-                if self.mol.spin == 0.:
+                if self.mol.mult == 0.:
                     mf = scf.RHF(pymol).density_fit( auxbasis =
                                             self.mol.ri_basis)
                 else:
                     mf = scf.ROHF(pymol).density_fit( auxbasis =
                                             self.mol.ri_basis)
             else:
-                if self.mol.spin == 0.:
+                if self.mol.mult == 0.:
                     mf = scf.RHF(pymol)
                 else:
                     mf = scf.ROHF(pymol)
@@ -222,14 +243,14 @@ class Scf:
         # this is a DFT computation
         else:
             if self.mol.use_df:
-                if self.mol.spin == 0.:
+                if self.mol.mult == 0.:
                     mf = dft.RKS(pymol).density_fit( auxbasis =
                                                self.mol.ri_basis)
                 else:
                     mf = dft.ROKS(pymol).density_fit( auxbasis =
                                                self.mol.ri_basis)
             else:
-                if self.mol.spin == 0.:
+                if self.mol.mult == 0.:
                     mf = dft.RKS(pymol)
                 else:
                     mf = dft.ROKS(pymol)
@@ -317,16 +338,3 @@ class Scf:
                                cart = cart)
 
         return
-
-    #
-    def slater_dets(self, state):
-        """return the slater determinant list for state 'state'"""
-
-        return
-
-    #
-    def csfs(self, state):
-        """csf list for state 'state'"""
-
-        return
-
