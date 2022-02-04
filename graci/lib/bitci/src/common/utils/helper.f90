@@ -10,7 +10,7 @@ subroutine get_n_int(n) bind(c,name="get_n_int")
 #else
 subroutine get_n_int(n)
 #endif
-  
+
   use constants
   use bitglobal
   

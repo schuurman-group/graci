@@ -2,11 +2,15 @@
 ! Routines for the calculation of 1-TDMs for MRCI wavefunctions
 !**********************************************************************
 module tdm
-
+  
   use constants
   
   implicit none
 
+  private
+  
+  public :: tdm_mrci
+  
   ! Spin-coupling coefficients
   real(dp), allocatable, private :: scp(:)
   
@@ -56,7 +60,7 @@ contains
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)  
+    call get_times(twall_start,tcpu_start)
 
 !----------------------------------------------------------------------
 ! Allocate and initialise arrays
@@ -164,7 +168,7 @@ contains
     integer(is)             :: ikconf,ibconf,nexci,n_int_I
     integer(is)             :: knsp,bnsp,knopen,bnopen
     integer(is)             :: i,a,ipair,Bindx,Kindx
-    integer(is)             :: ikcsf,ibcsf,komega,bomega
+    integer(is)             :: ikcsf,ibcsf
     integer(is)             :: counter
     real(dp)                :: kcoe,bcoe
     real(dp)                :: prod
@@ -175,7 +179,7 @@ contains
     n_int_I=cfgK%n_int_I
 
     ! Loop over ket configurations
-    do ikconf=1,cfgK%n0h-1
+    do ikconf=1,cfgK%n0h
 
        ! Ket configuration and SOP in the full MO space
        kconf_full=0_ib
@@ -235,15 +239,11 @@ contains
              counter=0
              
              ! Loop over ket CSFs
-             komega=0
              do ikcsf=cfgK%csfs0h(ikconf),cfgK%csfs0h(ikconf+1)-1
-                komega=komega+1
                 kcoe=vecK(ikcsf,Kindx)
                 
                 ! Loop over bra CSFs
-                bomega=0
                 do ibcsf=cfgB%csfs0h(ibconf),cfgB%csfs0h(ibconf+1)-1
-                   bomega=bomega+1
                    bcoe=vecB(ibcsf,Bindx)
                    counter=counter+1
                    
@@ -1870,7 +1870,7 @@ contains
     ! i.e., Are we working with
     ! < Ket | E_q^p | Bra >
     ! instead of
-    ! < Bra | E_q^p | Ket > ?
+    ! < Bra | E_p^q | Ket > ?
     logical, intent(in)     :: transpose
     
     ! Working arrays
