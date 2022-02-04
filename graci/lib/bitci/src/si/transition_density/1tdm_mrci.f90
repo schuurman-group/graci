@@ -52,7 +52,7 @@ contains
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
                                twall_end
-    
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -1507,7 +1507,7 @@ contains
                 call nobefore(ksop_full,nbefore)
           
                 ! Ket 2I - bra 2I contributions
-                if (nac <= 4 .and. &
+                if (nac <= 4 .and. cfgB%n2I > 0 .and. &
                      cfgB%off2I(bn) /= cfgB%off2I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1519,10 +1519,9 @@ contains
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
                         cfgB%m2c,transpose)
                 endif
-          
+                
                 ! Ket 2I - bra 2E contributions
-                if (nac == 0 &
-                     .and. cfgB%n2E > 0 &
+                if (nac == 0 .and. cfgB%n2E > 0 &
                      .and. cfgB%off2E(bn) /= cfgB%off2E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1788,7 +1787,8 @@ contains
                 call nobefore(ksop_full,nbefore)
           
                 ! Ket 1I1E - bra 1I1E contributions
-                if (cfgB%off1I1E(bn) /= cfgB%off1I1E(bn+1)) then
+                if (cfgB%n1I1E > 0 .and. &
+                     cfgB%off1I1E(bn) /= cfgB%off1I1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1I1E,cfgK%n1I1E,&       ! no. bra and ket confs

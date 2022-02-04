@@ -21,7 +21,7 @@ contains
     use conftype
     use iomod
     use timing
-    
+
     implicit none
 
     ! Hamiltonian scratch file number
@@ -54,7 +54,7 @@ contains
     ! Timing variables
     real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
-    
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------

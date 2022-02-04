@@ -1,11 +1,17 @@
 module bitglobal
 
   use constants
+  use integrals
   
   implicit none
 
   save
 
+!----------------------------------------------------------------------
+! Integrals type
+!----------------------------------------------------------------------
+  class(eri), allocatable :: bitci_ints
+  
 !----------------------------------------------------------------------
 ! Common variables
 !----------------------------------------------------------------------
@@ -66,6 +72,12 @@ module bitglobal
   ! Dimensions
   !
   integer(is) :: nmo,nel,nel_alpha,nel_beta,nel_spin(2)
+  integer(is) :: lastvirt ! Last non-frozen virtual MO index
+  
+  !
+  ! Frozen virtual MO energy threshold
+  !
+  real(dp), parameter :: efreeze=1.0d0
   
   !
   ! Base determinant and configuration

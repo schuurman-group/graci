@@ -6,33 +6,30 @@ module holeconfs
   implicit none
   
 contains
-    
+
 !######################################################################
-! generate_1hole_confs: generates all possible 1-hole configurations
-!                       from a given set of reference space
-!                       configurations
+! generate_hole_confs: generates all possible 1-hole and 2-hole
+!                      configurations from a given set of reference
+!                      space configurations
 !######################################################################
-  subroutine generate_1hole_confs(cfgM,icvs,E0max)
+  subroutine generate_hole_confs(cfgM,icvs)
     
     use constants
     use bitglobal
     use conftype
-        
+
     implicit none
     
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
+    ! MRCI configuration derived types for all irreps
+    type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
+    
     ! CVS-MRCI: core MOs
     integer(is), intent(in)    :: icvs(nmo)
     logical                    :: lcvs
 
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-    
     ! Everything else
-    integer(is)                :: modus
-    
+    integer(is)                :: modus,i
+
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
 !----------------------------------------------------------------------
@@ -41,37 +38,82 @@ contains
     else
        lcvs=.false.
     endif
-    
+
 !----------------------------------------------------------------------
-! First pass: determine the no. 1-hole configurations
+! 1-hole configurations
 !----------------------------------------------------------------------
+    ! First pass: determine the no. 1-hole configurations
     modus=0
-    call builder_1hole(modus,cfgM,icvs,lcvs,E0max)
+    call builder_1hole(modus,cfgM(0),icvs,lcvs)
 
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(cfgM%conf1h(cfgM%n_int_I,2,cfgM%n1h))
-    cfgM%conf1h=0_ib
+    ! Allocate and initialise arrays
+    allocate(cfgM(0)%conf1h(cfgM(0)%n_int_I,2,cfgM(0)%n1h))
+    allocate(cfgM(0)%off1h(cfgM(0)%nR+1))
+    allocate(cfgM(0)%a1h(cfgM(0)%n1h))
+    cfgM(0)%conf1h=0_ib
+    cfgM(0)%off1h=0
+    cfgM(0)%a1h=0
 
-    allocate(cfgM%off1h(cfgM%nR+1))
-    cfgM%off1h=0
-    
-!----------------------------------------------------------------------
-! Second pass: fill in the 1-hole configuration and offset arrays
-!----------------------------------------------------------------------
+    ! Second pass: fill in the 1-hole configuration and offset arrays
     modus=1
-    call builder_1hole(modus,cfgM,icvs,lcvs,E0max)
+    call builder_1hole(modus,cfgM(0),icvs,lcvs)
+
+!----------------------------------------------------------------------
+! 2-hole configurations
+!----------------------------------------------------------------------
+    ! First pass: determine the no. 2-hole configurations
+    modus=0
+    call builder_2hole(modus,cfgM(0),icvs,lcvs)
     
+    ! Allocate and initialise arrays
+    allocate(cfgM(0)%conf2h(cfgM(0)%n_int_I,2,cfgM(0)%n2h))
+    allocate(cfgM(0)%off2h(cfgM(0)%nR+1))
+    allocate(cfgM(0)%a2h(2,cfgM(0)%n2h))
+    cfgM(0)%conf2h=0_ib
+    cfgM(0)%off2h=0
+    cfgM(0)%a2h=0
+
+    ! Second pass: fill in the 2-hole configuration and offset arrays
+    modus=1
+    call builder_2hole(modus,cfgM(0),icvs,lcvs)
+
+!----------------------------------------------------------------------
+! Fill in the MRCI configuration derived types for the remaining irreps
+!----------------------------------------------------------------------
+    ! Loop over remaining irreps
+    do i=1,nirrep-1
+
+       ! No. 1-hole and 2-hole configurations
+       cfgM(i)%n1h=cfgM(0)%n1h
+       cfgM(i)%n2h=cfgM(0)%n2h
+
+       ! 1-hole configurations and offsets
+       allocate(cfgM(i)%conf1h(cfgM(i)%n_int_I,2,cfgM(i)%n1h))
+       allocate(cfgM(i)%off1h(cfgM(i)%nR+1))
+       allocate(cfgM(i)%a1h(cfgM(i)%n1h))
+       cfgM(i)%conf1h=cfgM(0)%conf1h
+       cfgM(i)%off1h=cfgM(0)%off1h
+       cfgM(i)%a1h=cfgM(0)%a1h
+
+       ! 2-hole configurations and offsets
+       allocate(cfgM(i)%conf2h(cfgM(i)%n_int_I,2,cfgM(i)%n2h))
+       allocate(cfgM(i)%off2h(cfgM(i)%nR+1))
+       allocate(cfgM(i)%a2h(2,cfgM(i)%n2h))
+       cfgM(i)%conf2h=cfgM(0)%conf2h
+       cfgM(i)%off2h=cfgM(0)%off2h
+       cfgM(i)%a2h=cfgM(0)%a2h
+       
+    enddo
+
     return
     
-  end subroutine generate_1hole_confs
-
+  end subroutine generate_hole_confs
+    
 !######################################################################
 ! builder_1hole: performs all the heavy lifting involved in the
 !                generation of the 1-hole configurations
 !######################################################################
-  subroutine builder_1hole(modus,cfgM,icvs,lcvs,E0max)
+  subroutine builder_1hole(modus,cfgM,icvs,lcvs)
 
     use constants
     use bitglobal
@@ -95,142 +137,135 @@ contains
     integer(is), intent(in)    :: icvs(nmo)
     logical, intent(in)        :: lcvs
 
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-    
+    ! Lists of hole/particle indices linking ref confs
+    integer(is), parameter     :: maxexci=1
+    integer(is)                :: hlist(maxexci),plist(maxexci)
+
+    ! Allowed annihilation operator indices
+    integer(is)                :: iannihilate(nmo)
+
     ! Orbital classes
     integer(is)                :: socc(nmo),docc(nmo),unocc(nmo)
     integer(is)                :: nopen,nsocc,ndocc,nunocc
-    
-    ! Hash table
-    type(dhtbl)                :: h
-    integer(is)                :: initial_size
-    integer(ib)                :: key(n_int,2)
-    integer(ib), allocatable   :: keyI(:,:)
+
+    ! 1-hole conf bit string
+    integer(ib), allocatable   :: hconf(:,:)
 
     ! Number of 1-hole configurations generated by each
     ! reference configuration
     integer(is), allocatable   :: ngen(:)
     
     ! Everything else
-    integer(is)                :: i,n,imo,i1
-    integer(is)                :: n_int_I,n1h 
+    integer(is)                :: n_int_I,n,np,nexci,imo,i1
     integer(is)                :: counter
 
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     n_int_I=cfgM%n_int_I
-    allocate(keyI(n_int_I,2))
+    allocate(hconf(n_int_I,2))
     allocate(ngen(cfgM%nR))
-    
+
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
+    if (modus == 0) cfgM%n1h=0
     counter=0
     ngen=0
-    
-!----------------------------------------------------------------------
-! Initialise the hash table
-!----------------------------------------------------------------------
-    initial_size=cfgM%nR*nel/2
-    call h%initialise_table(initial_size)
     
 !----------------------------------------------------------------------
 ! Generate the 1-hole configurations
 !----------------------------------------------------------------------
     ! Loop over reference configurations
     do n=1,cfgM%nR
+
+       ! Initialise the annihilation operator list
+       iannihilate=1
        
+       ! Loop over preceding reference configurations
+       do np=1,n-1
+
+          ! Determine the excitation degree between the to reference
+          ! configurations
+          nexci=exc_degree_conf(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
+               n_int_I)
+
+          ! Cycle if the excitation degree is greater than 1
+          if (nexci > 1) cycle
+          
+          ! Determine the index of the annihilation operator and mark
+          ! it as forbidden
+          call get_exci_indices(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
+               n_int_I,hlist,plist,1)
+          
+          iannihilate(hlist(1))=0
+
+       enddo
+
        ! Get the lists of singly- and doubly-occupied MOs
        ! for the current reference configuration
        call sop_socc_list(cfgM%sopR(:,:,n),n_int_I,socc,nmo,nsocc)
        call sop_docc_list(cfgM%sopR(:,:,n),n_int_I,docc,nmo,ndocc)
-       
+
        ! 1-hole configurations generated from annihilation of
        ! electrons in singly-occupied MOs
        do imo=1,nsocc
-          
+
           ! MO index
           i1=socc(imo)
 
-          !! Cycle if this 1-hole configuration cannot possibly
-          !! generate DFT/MRCI confs satisfying the energy selection
-          !! criterion
-          !if (ldftmrci) then
-          !   if (iocc0(cfgM%m2c(i1)) /= 0 &
-          !        .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-          !endif
-             
           ! Cycle if this is a CVS-MRCI calculation and we are creating
           ! a hole in a flagged core MO
           if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
           
-          ! Annihilate an electron in imo'th singly-occupied MO
-          keyI=annihilate_electron(cfgM%confR(:,:,n),n_int_I,i1)
-          key=0_ib
-          key(1:n_int_I,:)=keyI
-          
-          ! Insert the conf into the hash table
-          call h%insert_key(key)
+          ! Cycle if this annihilation operation will yield a
+          ! duplicate 1-hole configuration
+          if (iannihilate(i1) == 0) cycle
 
-          ! Do we have a new 1-hole configuration?
-          if (counter < h%n_keys_stored) then
+          ! Update the no. 1-hole configurations
+          if (modus == 0) cfgM%n1h=cfgM%n1h+1
+
+          ! Save the 1-hole configuration
+          if (modus == 1) then
              counter=counter+1
              ngen(n)=ngen(n)+1
-             if (modus == 1) cfgM%conf1h(:,:,counter)=keyI
+             hconf=annihilate_electron(cfgM%confR(:,:,n),n_int_I,i1)
+             cfgM%conf1h(:,:,counter)=hconf
+             cfgM%a1h(counter)=i1
           endif
           
        enddo
-       
+
        ! 1-hole configurations generated from annihilation of
        ! electrons in doubly-occupied MOs
        do imo=1,ndocc
-          
+
           ! MO index
           i1=docc(imo)
 
-          !! Cycle if this 1-hole configuration cannot possibly
-          !! generate DFT/MRCI confs satisfying the energy selection
-          !! criterion
-          !if (ldftmrci) then
-          !   if (iocc0(cfgM%m2c(i1)) /= 0 &
-          !        .and. abs(moen(cfgM%m2c(i1))) > E0max+desel) cycle
-          !endif
-             
           ! Cycle if this is a CVS-MRCI calculation and we are creating
           ! a hole in a flagged core MO
           if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
           
-          ! Annihilate an electron in imo'th singly-occupied MO
-          keyI=annihilate_electron(cfgM%confR(:,:,n),n_int_I,i1)
-          key=0_ib
-          key(1:n_int_I,:)=keyI
-          
-          ! Insert the conf into the hash table
-          call h%insert_key(key)
+          ! Cycle if this annihilation operation will yield a
+          ! duplicate 1-hole configuration
+          if (iannihilate(i1) == 0) cycle
 
-          ! Do we have a new 1-hole configuration?
-          if (counter < h%n_keys_stored) then
+          ! Update the no. 1-hole configurations
+          if (modus == 0) cfgM%n1h=cfgM%n1h+1
+
+          ! Save the 1-hole configuration
+          if (modus == 1) then
              counter=counter+1
              ngen(n)=ngen(n)+1
-             if (modus == 1) cfgM%conf1h(:,:,counter)=keyI
+             hconf=annihilate_electron(cfgM%confR(:,:,n),n_int_I,i1)
+             cfgM%conf1h(:,:,counter)=hconf
+             cfgM%a1h(counter)=i1
           endif
           
        enddo
        
     enddo
-    
-!----------------------------------------------------------------------
-! Total number of keys stored in the hash table
-!----------------------------------------------------------------------
-    n1h=h%n_keys_stored
-
-!----------------------------------------------------------------------
-! If we are just determining the number of hole configurations, then
-! save this number
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n1h=n1h
 
 !----------------------------------------------------------------------
 ! Fill in the offset array
@@ -245,82 +280,23 @@ contains
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-    call h%delete_table
-    deallocate(keyI)
+    deallocate(hconf)
     deallocate(ngen)
-    
+
     return
     
   end subroutine builder_1hole
     
 !######################################################################
-! generate_2hole_confs: generates all possible 2-hole configurations
-!                       from a given set of 1-hole configurations
-!######################################################################
-  subroutine generate_2hole_confs(cfgM,icvs,E0max)
-
-    use constants
-    use bitglobal
-    use conftype
-    
-    implicit none
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-    
-    ! Everything else
-    integer(is)                :: modus
-
-!----------------------------------------------------------------------
-! Is this a CVS-MRCI calculation
-!----------------------------------------------------------------------
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
-    
-!----------------------------------------------------------------------
-! First pass: determine the no. 2-hole configurations
-!----------------------------------------------------------------------
-    modus=0
-    call builder_2hole(modus,cfgM,icvs,lcvs,E0max)
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(cfgM%conf2h(cfgM%n_int_I,2,cfgM%n2h))
-    cfgM%conf2h=0_ib
-
-    allocate(cfgM%off2h(cfgM%nR+1))
-    cfgM%off2h=0
-    
-!----------------------------------------------------------------------
-! Second pass: fill in the 2-hole configuration and offset arrays
-!----------------------------------------------------------------------
-    modus=1
-    call builder_2hole(modus,cfgM,icvs,lcvs,E0max)
-
-    return
-    
-  end subroutine generate_2hole_confs
-
-!######################################################################
 ! builder_2hole: performs all the heavy lifting involved in the
 !                generation of the 2-hole configurations
 !######################################################################
-  subroutine builder_2hole(modus,cfgM,icvs,lcvs,E0max)
+  subroutine builder_2hole(modus,cfgM,icvs,lcvs)
 
     use constants
     use bitglobal
     use conftype
+    use confinfo
     use mrciutils
     use dethash
     use hparam
@@ -339,13 +315,17 @@ contains
     ! CVS-MRCI: core MOs
     integer(is), intent(in)    :: icvs(nmo)
     logical, intent(in)        :: lcvs
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
     
     ! 1-hole SOPs
     integer(ib), allocatable   :: sop1h(:,:,:)
 
+    ! Lists of hole/particle indices linking ref confs
+    integer(is), parameter     :: maxexci=2
+    integer(is)                :: hlist(maxexci),plist(maxexci)
+    
+    ! Allowable annihilation operator indices
+    integer(is)                :: iannihilate(nmo)
+    
     ! Orbital classes
     integer(is)                :: socc(nmo),docc(nmo),unocc(nmo)
     integer(is)                :: nopen,nsocc,ndocc,nunocc
@@ -354,45 +334,59 @@ contains
     integer(is)                :: Dw(nmo,2)
     integer(is)                :: ndiff
     
-    ! Hash table
-    type(dhtbl)                :: h
-    integer(is)                :: initial_size
-    integer(ib)                :: key(n_int,2)
-    integer(ib), allocatable   :: keyI(:,:),confI(:,:)
-
     ! Number of 1-hole configurations generated by each
     ! reference configuration
     integer(is), allocatable   :: ngen(:)
+
+     ! 1-hole conf bit string
+    integer(ib), allocatable   :: hconf(:,:)
+    
+    ! Difference configuration information
+    integer(is), allocatable   :: rholes(:,:)
     
     ! Everything else
-    integer(is)                :: i,j,k,n,imo,i1,i2,ioff
-    integer(is)                :: n_int_I,n1h,n2h
-    integer(is)                :: counter
-    real(dp)                   :: eplow
+    integer(is)                :: i,n,np,imo,i1,ioff,ia1h
+    integer(is)                :: n_int_I,nexci,counter
+    integer(is)                :: ndoccR
+    integer(ib), allocatable   :: confI(:,:)
+    logical                    :: allowed
     
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     n_int_I=cfgM%n_int_I
-    n1h=cfgM%n1h
+    allocate(hconf(n_int_I,2))
+    hconf=0_ib
     
-    allocate(sop1h(n_int_I,2,n1h))
+    allocate(sop1h(n_int_I,2,cfgM%n1h))
     sop1h=0_ib
-
-    allocate(keyI(n_int_I,2))
-    keyI=0_ib
 
     allocate(confI(n_int_I,2))
     confI=0_ib
-
+    
     allocate(ngen(cfgM%nR))
     ngen=0
+
+    allocate(rholes(3,cfgM%nR))
+    rholes=0
+    
+!----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    if (modus == 0) cfgM%n2h=0
+    counter=0
+
+!----------------------------------------------------------------------
+! Determine the number of doubly-occupied inactive MOs within the
+! reference space
+!----------------------------------------------------------------------
+    ndoccR=ndocc_ref(cfgM)
     
 !----------------------------------------------------------------------
 ! Generate the 1-hole SOPs
 !----------------------------------------------------------------------    
     ! Loop over 1-hole configurations
-    do i=1,n1h
+    do i=1,cfgM%n1h
 
        ! Generate the next 1-hole SOP
        confI=cfgM%conf1h(:,:,i)
@@ -401,69 +395,109 @@ contains
     enddo
 
 !----------------------------------------------------------------------
-! Initialise the hash table
-!----------------------------------------------------------------------
-    initial_size=n1h*(nel-1)/2
-    call h%initialise_table(initial_size)
-    
-!----------------------------------------------------------------------
 ! Generate the 2-hole configurations
 !----------------------------------------------------------------------
-    ! Initialise the unique 2-hole configuration counter
-    counter=0
-
     ! Loop over reference configurations
     i=0
     do n=1,cfgM%nR
 
+       ! Initialise the array of inter-ref-conf annihilation
+       ! operator indices
+       rholes=0
+              
+       ! Loop over preceding reference configurations
+       do np=1,n-1
+
+          ! Determine the excitation degree between the to reference
+          ! configurations
+          nexci=exc_degree_conf(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
+               n_int_I)
+
+          ! Cycle if the excitation degree is greater than 2
+          if (nexci > 2) cycle
+
+          ! Determine the indices of the creation/annihilation
+          ! operators linking the two ref confs
+          call get_exci_indices(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
+               n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
+
+          ! Save the annihilation operator indices for use later
+          ! in identifying duplicate 2-hole configurations
+          rholes(1,np)=nexci
+          if (nexci == 1) rholes(2,np)=hlist(1)
+          if (nexci == 2) then
+             rholes(2,np)=min(hlist(1),hlist(2))
+             rholes(3,np)=max(hlist(1),hlist(2))
+          endif
+             
+       enddo
+          
        ! Loop over the 1-hole configurations generated by the current
        ! reference configuration
        do ioff=cfgM%off1h(n),cfgM%off1h(n+1)-1
-
+          
           ! Increment the 1-hole conf counter
           i=i+1
 
+          ! 1-hole annihilation operator index
+          ia1h=cfgM%a1h(i)
+          
+          ! Initialise the annihilation operator list
+          iannihilate=1
+          
+          ! Flag annihilation operator indices as forbidden based
+          ! on the condition that the 2nd index has to be greater
+          ! than or equal to the 1st index
+          iannihilate(1:ia1h-1)=0
+          
+          ! Flag annihilation operator indices as forbidden based
+          ! on the excitations linking the current ref conf to those
+          ! preceding it
+          do np=1,n-1
+             if (rholes(1,np) == 1) then
+                ! Single excitation
+                iannihilate(rholes(2,np))=0
+             else if (rholes(1,np) == 2) then
+                ! Double excitation
+                if (ia1h == rholes(2,np)) iannihilate(rholes(3,np))=0
+             endif
+          enddo
+          
           ! Get the lists of singly- and doubly-occupied MOs
           ! for the current 1-hole configuration
           call sop_socc_list(sop1h(:,:,i),n_int_I,socc,nmo,nsocc)
           call sop_docc_list(sop1h(:,:,i),n_int_I,docc,nmo,ndocc)
-
+          
           ! 2-hole configurations generated from annihilation of
           ! electrons in singly-occupied MOs
           do imo=1,nsocc
-          
+             
              ! MO index
              i1=socc(imo)
-             
-             ! Cycle if this is a CVS-MRCI calculation and we are
-             ! creating a hole in a flagged core MO
+
+             ! Cycle if this is a CVS-MRCI calculation and we are creating
+             ! a hole in a flagged core MO
              if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
-
-             ! Annihilate an electron in imo'th singly-occupied MO
-             keyI=annihilate_electron(cfgM%conf1h(:,:,i),n_int_I,i1)
-             key=0_ib
-             key(1:n_int_I,:)=keyI
-
-             ! Cycle if this 2-hole configuration cannot possibly
-             ! generate DFT/MRCI confs satisfying the energy selection
-             ! criterion
-             !if (ldftmrci) then
-             !   call get_eplow(2,eplow,key,n_int,cfgM%m2c)
-             !   if (ehole(key,n_int,cfgM%m2c)+eplow > E0max+desel) cycle
-             !endif
              
-             ! Insert the conf into the hash table
-             call h%insert_key(key)
+             ! Cycle if this annihilation operation will yield a
+             ! duplicate 2-hole configuration
+             if (iannihilate(i1) == 0) cycle
+             
+             ! Update the no. 2-hole configurations
+             if (modus == 0) cfgM%n2h=cfgM%n2h+1
 
-             ! Do we have a new 2-hole configuration?
-             if (counter < h%n_keys_stored) then
+             ! Save the 2-hole configuration
+             if (modus == 1) then
                 counter=counter+1
                 ngen(n)=ngen(n)+1
-                if (modus == 1) cfgM%conf2h(:,:,counter)=keyI
+                hconf=annihilate_electron(cfgM%conf1h(:,:,i),n_int_I,i1)
+                cfgM%conf2h(:,:,counter)=hconf
+                cfgM%a2h(1,counter)=i1
+                cfgM%a2h(2,counter)=ia1h
              endif
              
           enddo
-          
+
           ! 2-hole configurations generated from annihilation of
           ! electrons in doubly-occupied MOs
           do imo=1,ndocc
@@ -475,45 +509,28 @@ contains
              ! a hole in a flagged core MO
              if (lcvs .and. icvs(cfgM%m2c(i1)) == 1) cycle
              
-             ! Annihilate an electron in imo'th singly-occupied MO
-             keyI=annihilate_electron(cfgM%conf1h(:,:,i),n_int_I,i1)
-             key=0_ib
-             key(1:n_int_I,:)=keyI
-
-             ! Cycle if this 2-hole configuration cannot possibly
-             ! generate DFT/MRCI confs satisfying the energy selection
-             ! criterion
-             !if (ldftmrci) then
-             !   call get_eplow(2,eplow,key,n_int,cfgM%m2c)
-             !   if (ehole(key,n_int,cfgM%m2c)+eplow > E0max+desel) cycle
-             !endif
+             ! Cycle if this annihilation operation will yield a
+             ! duplicate 2-hole configuration
+             if (iannihilate(i1) == 0) cycle
              
-             ! Insert the conf into the hash table
-             call h%insert_key(key)
+             ! Update the no. 2-hole configurations
+             if (modus == 0) cfgM%n2h=cfgM%n2h+1
 
-             ! Do we have a new 2-hole configuration?
-             if (counter < h%n_keys_stored) then
+             ! Save the 2-hole configuration
+             if (modus == 1) then
                 counter=counter+1
                 ngen(n)=ngen(n)+1
-                if (modus == 1) cfgM%conf2h(:,:,counter)=keyI
+                hconf=annihilate_electron(cfgM%conf1h(:,:,i),n_int_I,i1)
+                cfgM%conf2h(:,:,counter)=hconf
+                cfgM%a2h(1,counter)=i1
+                cfgM%a2h(2,counter)=ia1h
              endif
              
           enddo
           
        enddo
-
+          
     enddo
-    
-!----------------------------------------------------------------------
-! Total number of keys stored in the hash table
-!----------------------------------------------------------------------
-    n2h=h%n_keys_stored
-
-!----------------------------------------------------------------------
-! If we are just determining the number of hole configurations, then
-! save this number
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n2h=n2h
 
 !----------------------------------------------------------------------
 ! Fill in the offset array
@@ -528,22 +545,22 @@ contains
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-    call h%delete_table
     deallocate(sop1h)
-    deallocate(keyI)
-    
+    deallocate(confI)
+    deallocate(ngen)
+    deallocate(rholes)
+        
     return
     
   end subroutine builder_2hole
-  
+    
 !######################################################################
 ! generate_1hole_1I_confs: generates 1-hole configurations derived
 !                          from the 2-hole configurations by the
 !                          application of internal creation
 !                          operators
 !######################################################################
-  subroutine generate_1hole_1I_confs(conf1h1I,n1h1I,indx1h1I,cfgM,&
-       icvs,E0max)
+  subroutine generate_1hole_1I_hash(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
 
     use constants
     use bitglobal
@@ -567,9 +584,6 @@ contains
     integer(is), intent(in)    :: icvs(nmo)
     logical                    :: lcvs
 
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-    
     ! Orbital classes
     integer(is), allocatable   :: socc(:),docc(:),unocc(:)
     integer(is)                :: nopen,nsocc,ndocc,nunocc
@@ -594,7 +608,6 @@ contains
     ! Everything else
     integer(is)                :: i,j,k,n,imo,i1
     integer(is)                :: n_int_I,nmoI,n1h,n2h
-    real(dp)                   :: eplow
     
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
@@ -691,14 +704,6 @@ contains
              key(k,1)=ibset(key(k,1),i)
           endif
 
-          ! Cycle if this 1H1I configuration cannot possibly
-          ! generate DFT/MRCI confs satisfying the energy selection
-          ! criterion
-          !if (ldftmrci) then
-          !   call get_eplow(1,eplow,key,n_int,cfgM%m2c)
-          !   if (eparticle_hole(key,n_int,cfgM%m2c)+eplow > E0max+desel) cycle
-          !endif
-             
           ! Hash table insertion
           call h%insert_key(key)
 
@@ -752,8 +757,8 @@ contains
     
     return
     
-  end subroutine generate_1hole_1I_confs
-
+  end subroutine generate_1hole_1I_hash
+    
 !######################################################################
 ! save_1h1I: buffered saving of the 1H1I configurations
 !######################################################################
@@ -870,209 +875,6 @@ contains
   end subroutine load_1h1I
 
 !######################################################################
-! ehole: returns the sum of the negatives of the energies of the hole
-!        MOs (relative the base configuration)
-!######################################################################
-  function ehole(conf,ldc,m2c)
-
-    use constants
-    use bitglobal
-    use mrciutils
-
-    implicit none
-
-    ! Function result
-    real(dp)                :: ehole
-    
-    ! Configuration
-    integer(is), intent(in) :: ldc
-    integer(ib), intent(in) :: conf(ldc,2)
-
-    ! MO mapping array
-    integer(is), intent(in) :: m2c(nmo)
-    
-    ! Difference configuration information
-    integer(is)             :: Dw(nmo,2)
-    integer(is)             :: ndiff
-
-    ! Everything else
-    integer(is)             :: i,i1,Dwi
-
-    !
-    ! Difference configuration information
-    !
-    call diffconf(conf,ldc,Dw,nmo,ndiff)
-
-    !
-    ! Sum the hole MO energies multiplied by the occupation differences
-    !
-    ehole=0.0d0
-    do i=1,ndiff
-       i1=m2c(Dw(i,1))
-       Dwi=Dw(i,2)
-       if (Dwi < 0) ehole=ehole+moen(i1)*Dwi
-    enddo
-    
-    return
-    
-  end function ehole
-
-!######################################################################
-! eparticle_hole: returns the sum of the absolutes of the energies of
-!                 hole and particle MOs (relative the base
-!                 configuration)
-!######################################################################
-  function eparticle_hole(conf,ldc,m2c)
-
-    use constants
-    use bitglobal
-    use mrciutils
-
-    implicit none
-
-    ! Function result
-    real(dp)                :: eparticle_hole
-    
-    ! Configuration
-    integer(is), intent(in) :: ldc
-    integer(ib), intent(in) :: conf(ldc,2)
-
-    ! MO mapping array
-    integer(is), intent(in) :: m2c(nmo)
-    
-    ! Difference configuration information
-    integer(is)             :: Dw(nmo,2)
-    integer(is)             :: ndiff
-
-    ! Everything else
-    integer(is)             :: i,i1,Dwi
-
-    !
-    ! Difference configuration information
-    !
-    call diffconf(conf,ldc,Dw,nmo,ndiff)
-
-    !
-    ! Sum the MO energies multiplied by the occupation differences
-    !
-    eparticle_hole=0.0d0
-    do i=1,ndiff
-       i1=m2c(Dw(i,1))
-       Dwi=Dw(i,2)
-       eparticle_hole=eparticle_hole+moen(i1)*Dwi
-    enddo
-    
-    return
-    
-  end function eparticle_hole
-
-!######################################################################  
-
-  subroutine get_eplow(np,eplow,conf,ldc,m2c)
-
-    use constants
-    use bitglobal
-    use mrciutils
-    
-    implicit none
-
-    integer(is), intent(in) :: np
-    real(dp), intent(out)   :: eplow
-    integer(is), intent(in) :: ldc
-    integer(ib), intent(in) :: conf(ldc,2)
-    integer(is), intent(in) :: m2c(nmo)
-    
-    ! Orbital classes
-    integer(is)             :: socc(nmo),docc(nmo),unocc(nmo)
-    integer(is)             :: nopen,nsocc,ndocc,nunocc
-
-    ! SOP
-    integer(ib)             :: sop(ldc,2)
-
-    ! Everything else
-    integer(is)             :: i,j,Dwi,Dwj
-
-    print*,''
-    print*,'get_eplow is fundamentally flawed: it will return the annihilation operator indexed MO energies. i.e., it will undo ehole...'
-    print*,''
-    stop
-    
-    !
-    ! SOP
-    !
-    sop=conf_to_sop(conf,ldc)
-
-    !
-    ! Unoccupied and singly-occupied MOs
-    !
-    call sop_unocc_list(sop,ldc,unocc,nmo,nunocc)
-    call sop_socc_list(sop,ldc,socc,nmo,nsocc)
-
-    !
-    ! Indices of the lowest-lying non-double-occupied MOs
-    !
-    if (nsocc == 0) then
-       i=m2c(unocc(1))
-       j=m2c(unocc(2))
-       Dwi=-iocc0(m2c(unocc(1)))
-       Dwj=-iocc0(m2c(unocc(2)))
-    else if (nsocc == 1) then
-       if (m2c(socc(1)) < m2c(unocc(2))) then
-          i=socc(1)
-          j=unocc(1)
-          Dwi=1-iocc0(m2c(socc(1)))
-          Dwj=-iocc0(m2c(unocc(1)))
-       else
-          i=m2c(unocc(1))
-          j=m2c(unocc(2))
-          Dwi=-iocc0(m2c(unocc(1)))
-          Dwj=-iocc0(m2c(unocc(2)))
-       endif
-    else if (nsocc >= 2) then
-       if (m2c(socc(1)) < m2c(unocc(1))) then
-          i=m2c(socc(1))
-          Dwi=1-iocc0(m2c(socc(1)))
-          if (m2c(socc(2) < m2c(unocc(1)))) then
-             j=m2c(socc(2))
-             Dwj=1-iocc0(m2c(socc(2)))
-          else
-             j=m2c(unocc(1))
-             Dwj=-iocc0(m2c(unocc(1)))
-          endif
-       else
-          i=unocc(1)
-          Dwi=-iocc0(m2c(unocc(1)))
-          if (m2c(socc(1)) < m2c(unocc(2))) then
-             j=m2c(socc(1))
-             Dwj=1-iocc0(m2c(socc(1)))
-          else
-             j=m2c(unocc(2))
-             Dwj=-iocc0(m2c(unocc(2)))
-          endif
-       endif
-    endif
-
-    !
-    ! Sum of the MO energies multiplied by the occupation differences
-    ! relative to the base configuration
-    !
-    eplow=0.0d0
-    if (np == 1) then
-       eplow=moen(i)*Dwi
-    else if (np == 2) then
-       eplow=moen(i)+moen(j)*Dwi*Dwj
-    endif
-
-    print*,'---------------------------------------------'
-    print*,'unocc:',unocc(1:2)
-    print*,'socc:',socc(1:2)
-    print*,'i,j:',i,j
-    
-    return
-    
-  end subroutine get_eplow
-  
-!######################################################################
 ! filter_hole_confs: removes any hole configurations which do not
 !                    generate any full configurations
 !######################################################################
@@ -1120,12 +922,13 @@ contains
     integer(ib), allocatable   :: conftmp(:,:,:)
     integer(is), allocatable   :: offtmp1I(:),offtmp1E(:)
     integer(is), allocatable   :: offtmp1h(:)
+    integer(is), allocatable   :: a1htmp(:)
     integer(is), allocatable   :: ngen(:)
     
     ! Everything else
     integer(is)                :: n,iref,nok,counter,nlastI,nlastE,&
                                   countlastI,countlastE
-
+    
 !----------------------------------------------------------------------
 ! Determine the number of 1-hole configurations that generate full
 ! configurations
@@ -1154,6 +957,9 @@ contains
     allocate(offtmp1E(nok+1))
     offtmp1E=0
 
+    allocate(a1htmp(nok))
+    a1htmp=0
+    
     allocate(ngen(cfgM%nR))
     ngen=0
 
@@ -1214,6 +1020,9 @@ contains
           ! Save the 1E offset
           offtmp1E(counter)=cfgM%off1E(n)
 
+          ! Save the annihilation operator index
+          a1htmp(counter)=cfgM%a1h(n)
+          
           ! End point of the 1-hole confs that generate
           ! 1I and 1E confs
           if (cfgM%off1I(n) /= cfgM%off1I(n+1)) then
@@ -1237,21 +1046,25 @@ contains
          offtmp1E(countlastE+1:nok+1)=cfgM%off1E(nlastE+1)
 
 !----------------------------------------------------------------------
-! Re-allocate and fill in the 1-hole conf and offset arrays
+! Re-allocate and fill in the 1-hole conf, offset and annhilation
+! operator arrays
 !----------------------------------------------------------------------
     cfgM%n1h=nok
 
     deallocate(cfgM%conf1h)
     deallocate(cfgM%off1I)
     deallocate(cfgM%off1E)
-
+    deallocate(cfgM%a1h)
+    
     allocate(cfgM%conf1h(cfgM%n_int_I,2,nok))
     allocate(cfgM%off1I(nok+1))
     allocate(cfgM%off1E(nok+1))
-
+    allocate(cfgM%a1h(nok))
+    
     cfgM%conf1h=conftmp
     cfgM%off1I=offtmp1I
     cfgM%off1E=offtmp1E
+    cfgM%a1h=a1htmp
 
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -1259,6 +1072,7 @@ contains
     deallocate(conftmp)
     deallocate(offtmp1I)
     deallocate(offtmp1E)
+    deallocate(a1htmp)
     deallocate(ngen)
     
     return
@@ -1284,6 +1098,7 @@ contains
     integer(ib), allocatable   :: conftmp(:,:,:)
     integer(is), allocatable   :: offtmp2I(:),offtmp2E(:),&
                                   offtmp1I1E(:)
+    integer(is), allocatable   :: a2htmp(:,:)
     integer(is), allocatable   :: ngen(:)
     
     ! Everything else
@@ -1323,6 +1138,9 @@ contains
     allocate(offtmp1I1E(nok+1))
     offtmp1I1E=0
 
+    allocate(a2htmp(2,nok))
+    a2htmp=0
+    
     allocate(ngen(cfgM%nR))
     ngen=0
 
@@ -1388,6 +1206,9 @@ contains
           ! Save the 1I1E offset
           offtmp1I1E(counter)=cfgM%off1I1E(n)
 
+          ! Save the annihilation operator indices
+          a2htmp(:,counter)=cfgM%a2h(:,n)
+          
           ! End point of the 2-hole confs that generate
           ! 2I, 2E and 1I1E confs
           if (cfgM%off2I(n) /= cfgM%off2I(n+1)) then
@@ -1426,16 +1247,19 @@ contains
     deallocate(cfgM%off2I)
     deallocate(cfgM%off2E)
     deallocate(cfgM%off1I1E)
+    deallocate(cfgM%a2h)
 
     allocate(cfgM%conf2h(cfgM%n_int_I,2,nok))
     allocate(cfgM%off2I(nok+1))
     allocate(cfgM%off2E(nok+1))
     allocate(cfgM%off1I1E(nok+1))
-
+    allocate(cfgM%a2h(2,nok))
+    
     cfgM%conf2h=conftmp
     cfgM%off2I=offtmp2I
     cfgM%off2E=offtmp2E
     cfgM%off1I1E=offtmp1I1E
+    cfgM%a2h=a2htmp
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -1444,6 +1268,7 @@ contains
     deallocate(offtmp2I)
     deallocate(offtmp2E)
     deallocate(offtmp1I1E)
+    deallocate(a2htmp)
     deallocate(ngen)
     
     return

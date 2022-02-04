@@ -540,7 +540,6 @@ contains
 
     use constants
     use bitglobal
-    use int_pyscf
 
     implicit none
 
@@ -559,12 +558,12 @@ contains
 !----------------------------------------------------------------------
     do i=1,nel_alpha
        i1=occlist(i,1)
-       hii=hii+h_1e_ij(i1,i1)
+       hii=hii + bitci_ints%h_1e(i1,i1)
     enddo
 
     do i=1,nel_beta
        i1=occlist(i,2)
-       hii=hii+h_1e_ij(i1,i1)
+       hii=hii + bitci_ints%h_1e(i1,i1)
     enddo
     
 !----------------------------------------------------------------------
@@ -574,7 +573,7 @@ contains
        i1=occlist(i,1)       
        do j=1,nel_alpha
           j1=occlist(j,1)
-          hii=hii+0.5d0*mo_integral_ijkl(i1,i1,j1,j1)
+          hii=hii+0.5d0*bitci_ints%mo_int(i1,i1,j1,j1)
        enddo
     enddo
 
@@ -582,7 +581,7 @@ contains
        i1=occlist(i,2)       
        do j=1,nel_beta
           j1=occlist(j,2)
-          hii=hii+0.5d0*mo_integral_ijkl(i1,i1,j1,j1)
+          hii=hii+0.5d0*bitci_ints%mo_int(i1,i1,j1,j1)
        enddo
     enddo
     
@@ -590,7 +589,7 @@ contains
        i1=occlist(i,1)       
        do j=1,nel_beta
           j1=occlist(j,2)
-          hii=hii+0.5d0*mo_integral_ijkl(i1,i1,j1,j1)
+          hii=hii+0.5d0*bitci_ints%mo_int(i1,i1,j1,j1)
        enddo
     enddo
 
@@ -598,7 +597,7 @@ contains
        i1=occlist(i,2)       
        do j=1,nel_alpha
           j1=occlist(j,1)
-          hii=hii+0.5d0*mo_integral_ijkl(i1,i1,j1,j1)
+          hii=hii+0.5d0*bitci_ints%mo_int(i1,i1,j1,j1)
        enddo
     enddo
 
@@ -609,7 +608,7 @@ contains
        i1=occlist(i,1)       
        do j=1,nel_alpha
           j1=occlist(j,1)
-          hii=hii-0.5d0*mo_integral_ijkl(i1,j1,i1,j1)
+          hii=hii-0.5d0*bitci_ints%mo_int(i1,j1,i1,j1)
        enddo
     enddo
 
@@ -617,7 +616,7 @@ contains
        i1=occlist(i,2)       
        do j=1,nel_beta
           j1=occlist(j,2)
-          hii=hii-0.5d0*mo_integral_ijkl(i1,j1,i1,j1)
+          hii=hii-0.5d0*bitci_ints%mo_int(i1,j1,i1,j1)
        enddo
     enddo
 
@@ -640,7 +639,6 @@ contains
 
     use constants
     use bitglobal
-    use int_pyscf
     
     implicit none
 
@@ -667,7 +665,7 @@ contains
 !----------------------------------------------------------------------
 ! Core Hamiltonian contribution
 !----------------------------------------------------------------------
-    hij=hij+h_1e_ij(ia,ic)
+    hij=hij + bitci_ints%h_1e(ia,ic)
 
 !----------------------------------------------------------------------
 ! Coulomb integral contributions
@@ -675,7 +673,7 @@ contains
     do jspin=1,2
        do i=1,nel_spin(jspin)
           i1=occlist(i,jspin)
-          hij=hij+mo_integral_ijkl(ia,ic,i1,i1)
+          hij=hij+bitci_ints%mo_int(ia,ic,i1,i1)
        enddo
     enddo
 
@@ -684,7 +682,7 @@ contains
 !----------------------------------------------------------------------
     do i=1,nel_spin(ispin)
        i1=occlist(i,ispin)
-       hij=hij-mo_integral_ijkl(ia,i1,ic,i1)
+       hij=hij-bitci_ints%mo_int(ia,i1,ic,i1)
     enddo
 
 !----------------------------------------------------------------------
@@ -706,7 +704,6 @@ contains
 
     use constants
     use bitglobal
-    use int_pyscf
     
     implicit none
 
@@ -733,12 +730,12 @@ contains
 !----------------------------------------------------------------------
 ! Coulomb integral contribution
 !----------------------------------------------------------------------
-    hij=hij+mo_integral_ijkl(ia1,ic1,ia2,ic2)
+    hij=hij+bitci_ints%mo_int(ia1,ic1,ia2,ic2)
 
 !----------------------------------------------------------------------
 ! Exchange integral contribution
 !----------------------------------------------------------------------
-    hij=hij-mo_integral_ijkl(ia1,ic2,ia2,ic1)
+    hij=hij-bitci_ints%mo_int(ia1,ic2,ia2,ic1)
     
 !----------------------------------------------------------------------
 ! Phase factor
@@ -759,7 +756,6 @@ contains
 
     use constants
     use bitglobal
-    use int_pyscf
     
     implicit none
 
@@ -786,7 +782,7 @@ contains
 !----------------------------------------------------------------------
 ! Coulomb integral contribution
 !----------------------------------------------------------------------
-    hij=hij+mo_integral_ijkl(ia1,ic1,ia2,ic2)
+    hij=hij+bitci_ints%mo_int(ia1,ic1,ia2,ic2)
     
 !----------------------------------------------------------------------
 ! Phase factor

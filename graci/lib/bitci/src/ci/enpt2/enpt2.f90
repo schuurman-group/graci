@@ -321,9 +321,8 @@ contains
        ibconf2I=0
        ibconf2E=0
        ibconf1I1E=0
-
        do n=1,cfg%n2h
-    
+          
           ! Number of creation and annihilation operators linking the
           ! reference and 2-hole configurations
           nac=n_create_annihilate(cfg%conf0h(1:n_int_I,:,kconf),&

@@ -5,7 +5,6 @@ import graci.core.parameterize as parameterize
 import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
-import graci.methods.dftcis as dftcis
 import graci.properties.moments as moments
 import graci.properties.transition as transition
 import graci.properties.spinorbit as spinorbit
@@ -44,7 +43,7 @@ dftmrci_kword  = {'nstates'        : int,
                   'autoras'        : bool,
                   'refiter'        : int,
                   'ref_prune'      : bool,
-                  'prune'          : str,
+                  'prune'          : bool,
                   'prune_thresh'   : float,
                   'prune_qcorr'    : bool,
                   'prune_extra'    : int,
@@ -75,12 +74,6 @@ dftmrenpt2_kword  = {'nstates'        : int,
                      'save_wf'        : bool,
                      'label'          : str
                      }
-
-# DFT/CIS section input keywords and data types
-dftcis_kword   = {'nstates'        : int,
-                  'hamiltonian'    : str,
-                  'label'          : str
-                }
 
 #---------------------------------------------------
 
@@ -117,16 +110,15 @@ parameterize_kword = {'algorithm' : str,
 # these are the valid computation classes. This is somewhat
 # inartful.
 valid_objs = ['Molecule', 'Parameterize','Scf', 'Dftmrci',
-              'Dftmrenpt2', 'Dftcis', 
+              'Dftmrenpt2', 
               'Transition', 'Spinorbit']
-method_objs = ['Scf', 'Dftmrci', 'Dftmrenpt2', 'Dftcis']
+method_objs = ['Scf', 'Dftmrci', 'Dftmrenpt2']
 si_objs     = ['Transition', 'Spinorbit']
 
 ##############################################
 kwords = {'Molecule'     : molecule_kword,
           'Parameterize' : parameterize_kword,
           'Scf'          : scf_kword,
-          'Dftcis'       : dftcis_kword,
           'Dftmrci'      : dftmrci_kword,
           'Dftmrenpt2'   : dftmrenpt2_kword,
           'Transition'   : transition_kword,

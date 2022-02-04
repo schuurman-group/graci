@@ -149,7 +149,7 @@ def print_timings():
                        key=lambda unsort: unsort[1].wall_time, reverse=True)
 
     # pass timing information as a string
-    ostr =  '\n\n' + '-'*39 + ' timings summary ' + '-'*39 + ' \n'
+    ostr =  '\n\n' + '-'*31 + ' timings summary (routines > 1%) ' + '-'*31 + ' \n'
     ostr += ('routine'.ljust(35) + 'calls'.rjust(12) +
              'wall time'.rjust(16) + 'frac.'.rjust(8) +
              'cpu time'.rjust(16)  + 'frac.'.rjust(8) + '\n')
@@ -162,13 +162,17 @@ def print_timings():
             ncall = sort[1].calls
             wtim  = sort[1].wall_time
             ctim  = sort[1].cpu_time
-            ostr += ofrm.format(rout, ncall, wtim, wtim/tot_wall, ctim,
-                                ctim/tot_cpu)
+
             frac_wall += wtim/tot_wall
             frac_cpu  += ctim/tot_cpu
 
+            # only print those contributions > 1%
+            if wtim/tot_wall >= 0.01:
+                ostr += ofrm.format(rout, ncall, wtim, wtim/tot_wall, 
+                                    ctim, ctim/tot_cpu)
+
     ostr += '-'*95 + '\n'
-    ostr += ('**total**'.ljust(47) +
+    ostr += ('**total (all timed routines)**'.ljust(47) +
              '{:16.4f}{:8.2f}{:16.4f}{:8.2f}\n\n'.format(tot_wall, frac_wall,
                                                              tot_cpu, frac_cpu))
     return ostr

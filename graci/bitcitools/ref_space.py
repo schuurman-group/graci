@@ -120,7 +120,7 @@ def autoras(ci_method):
 
     # Aggressively loose integral screening
     loose = True
-        
+    
     # Loop over irreps
     for irrep in range(nirr):
 

@@ -43,7 +43,8 @@ module conftype
      integer(ib), allocatable :: sopR(:,:,:)
      
      ! 1-hole and 2-hole configurations
-     integer(is)              :: n1h,n2h 
+     integer(is)              :: n1h,n2h
+     integer(is), allocatable :: a1h(:),a2h(:,:)
      integer(is), allocatable :: off1h(:),off2h(:)
      integer(ib), allocatable :: conf1h(:,:,:),conf2h(:,:,:)
           
@@ -170,8 +171,10 @@ contains
     allocate(cfg%confR(cfg%n_int_I,2,cfg%nR))
     allocate(cfg%conf0h(cfg%n_int_I,2,cfg%n0h))
     allocate(cfg%conf1h(cfg%n_int_I,2,cfg%n1h))
+    allocate(cfg%a1h(cfg%n1h))
     allocate(cfg%off1h(cfg%nR+1))
     allocate(cfg%conf2h(cfg%n_int_I,2,cfg%n2h))
+    allocate(cfg%a2h(2,cfg%n2h))
     allocate(cfg%off2h(cfg%nR+1))
     allocate(cfg%a1E(cfg%n1E))
     allocate(cfg%off1E(cfg%n1h+1))
@@ -189,8 +192,10 @@ contains
     ! Configuration information
     read(iscratch) cfg%confR
     read(iscratch) cfg%conf1h
+    read(iscratch) cfg%a1h
     read(iscratch) cfg%off1h
     read(iscratch) cfg%conf2h
+    read(iscratch) cfg%a2h
     read(iscratch) cfg%off2h
     read(iscratch) cfg%conf0h
     if (cfg%n1I > 0) then
@@ -1061,7 +1066,9 @@ contains
     ! Deallocate all arrays
     !
     if (allocated(cfg%confR)) deallocate(cfg%confR)
+    if (allocated(cfg%a1h)) deallocate(cfg%a1h)
     if (allocated(cfg%off1h)) deallocate(cfg%off1h)
+    if (allocated(cfg%a2h)) deallocate(cfg%a2h)
     if (allocated(cfg%off2h)) deallocate(cfg%off2h)
     if (allocated(cfg%conf0h)) deallocate(cfg%conf0h)
     if (allocated(cfg%conf1h)) deallocate(cfg%conf1h)

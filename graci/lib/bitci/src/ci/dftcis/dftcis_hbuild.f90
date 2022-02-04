@@ -23,8 +23,6 @@ contains
     use timing
     use iomod
 
-    use int_pyscf
-    
     implicit none
 
     ! Irrep number
@@ -193,7 +191,6 @@ contains
     use constants
     use bitglobal
     use dftcis_param
-    use int_pyscf
     
     implicit none
 
@@ -211,14 +208,14 @@ contains
     case(1)
 
        ! Grimme's original parameterisation
-       hij =-hpar(1)*mo_integral(i,j,a,b)&
-            +2.0d0*mo_integral(i,a,j,b)
+       hij =-hpar(1)*bitci_ints%mo_int(i,j,a,b)&
+            +2.0d0*bitci_ints%mo_int(i,a,j,b)
 
     case(2)
 
        ! Our singlet/BHLYP parameterisation
-       hij =-hpar(1)*mo_integral(i,j,a,b)&
-            +2.0d0*mo_integral(i,a,j,b)
+       hij =-hpar(1)*bitci_ints%mo_int(i,j,a,b)&
+            +2.0d0*bitci_ints%mo_int(i,a,j,b)
             
     end select
     
@@ -292,7 +289,6 @@ contains
 
     use constants
     use bitglobal
-    use int_pyscf
         
     implicit none
 
@@ -318,7 +314,7 @@ contains
     !
     do i=1,nocc
        do j=i,nocc
-          Goo(i,j)=sqrt(mo_integral(i,j,i,j))
+          Goo(i,j)=sqrt(bitci_ints%mo_int(i,j,i,j))
           Goo(j,i)=Goo(i,j)
        enddo
     enddo
@@ -330,7 +326,7 @@ contains
        a=nocc+a1
        do b1=a1,nvirt
           b=nocc+b1
-          Gvv(a1,b1)=sqrt(mo_integral(a,b,a,b))
+          Gvv(a1,b1)=sqrt(bitci_ints%mo_int(a,b,a,b))
           Gvv(b1,a1)=Gvv(a1,b1)
        enddo
     enddo
@@ -341,7 +337,7 @@ contains
     do i=1,nocc
        do a1=1,nvirt
           a=nocc+a1
-          Gov(i,a1)=sqrt(mo_integral(i,a,i,a))
+          Gov(i,a1)=sqrt(bitci_ints%mo_int(i,a,i,a))
        enddo
     enddo
     

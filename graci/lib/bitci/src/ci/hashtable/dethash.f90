@@ -70,6 +70,10 @@ module dethash
      ! Insert the key (determinant) into the hash table
      procedure, non_overridable :: insert_key
 
+     ! Check if the key is already stored in the hash
+     ! table
+     procedure, non_overridable :: key_exists
+     
      ! Resize the hash table
      procedure, non_overridable :: resize_table
 
@@ -271,7 +275,6 @@ contains
     !
     ! Get the hash of the key
     !
-    !hash=key_hash(h,key)
     hash=det_hash(key)
     
     !
@@ -347,6 +350,70 @@ contains
     
   end subroutine insert_key
 
+!######################################################################
+! key_exists: returns .true. if a given key already exists, else
+!             returns .false.
+!######################################################################
+  function key_exists(h,key)
+
+    use constants
+
+    implicit none
+
+    logical                     :: key_exists
+    
+    class(dhtbl), intent(inout) :: h
+    integer(ib), intent(in)     :: key(n_int,2)
+    integer(ib)                 :: hash
+    integer(ib)                 :: nb,i1,step
+
+    !
+    ! Get the hash of the key
+    !
+    hash=det_hash(key)
+    
+    !
+    ! Get the hash index for the key
+    !
+    nb=h%n_buckets
+    i1=iand(hash,nb-1)+1
+
+    !
+    ! Loop over buckets, and check to see if the key already exists in
+    ! the table
+    !
+    ! Loop over buckets
+    do step=1,h%n_buckets
+       
+       ! Exit the loop when an empty bucket or the key is found
+       if (h%full(i1)==0) then
+          ! Empty bucket: the key is not yet in the hash table
+          key_exists=.false.
+          return
+       else if (keys_equal(h%keys(:,:,i1),key)) then
+          ! The key is already stored in the hash table
+          key_exists=.true.
+          return
+       else
+          ! Collision: the key could still be in the hash table,
+          ! move to the next bucket
+          ! Quadratic probing
+          !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Linear probing
+          i1=iand(hash+step,nb-1)+1
+       endif
+
+    enddo
+
+    !
+    ! If we are here, then the key is not stored in the hash table
+    !
+    key_exists=.false.
+    
+    return
+    
+  end function key_exists
+    
 !######################################################################
 ! resize_table: increases the size of the hash table and re-maps all
 !               existing keys stored in it

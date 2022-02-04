@@ -23,6 +23,6 @@
  $dftmrci section
  nstates      = 11
  hamiltonian  = grimme_standard
- prune        = loose
+ prune        = True
  $end
 

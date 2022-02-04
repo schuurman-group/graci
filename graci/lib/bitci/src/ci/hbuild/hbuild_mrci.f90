@@ -19,7 +19,6 @@ contains
     use constants
     use bitglobal
     use pattern_indices
-    use int_pyscf
     
     implicit none
 
