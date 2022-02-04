@@ -224,11 +224,11 @@ class Scf:
         else:
             if self.mol.use_df:
                 if self.mol.spin == 0.:
-                    mf = dft.RKS(pymol).density_fit( auxbasis =
-                                               self.mol.ri_basis)
+                    mf = dft.RKS(pymol, init_guess='minao').density_fit( 
+                                   auxbasis = self.mol.ri_basis)
                 else:
-                    mf = dft.ROKS(pymol).density_fit( auxbasis =
-                                               self.mol.ri_basis)
+                    mf = dft.ROKS(pymol,init_guess='minao').density_fit( 
+                                   auxbasis = self.mol.ri_basis)
             else:
                 if self.mol.spin == 0.:
                     mf = dft.RKS(pymol)
