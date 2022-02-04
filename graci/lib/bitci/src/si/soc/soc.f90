@@ -20,7 +20,7 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   use iomod
   use conftype
   use merge
-  use tdm
+  use triplet_tdm
 
   implicit none
 
@@ -58,7 +58,7 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   real(dp), allocatable    :: vecB(:,:),enerB(:),vecK(:,:),enerK(:)
   
   ! Everything else
-  integer(is)              :: i,j,k
+  integer(is)              :: i,j,k,kindx
   integer(is)              :: nvecB,nvecK
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: Bmap(:),Kmap(:)
@@ -109,11 +109,124 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   
   write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
   write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
-
+  
 !----------------------------------------------------------------------
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------
   call merge_ref_space(cfgB,cfgK)
+
+!----------------------------------------------------------------------
+! Which eigenvectors are needed?
+!----------------------------------------------------------------------
+  !
+  ! Bra and ket states appearing in the requested 1-TDMs
+  !
+  allocate(iBra(nrootsB), iKet(nrootsK))
+  iBra=0; iKet=0
+  do i=1,npairs
+     iBra(iroots(i,1))=1
+     iKet(iroots(i,2))=1
+  enddo
+
+  !
+  ! Number of bra and ket eigenvectors
+  !
+  nvecB=sum(iBra)
+  nvecK=sum(iKet)
+
+  !
+  ! Bra-ket pair to eigenvector mapping
+  !
+  ! Bmap(n) <-> index of the bra eigenvector needed to evaluate the
+  !             n'th 1-TDM
+  ! Kmap(n) <-> index of the Ket eigenvector needed to evaluate the
+  !             n'th 1-TDM
+  !
+  allocate(Bmap(npairs), Kmap(npairs))
+  Bmap=0; Kmap=0
+  do i=1,npairs
+     Bmap(i)=sum(iBra(1:iroots(i,1)))
+     Kmap(i)=sum(iKet(1:iroots(i,2)))
+  enddo
+
+!----------------------------------------------------------------------
+! Read in the bra eigenvectors
+!----------------------------------------------------------------------
+  ! Allocate arrays
+  allocate(vecB(cfgB%csfdim,nvecB), enerB(nvecB))
+  vecB=0.0d0; enerB=0.0d0
+
+  allocate(ireadB(nvecB))
+  ireadB=0
+  
+  ! List of needed eigenvectors
+  k=0
+  do i=1,nrootsB
+     if (iBra(i) == 1) then
+        k=k+1
+        ireadB(k)=i
+     endif
+  enddo
+
+  ! Read in the eigenvectors
+  call read_some_eigenpairs(vecscrB,vecB,enerB,cfgB%csfdim,nvecB,ireadB)
+  
+!----------------------------------------------------------------------
+! Read in the ket eigenvectors
+!----------------------------------------------------------------------
+  ! Allocate arrays
+  allocate(vecK(cfgK%csfdim,nvecK), enerK(nvecK))
+  vecK=0.0d0; enerK=0.0d0
+
+  allocate(ireadK(nvecK))
+  ireadK=0
+  
+  ! List of needed eigenvectors
+  k=0
+  do i=1,nrootsK
+     if (iKet(i) == 1) then
+        k=k+1
+        ireadK(k)=i
+     endif
+  enddo
+
+  ! Read in the eigenvectors
+  call read_some_eigenpairs(vecscrK,vecK,enerK,cfgK%csfdim,nvecK,ireadK)
+
+!----------------------------------------------------------------------
+! Compute the triplet TDMs
+!----------------------------------------------------------------------
+  ! Component of the triplet spin tensor operator
+  if (imultB == imultK) then
+     kindx=0
+  else
+     kindx=1
+  endif
+
+  ! Compute the TDMs
+  call triplet_tdm_mrci(kindx,cfgB,cfgK,cfgB%csfdim,cfgK%csfdim,&
+       nvecB,nvecK,vecB,vecK,npairs,Tij,Bmap,Kmap)
+  
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+  call cfgB%finalise
+  call cfgK%finalise
+  deallocate(vecB)
+  deallocate(vecK)
+  deallocate(enerB)
+  deallocate(enerK)
+  deallocate(iBra)
+  deallocate(iKet)
+  deallocate(Bmap)
+  deallocate(Kmap)
+  deallocate(ireadB)
+  deallocate(ireadK)
+  
+!----------------------------------------------------------------------
+! Flush stdout
+!----------------------------------------------------------------------
+  flush(6)
   
   return
   

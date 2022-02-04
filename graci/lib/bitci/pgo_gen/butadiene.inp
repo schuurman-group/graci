@@ -22,9 +22,9 @@
  $end
 
  $dftmrci section
- nstates      = 5
+ nstates      = 15
  hamiltonian  = grimme_standard
- prune        = tight
+ prune        = True
  refiter      = 1
  $end
 
