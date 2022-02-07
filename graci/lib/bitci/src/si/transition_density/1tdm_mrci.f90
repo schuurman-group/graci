@@ -872,7 +872,7 @@ contains
              
              ! Number of open shells in the ket 1E configuration
              knopen=sop_nopen(ksop_full,n_int)
-                
+
              ! Number of ket 1E CSFs
              knsp=ncsfs(knopen)
 

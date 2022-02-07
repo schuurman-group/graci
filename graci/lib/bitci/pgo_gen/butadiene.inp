@@ -9,8 +9,6 @@
  H     2.740175     0.509837     0.000000
  H    -0.493003    -1.478663     0.000000
  H     0.493003     1.478663     0.000000
- charge       = 0
- mult         = 1
  basis        = aug-cc-pvdz
  use_sym      = False
  use_df       = True
@@ -18,6 +16,8 @@
  $end
 
  $scf section
+ charge       = 0
+ mult         = 1
  xc           = bhandhlyp
  $end
 
