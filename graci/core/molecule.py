@@ -53,7 +53,7 @@ class Molecule:
     def run(self):
         """return a gto.Molecule object: 
            compute it if one doesn't exist, or force_make=True"""
-
+        
         # if at this point we _still_ don't have a structure, pull
         # the plug
         if len(self.asym) == 0 or self.crds is None:

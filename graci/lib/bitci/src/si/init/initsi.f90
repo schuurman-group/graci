@@ -265,13 +265,13 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
         call error_control
      else
         ! Different spin multiplicities: compute spin-coupling
-        ! coefficients for T_pq^(1,k=+1)
+        ! coefficients for T_pq^(1,k), k=-1,+1
         call scc_k1(imultB,imultK,&
              nocase1,nocase2,&
              maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
              maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
-             nspincp,N1s,verbose,spincp,patternmap1,patternmap2a,&
-             patternmap2b,offspincp)
+             nspincp,N1s,verbose,spincp_plus,spincp_minus,&
+             patternmap1,patternmap2a,patternmap2b,offspincp)
      endif
      
   end select

@@ -186,6 +186,8 @@ module bitglobal
   !
   ! Triplet spin-coupling coefficients
   !
+  real(dp), allocatable    :: spincp_plus(:)  ! k=+1 spin-coupling coefficients
+  real(dp), allocatable    :: spincp_minus(:) ! k=-1 spin-coupling coefficients
   integer(is), allocatable :: patternmap1(:)  ! Case 1 pattern value -> array index
                                               ! mapping
   integer(is), allocatable :: patternmap2a(:) ! Case 2a pattern value -> array index

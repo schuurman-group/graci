@@ -578,15 +578,31 @@ contains
        print*,''
        print*,'pattern_index_k0 needs writing'
        stop
-    case(1)
+    case(-1, 1)
        pattern=pattern_index_k1(sop,ac,ia,nc,na,nopen,icase)
     end select
     
 !----------------------------------------------------------------------
 ! Fill in the array of spin-coupling coefficients
 !----------------------------------------------------------------------
-    triplet_scc=spincp(pattern:pattern+knsp*bnsp-1)
-    
+    select case(kval)
+
+    case(0)
+       print*,''
+       print*,'The k=0 SCCs need to be implemented'
+       stop
+
+    case(-1)
+       print*,''
+       print*,'The k=-1 SCCs need to be implemented'
+       stop
+       !triplet_scc=spincp_minus(pattern:pattern+bnsp*knsp-1)
+       
+    case(1)
+       triplet_scc=spincp_plus(pattern:pattern+knsp*bnsp-1)
+       
+    end select
+       
     return
 
   end function triplet_scc

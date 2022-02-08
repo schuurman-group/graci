@@ -76,7 +76,7 @@ class Scf:
     @timing.timed
     def run(self):
         """compute the DFT energy and KS orbitals"""
-    
+
         # returns the PySCF molecule object needed to run SCF
         if self.mol_exists():
             pymol = self.mol.pymol()

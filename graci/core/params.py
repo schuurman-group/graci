@@ -17,6 +17,8 @@ molecule_kword =     {'xyz_file' : str,
                       'ao_cart'  : bool,
                       'use_sym'  : bool,
                       'use_df'   : bool,
+                      'mult'     : int,
+                      'charge'   : int,
                       'label'    : str
                      }
 
@@ -93,7 +95,7 @@ transition_kword = {'init_states'      : int,
                     'label'            : str
                    }
 
-# molecule section input keywords and data typess
+# spinorbit section input keywords and data typess
 spinorbit_kword = {'init_states'      : int, 
                    'final_states'     : int,
                    'init_states_sym'  : float,
