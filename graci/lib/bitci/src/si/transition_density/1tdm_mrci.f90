@@ -1914,7 +1914,7 @@ contains
        scp(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),hlist(1),&
             knopen,knbefore)
 
-       ! Idices of the 1-RDM elements
+       ! Idices of the 1-TDM elements
        i=m2c(hlist(1))
        a=m2c(plist(1))
 
