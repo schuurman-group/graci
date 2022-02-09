@@ -35,7 +35,8 @@ contains
   subroutine scc_k1(imultB,imultK,nocase1,nocase2,maxcsfB,maxdetB,&
        ncsfsB,ndetsB,csfcoeB,detvecB,maxcsfK,maxdetK,ncsfsK,ndetsK,&
        csfcoeK,detvecK,nspincp,N1s,verbose,spincp_plus,spincp_minus,&
-       patternmap1,patternmap2a,patternmap2b,offspincp)
+       patmap1,patmap2a_plus,patmap2b_plus,patmap2a_minus,&
+       patmap2b_minus,offplus,offminus)
 
     use constants
     use iomod
@@ -82,14 +83,17 @@ contains
     
     ! All pattern -> array index mappings
     integer(is)              :: mapdim1,mapdim2
-    integer(is), allocatable :: patternmap1(:)
-    integer(is), allocatable :: patternmap2a(:)
-    integer(is), allocatable :: patternmap2b(:)
+    integer(is), allocatable :: patmap1(:)
+    integer(is), allocatable :: patmap2a_plus(:)
+    integer(is), allocatable :: patmap2b_plus(:)
+    integer(is), allocatable :: patmap2a_minus(:)
+    integer(is), allocatable :: patmap2b_minus(:)
     
     ! Spin coupling coefficient offsets for the various
     ! different cases
-    integer(is), allocatable :: offspincp(:)
-
+    integer(is), allocatable :: offplus(:)
+    integer(is), allocatable :: offminus(:)
+    
     ! Timing variables
     real(dp)                 :: tcpu_start,tcpu_end,twall_start,twall_end
     
@@ -140,30 +144,37 @@ contains
 ! Allocate the spin coupling coefficient arrays
 !----------------------------------------------------------------------
     call init_spincp_k1(imultB,imultK,nocase1,nocase2,ncsfsB,ncsfsK,&
-         nspincp,verbose,spincp_plus,spincp_minus,spincpdim,offspincp)
+         nspincp,verbose,spincp_plus,spincpdim,offplus)
 
 !----------------------------------------------------------------------
 ! Allocate the pattern value -> array index mapping array
 !----------------------------------------------------------------------
     call init_patternmap_k1(imultB,imultB,nocase1,nocase2,ncsfsB,&
-         ncsfsK,patternmap1,patternmap2a,patternmap2b,mapdim1,&
-         mapdim2)
+         ncsfsK,patmap1,patmap2a_plus,patmap2b_plus,mapdim1,mapdim2)
 
 !----------------------------------------------------------------------
-! Compute the Case 1 spin coupling coefficients
+! Compute the Case 1 spin coupling coefficients, k=+1
 !----------------------------------------------------------------------
     call case1_coeffs_k1(nocase1,nocase2,maxcsfB,maxcsfK,maxdetB,&
          maxdetK,ncsfsB,ncsfsK,ndetsB,ndetsK,csfcoeB,csfcoeK,detvecB,&
-         detvecK,spincpdim,spincp_plus,spincp_minus,nspincp,mapdim1,&
-         patternmap1,offspincp)
+         detvecK,spincpdim,spincp_plus,nspincp,mapdim1,patmap1,&
+         offplus)
 
 !----------------------------------------------------------------------
-! Compute the Case 2 spin coupling coefficients
+! Compute the Case 2 spin coupling coefficients, k=+1
 !----------------------------------------------------------------------
     call case2_coeffs_k1(imultB,imultK,nocase1,nocase2,maxcsfB,&
          maxcsfK,maxdetB,maxdetK,ncsfsB,ncsfsK,ndetsB,ndetsK,csfcoeB,&
-         csfcoeK,detvecB,detvecK,spincpdim,spincp_plus,spincp_minus,&
-         nspincp,mapdim2,patternmap2a,patternmap2b,offspincp)
+         csfcoeK,detvecB,detvecK,spincpdim,spincp_plus,nspincp,&
+         mapdim2,patmap2a_plus,patmap2b_plus,offplus)
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 spin coupling coefficients
+!----------------------------------------------------------------------
+    call fill_kminus(imultK,spincpdim,nspincp,spincp_plus,&
+         spincp_minus,offplus,offminus,nocase1,nocase2,ncsfsB,ncsfsK,&
+         patmap2a_plus,patmap2b_plus,patmap2a_minus,patmap2b_minus,&
+         mapdim1,mapdim2)
     
 !----------------------------------------------------------------------
 ! Fill in the array of bit strings with N set bits, from which the
@@ -308,8 +319,7 @@ contains
 !                 of the triplet spin tensor operator
 !######################################################################
   subroutine init_spincp_k1(imultB,imultK,nocase1,nocase2,ncsfsB,&
-       ncsfsK,nspincp,verbose,spincp_plus,spincp_minus,spincpdim,&
-       offspincp)
+       ncsfsK,nspincp,verbose,spincp_plus,spincpdim,offplus)
 
     use constants
     
@@ -319,8 +329,8 @@ contains
     integer(is), intent(in)  :: ncsfsB(0:nocase2),ncsfsK(0:nocase2)
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(out) :: spincpdim(3)
-    integer(is), allocatable :: offspincp(:)
-    real(dp), allocatable    :: spincp_plus(:),spincp_minus(:)
+    integer(is), allocatable :: offplus(:)
+    real(dp), allocatable    :: spincp_plus(:)
     logical, intent(in)      :: verbose
         
     integer(is)              :: nopen,npat,n1,n2a,n2b
@@ -335,7 +345,7 @@ contains
     !                         (iii) 1b i>j, (iv) 1b i<j
     spincpdim(1)=2*nspincp(1)
        
-    ! Case 1 coefficients
+    ! Case 2 coefficients
     ! We will explicitly store: (i) 2a i>j, (ii) 2a i<j,
     !                         (iii) 2b i>j, (iv) 2b i<j
     spincpdim(2)=2*nspincp(2)
@@ -348,16 +358,14 @@ contains
 !----------------------------------------------------------------------    
     ! Spin coupling coefficients
     allocate(spincp_plus(spincpdim(3)))
-    allocate(spincp_minus(spincpdim(3)))
     spincp_plus=0.0d0
-    spincp_minus=0.0d0
 
     ! Offsets
-    allocate(offspincp(6))
-    offspincp=0
+    allocate(offplus(5))
+    offplus=0
     
 !----------------------------------------------------------------------
-! Number of unique Case 1a, 1b, 2a and 2b coefficients
+! Number of unique Case 1a, 1b, 2a and 2b coefficients, k=+1
 !----------------------------------------------------------------------
     ! Case 1a and 1b
     n1=nspincp(1)/2
@@ -369,17 +377,17 @@ contains
     do nopen=2,nocase1
        ! Number of patterns
        npat=(nopen)*(nopen-1)/2
-       ! Case 2a: N_bra = N_ket + 2
+       ! Case 2a: N' = N + 2
        n2a=n2a+npat*ncsfsB(nopen)*ncsfsK(nopen-2)
-       ! Case 2b: N_bra = N_ket - 2
+       ! Case 2b: N' = N - 2
        n2b=n2b+npat*ncsfsB(nopen-2)*ncsfsK(nopen)
     enddo
-       
+    
 !----------------------------------------------------------------------
 ! Offsets for the various different spin coupling coefficients within
 ! the spincp_plus array
 !----------------------------------------------------------------------
-! The spin coupling coefficients will be stored in the order
+! The k=+1 spin coupling coefficients will be stored in the order
 ! ([1a i>j], [1a i<j], [1b i>j], [1b i<j], [2a i>j], [2a i<j],
 !  [2b i>j], [2b i<j])
 !----------------------------------------------------------------------
@@ -387,23 +395,24 @@ contains
 ! to the pattern indices to reach each block of coefficients in the
 ! spincp_plus array
 !----------------------------------------------------------------------
-    ! Case 1a, i<j
-    offspincp(1)=n1
+    ! Case 1a, i<j, k=+1
+    offplus(1)=n1
     
-    ! Case 1b, i>j
-    offspincp(2)=2*n1
+    ! Case 1b, i>j, k=+1
+    offplus(2)=2*n1
     
-    ! Case 1b, i<j
-    offspincp(3)=3*n1
+    ! Case 1b, i<j, k=+1
+    offplus(3)=3*n1
     
-    ! Case 2a, i<j
-    offspincp(4)=n2a
+    ! Case 2a, i<j, k=+1
+    offplus(4)=n2a
     
-    ! Case 2b, i<j
-    offspincp(5)=n2b
+    ! Case 2b, i<j, k=+1
+    offplus(5)=n2b
     
 !----------------------------------------------------------------------
-! Output the memory used
+! Output the memory used (factor of 2 accounts for the storage of both
+! k=+1 and k=-1 coefficients)
 !----------------------------------------------------------------------
     mem=2*spincpdim(3)*8/1024.0d0**2
     
@@ -419,7 +428,7 @@ contains
 !                     holding the pattern value -> array index mapping
 !######################################################################
   subroutine init_patternmap_k1(imultB,imultK,nocase1,nocase2,ncsfsB,&
-       ncsfsK,patternmap1,patternmap2a,patternmap2b,mapdim1,mapdim2)
+       ncsfsK,patmap1,patmap2a_plus,patmap2b_plus,mapdim1,mapdim2)
 
     use constants
     
@@ -429,8 +438,8 @@ contains
     integer(is), intent(in)  :: nocase1,nocase2
     integer(is), intent(in)  :: ncsfsB(0:nocase2),ncsfsK(0:nocase2)
     integer(is), intent(out) :: mapdim1,mapdim2
-    integer(is), allocatable :: patternmap1(:),patternmap2a(:),&
-                                patternmap2b(:)
+    integer(is), allocatable :: patmap1(:),patmap2a_plus(:),&
+                                patmap2b_plus(:)
 
 !----------------------------------------------------------------------
 ! Maximum possible pattern value
@@ -452,14 +461,14 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(patternmap1(0:mapdim1))
-    patternmap1=0
+    allocate(patmap1(0:mapdim1))
+    patmap1=0
 
-    allocate(patternmap2a(0:mapdim2))
-    patternmap2a=0
+    allocate(patmap2a_plus(0:mapdim2))
+    patmap2a_plus=0
 
-    allocate(patternmap2b(0:mapdim2))
-    patternmap2b=0
+    allocate(patmap2b_plus(0:mapdim2))
+    patmap2b_plus=0
     
     return
     
@@ -473,8 +482,8 @@ contains
 !######################################################################
   subroutine case1_coeffs_k1(nocase1,nocase2,maxcsfB,maxcsfK,maxdetB,&
        maxdetK,ncsfsB,ncsfsK,ndetsB,ndetsK,csfcoeB,csfcoeK,detvecB,&
-       detvecK,spincpdim,spincp_plus,spincp_minus,nspincp,mapdim1,&
-       patternmap1,offspincp)
+       detvecK,spincpdim,spincp_plus,nspincp,mapdim1,patmap1,&
+       offplus)
 
     use constants
     use bitutils
@@ -491,11 +500,10 @@ contains
     integer(ib), intent(in)  :: detvecK(maxdetB,nocase2)
     integer(is), intent(in)  :: spincpdim(3)
     real(dp), intent(out)    :: spincp_plus(spincpdim(3))
-    real(dp), intent(out)    :: spincp_minus(spincpdim(3))
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim1
-    integer(is), intent(out) :: patternmap1(0:mapdim1)
-    integer(is), intent(in)  :: offspincp(6)
+    integer(is), intent(out) :: patmap1(0:mapdim1)
+    integer(is), intent(in)  :: offplus(5)
     
     integer(is)              :: nopen,is1,is2,icsf1,icsf2
     integer(is)              :: nspB,nspK,ndetB,ndetK
@@ -504,7 +512,6 @@ contains
     integer(ib)              :: pattern
     real(dp)                 :: coeff
     real(dp), allocatable    :: work(:),workgt(:),worklt(:)
-    real(dp), allocatable    :: workT(:,:),workm(:)
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -543,10 +550,10 @@ contains
        ndetK=ndetsK(nopen)
 
        ! Cycle if there are no CSFs for this number of open shells
-       if (nspB == 0 .or. nspK==0) cycle
+       if (nspB == 0 .or. nspK == 0) cycle
 
        ! Allocate the spin-coupling coefficient work arrays
-       allocate(work(nspB*nspK), workT(nspK,nspB), workm(nspB*nspK))
+       allocate(work(nspB*nspK))
        
        ! Loop over the *upper triangle* of unique pairs of simplified
        ! spatial occupation vectors
@@ -555,7 +562,7 @@ contains
 
              ! Pattern number and the corresponding array index
              pattern=iand(ws(is1,nopen),ws(is2,nopen))
-             patternmap1(pattern)=ioff
+             patmap1(pattern)=ioff
 
              ! Compute the 1a i>j spin coupling coefficients
              call spincp_1a_k1(ws(is1,nopen),ws(is2,nopen),nopen,&
@@ -567,26 +574,16 @@ contains
              iend=ioff+nspB*nspK-1
              spincp_plus(istart:iend)=work
 
-             ! Save the 1a i>j spin coupling coefficients, k=-1
-             workT=transpose(reshape(work, (/nspB,nspK/)))
-             workm=reshape(workT, (/nspB*nspK/))
-             spincp_minus(istart:iend)=-workm
-             
              ! Compute the 1a i<j spin coupling coefficients
              call spincp_1a_k1(ws(is2,nopen),ws(is1,nopen),nopen,&
                   nocase2,maxcsfB,maxcsfK,maxdetB,maxdetK,nspB,nspK,&
                   ndetB,ndetK,detvecB,detvecK,csfcoeB,csfcoeK,work)
 
              ! Save the 1a i<j spin coupling coefficients, k=+1
-             istart=istart+offspincp(1)
-             iend=iend+offspincp(1)
+             istart=istart+offplus(1)
+             iend=iend+offplus(1)
              spincp_plus(istart:iend)=work
 
-             ! Save the 1a i<j spin coupling coefficients, k=-1
-             workT=transpose(reshape(work, (/nspB,nspK/)))
-             workm=reshape(workT, (/nspB*nspK/))
-             spincp_minus(istart:iend)=-workm
-             
              ! Update the spincp offset
              ioff=ioff+nspB*nspK
              
@@ -594,7 +591,7 @@ contains
        enddo
           
        ! Deallocate the spin-coupling coefficient work arrays
-       deallocate(work, workT, workm)
+       deallocate(work)
        
     enddo
 
@@ -638,26 +635,14 @@ contains
              workgt=spincp_plus(istart:iend)
 
              ! 1a i<j, k=+1
-             worklt=spincp_plus(istart+offspincp(1):iend+offspincp(1))
+             worklt=spincp_plus(istart+offplus(1):iend+offplus(1))
 
              ! 1b i>j, k=+1
-             spincp_plus(istart+offspincp(2):iend+offspincp(2))=worklt
+             spincp_plus(istart+offplus(2):iend+offplus(2))=worklt
 
              ! 1b i<j, k=+1
-             spincp_plus(istart+offspincp(3):iend+offspincp(3))=workgt
+             spincp_plus(istart+offplus(3):iend+offplus(3))=workgt
 
-             ! 1a i>j, k=-1
-             workgt=spincp_minus(istart:iend)
-
-             ! 1a i<j, k=-1
-             worklt=spincp_minus(istart+offspincp(1):iend+offspincp(1))
-
-             ! 1b i>j, k=-1
-             spincp_minus(istart+offspincp(2):iend+offspincp(2))=worklt
-
-             ! 1b i<j, k=-1
-             spincp_minus(istart+offspincp(3):iend+offspincp(3))=workgt
-             
              ! Update the spincp offset
              ioff=ioff+nspB*nspK
              
@@ -924,8 +909,8 @@ contains
 !######################################################################
   subroutine case2_coeffs_k1(imultB,imultK,nocase1,nocase2,maxcsfB,&
        maxcsfK,maxdetB,maxdetK,ncsfsB,ncsfsK,ndetsB,ndetsK,csfcoeB,&
-       csfcoeK,detvecB,detvecK,spincpdim,spincp_plus,spincp_minus,&
-       nspincp,mapdim2,patternmap2a,patternmap2b,offspincp)
+       csfcoeK,detvecB,detvecK,spincpdim,spincp_plus,nspincp,mapdim2,&
+       patmap2a_plus,patmap2b_plus,offplus)
 
     use constants
     use bitutils
@@ -943,12 +928,11 @@ contains
     integer(ib), intent(in)  :: detvecK(maxdetK,nocase2)
     integer(is), intent(in)  :: spincpdim(3)
     real(dp), intent(out)    :: spincp_plus(spincpdim(3))
-    real(dp), intent(out)    :: spincp_minus(spincpdim(3))
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim2
-    integer(is), intent(out) :: patternmap2a(0:mapdim2)
-    integer(is), intent(out) :: patternmap2b(0:mapdim2)
-    integer(is), intent(in)  :: offspincp(6)
+    integer(is), intent(out) :: patmap2a_plus(0:mapdim2)
+    integer(is), intent(out) :: patmap2b_plus(0:mapdim2)
+    integer(is), intent(in)  :: offplus(5)
     
     integer(is)              :: nopen,is1,is2,icsfB,icsfK,lim,i
     integer(is)              :: ioff,istart,iend,nspB,nspK
@@ -957,7 +941,6 @@ contains
     integer(ib)              :: pattern
     real(dp)                 :: coeff
     real(dp), allocatable    :: work(:)
-    real(dp), allocatable    :: workT(:,:),workm(:)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1018,14 +1001,14 @@ contains
 
        ! Pattern number and corresponding array index
        pattern=iand(ws(1,0),wsp(2))
-       patternmap2a(pattern)=ioff
+       patmap2a_plus(pattern)=ioff
 
        ! 2a i>j spin coupling coefficient value
        spincp_plus(ioff)=1.0d0
 
        ! Update the spincp offset
        ioff=ioff+1
-       
+
     endif
 
 !----------------------------------------------------------------------
@@ -1041,14 +1024,14 @@ contains
        ! Allocate the spin-coupling coefficient work arrays
        nspK=ncsfsK(nopen)
        nspB=ncsfsB(nopen+2)
-       allocate(work(nspB*nspK), workT(nspK,nspB), workm(nspB*nspK))
+       allocate(work(nspB*nspK))
 
        ! Loop over the ket simplified spatial occupation vectors
        do is1=1,(nopen+2)*(nopen+1)/2
 
           ! Pattern number and the corresponding array index
           pattern=iand(ws(is1,nopen),wsp(nopen+2))
-          patternmap2a(pattern)=ioff
+          patmap2a_plus(pattern)=ioff
 
           ! Compute the 2a i>j spin coupling coefficients
           call spincp_2a_k1(ws(is1,nopen),wsp(nopen+2),nopen,&
@@ -1061,18 +1044,13 @@ contains
           iend=ioff+nspB*nspK-1
           spincp_plus(istart:iend)=work
 
-          ! Save the 2a i>j spin coupling coefficients, k=-1
-          workT=transpose(reshape(work, (/nspB,nspK/)))
-          workm=reshape(workT, (/nspB*nspK/))
-          spincp_minus(istart:iend)=-workm
-          
           ! Update the spincp offset
           ioff=ioff+nspB*nspK
 
        enddo
           
        ! Deallocate the spin-coupling coefficient work arrays
-       deallocate(work, workT, workm)
+       deallocate(work)
 
     enddo
 
@@ -1081,8 +1059,8 @@ contains
 ! i.e., Ket: 1 1 -> Bra: 0 2
 !----------------------------------------------------------------------
     ! Initialise the spincp offset
-    ioff=spincpdim(1)+2*offspincp(4)+1
-
+    ioff=spincpdim(1)+2*offplus(4)+1
+    
     ! Loop over numbers of ket open shells
     do nopen=2,nocase1
 
@@ -1092,14 +1070,14 @@ contains
        ! Allocate the spin-coupling coefficient work arrays
        nspK=ncsfsK(nopen)
        nspB=ncsfsB(nopen-2)
-       allocate(work(nspB*nspK), workT(nspK,nspB), workm(nspB*nspK))
+       allocate(work(nspB*nspK))
 
        ! Loop over the bra simplified spatial occupation vectors
        do is2=1,(nopen)*(nopen-1)/2
 
           ! Pattern number and the corresponding array index
           pattern=iand(wsp(nopen),ws(is2,nopen-2))
-          patternmap2b(pattern)=ioff
+          patmap2b_plus(pattern)=ioff
 
           ! Compute the 2b i>j spin coupling coefficients
           call spincp_2b_k1(wsp(nopen),ws(is2,nopen-2),nopen,&
@@ -1112,18 +1090,13 @@ contains
           iend=ioff+nspB*nspK-1
           spincp_plus(istart:iend)=work
 
-          ! Save the 2b i>j spin coupling coefficients, k=-1
-          workT=transpose(reshape(work, (/nspB,nspK/)))
-          workm=reshape(workT, (/nspB*nspK/))
-          spincp_minus(istart:iend)=-workm
-          
           ! Update the spincp offset
           ioff=ioff+nspB*nspK
-
+          
        enddo
           
        ! Deallocate the spin-coupling coefficient work arrays
-       deallocate(work, workT, workm)
+       deallocate(work)
        
     enddo
 
@@ -1133,7 +1106,7 @@ contains
 !----------------------------------------------------------------------
     ! Allocate the work array
     istart=spincpdim(1)+1
-    iend=istart+offspincp(4)-1
+    iend=istart+offplus(4)-1
     allocate(work(iend-istart+1))
 
     ! Copy of the 2a i>j terms, k=+1
@@ -1141,19 +1114,9 @@ contains
 
     ! Fill in the 2a i<j terms, k=+1
     istart=iend+1
-    iend=istart+offspincp(4)-1
+    iend=istart+offplus(4)-1
     spincp_plus(istart:iend)=-work
 
-    ! Copy of the 2a i>j terms, k=-1
-    istart=spincpdim(1)+1
-    iend=istart+offspincp(4)-1
-    work=spincp_minus(istart:iend)
-
-    ! Fill in the 2a i<j terms, k=-1
-    istart=iend+1
-    iend=istart+offspincp(4)-1
-    spincp_minus(istart:iend)=-work
-    
     ! Deallocate the work array
     deallocate(work)
 
@@ -1162,28 +1125,18 @@ contains
 ! 2b i<j = - 2b i>j
 !---------------------------------------------------------------------
     ! Allocate the work array
-    istart=spincpdim(1)+2*offspincp(4)+1
-    iend=istart+offspincp(5)-1
+    istart=spincpdim(1)+2*offplus(4)+1
+    iend=istart+offplus(5)-1
     allocate(work(iend-istart+1))
 
     ! Copy of the 2b i>j terms, k=+1
     work=spincp_plus(istart:iend)
-
+    
     ! Fill in the 2b i<j terms, k=+1
     istart=iend+1
-    iend=istart+offspincp(5)-1
+    iend=istart+offplus(5)-1
     spincp_plus(istart:iend)=-work
 
-    ! Copy of the 2b i>j terms, k=-1
-    istart=spincpdim(1)+2*offspincp(4)+1
-    iend=istart+offspincp(5)-1
-    work=spincp_minus(istart:iend)
-    
-    ! Fill in the 2b i<j terms, k=-1
-    istart=iend+1
-    iend=istart+offspincp(5)-1
-    spincp_minus(istart:iend)=-work
-    
     ! Deallocate the work array
     deallocate(work)
     
@@ -1832,6 +1785,442 @@ contains
     
   end subroutine spincp_2b_k1
 
+!######################################################################
+! fill_kminus: Fills in the array of k=-1 triplet spin coupling
+!              coefficients
+!######################################################################
+  subroutine fill_kminus(imultK,spincpdim,nspincp,spincp_plus,&
+       spincp_minus,offplus,offminus,nocase1,nocase2,ncsfsB,ncsfsK,&
+       patmap2a_plus,patmap2b_plus,patmap2a_minus,patmap2b_minus,&
+       mapdim1,mapdim2)
+
+    use constants
+    use bitutils
+    
+    implicit none
+    
+    integer(is), intent(in)  :: imultK
+    integer(is), intent(in)  :: spincpdim(3)
+    integer(is), intent(in)  :: nspincp(2)
+    real(dp), intent(in)     :: spincp_plus(spincpdim(3))
+    real(dp), allocatable    :: spincp_minus(:)
+    integer(is), intent(in)  :: offplus(5)
+    integer(is), allocatable :: offminus(:)
+    integer(is), intent(in)  :: nocase1,nocase2
+    integer(is), intent(in)  :: ncsfsB(0:nocase2),ncsfsK(0:nocase2)
+    integer(is), intent(in)  :: patmap2a_plus(0:mapdim2)
+    integer(is), intent(in)  :: patmap2b_plus(0:mapdim2)
+    integer(is), allocatable :: patmap2a_minus(:)
+    integer(is), allocatable :: patmap2b_minus(:)
+    integer(is), intent(in)  :: mapdim1,mapdim2
+    
+    integer(is)              :: i,npat,nopen,n1,n2a,n2b
+    integer(is)              :: ioffp,ioffm
+    integer(is)              :: istart,iend,istartp,istartm,iendp,iendm
+    integer(ib), allocatable :: ws(:,:)
+    integer(ib)              :: pattern
+    integer(is)              :: nspB,nspK,is1,is2
+
+    real(dp), allocatable    :: work(:),workp(:),workm(:),workT(:,:)
+    
+!**********************************************************************
+! Note that we have the following mappings:
+!
+!   k=+1        k=-1
+! --------  -----------
+! [1a i>j]  -[1a i<j]^T
+!
+! [1a i<j]  -[1a i>j]^T
+!
+! [1b i>j]  -[1b i<j]^T  
+!
+! [1b i<j]  -[1b i>j]^T
+!
+! [2a i>j]  -[2b i<j]^T
+!
+! [2a i<j]  -[2b i>j]^T
+!
+! [2b i>j]  -[2a i<j]^T  
+!
+! [2b i<j]  -[2a i>j]^T
+!**********************************************************************
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    ! Spin coupling coefficients
+    allocate(spincp_minus(spincpdim(3)))
+    spincp_minus=0.0d0
+
+    ! Offsets
+    allocate(offminus(5))
+    offminus=0
+
+    ! Pattern value -> array index mappings
+    allocate(patmap2a_minus(0:mapdim2))
+    allocate(patmap2b_minus(0:mapdim2))
+    patmap2a_minus=0
+    patmap2b_minus=0
+    
+!----------------------------------------------------------------------
+! Number of unique Case 1a, 1b, 2a and 2b coefficients, k=-1
+! Note that, for k=-1, we are dealing with terms <Ket|T_ij^(1,k)|Bra>
+!----------------------------------------------------------------------
+    ! Case 1a and 1b
+    n1=nspincp(1)/2
+
+    ! Case 2a and 2b
+    n2a=0
+    n2b=0
+    ! Loop over numbers of open shells
+    do nopen=2,nocase1
+       ! Number of patterns
+       npat=(nopen)*(nopen-1)/2
+       ! Case 2a: N' = N - 2
+       n2a=n2a+npat*ncsfsK(nopen)*ncsfsB(nopen-2)
+       ! Case 2b: N' = N + 2
+       n2b=n2b+npat*ncsfsK(nopen-2)*ncsfsB(nopen)
+    enddo
+
+!----------------------------------------------------------------------
+! Offsets for the various different spin coupling coefficients within
+! the spincp_plus array
+!----------------------------------------------------------------------
+    ! Case 1a, i<j, k=-1
+    offminus(1)=n1
+    
+    ! Case 1b, i>j, k=-1
+    offminus(2)=2*n1
+    
+    ! Case 1b, i<j, k=-1
+    offminus(3)=3*n1
+    
+    ! Case 2a, i<j, k=-1
+    offminus(4)=n2a
+    
+    ! Case 2b, i<j, k=-1
+    offminus(5)=n2b
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 pattern map arrays
+!----------------------------------------------------------------------
+    ! Loop over pattern values
+    do i=0,mapdim2
+
+       ! k=-1 2a <-> k=+1 2b
+       if (patmap2b_plus(i) /= 0) &
+            patmap2a_minus(i)=patmap2b_plus(i)-2*offplus(4)
+
+       ! k=-1 2b <-> k=+1 2a
+       if (patmap2a_plus(i) /= 0) &
+            patmap2b_minus(i)=patmap2a_plus(i)+2*offminus(4)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 1a i>j spin coupling coefficients
+!----------------------------------------------------------------------
+    ! Initialise the k=+1 1a i<j offset
+    ioffp=offplus(1)+1
+
+    ! Initialise the k=-1 1a i>j offset
+    ioffm=1
+
+    ! Loop over numbers of open shells
+    do nopen=1,nocase1
+
+       ! No. bra and ket CSFs and determinants
+       nspB=ncsfsB(nopen)
+       nspK=ncsfsK(nopen)
+
+       ! Cycle if there are no CSFs for this number of open shells
+       if (nspB == 0 .or. nspK == 0) cycle
+
+       ! Allocate work arrays
+       allocate(workp(nspB*nspK), workT(nspK,nspB), workm(nspB*nspK))
+
+       ! Loop over the *upper triangle* of unique pairs of simplified
+       ! spatial occupation vectors
+       do is1=1,nopen
+          do is2=is1+1,nopen+1
+
+             ! Start and end points for the k=+1 1a i<j terms
+             istartp=ioffp
+             iendp=ioffp+nspB*nspK-1
+
+             ! Start and end points for the k=-1 1a i>j terms
+             istartm=ioffm
+             iendm=ioffm+nspB*nspK-1
+
+             ! k=+1 1a i<j terms
+             workp=spincp_plus(istartp:iendp)
+
+             ! k=-1 1a i>j terms
+             workT=transpose(reshape(workp,(/nspB,nspK/)))
+             workm=-reshape(workT,(/nspB*nspK/))
+             spincp_minus(istartm:iendm)=workm
+             
+             ! Update the offsets
+             ioffp=ioffp+nspB*nspK
+             ioffm=ioffm+nspB*nspK
+             
+          enddo
+       enddo
+             
+       ! Deallocate work arrays
+       deallocate(workp, workT, workm)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 1a i<j spin coupling coefficients
+!----------------------------------------------------------------------
+    ! Initialise the k=+1 1a i>j offset
+    ioffp=1
+
+    ! Initialise the k=-1 1a i<j offset
+    ioffm=offminus(1)+1
+
+    ! Loop over numbers of open shells
+    do nopen=1,nocase1
+
+       ! No. bra and ket CSFs and determinants
+       nspB=ncsfsB(nopen)
+       nspK=ncsfsK(nopen)
+
+       ! Cycle if there are no CSFs for this number of open shells
+       if (nspB == 0 .or. nspK == 0) cycle
+
+       ! Allocate work arrays
+       allocate(workp(nspB*nspK), workT(nspK,nspB), workm(nspB*nspK))
+
+       ! Loop over the *upper triangle* of unique pairs of simplified
+       ! spatial occupation vectors
+       do is1=1,nopen
+          do is2=is1+1,nopen+1
+
+             ! Start and end points for the k=+1 1a i>j terms
+             istartp=ioffp
+             iendp=ioffp+nspB*nspK-1
+
+             ! Start and end points for the k=-1 1a i<j terms
+             istartm=ioffm
+             iendm=ioffm+nspB*nspK-1
+
+             ! k=+1 1a i>j terms
+             workp=spincp_plus(istartp:iendp)
+
+             ! k=-1 1a i<j terms
+             workT=transpose(reshape(workp,(/nspB,nspK/)))
+             workm=-reshape(workT,(/nspB*nspK/))
+             spincp_minus(istartm:iendm)=workm
+             
+             ! Update the offsets
+             ioffp=ioffp+nspB*nspK
+             ioffm=ioffm+nspB*nspK
+             
+          enddo
+       enddo
+             
+       ! Deallocate work arrays
+       deallocate(workp, workT, workm)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 1b i>j spin-coupling coefficients using the
+! relation 1b i>j = 1a i<j
+!----------------------------------------------------------------------
+    ! Allocate the work array
+    istart=offminus(1)+1
+    iend=offminus(2)
+    allocate(work(iend-istart+1))
+    
+    ! Copy of the 1a i<j terms, k=-1
+    work=spincp_minus(istart:iend)
+    
+    ! Fill in the 1b i>j terms, k=-1
+    istart=offminus(2)+1
+    iend=offminus(3)
+    spincp_minus(istart:iend)=work
+    
+    ! Deallocate the work array
+    deallocate(work)
+    
+!----------------------------------------------------------------------
+! Fill in the k=-1 1b i<j spin-coupling coefficients using the
+! relation 1b i<j = 1a i>j
+!----------------------------------------------------------------------
+    ! Allocate the work array
+    istart=1
+    iend=offminus(1)
+    allocate(work(iend-istart+1))
+    
+    ! Copy of the 1a i>j terms, k=-1
+    work=spincp_minus(istart:iend)
+    
+    ! Fill in the 1b i<j terms, k=-1
+    istart=offminus(3)+1
+    iend=spincpdim(1)
+    spincp_minus(istart:iend)=work
+    
+    ! Deallocate the work array
+    deallocate(work)
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 2a i>j spin coupling coefficients
+!----------------------------------------------------------------------
+    ! Initialise the k=+1 2b i<j offset
+    ioffp=spincpdim(1)+2*offplus(4)+offplus(5)+1
+
+    ! Initialise the k=-1 2a i>j offset
+    ioffm=spincpdim(1)+1
+
+    ! Loop over numbers of ket open shells
+    do nopen=2,nocase1
+
+       ! Numbers of CSFs
+       nspK=ncsfsK(nopen)
+       nspB=ncsfsB(nopen-2)
+       
+       ! Cycle if there are no bra or ket CSFs
+       if (nspB == 0 .or. nspK == 0) cycle
+
+       ! Allocate the work arrays
+       allocate(workp(nspB*nspK), workT(nspK,nspB), workm(nspB*nspK))
+
+       ! Loop over the bra simplified spatial occupation vectors
+       do is2=1,(nopen)*(nopen-1)/2
+
+          ! Start and end points for the k=+1 2b i<j terms
+          istartp=ioffp
+          iendp=ioffp+nspB*nspK-1
+          
+          ! Start and end points for the k=-1 2a i>j terms
+          istartm=ioffm
+          iendm=ioffm+nspB*nspK-1
+          
+          ! k=+1 2b i<j terms
+          workp=spincp_plus(istartp:iendp)
+          
+          ! k=-1 2a i>j terms
+          workT=transpose(reshape(workp,(/nspB,nspK/)))
+          workm=-reshape(workT,(/nspB*nspK/))
+          spincp_minus(istartm:iendm)=workm
+          
+          ! Update the offsets
+          ioffp=ioffp+nspB*nspK
+          ioffm=ioffm+nspB*nspK
+          
+       enddo
+          
+       ! Deallocate the work arrays
+       deallocate(workp, workT, workm)
+       
+    enddo
+       
+!----------------------------------------------------------------------
+! Fill in the k=-1 2a i<j spin coupling coefficients using the
+! relation 2a i<j = - 2a i>j
+!----------------------------------------------------------------------
+    ! Allocate the work array
+    istart=spincpdim(1)+1
+    iend=istart+offminus(4)-1
+    allocate(work(iend-istart+1))
+
+    ! Copy of the 2a i>j terms, k=-1
+    work=spincp_minus(istart:iend)
+
+    ! Fill in the 2a i<j terms, k=-1
+    istart=iend+1
+    iend=istart+offminus(4)-1
+    spincp_minus(istart:iend)=-work
+
+    ! Deallocate the work array
+    deallocate(work)
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 2b i>j spin coupling coefficients
+!----------------------------------------------------------------------
+    ! Initialise the k=+1 2a i<j offset
+    ioffp=spincpdim(1)+offplus(4)+1
+
+    ! Initialise the k=-1 2b i>j offset
+    ioffm=spincpdim(1)+2*offminus(4)+1
+    
+    ! N' = 0 coefficient
+    if (imultK == 0) then
+       spincp_minus(ioffm)=1.0d0
+       ioffm=ioffm+1
+    endif
+
+    ! Loop over numbers of ket open shells
+    do nopen=1,nocase1-2
+
+       ! Numbers of CSFs
+       nspK=ncsfsK(nopen)
+       nspB=ncsfsB(nopen+2)
+       
+       ! Cycle if there are no bra or ket CSFs
+       if (nspK == 0 .or. nspB == 0) cycle
+
+       ! Allocate work arrays
+       allocate(workp(nspB*nspK), workT(nspK,nspB), workm(nspB*nspK))
+
+       ! Loop over the ket simplified spatial occupation vectors
+       do is1=1,(nopen+2)*(nopen+1)/2
+       
+          ! Start and end points for the k=+1 2a i<j terms
+          istartp=ioffp
+          iendp=ioffp+nspB*nspK-1
+          
+          ! Start and end points for the k=-1 2b i>j terms
+          istartm=ioffm
+          iendm=ioffm+nspB*nspK-1
+          
+          ! k=+1 2a i<j terms
+          workp=spincp_plus(istartp:iendp)
+          
+          ! k=-1 2b i>j terms
+          workT=transpose(reshape(workp,(/nspB,nspK/)))
+          workm=-reshape(workT,(/nspB*nspK/))
+          spincp_minus(istartm:iendm)=workm
+          
+          ! Update the offsets
+          ioffp=ioffp+nspB*nspK
+          ioffm=ioffm+nspB*nspK
+
+       enddo
+       
+       ! Deallocate work arrays
+       deallocate(workp, workT, workm)
+    
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the k=-1 2b i<j spin-coupling coefficients using the relation
+! 2b i<j = - 2b i>j
+!---------------------------------------------------------------------
+    ! Allocate the work array
+    istart=spincpdim(1)+2*offminus(4)+1
+    iend=istart+offminus(5)-1
+    allocate(work(iend-istart+1))
+
+    ! Copy of the 2b i>j terms, k=-1
+    work=spincp_minus(istart:iend)
+    
+    ! Fill in the 2b i<j terms, k=-1
+    istart=iend+1
+    iend=istart+offminus(5)-1
+    spincp_minus(istart:iend)=-work
+
+    ! Deallocate the work array
+    deallocate(work)
+    
+    return
+    
+  end subroutine fill_kminus
+  
 !######################################################################
 ! fill_N1s: Fills in the array of bit strings with the first N bits
 !           set. The spin coupling coefficient pattern numbers will

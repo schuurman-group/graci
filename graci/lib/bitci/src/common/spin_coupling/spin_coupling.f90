@@ -22,7 +22,7 @@ contains
 !######################################################################
   subroutine generate_coupling_coefficients(imult,nocase1,nocase2,&
        maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,nspincp,N1s,verbose,&
-       spincp,patternmap,offspincp)
+       spincp,patmap,offspincp)
 
     use constants
     use timing
@@ -59,7 +59,7 @@ contains
 
     ! All pattern -> array index mappings
     integer(is)              :: mapdim
-    integer(is), allocatable :: patternmap(:)
+    integer(is), allocatable :: patmap(:)
 
     ! Spin coupling coefficient offsets for the various
     ! different cases
@@ -109,19 +109,19 @@ contains
 !----------------------------------------------------------------------
 ! Allocate the pattern value -> array index mapping array
 !----------------------------------------------------------------------
-    call init_patternmap(imult,nocase1,nocase2,ncsfs,patternmap,mapdim)
+    call init_patternmap(imult,nocase1,nocase2,ncsfs,patmap,mapdim)
     
 !----------------------------------------------------------------------
 ! Compute the Case 1 spin coupling coefficients
 !----------------------------------------------------------------------
     call case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-         csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patternmap)
+         csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patmap)
     
 !----------------------------------------------------------------------
 ! Compute the Case 2 spin coupling coefficients
 !----------------------------------------------------------------------
     call case2_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,csfcoe,&
-         detvec,spincpdim,spincp,nspincp,mapdim,patternmap)
+         detvec,spincpdim,spincp,nspincp,mapdim,patmap)
 
 !----------------------------------------------------------------------
 ! Fill in the array of bit strings with N set bits, from which the
@@ -337,7 +337,7 @@ contains
 ! init_patternmap: Allocation and initialisation of the array holding
 !                  the pattern value -> array index mapping
 !######################################################################
-  subroutine init_patternmap(imult,nocase1,nocase2,ncsfs,patternmap,&
+  subroutine init_patternmap(imult,nocase1,nocase2,ncsfs,patmap,&
        mapdim)
 
     use constants
@@ -348,7 +348,7 @@ contains
     integer(is), intent(in)  :: nocase1,nocase2
     integer(is), intent(in)  :: ncsfs(0:nocase2)
     integer(is), intent(out) :: mapdim
-    integer(is), allocatable :: patternmap(:)
+    integer(is), allocatable :: patmap(:)
 
 !----------------------------------------------------------------------
 ! Maximum possible pattern value
@@ -370,8 +370,8 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(patternmap(0:mapdim))
-    patternmap=0
+    allocate(patmap(0:mapdim))
+    patmap=0
 
     return
     
@@ -384,7 +384,7 @@ contains
 !               numbers of open shells
 !######################################################################
   subroutine case1_coeffs(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-       csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patternmap)
+       csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patmap)
 
     use constants
     use bitutils
@@ -399,7 +399,7 @@ contains
     real(dp), intent(out)    :: spincp(spincpdim(3))
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim
-    integer(is), intent(out) :: patternmap(0:mapdim)
+    integer(is), intent(out) :: patmap(0:mapdim)
     
     integer(is)              :: nopen,is1,is2,icsf1,icsf2,nsp,ndet
     integer(is)              :: ioff,istart,iend
@@ -455,7 +455,7 @@ contains
 
              ! Pattern number and the corresponding array index
              pattern=iand(ws(is1,nopen),ws(is2,nopen))
-             patternmap(pattern)=ioff
+             patmap(pattern)=ioff
              
              ! Evaluate the spin coupling coefficients for all
              ! CSF pairs
@@ -780,7 +780,7 @@ contains
 !               open shells differing by two.
 !######################################################################
   subroutine case2_coeffs(imult,nocase2,maxcsf,maxdet,ncsfs,ndets,&
-       csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patternmap)
+       csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patmap)
 
     use constants
     use bitutils
@@ -795,7 +795,7 @@ contains
     real(dp), intent(out)    :: spincp(spincpdim(3))
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim
-    integer(is), intent(out) :: patternmap(0:mapdim)
+    integer(is), intent(out) :: patmap(0:mapdim)
     
     integer(is)              :: nopen,is1,is2,icsf1,icsf2,lim,i
     integer(is)              :: ioff,istart,iend,nsp1,nsp2
@@ -869,7 +869,7 @@ contains
 
        ! Pattern number and corresponding array index
        pattern=iand(ws(1,0),wsp(2))
-       patternmap(pattern)=ioff
+       patmap(pattern)=ioff
        
        ! Evaluate the spin coupling coefficient
        call spincp_coeff_n0(coeff)
@@ -902,7 +902,7 @@ contains
 
           ! Pattern number and the corresponding array indx
           pattern=iand(ws(is1,nopen),wsp(nopen+2))
-          patternmap(pattern)=ioff
+          patmap(pattern)=ioff
 
           ! Evaluate the spin coupling coefficient for all CSF
           ! pairs

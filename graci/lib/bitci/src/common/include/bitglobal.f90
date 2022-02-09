@@ -51,7 +51,7 @@ module bitglobal
                                               ! coefficients 
   integer(ib), allocatable :: N1s(:)          ! Bit strings comprised of N 1's
 
-  integer(is), allocatable :: patternmap(:)   ! Pattern value -> array index
+  integer(is), allocatable :: patmap(:)       ! Pattern value -> array index
                                               ! mapping
   integer(is), allocatable :: offspincp(:)    ! Spincp array offsets for the
                                               ! different coefficient cases
@@ -186,14 +186,24 @@ module bitglobal
   !
   ! Triplet spin-coupling coefficients
   !
-  real(dp), allocatable    :: spincp_plus(:)  ! k=+1 spin-coupling coefficients
-  real(dp), allocatable    :: spincp_minus(:) ! k=-1 spin-coupling coefficients
-  integer(is), allocatable :: patternmap1(:)  ! Case 1 pattern value -> array index
-                                              ! mapping
-  integer(is), allocatable :: patternmap2a(:) ! Case 2a pattern value -> array index
-                                              ! mapping
-  integer(is), allocatable :: patternmap2b(:) ! Case 2b pattern value -> array index
-                                              ! mapping
+  real(dp), allocatable    :: spincp_plus(:)    ! k=+1 spin-coupling coefficients
+  real(dp), allocatable    :: spincp_minus(:)   ! k=-1 spin-coupling coefficients
+  integer(is), allocatable :: patmap1(:)        ! Case 1 pattern value -> array index
+                                                ! mapping
+  integer(is), allocatable :: patmap2a_plus(:)  ! Case 2a pattern value -> array index
+                                                ! mapping, k=+1
+  integer(is), allocatable :: patmap2b_plus(:)  ! Case 2b pattern value -> array index
+                                                ! mapping, k=-1
+  integer(is), allocatable :: patmap2a_minus(:) ! Case 2a pattern value -> array index
+                                                ! mapping, k=-1
+  integer(is), allocatable :: patmap2b_minus(:) ! Case 2b pattern value -> array index
+                                                ! mapping, k=-1
+
+  integer(is), allocatable :: offplus(:)        ! k=+1 spincp array offsets for the
+                                                ! different coefficient cases
+  integer(is), allocatable :: offminus(:)       ! k=-1 spincp array offsets for the
+                                                ! different coefficient cases
+
   
 end module bitglobal
 

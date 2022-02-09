@@ -251,7 +251,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
      verbose=.false.
      call generate_coupling_coefficients(imultB,nocase1,nocase2,&
           maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,nspincp,N1s,&
-          verbose,spincp,patternmap,offspincp)
+          verbose,spincp,patmap,offspincp)
 
   case('soc')
      ! SOC calculation: calculation of spin-coupling coefficients for
@@ -271,7 +271,8 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
              maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
              maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
              nspincp,N1s,verbose,spincp_plus,spincp_minus,&
-             patternmap1,patternmap2a,patternmap2b,offspincp)
+             patmap1,patmap2a_plus,patmap2b_plus,&
+             patmap2a_minus,patmap2b_minus,offplus,offminus)
      endif
      
   end select
