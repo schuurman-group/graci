@@ -10,9 +10,9 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 
 @timing.timed
-def triplet_tdm(bra, ket, trans_list):
-    """Calculation of the MRCI triplet TDMs for all pairs of
-       states in trans_list"""
+def redmat(bra, ket, trans_list):
+    """Calculation of the MRCI reduced matrix elements 
+       for all pairs of states in trans_list"""
     
     # number of irreps
     nirr_ket = ket.n_irrep()
@@ -28,7 +28,7 @@ def triplet_tdm(bra, ket, trans_list):
     ket_wfn = ket.bitci_mrci()
 
     # Triplet TDMs for all irreps
-    Tmat = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
+    umat = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
 
     # Loop over pairs of irreps for the initial and final manifolds
     for ket_irr in range(nirr_ket):
@@ -50,7 +50,7 @@ def triplet_tdm(bra, ket, trans_list):
             ket_tot = ket.n_state_sym(ket_irr)
 
             # Triplet TDM array
-            Tij = np.zeros((nmo*nmo*npairs), dtype=np.float64)
+            uij = np.zeros((nmo*nmo*npairs), dtype=np.float64)
 
             # configuration and eigenvector files: bra wfn
             bra_conf = bra_wfn.conf_name[bra_irr]
@@ -60,10 +60,15 @@ def triplet_tdm(bra, ket, trans_list):
             ket_conf = ket_wfn.conf_name[ket_irr]
             ket_vec  = ket_wfn.ci_name[ket_irr]
 
-            # Compute the triplet TDMs for all states in this irrep
+            # Compute the reduced matrix elements for all states in
+            # this irrep
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
-                    tdm_pairs, Tij,  bra_conf, bra_vec, ket_conf, 
+                    tdm_pairs, uij,  bra_conf, bra_vec, ket_conf, 
                     ket_vec)
-            Tij  = libs.lib_func('soc_mrci', args)
+            uij  = libs.lib_func('soc_mrci', args)
+
+            # Add the reduced matrix elements to the list
+            umat[bra_irr][ket_irr] = \
+                np.reshape(uij, (nmo, nmo, npairs), order='F')
             
-    return Tmat
+    return umat

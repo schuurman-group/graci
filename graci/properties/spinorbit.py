@@ -76,17 +76,17 @@ class Spinorbit(interaction.Interaction):
             # currently store them as [initial state, final state]
             self.build_trans_list()
 
-            # get the triplet transition density matrices
-            # <psi_m|T_ij^(1,k)|psi'_n>, k=0,+1
-            self.build_triplet_tdms()
+            # get the reduced matrix elements
+            # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
+            self.build_redmat()
 
 
     #
     @timing.timed
-    def build_triplet_tdms(self):
-        """grab the triplet TDMs from bitsi and then reshape the list
-           of triplet TDMs into a more usable format"""
+    def build_redmat(self):
+        """grab the reduced matrix elements from bitsi and then
+           reshape the list into a more usable format"""
 
-        # gran the triplet TDMs
-        tdm_list = mrci_soc.triplet_tdm(self.bra_obj, self.ket_obj,
-                                        self.trans_list_sym)
+        # grab the reduced matrix elements
+        tdm_list = mrci_soc.redmat(self.bra_obj, self.ket_obj,
+                                   self.trans_list_sym)

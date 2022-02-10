@@ -1,17 +1,17 @@
 !**********************************************************************
 ! Calculation of the spin-part of SOC integrals for MRCI wavefunctions
 !**********************************************************************
-! That is, the matrix elements < psi_I | T_ij^(1,k) | psi'_J >
-! for the k=0,+1 components of the triplet excitation operators
-! T_ij^(1,k)
+! Returns the reduced matrix elements
+! u_ij = < S_bra I || T_ij^(1) || S_ket J > for the requested
+! (bra, ket) state pairs (I, J)
 !**********************************************************************
 #ifdef CBINDING
 subroutine soc_mrci(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     Tij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in) &
+     uij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in) &
      bind(c,name='soc_mrci')
 #else
 subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     Tij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in)
+     uij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -21,7 +21,8 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   use conftype
   use merge
   use triplet_tdm
-
+  use redmat
+  
   implicit none
 
   ! MRCI configuration and eigenvector file names
@@ -45,8 +46,8 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   integer(is), intent(in)  :: npairs
   integer(is), intent(in)  :: iroots(npairs,2)
   
-  ! Triplet transition density matrix
-  real(dp), intent(out)    :: Tij(nmo,nmo,npairs)
+  ! Reduced matrix elements
+  real(dp), intent(out)    :: uij(nmo,nmo,npairs)
 
   ! MRCI configuration derived types
   type(mrcfg)              :: cfgB,cfgK
@@ -195,6 +196,7 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 
 !----------------------------------------------------------------------
 ! Compute the triplet TDMs
+! < S_bra M_bra=S_bra I | T_ij^(1,k) | S_ket M_ket=S_ket J >
 !----------------------------------------------------------------------
   ! Component of the triplet spin tensor operator
   if (imultB == imultK) then
@@ -203,9 +205,16 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
      kindx=1
   endif
 
-  ! Compute the TDMs
+  ! Compute the triplet TDMs
   call triplet_tdm_mrci(kindx,cfgB,cfgK,cfgB%csfdim,cfgK%csfdim,&
-       nvecB,nvecK,vecB,vecK,npairs,Tij,Bmap,Kmap)
+       nvecB,nvecK,vecB,vecK,npairs,uij,Bmap,Kmap)
+
+!----------------------------------------------------------------------
+! Divide the triplet TDMs byt the Clebsch-Gordan coefficient
+! < S_ket S_ket; 1 k | S_bra S_bra > to yield the reduced matrix
+! elements < S_bra I || T_ij^(1) || S_ket J >
+!----------------------------------------------------------------------
+  call reduced_matrix(kindx,npairs,uij)
   
 !----------------------------------------------------------------------
 ! Deallocate arrays
