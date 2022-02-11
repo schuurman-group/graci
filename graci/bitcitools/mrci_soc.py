@@ -84,7 +84,7 @@ def clebsch_gordan(bra, ket):
     mult_ket = ket.mult
         
     # array of Clebsh-Gordan coefficients
-    cgcoe = np.zeros((3*mult_ket, multB), dtype=np.float64)
+    cgcoe = np.zeros((3*mult_ket, mult_bra), dtype=np.float64)
     
     # fetch the coefficients
     
