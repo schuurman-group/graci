@@ -56,7 +56,7 @@ contains
     SB=0.5d0*(dble(imultB)-1.0d0)
     SK=0.5d0*(dble(imultK)-1.0d0)
 
-    ! Angular momentum to be coubled
+    ! Angular momentum to be coupled
     j1=SK
     j2=1.0d0
 

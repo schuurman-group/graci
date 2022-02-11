@@ -1,16 +1,18 @@
 !**********************************************************************
-! Calculation of the spin-part of SOC integrals for MRCI wavefunctions
-!**********************************************************************
-! Returns the reduced matrix elements
-! u_ij = < S_bra I || T_ij^(1) || S_ket J > for the requested
-! (bra, ket) state pairs (I, J)
+! redmat_mrci: For the given bra/ket total spins S_B/S_K, returns the
+!              reduced matrix elements
+!
+!              U_ij = < S_B I || T_ij^(1) || S_K J >
+!
+!              for the requested states pairs (I,J) of MRCI
+!              wavefunctions
 !**********************************************************************
 #ifdef CBINDING
-subroutine soc_mrci(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+subroutine redmat_mrci(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
      uij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in) &
-     bind(c,name='soc_mrci')
+     bind(c,name='redmat_mrci')
 #else
-subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+subroutine redmat_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
      uij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in)
 #endif
 
@@ -196,7 +198,7 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 
 !----------------------------------------------------------------------
 ! Compute the triplet TDMs
-! < S_bra M_bra=S_bra I | T_ij^(1,k) | S_ket M_ket=S_ket J >
+! < S_B M_B=S_B I | T_ij^(1,k) | S_K M_K=S_K J >
 !----------------------------------------------------------------------
   ! Component of the triplet spin tensor operator
   if (imultB == imultK) then
@@ -211,8 +213,8 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 
 !----------------------------------------------------------------------
 ! Divide the triplet TDMs byt the Clebsch-Gordan coefficient
-! < S_ket S_ket; 1 k | S_bra S_bra > to yield the reduced matrix
-! elements < S_bra I || T_ij^(1) || S_ket J >
+! < S_K S_K; 1 k | S_B S_B > to yield the reduced matrix
+! elements < S_B I || T_ij^(1) || S_K J >
 !----------------------------------------------------------------------
   call reduced_matrix(kindx,npairs,uij)
   
@@ -239,4 +241,30 @@ subroutine soc_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   
   return
   
-end subroutine soc_mrci
+end subroutine redmat_mrci
+
+!**********************************************************************
+! cgcoeff_soc: for the current bra and ket spin multiplicities,
+!              returns all the Clebsch-Gordan coefficients needed
+!              to compute SOC matrix elements from the reduced matrix
+!              elements
+!**********************************************************************
+#ifdef CBINDING
+subroutine cgcoeff_soc(cg,n1,n2) bind(c,name='cgcoeff_soc')
+#else
+subroutine cgcoeff_soc(cg,n1,n2)
+#endif
+
+  use constants
+  use bitglobal
+  use clebsch_gordan
+  
+  implicit none
+
+  ! Clebsch-Gordan coefficient tensor
+  integer(is), intent(in) :: n1,n2
+  real(dp), intent(in)    :: cg(n1,n2)
+  
+  return
+  
+end subroutine cgcoeff_soc

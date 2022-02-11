@@ -65,10 +65,27 @@ def redmat(bra, ket, trans_list):
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
                     tdm_pairs, uij,  bra_conf, bra_vec, ket_conf, 
                     ket_vec)
-            uij  = libs.lib_func('soc_mrci', args)
+            uij  = libs.lib_func('redmat_mrci', args)
 
             # Add the reduced matrix elements to the list
             umat[bra_irr][ket_irr] = \
                 np.reshape(uij, (nmo, nmo, npairs), order='F')
             
     return umat
+
+@timing.timed
+def clebsch_gordan(bra, ket):
+    """Retrieval of all the Clebsch-Gordan coefficients needed to compute
+       the SOC matrix elements between a given pair of sets of bra and ket
+       MRCI wave functions"""
+
+    # bra and ket spin multiplicities
+    mult_bra = bra.mult
+    mult_ket = ket.mult
+        
+    # array of Clebsh-Gordan coefficients
+    cgcoe = np.zeros((3*mult_ket, multB), dtype=np.float64)
+    
+    # fetch the coefficients
+    
+    return cgcoe

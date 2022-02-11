@@ -22,7 +22,8 @@ class Spinorbit(interaction.Interaction):
         
         # user defined quanties 
         self.label = 'spinorbit'
-
+        self.cgcoe = None
+        
         # global variables
         # Class name
         self.class_name = 'spinorbit'
@@ -80,7 +81,11 @@ class Spinorbit(interaction.Interaction):
             # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
             self.build_redmat()
 
-
+            # get the Clebsh-Gordan coefficients needed to
+            # compute the SOC matrix elements
+            self.cgcoe = mrci_soc.clebsch_gordan(self.bra_obj,
+                                                 self.ket_obj)
+            
     #
     @timing.timed
     def build_redmat(self):

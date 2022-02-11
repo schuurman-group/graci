@@ -106,7 +106,7 @@ bitsi_registry = {
     'transition_density_mrci' : ['int32','int32','int32','int32','int32',
                                  'int32','double','string','string',
                                  'string','string'],
-    'soc_mrci'                : ['int32','int32','int32','int32','int32',
+    'redmat_mrci'             : ['int32','int32','int32','int32','int32',
                                  'int32','double','string','string',
                                  'string','string']
 }
@@ -116,7 +116,7 @@ bitsi_intent   = {
     'bitsi_finalise'          : [],
     'transition_density_mrci' : ['in','in','in','in','in','in','out',
                                  'in','in','in','in'],
-    'soc_mrci'                : ['in','in','in','in','in','in','out',
+    'redmat_mrci'             : ['in','in','in','in','in','in','out',
                                  'in','in','in','in']
 }
 
