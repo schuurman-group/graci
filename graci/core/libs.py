@@ -108,7 +108,8 @@ bitsi_registry = {
                                  'string','string'],
     'redmat_mrci'             : ['int32','int32','int32','int32','int32',
                                  'int32','double','string','string',
-                                 'string','string']
+                                 'string','string'],
+    'cgcoeff_soc'             : ['int32','int32','double']
 }
 
 bitsi_intent   = {
@@ -117,7 +118,8 @@ bitsi_intent   = {
     'transition_density_mrci' : ['in','in','in','in','in','in','out',
                                  'in','in','in','in'],
     'redmat_mrci'             : ['in','in','in','in','in','in','out',
-                                 'in','in','in','in']
+                                 'in','in','in','in'],
+    'cgcoeff_soc'             : ['in','in','out']
 }
 
 # list of existing library objects

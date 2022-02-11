@@ -21,13 +21,16 @@ class Spinorbit(interaction.Interaction):
         super().__init__()
         
         # user defined quanties 
-        self.label = 'spinorbit'
-        self.cgcoe = None
-        
+        self.label      = 'spinorbit'
+                
         # global variables
         # Class name
         self.class_name = 'spinorbit'
-
+        # Clebsch-Gordan coeficients
+        self.cgcoe      = None
+        # Reduced matrix elements
+        self.redmat     = None
+        
     #
     @timing.timed
     def run(self):
@@ -93,5 +96,21 @@ class Spinorbit(interaction.Interaction):
            reshape the list into a more usable format"""
 
         # grab the reduced matrix elements
-        tdm_list = mrci_soc.redmat(self.bra_obj, self.ket_obj,
-                                   self.trans_list_sym)
+        redmat_list = mrci_soc.redmat(self.bra_obj, self.ket_obj,
+                                      self.trans_list_sym)
+
+        # Make the reduced matrix list
+        nmo         = self.bra_obj.scf.nmo
+        npairs      = len(self.trans_list)
+        self.redmat = np.zeros((nmo, nmo, npairs), dtype=float)
+
+        for bk_st in self.trans_list:
+            [birr, bst_sym] = self.bra_obj.state_sym(bk_st[0])
+            [kirr, kst_sym] = self.ket_obj.state_sym(bk_st[1])
+            indx            = self.trans_index(bk_st[0], bk_st[1])
+            sym_indx        = self.trans_sym_index( birr, kirr, 
+                                                bst_sym, kst_sym)
+
+            self.redmat[:, :, indx] = redmat_list[birr][kirr][:, :, sym_indx]
+
+        del(redmat_list)

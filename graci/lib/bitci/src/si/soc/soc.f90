@@ -250,9 +250,9 @@ end subroutine redmat_mrci
 !              elements
 !**********************************************************************
 #ifdef CBINDING
-subroutine cgcoeff_soc(cg,n1,n2) bind(c,name='cgcoeff_soc')
+subroutine cgcoeff_soc(n12,ntot,cg) bind(c,name='cgcoeff_soc')
 #else
-subroutine cgcoeff_soc(cg,n1,n2)
+subroutine cgcoeff_soc(n12,ntot,cg)
 #endif
 
   use constants
@@ -262,8 +262,25 @@ subroutine cgcoeff_soc(cg,n1,n2)
   implicit none
 
   ! Clebsch-Gordan coefficient tensor
-  integer(is), intent(in) :: n1,n2
-  real(dp), intent(in)    :: cg(n1,n2)
+  integer(is), intent(in) :: n12,ntot
+  real(dp), intent(out)   :: cg(n12,ntot)
+
+  ! Everything else
+  real(dp)                :: j1,j2,J
+  
+!----------------------------------------------------------------------
+! Compute the full tensor of Clebsch-Gordan coefficients
+! < S_K M_K; 1 k | S_B M_B >
+!----------------------------------------------------------------------
+  ! Angular momenta to be coupled
+  j1=0.5d0*(dble(imultK)-1.0d0)
+  j2=1.0d0
+
+  ! Total angular momentum
+  J=0.5d0*(dble(imultB)-1.0d0)
+
+  ! Compute the coefficients
+  call cgcoeff(j1,j2,J,cg)
   
   return
   

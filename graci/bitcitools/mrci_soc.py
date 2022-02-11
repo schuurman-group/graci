@@ -1,6 +1,6 @@
 """
-Module for the calculation of MRCI triplet transition density
-matrices <psi_m|T_ij^(1,k)|psi'_n>, k=0,+1
+Module for the calculation of quantities required for the
+calculation of MRCI SOC matrix elements
 """
 
 import sys as sys
@@ -84,8 +84,13 @@ def clebsch_gordan(bra, ket):
     mult_ket = ket.mult
         
     # array of Clebsh-Gordan coefficients
-    cgcoe = np.zeros((3*mult_ket, mult_bra), dtype=np.float64)
+    cgcoe = np.zeros((3*mult_ket*mult_bra), dtype=np.float64)
     
     # fetch the coefficients
+    args  = (3*mult_ket, mult_bra, cgcoe)
+    cgcoe = libs.lib_func('cgcoeff_soc', args)
+
+    # reshape
+    cgcoe = np.reshape(cgcoe, (3*mult_ket, mult_bra), order='F')
     
     return cgcoe
