@@ -30,6 +30,9 @@ module gendav
   ! Counters, etc.
   integer(is)              :: currdim,nconv,nnew,nsigma
   integer(is), allocatable :: iconv(:)
+
+  ! Timers
+  real(dp)                 :: times(2,4)
   
 contains
 
@@ -151,6 +154,13 @@ contains
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
+    ! Individual timers
+    call report_times(times(1,1),times(2,1),'sigma_vectors')
+    call report_times(times(1,2),times(2,2),'subspace_hamiltonian')
+    call report_times(times(1,3),times(2,3),'residual_vectors')
+    call report_times(times(1,4),times(2,4),'subspace_vectors')
+    
+    ! Total times
     call get_times(twall_end,tcpu_end)
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'generalised_davidson')
@@ -191,6 +201,11 @@ contains
        call error_control
     endif
 
+!----------------------------------------------------------------------
+! Initialise the gendav timers
+!----------------------------------------------------------------------
+    times=0.0d0
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -462,6 +477,7 @@ contains
     use constants
     use sigma_mrci
     use iomod
+    use timing
     
     implicit none
 
@@ -482,9 +498,18 @@ contains
     !
     integer(is), intent(in) :: isigma(3)
 
+    ! Timing variables
+    real(dp)                     :: tcpu_start,tcpu_end,twall_start,&
+                                    twall_end
+    
     ! Everything else
     integer(is)             :: ki,kf
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Update the total no. sigma vector calculations
 !----------------------------------------------------------------------
@@ -511,6 +536,13 @@ contains
        call sigma_disk(isigma(2),isigma(3),matdim,nnew,&
             bvec(:,ki:kf),sigvec(:,ki:kf),hdiag)
     end select
+
+!----------------------------------------------------------------------
+! End timing and update the sigma vector timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,1)=times(1,1)+twall_end-twall_start
+    times(2,1)=times(2,1)+tcpu_end-tcpu_start
     
     return
     
@@ -523,15 +555,28 @@ contains
   subroutine subspace_hamiltonian(matdim,blocksize)
 
     use constants
+    use timing
     
     implicit none
 
     ! Dimensions
     integer(is), intent(in) :: matdim,blocksize
 
+    ! Timing variables
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
+    
     ! Everything else
     integer(is)             :: i,j,j1
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+
+!----------------------------------------------------------------------
+! Compute the subspace Hamiltonian matrix elements
+!----------------------------------------------------------------------
     ! Loop over subspace vectors
     do i=1,currdim
 
@@ -548,6 +593,13 @@ contains
        enddo
 
     enddo
+
+!----------------------------------------------------------------------
+! End timing and update the subspace Hamiltonian construction timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,2)=times(1,2)+twall_end-twall_start
+    times(2,2)=times(2,2)+tcpu_end-tcpu_start
     
     return
     
@@ -584,6 +636,7 @@ contains
 
     use constants
     use iomod
+    use timing
     
     implicit none
 
@@ -595,7 +648,11 @@ contains
 
     ! Working arrays
     real(dp), allocatable   :: rvec(:)
-        
+
+    ! Timing variables
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
+    
     ! Everything else
     integer(is)             :: ki,kf,k,k1,i,inc
     
@@ -606,6 +663,11 @@ contains
     ! and b are the sigma and subspace vectors.    
     !******************************************************************
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -651,6 +713,13 @@ contains
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(rvec)
+
+!----------------------------------------------------------------------
+! End timing and update the residual vector timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,3)=times(1,3)+twall_end-twall_start
+    times(2,3)=times(2,3)+tcpu_end-tcpu_start
     
     return
     
@@ -773,6 +842,7 @@ contains
   subroutine subspace_vectors(matdim,blocksize,tol)
 
     use constants
+    use timing
     
     implicit none
 
@@ -784,10 +854,19 @@ contains
 
     ! Orthogonalised correction vector norms
     real(dp)                 :: bnorm(blocksize)
-      
+
+    ! Timing variables
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
+    
     ! Everything else
     integer(is)              :: ki,kf,k,k1,i,n
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Indices of the positions in the bvec array in which the new subspace
 ! vectors will be stored
@@ -828,6 +907,13 @@ contains
        bvec(:,k)=bvec(:,k)/bnorm(n)
 
     enddo
+
+!----------------------------------------------------------------------
+! End timing and update the subspace vector timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,4)=times(1,4)+twall_end-twall_start
+    times(2,4)=times(2,4)+tcpu_end-tcpu_start
     
     return
     
