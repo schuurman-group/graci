@@ -37,7 +37,11 @@ contains
     integer(is), allocatable :: ibuffer(:,:)
 
     ! Everything else
-    integer(is)              :: iscratch,irec,nbuf,m,n,i,j
+    integer(is)              :: iscratch,ivec,irec,nbuf,m,n,i,j
+
+    ! TEST
+    real(dp) :: tmp1,tmp2
+    ! TEST
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -69,18 +73,27 @@ contains
        ! Read in the next record
        read(iscratch) hbuffer,ibuffer,nbuf
 
-       ! Loop over elements in the buffer
-       do n=1,nbuf
+       ! Loop over vectors
+       !$omp parallel do &
+       !$omp& private(ivec,n,i,j) &
+       !$omp& shared(sigvec,bvec,ibuffer,hbuffer)
+       do ivec=1,blocksize
+       
+          ! Loop over elements in the buffer
+          do n=1,nbuf
+             
+             ! Hij
+             i=ibuffer(1,n)
+             j=ibuffer(2,n)
+             
+             ! Contribution to the sigma vectors
+             sigvec(i,ivec)=sigvec(i,ivec)+hbuffer(n)*bvec(j,ivec)
+             sigvec(j,ivec)=sigvec(j,ivec)+hbuffer(n)*bvec(i,ivec)
+             
+          enddo
 
-          ! Hij
-          i=ibuffer(1,n)
-          j=ibuffer(2,n)
-
-          ! Contribution to the sigma vectors
-          sigvec(i,:)=sigvec(i,:)+hbuffer(n)*bvec(j,:)
-          sigvec(j,:)=sigvec(j,:)+hbuffer(n)*bvec(i,:)
-                       
        enddo
+       !$omp end parallel do
        
     enddo
     
