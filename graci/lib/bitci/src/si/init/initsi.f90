@@ -48,7 +48,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   real(dp)                :: s,smax,sb,sk
   real(dp)                :: tiny=1e-10_dp
   logical                 :: verbose
-  
+
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the calculation type character
 ! string from the C char type to the Fortran character type

@@ -50,7 +50,7 @@ class Spinorbit(interaction.Interaction):
         if S_bra == S_ket and S_bra == 0.:
             sys.exit('\n ERROR: non-sensical S_bra, S_ket combination ' \
                      +'in spinorbit')
-            
+
         # first check to see if bra and ket are identical
         if (type(self.bra_obj).__name__ == type(self.ket_obj).__name__ 
             and self.bra_obj.label == self.ket_obj.label):
@@ -61,7 +61,7 @@ class Spinorbit(interaction.Interaction):
 
         scf_bra = self.bra_obj.scf
         scf_ket = self.ket_obj.scf
-            
+
         if not self.braket_iden:
             # sanity check that orbitals and geometry are the same
             if np.any(scf_bra.orbs != scf_ket.orbs):
@@ -71,23 +71,22 @@ class Spinorbit(interaction.Interaction):
             if mol_bra.pymol().atom != mol_ket.pymol().atom:
                 sys.exit('spin-orbit coupling requires same geometry'+
                          ' and basis set')
+                
+        # initialize the bitsi library for the calculation of
+        # spin-orbit matrix elements
+        bitsi_init.init(self, 'soc')
 
-            # initialize the bitsi library for the calculation of
-            # spin-orbit matrix elements
-            bitsi_init.init(self, 'soc')
-            
-            # construct the trans_list array
-            # currently store them as [initial state, final state]
-            self.build_trans_list()
+        # construct the trans_list array
+        # currently store them as [initial state, final state]
+        self.build_trans_list()
 
-            # get the reduced matrix elements
-            # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
-            self.build_redmat()
-
-            # get the Clebsh-Gordan coefficients needed to
-            # compute the SOC matrix elements
-            self.cgcoe = mrci_soc.clebsch_gordan(self.bra_obj,
-                                                 self.ket_obj)
+        # get the reduced matrix elements
+        # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
+        self.build_redmat()
+        
+        # get the Clebsh-Gordan coefficients needed to
+        # compute the SOC matrix elements
+        self.cgcoe = mrci_soc.clebsch_gordan(self.bra_obj, self.ket_obj)
             
     #
     @timing.timed

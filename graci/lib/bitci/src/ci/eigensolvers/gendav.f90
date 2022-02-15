@@ -875,23 +875,23 @@ contains
     implicit none
 
     ! Dimensions
-    integer(is), intent(in)  :: matdim,blocksize
+    integer(is), intent(in) :: matdim,blocksize
 
     ! Convergence threshold
-    real(dp), intent(in)     :: tol
+    real(dp), intent(in)    :: tol
 
     ! Orthogonalised correction vector norms
-    real(dp)                 :: bnorm(blocksize)
+    real(dp)                :: bnorm(blocksize)
 
     ! Overlaps, etc
-    real(dp), allocatable :: Smat(:,:),Sinvsq(:,:)
+    real(dp), allocatable   :: Smat(:,:),Sinvsq(:,:)
     
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
                                twall_end
     
     ! Everything else
-    integer(is)              :: ki,kf,k,k1,i,n
+    integer(is)             :: ki,kf,k,k1,i,n
 
 !----------------------------------------------------------------------
 ! Start timing
@@ -906,7 +906,8 @@ contains
     kf=currdim+nnew
     
 !!----------------------------------------------------------------------
-!! Compute the (non-normalised) new subspace vectors
+!! Old: compute the (non-normalised) new subspace vectors using MGS
+!!      orthogonalisation    
 !!----------------------------------------------------------------------
 !    ! Loop over correction vectors
 !    k1=0
@@ -940,12 +941,12 @@ contains
 !    enddo
 
 !----------------------------------------------------------------------
-! Orthonormalisation of the correction vectors
-!!----------------------------------------------------------------------
+! New orthonormalisation of the correction vectors
+!----------------------------------------------------------------------
 ! Performed in two steps:
 !
-! (1) Modified Gram-Schmidt orthogonalisation against the previous
-!     subspace vectors
+! (1) Gram-Schmidt orthogonalisation against the previous subspace
+!     vectors
 !
 ! (2) Symmetric orthogonalisation within the space spanned by the
 !     intermediately orthogonalised correction vectors from (1)
@@ -956,7 +957,7 @@ contains
     call dgemm('T','N',currdim,nnew,matdim,1.0d0,bvec(:,1:currdim),&
          matdim,bvec(:,ki:kf),matdim,0.0d0,Smat,currdim)
 
-    ! MGS orthogonalisation of the correction vectors against the previous
+    ! GS orthogonalisation of the correction vectors against the previous
     ! subspace vectors
     k1=0
     do k=ki,kf
@@ -964,7 +965,7 @@ contains
        do i=1,currdim
           bvec(:,k)=bvec(:,k)-Smat(i,k1)*bvec(:,i)
        enddo
-       bvec(:,k)=bvec(:,k) / sqrt(dot_product(bvec(:,k),bvec(:,k)))
+       bvec(:,k)=bvec(:,k)/sqrt(dot_product(bvec(:,k),bvec(:,k)))
     enddo
 
     ! Overlaps between the intermediately orthogonalised correction
@@ -977,14 +978,14 @@ contains
     ! Inverse square root of the overlap matrix
     allocate(Sinvsq(nnew,nnew))
     call invsqrt_matrix(Smat,Sinvsq,nnew)
-
+    
     ! Symmetric orthogonalisation of the intermediately orthogonalised
     ! correction vectors amongst themselves
     call dgemm('N','N',matdim,nnew,nnew,1.0d0,bvec(:,ki:kf),matdim,&
          Sinvsq,nnew,0.0d0,work2(:,1:nnew),matdim)
     
     bvec(:,ki:kf)=work2(:,1:nnew)
-    
+
 !----------------------------------------------------------------------
 ! End timing and update the subspace vector timer
 !----------------------------------------------------------------------
