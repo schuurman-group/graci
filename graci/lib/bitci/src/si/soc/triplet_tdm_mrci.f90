@@ -12,7 +12,7 @@ module triplet_tdm
   public :: triplet_tdm_mrci
   
   ! Triplet spin-coupling coefficients
-  real(dp), allocatable, private :: scp(:)
+  real(dp), allocatable, private :: scc(:)
 
 contains
 
@@ -80,8 +80,8 @@ contains
     Tij=0.0d0
 
     arrdim=maxval(cfgB%ncsfs(0:nomax))*maxval(cfgK%ncsfs(0:nomax))
-    allocate(scp(arrdim))
-    scp=0.0d0
+    allocate(scc(arrdim))
+    scc=0.0d0
 
 !----------------------------------------------------------------------
 ! (1) Ref - Ref contributions to the triplet TDMs
@@ -96,19 +96,19 @@ contains
          vecK,npairs,Tij,Bmap,Kmap)
 
 !----------------------------------------------------------------------
-! (4) 1H - 1H contributions to the triplet TDMs
+! (3) 1H - 1H contributions to the triplet TDMs
 !----------------------------------------------------------------------
     call Tij_1h_1h(kval,cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
          vecK,npairs,Tij,Bmap,Kmap)
 
 !----------------------------------------------------------------------
-! (5) 2H - 1H contributions to the triplet TDMs
+! (4) 2H - 1H contributions to the triplet TDMs
 !----------------------------------------------------------------------
     call Tij_2h_1h(kval,cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
          vecK,npairs,Tij,Bmap,Kmap)
 
 !----------------------------------------------------------------------
-! (6) 2H - 2H contributions to the triplet TDMs
+! (5) 2H - 2H contributions to the triplet TDMs
 !----------------------------------------------------------------------
     call Tij_2h_2h(kval,cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
          vecK,npairs,Tij,Bmap,Kmap)
@@ -116,7 +116,7 @@ contains
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-    deallocate(scp)
+    deallocate(scc)
     
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -124,6 +124,8 @@ contains
     call get_times(twall_end,tcpu_end)
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'triplet_tdm_mrci')
+
+    STOP
     
     return
     
@@ -230,7 +232,7 @@ contains
                plist(1:nexci),nexci)
 
           ! Get the spin-coupling coefficients
-          scp(1:knsp*bnsp)=triplet_scc(kval,knsp,bnsp,ksop_full,&
+          scc(1:knsp*bnsp)=triplet_scc(kval,knsp,bnsp,ksop_full,&
                plist(1),hlist(1),knopen,nbefore)
 
           ! Idices of the TDM elements
@@ -257,7 +259,7 @@ contains
                    counter=counter+1
                    
                    ! Contribution to the 1-TDM
-                   prod=kcoe*bcoe*scp(counter)
+                   prod=kcoe*bcoe*scc(counter)
                    Tij(a,i,ipair)=Tij(a,i,ipair)+prod
                    
                 enddo
@@ -1801,7 +1803,7 @@ contains
        endif
 
        ! Get the spin-coupling coefficients
-       scp(1:knsp*bnsp)=triplet_scc(kval1,knsp,bnsp,ksop,plist(1),&
+       scc(1:knsp*bnsp)=triplet_scc(kval1,knsp,bnsp,ksop,plist(1),&
             hlist(1),knopen,knbefore)
                  
        ! Idices of the triplet TDM elements
@@ -1828,7 +1830,7 @@ contains
                 counter=counter+1
                 
                 ! Contribution to the 1-TDM
-                prod=kcoe*bcoe*scp(counter)
+                prod=kcoe*bcoe*scc(counter)
                 if (transpose) then
                    Tij(i,a,ipair)=Tij(i,a,ipair)-prod
                 else
@@ -1858,6 +1860,7 @@ contains
     use constants
     use bitglobal
     use pattern_indices, only: get_icase
+    use pattern_indices_k0
     use pattern_indices_kp1
     use pattern_indices_km1
     use bitstrings
@@ -1909,9 +1912,7 @@ contains
     ! Pattern index
     select case(kval)
     case(0)
-       print*,''
-       print*,'pattern_index_k0 needs writing'
-       stop
+       pattern=pattern_index_k0(sop,ac,ia,nc,na,nopen,icase)
     case(-1)
        pattern=pattern_index_km1(sop,ac,ia,nc,na,nopen,icase)
     case(1)
@@ -1923,9 +1924,7 @@ contains
 !----------------------------------------------------------------------
     select case(kval)
     case(0)
-       print*,''
-       print*,'The k=0 SCCs need to be implemented'
-       stop
+       triplet_scc=spincp(pattern:pattern+knsp*bnsp-1)
     case(-1)
        triplet_scc=spincp_minus(pattern:pattern+knsp*bnsp-1)
     case(1)
