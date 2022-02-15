@@ -804,7 +804,7 @@ contains
     enddo
     
 !----------------------------------------------------------------------
-! Determine the indices of the triple excitation operator T_ij^(1,k=+1)
+! Determine the indices of the triplet excitation operator T_ij^(1,+1)
 ! Remember that these are given by the positions of the 0's in
 ! ws1 and ws2, i.e., the indices of the first unset bits
 !----------------------------------------------------------------------

@@ -728,7 +728,6 @@ contains
           if (ip /= ic .or. ih /= ia) cycle
           
           ! Phase factor
-          !phase=phase_slow(d1(:,iket),hlist,plist,maxex,nexci)
           phase=phase_pure_exc(phase_mask(ispin),hlist(:,ispin),&
                 plist(:,ispin),maxex,nexci)
           phasemat(ibra,iket)=dble(phase)
@@ -741,8 +740,7 @@ contains
 ! Compute the matrix of spin coupling coefficients for the current
 ! pattern index
 !----------------------------------------------------------------------
-    ! Working array to avoid run-time warnings about temporary arrays
-    ! being created
+    ! Working array
     coe=csfcoe(1:nsp,1:ndet,nopen)
     
     ! Contract the phase matrix with the CSF expansion coefficients,
@@ -1255,8 +1253,7 @@ contains
 ! Compute the matrix of spin coupling coefficients for the current
 ! pattern index
 !----------------------------------------------------------------------
-    ! Working arrays to avoid run-time warnings about temporary arrays
-    ! being created
+    ! Working arrays
     coe1=csfcoe(1:ncsf1,1:ndet1,nopen1)
     coe2=csfcoe(1:ncsf2,1:ndet2,nopen2)
 
