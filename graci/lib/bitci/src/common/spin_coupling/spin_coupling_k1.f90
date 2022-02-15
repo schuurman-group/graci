@@ -1,7 +1,7 @@
 !**********************************************************************
-! Routines for the pre-computation of the unique spin-coupling
-! coefficients <w omega| T_pq^(1,k) |w' omega'> for triplet spin tensor
-! operators T_pq^(1,k), k=-1,+1
+! Routines for the pre-computation of the spin-coupling coefficients
+! <w omega| T_pq^(1,k) |w' omega'> for triplet spin tensor operators
+! T_pq^(1,k), k=-1,+1
 !**********************************************************************
 ! Follows the formalism detailed in
 !
@@ -42,6 +42,8 @@ contains
     use iomod
     use timing
 
+    implicit none
+    
     ! Bra and ket spin multiplicities
     integer(is), intent(in) :: imultB,imultK
 
@@ -268,7 +270,7 @@ contains
 
 !######################################################################
 ! print_spincp_info_k1: Printing of some information about the
-!                       k=+1 component triplet spin coupling
+!                       k=-1,+1 component triplet spin coupling
 !                       coefficients being calculated
 !######################################################################
   subroutine print_spincp_info_k1(imultB,imultK,nspincp)
@@ -281,9 +283,9 @@ contains
     integer(is), intent(in) :: nspincp(2)
     
     integer(is)             :: n,i
-    
+
 !----------------------------------------------------------------------
-! Triplet spin tensor component
+! Spin tensor operator components
 !----------------------------------------------------------------------
     write(6,'(/,x,a)') 'Spin tensor component: +1 and -1'
     
@@ -298,8 +300,7 @@ contains
 !----------------------------------------------------------------------
     ! Total number of spin-coupling coefficients
     write(6,'(/,x,a,2x,i0)') &
-         'Total number of spin coupling coefficients:',&
-         sum(nspincp)
+         'Total number of spin coupling coefficients:',sum(nspincp)
     
     ! Number of Case 1 spin-coupling coefficients
     write(6,'(x,a,x,i0)') &
@@ -414,10 +415,10 @@ contains
 ! Output the memory used (factor of 2 accounts for the storage of both
 ! k=+1 and k=-1 coefficients)
 !----------------------------------------------------------------------
-    mem=2*spincpdim(3)*8/1024.0d0**2
-    
-    if (verbose) write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',&
-         mem,'MB'
+    if (verbose) then
+       mem=2*spincpdim(3)*8/1024.0d0**2
+       write(6,'(/,x,a,F8.2,x,a)') 'Memory used:',mem,'MB'
+    endif
     
     return
     

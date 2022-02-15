@@ -17,6 +17,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   use setsym
   use csf
   use spin_coupling
+  use spin_coupling_k0
   use spin_coupling_k1
   use iomod
   
@@ -226,18 +227,20 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   case('soc')
      ! SOC calculation: potentially non-equal bra and ket spin
      !                  multiplicities
+     verbose=.false.
      if (imultB /= imultK) then
-        verbose=.true.
+        ! Bra CSFs
+        call generate_csfs(imultB,nocase2,ncsfsB,ndetsB,maxcsfB,&
+             maxdetB,csfcoeB,detvecB,verbose)
+        ! Ket CSFs
+        call generate_csfs(imultK,nocase2,ncsfsK,ndetsK,maxcsfK,&
+             maxdetK,csfcoeK,detvecK,verbose)
      else
-        verbose=.false.
+        ! Equal bra and ket CSFs
+        call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,&
+             maxdet,csfcoe,detvec,verbose)
      endif
-     ! Bra CSFs
-     call generate_csfs(imultB,nocase2,ncsfsB,ndetsB,maxcsfB,maxdetB,&
-          csfcoeB,detvecB,verbose)
-     ! Ket CSFs
-     call generate_csfs(imultK,nocase2,ncsfsK,ndetsK,maxcsfK,maxdetK,&
-          csfcoeK,detvecK,verbose)
-
+     
   end select
   
 !----------------------------------------------------------------------
@@ -261,8 +264,8 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
      if (imultB == imultK) then
         ! Same spin multiplicities: compute spin-coupling coefficients
         ! for T_pq^(1,k=0)
-        errmsg='The k=0 SCC code needs writing'
-        call error_control
+        call scc_k0(imultB,nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
+             csfcoe,detvec,nspincp,N1s,verbose,spincp,patmap,offspincp)
      else
         ! Different spin multiplicities: compute spin-coupling
         ! coefficients for T_pq^(1,k), k=-1,+1
