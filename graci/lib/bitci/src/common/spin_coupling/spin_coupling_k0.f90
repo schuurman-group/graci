@@ -63,7 +63,8 @@ contains
 
     ! Number of unique spin coupling coefficients
     integer(is), intent(out) :: nspincp(2)
-
+    integer(is)              :: nii
+    
     ! All spin coupling coefficients
     integer(is)              :: spincpdim(3)
     real(dp), allocatable    :: spincp(:)
@@ -104,18 +105,18 @@ contains
 ! Compute the number of unique spin coupling coefficients for the
 ! spin multiplicity under consideration
 !----------------------------------------------------------------------
-    call get_nunique_k0(imult,nocase1,nocase2,ncsfs,nspincp)
+    call get_nunique_k0(imult,nocase1,nocase2,ncsfs,nspincp,nii)
 
 !----------------------------------------------------------------------
 ! Output some information about what we are doing
 !----------------------------------------------------------------------
-    if (verbose) call print_spincp_info_k0(imult,nspincp)
+    if (verbose) call print_spincp_info_k0(imult,nspincp,nii)
 
 !----------------------------------------------------------------------
 ! Allocate the spin coupling coefficient arrays
 !----------------------------------------------------------------------
-    call init_spincp_k0(imult,nocase1,nocase2,ncsfs,nspincp,verbose,&
-         spincp,spincpdim,offspincp)
+    call init_spincp_k0(imult,nocase1,nocase2,ncsfs,nspincp,nii,&
+         verbose,spincp,spincpdim,offspincp)
 
 !----------------------------------------------------------------------
 ! Allocate the pattern value -> array index mapping array
@@ -134,6 +135,12 @@ contains
     call case2_coeffs_k0(imult,nocase1,nocase2,maxcsf,maxdet,ncsfs,&
          ndets,csfcoe,detvec,spincpdim,spincp,nspincp,mapdim,patmap)
 
+!----------------------------------------------------------------------
+! Compute the on-diagonal spin coupling coefficients
+!----------------------------------------------------------------------
+    call ondiag_coeffs_k0(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
+         csfcoe,detvec,spincpdim,spincp,nii)
+    
 !----------------------------------------------------------------------
 ! Fill in the array of bit strings with N set bits, from which the
 ! pattern numbers will be derived by clearing bits
@@ -161,7 +168,7 @@ contains
 !                 coefficients as a function of the spin multiplicity
 !                 and the maximum number of open shells
 !######################################################################
-  subroutine get_nunique_k0(imult,nocase1,nocase2,ncsfs,nspincp)
+  subroutine get_nunique_k0(imult,nocase1,nocase2,ncsfs,nspincp,nii)
 
     use constants
     use math
@@ -171,6 +178,7 @@ contains
     integer(is), intent(in)  :: imult,nocase1,nocase2
     integer(is), intent(in)  :: ncsfs(0:nocase2)
     integer(is), intent(out) :: nspincp(2)
+    integer(is), intent(out) :: nii
     
     integer(is)              :: nopen,n,npat
 
@@ -214,6 +222,20 @@ contains
        
     enddo
 
+!----------------------------------------------------------------------
+! On-diagonal spin-coupling coefficients
+! < w omega' | T_ii^(1,k=0) | w omega>
+!----------------------------------------------------------------------
+    nii=0
+
+    ! Loop over numbers of open shells
+    do nopen=1,nocase1
+
+       ! Number of spin-coupling coefficients
+       nii=nii+nopen*ncsfs(nopen)**2
+       
+    enddo
+
     return
     
   end subroutine get_nunique_k0
@@ -223,7 +245,7 @@ contains
 !                       k=0 component triplet spin coupling
 !                       coefficients being calculated
 !######################################################################
-  subroutine print_spincp_info_k0(imult,nspincp)
+  subroutine print_spincp_info_k0(imult,nspincp,nii)
     
     use constants
         
@@ -231,6 +253,7 @@ contains
 
     integer(is), intent(in) :: imult
     integer(is), intent(in) :: nspincp(2)
+    integer(is), intent(in) :: nii
     
     integer(is)             :: n,i
 
@@ -258,7 +281,11 @@ contains
     ! Number of Case 2 spin-coupling coefficients
     write(6,'(x,a,x,i0)') &
          'Number of Case 2 spin coupling coefficients:',nspincp(2)
-    
+
+    ! Number of on-diagonal spin-coupling coefficients
+    write(6,'(x,a,x,i0)') &
+         'Number of on-diagonal spin coupling coefficients:',nii
+
     return
     
   end subroutine print_spincp_info_k0
@@ -268,7 +295,7 @@ contains
 !                 coupling coefficient arrays for the k=0 component
 !                 of the triplet spin tensor operator
 !######################################################################
-  subroutine init_spincp_k0(imult,nocase1,nocase2,ncsfs,nspincp,&
+  subroutine init_spincp_k0(imult,nocase1,nocase2,ncsfs,nspincp,nii,&
        verbose,spincp,spincpdim,offspincp)
 
     use constants
@@ -278,12 +305,13 @@ contains
     integer(is), intent(in)  :: imult,nocase1,nocase2
     integer(is), intent(in)  :: ncsfs(0:nocase2)
     integer(is), intent(in)  :: nspincp(2)
+    integer(is), intent(in)  :: nii
     integer(is), intent(out) :: spincpdim(3)
     integer(is), allocatable :: offspincp(:)
     real(dp), allocatable    :: spincp(:)
     logical, intent(in)      :: verbose
         
-    integer(is)              :: nopen
+    integer(is)              :: nopen,ioff,nsp
     real(dp)                 :: mem
 
 !----------------------------------------------------------------------
@@ -297,8 +325,8 @@ contains
     !                     (iv) 2b i<j
     spincpdim(2)=4*nspincp(2)
 
-    ! Total number of coefficients
-    spincpdim(3)=sum(spincpdim(1:2))
+    ! Total number of coefficients, including the on-diagonal terms
+    spincpdim(3)=sum(spincpdim(1:2))+nii
 
 !----------------------------------------------------------------------
 ! Allocate the spin coupling coefficient and offset arrays
@@ -308,7 +336,7 @@ contains
     spincp=0.0d0
 
     ! Offsets
-    allocate(offspincp(6))
+    allocate(offspincp(6+nocase1))
     offspincp=0
 
 !----------------------------------------------------------------------
@@ -316,9 +344,9 @@ contains
 ! ([1a i>j], [1a i<j], [1b i>j], [1b i<j], [2a i>j], [2a i<j],
 !  [2b i>j], [2b i<j])
 !----------------------------------------------------------------------
-! The offsets correspond to the shifts that will be needed to be added
-! to the pattern indices to reach each block of coefficients in the
-! spincp array
+! The offsets 1:6 correspond to the shifts that will be needed to be
+! added to the pattern indices to reach each block of coefficients in
+! the spincp array
 !----------------------------------------------------------------------
     ! Case 1a, i<j
     offspincp(1)=nspincp(1)
@@ -337,6 +365,33 @@ contains
 
     ! Case 2b, i<j
     offspincp(6)=3*nspincp(2)
+
+!----------------------------------------------------------------------
+! The on-diagonal spin coupling coefficients are appended to the end
+! off the spincp array
+!----------------------------------------------------------------------
+! The offsets 7:6+nocase1 are the starting points in the spincp array
+! for the on-diagonal coefficients for each number of open shells
+!----------------------------------------------------------------------
+    ! Initialise the offset
+    ioff=sum(spincpdim(1:2))+1
+
+    ! Loop over numbers of open shells
+    do nopen=1,nocase1
+
+       ! Number of CSFs
+       nsp=ncsfs(nopen)
+
+       ! Cycle if there are no CSFs
+       if (nsp == 0) cycle
+
+       ! Set the offset
+       offspincp(6+nopen)=ioff
+
+       ! Update the offset
+       ioff=ioff+nopen*nsp**2
+       
+    enddo
 
 !----------------------------------------------------------------------
 ! Output the memory used
@@ -818,7 +873,7 @@ contains
     real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
     integer(ib), intent(in)  :: detvec(maxdet,nocase2)
     integer(is), intent(in)  :: spincpdim(3)
-    real(dp), intent(out)    :: spincp(spincpdim(3))
+    real(dp), intent(inout)  :: spincp(spincpdim(3))
     integer(is), intent(in)  :: nspincp(2)
     integer(is), intent(in)  :: mapdim
     integer(is), intent(out) :: patmap(0:mapdim)
@@ -1309,6 +1364,144 @@ contains
     
   end subroutine spincp_2a_k0
 
+!######################################################################
+! ondiag_coeffs_k0: Calculation of the k=0 on-diagonal triplet spin
+!                   coupling coefficients
+!                   < w omega' | T_ii^(1,k=0) | w omega>
+!######################################################################
+  subroutine ondiag_coeffs_k0(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
+       csfcoe,detvec,spincpdim,spincp,nii)
+
+    use constants
+        
+    implicit none
+
+    integer(is), intent(in)  :: nocase1,nocase2,maxcsf,maxdet
+    integer(is), intent(in)  :: ncsfs(0:nocase2),ndets(0:nocase2)
+    real(dp), intent(in)     :: csfcoe(maxcsf,maxdet,nocase2)
+    integer(ib), intent(in)  :: detvec(maxdet,nocase2)
+    integer(is), intent(in)  :: spincpdim(3)
+    real(dp), intent(inout)  :: spincp(spincpdim(3))
+    integer(is), intent(in)  :: nii
+    
+    integer(is)              :: nopen,ioff,nsp,ndet,i
+
+    real(dp), allocatable    :: work(:)
+    
+    ! Initialise the spincp offset
+    ioff=sum(spincpdim(1:2))+1
+    
+    ! Loop over numbers of open shells
+    do nopen=1,nocase1
+
+       ! Number of CSFs and determinants
+       nsp=ncsfs(nopen)
+       ndet=ndets(nopen)
+
+       ! Cycle if there are no CSFs
+       if (nsp == 0) cycle
+
+       ! Allocate the work array
+       allocate(work(nsp*nsp))
+
+       ! Loop over open shells
+       do i=1,nopen
+
+          ! Compute this batch of on-diagonal spin-coupling
+          ! coefficients
+          call spincp_ondiag_k0(i,nopen,nocase2,maxcsf,maxdet,nsp,&
+               ndet,detvec,csfcoe,work)
+          
+          ! Fill in the spincp array
+          spincp(ioff:ioff+nsp**2-1)=work
+          
+          ! Update the spincp offset
+          ioff=ioff+nsp**2
+
+       enddo
+          
+       ! Deallocate the work array
+       deallocate(work)
+       
+    enddo
+
+    return
+    
+  end subroutine ondiag_coeffs_k0
+
+!######################################################################
+! spincp_ondiag_k0: Computes a batch of on-diagonal spin-coupling
+!                   coefficients
+!                   < w omega' | T_ii^(1,k=0) | w omega>
+!                   for a single orbital index i=iopen and number of
+!                   open shells nopen
+!######################################################################
+  subroutine spincp_ondiag_k0(iopen,nopen,nocase2,maxcsf,maxdet,nsp,&
+       ndet,detvec,csfcoe,spincoe)
+
+    use constants
+
+    implicit none
+
+    integer(is), intent(in) :: iopen,nopen
+    integer(is), intent(in) :: nocase2,maxcsf,maxdet
+    integer(is), intent(in) :: nsp,ndet
+    integer(ib), intent(in) :: detvec(maxdet,nocase2)
+    real(dp), intent(in)    :: csfcoe(maxcsf,maxdet,nocase2)
+    real(dp), intent(out)   :: spincoe(nsp,nsp)
+
+    integer(is)             :: idet
+    real(dp)                :: sfac
+    real(dp), allocatable   :: coe(:,:),coe1(:,:)
+
+    integer(is) :: i,j
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(coe(nsp,ndet))
+    allocate(coe1(nsp,ndet))
+
+!----------------------------------------------------------------------
+! Fill in the CSF coefficients and the CSF coefficients multiplied by
+! the determinant spin factors for the open shell iopen
+!----------------------------------------------------------------------
+    ! CSF coefficients
+    coe=csfcoe(1:nsp,1:ndet,nopen)
+
+    ! CSF coefficients multiplied by the determinant spin factors
+    do idet=1,ndet
+
+       ! Spin factor for this orbital
+       if (btest(detvec(idet,nopen),iopen-1)) then
+          ! Alpha spin
+          sfac=1.0d0
+       else
+          ! Beta spin
+          sfac=-1.0d0
+       endif
+
+       ! Multiply the CSF coefficients by the spin factor
+       coe(:,idet)=csfcoe(:,idet,nopen)*sfac
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Compute the on-diagonal spin-coupling coefficients
+!----------------------------------------------------------------------
+    call dgemm('N','T',nsp,nsp,ndet,1.0d0,coe,nsp,coe1,nsp,0.0d0,&
+         spincoe,nsp)
+
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(coe)
+    deallocate(coe1)
+    
+    return
+    
+  end subroutine spincp_ondiag_k0
+    
 !######################################################################
 ! fill_N1s: Fills in the array of bit strings with the first N bits
 !           set. The spin coupling coefficient pattern numbers will
