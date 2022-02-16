@@ -84,6 +84,12 @@ contains
     scc=0.0d0
 
 !----------------------------------------------------------------------
+! (0) On-diagonal elements T_ii
+!----------------------------------------------------------------------
+    call Tii_all(kval,cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
+         vecK,npairs,Tij,Bmap,Kmap)
+    
+!----------------------------------------------------------------------
 ! (1) Ref - Ref contributions to the triplet TDMs
 !----------------------------------------------------------------------
     call Tij_0h_0h(kval,cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
@@ -125,12 +131,155 @@ contains
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'triplet_tdm_mrci')
 
-    STOP
-    
     return
     
   end subroutine triplet_tdm_mrci
-  
+
+!######################################################################
+! Tii_all: Calculation of all contributions to the on-diagonal
+!          elements of the MRCI triplet TDMs
+!######################################################################
+! Note that these elements are only non-zero for the k=0 component of
+! triplet spin tensor operator
+!######################################################################
+  subroutine Tii_all(kval,cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,&
+       vecB,vecK,npairs,Tij,Bmap,Kmap)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    
+    implicit none
+
+    ! Component of the triplet spin tensor operator
+    integer(is), intent(in) :: kval
+    
+    ! MRCI configuration derived types
+    type(mrcfg), intent(in) :: cfgB,cfgK
+
+    ! Dimensions
+    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+
+    ! Eigenvectors
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+
+    ! 1-TDMs
+    real(dp), intent(inout) :: Tij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Working arrays
+    integer(ib)             :: kconf_full(n_int,2)
+    integer(ib)             :: ksop_full(n_int,2)
+        
+    ! Open shell MO indices
+    integer(is)             :: socc(nmo)
+    integer(is)             :: nsocc
+    
+    ! Everything else
+    integer(is)             :: ikconf,ibconf,nexci,n_int_I
+    integer(is)             :: nsp,nopen
+    integer(is)             :: ikcsf,ibcsf
+    integer(is)             :: iopen,ioff
+    integer(is)             :: i,i1,ipair,Bindx,Kindx
+    real(dp)                :: kcoe,bcoe,prod
+    
+!----------------------------------------------------------------------
+! Return if k != 0. This could be checked in the calling routine, but
+! this seems like a nice safety measure
+!----------------------------------------------------------------------
+    if (kval /= 0) return
+
+!----------------------------------------------------------------------
+! Ref contributions
+!----------------------------------------------------------------------
+    n_int_I=cfgK%n_int_I
+
+    ! Loop over ket configurations
+    do ikconf=1,cfgK%n0h
+
+       ! Ket configuration and SOP in the full MO space
+       kconf_full=0_ib
+       ksop_full=0_ib
+       kconf_full(1:n_int_I,:)=cfgK%conf0h(:,:,ikconf)
+       ksop_full(1:n_int_I,:)=cfgK%sop0h(:,:,ikconf)
+
+       ! Number of open shells in the ket configuration
+       nopen=sop_nopen(cfgK%sop0h(:,:,ikconf),n_int_I)
+
+       ! Cycle if there are no open shells
+       if (nopen == 0) cycle
+
+       ! Get the list of ket open shell MOs
+       call sop_socc_list(cfgK%sop0h(:,:,ikconf),n_int_I,socc,nmo,nsocc)
+       
+       ! Number of ket CSFs
+       nsp=cfgK%ncsfs(nopen)
+       
+       ! Loop over bra configurations
+       do ibconf=1,cfgB%n0h
+          
+          ! Compute the excitation degree between the two
+          ! configurations
+          nexci=exc_degree_conf(cfgK%conf0h(:,:,ikconf),&
+               cfgB%conf0h(:,:,ibconf),n_int_I)
+
+          ! Cycle if the excitation degree is not equal to 0
+          if (nexci /= 0) cycle
+
+          ! Loop over TDMs
+          do ipair=1,npairs
+             
+             ! Bra and ket eigenvector indices
+             Bindx=Bmap(ipair)
+             Kindx=Kmap(ipair)
+
+             ! Initialise the spincp offset
+             ioff=offspincp(6+nopen)
+             
+             ! Loop over open shells
+             do iopen=1,nopen
+          
+                ! MRCI MO index
+                i=socc(iopen)
+                
+                ! Canonical MO index
+                i1=cfgK%m2c(i)
+                
+                ! Loop over ket CSFs
+                do ikcsf=cfgK%csfs0h(ikconf),cfgK%csfs0h(ikconf+1)-1
+                   kcoe=vecK(ikcsf,Kindx)
+                   
+                   ! Loop over bra CSFs
+                   do ibcsf=cfgB%csfs0h(ibconf),cfgB%csfs0h(ibconf+1)-1
+                      bcoe=vecB(ibcsf,Bindx)
+
+                      ! Contribution to the 1-TDM
+                      prod=kcoe*bcoe*spincp(ioff)
+                      Tij(i1,i1,ipair)=Tij(i1,i1,ipair)+prod
+                      
+                      ! Update the spincp offset
+                      ioff=ioff+1
+                      
+                   enddo
+
+                enddo
+                      
+             enddo
+             
+          enddo
+          
+       enddo
+       
+    enddo
+
+    return
+    
+  end subroutine Tii_all
+    
 !######################################################################
 ! Tij_0h_0h: Calculation of the Ref-Ref contributions to the MRCI
 !            triplet TDMs
