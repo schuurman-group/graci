@@ -183,7 +183,7 @@ contains
     
     ! Everything else
     integer(is)              :: n_int_I
-    integer(is)              :: ibconf,ikconf,nsp,nopen,ibcsf,ikcsf
+    integer(is)              :: n,ibconf,ikconf,nopen,ibcsf,ikcsf
     integer(is)              :: iopen,i,i1,ipair,Bindx,Kindx,ioff
     real(dp)                 :: kcoe,bcoe,prod
     
@@ -233,48 +233,13 @@ contains
           ! Open shell indices
           call sop_socc_list(cfgB%sop0h(:,:,ibconf),n_int_I,socc,&
                nmo,nsocc)
-          
-          ! Number of CSFs
-          nsp=cfgB%ncsfs(nopen)
-          
-          ! Loop over TDMs
-          do ipair=1,npairs
-          
-             ! Bra and ket eigenvector indices
-             Bindx=Bmap(ipair)
-             Kindx=Kmap(ipair)
-          
-             ! spincp offset initialisation
-             ioff=offspincp(6+nopen)
-          
-             ! Loop over open shells
-             do iopen=1,nopen
-          
-                ! MO index
-                i=socc(iopen)
-                i1=cfgB%m2c(i)
-          
-                ! Loop over CSF pairs                
-                do ikcsf=cfgK%csfs0h(ikconf),cfgK%csfs0h(ikconf+1)-1
-                   kcoe=vecK(ikcsf,Kindx)
-                
-                   ! Loop over bra CSFs
-                   do ibcsf=cfgB%csfs0h(ibconf),cfgB%csfs0h(ibconf+1)-1
-                      bcoe=vecB(ibcsf,Bindx)
-          
-                      ! Contribution to the 1-TDM
-                      prod=kcoe*bcoe*spincp(ioff)
-                      Tij(i1,i1,ipair)=Tij(i1,i1,ipair)+prod
-                      
-                      ! Increment the spincp offset
-                      ioff=ioff+1
-                      
-                   enddo
-                enddo
-                   
-             enddo
-             
-          enddo
+
+          ! Compute the contributions to the TDMs
+          call ondiag_batch(ibconf,ikconf,&
+               cfgB%n0h,cfgK%n0h,&
+               cfgB%csfs0h,cfgK%csfs0h,&
+               csfdimB,csfdimK,nvecB,nvecK,&
+               vecB,vecK,npairs,Bmap,Kmap,nopen,socc,cfgB%m2c,Tij)
           
        endif
        
@@ -284,27 +249,379 @@ contains
     call h%delete_table
 
 !----------------------------------------------------------------------
+! 1I contributions
+!----------------------------------------------------------------------
+    if (cfgK%n1I > 0 .and. cfgB%n1I > 0) then
+           
+       ! Initialise the hash table
+       initial_size=max(2**15,cfgK%n1I)
+       call h%initialise_table(initial_size)
+       
+       ! Insert the ket 1I confs and their indices into the hash table
+       do n=1,cfgK%n1h
+          do ikconf=cfgK%off1I(n),cfgK%off1I(n+1)-1
+             key=cfgK%conf1I(:,:,ikconf)
+             call h%insert_key(key,ikconf)
+          enddo
+       enddo
+       
+       ! Loop over bra 1I confs
+       do n=1,cfgB%n1h
+          do ibconf=cfgB%off1I(n),cfgB%off1I(n+1)-1
+
+             ! Is this also a ket 1I conf?
+             key=cfgB%conf1I(:,:,ibconf)
+             if (h%key_exists(key)) then
+
+                ! Retrieve the ket conf index
+                ikconf=h%get_value(key)
+
+                ! Number of open shells
+                nopen=sop_nopen(cfgB%sop1I(:,:,ibconf),n_int)
+                
+                ! Cycle if there are no open shells
+                if (nopen == 0) cycle
+                
+                ! Open shell indices
+                call sop_socc_list(cfgB%sop1I(:,:,ibconf),n_int,socc,&
+                     nmo,nsocc)
+
+                ! Compute the contributions to the TDMs
+                call ondiag_batch(ibconf,ikconf,&
+                     cfgB%n1I,cfgK%n1I,&
+                     cfgB%csfs1I,cfgK%csfs1I,&
+                     csfdimB,csfdimK,nvecB,nvecK,&
+                     vecB,vecK,npairs,Bmap,Kmap,nopen,socc,cfgB%m2c,Tij)
+                
+             endif
+                
+          enddo
+       enddo
+          
+       ! Delete the hash table
+       call h%delete_table
+
+    endif
+
+!----------------------------------------------------------------------
+! 1E contributions
+!----------------------------------------------------------------------
+    if (cfgK%n1E > 0 .and. cfgB%n1E > 0) then
+
+       ! Initialise the hash table
+       initial_size=max(2**15,cfgK%n1E)
+       call h%initialise_table(initial_size)
+       
+       ! Insert the ket 1E confs and their indices into the hash table
+       do n=1,cfgK%n1h
+          do ikconf=cfgK%off1E(n),cfgK%off1E(n+1)-1
+             key=cfgK%conf1E(:,:,ikconf)
+             call h%insert_key(key,ikconf)
+          enddo
+       enddo
+
+       ! Loop over bra 1E confs
+       do n=1,cfgB%n1h
+          do ibconf=cfgB%off1E(n),cfgB%off1E(n+1)-1
+
+             ! Is this also a ket 1E conf?
+             key=cfgB%conf1E(:,:,ibconf)
+             if (h%key_exists(key)) then
+
+                ! Retrieve the ket conf index
+                ikconf=h%get_value(key)
+
+                ! Number of open shells
+                nopen=sop_nopen(cfgB%sop1E(:,:,ibconf),n_int)
+                
+                ! Cycle if there are no open shells
+                if (nopen == 0) cycle
+                
+                ! Open shell indices
+                call sop_socc_list(cfgB%sop1E(:,:,ibconf),n_int,socc,&
+                     nmo,nsocc)
+
+                ! Compute the contributions to the TDMs
+                call ondiag_batch(ibconf,ikconf,&
+                     cfgB%n1E,cfgK%n1E,&
+                     cfgB%csfs1E,cfgK%csfs1E,&
+                     csfdimB,csfdimK,nvecB,nvecK,&
+                     vecB,vecK,npairs,Bmap,Kmap,nopen,socc,cfgB%m2c,Tij)
+                
+             endif
+                
+          enddo
+       enddo
+          
+       ! Delete the hash table
+       call h%delete_table
+
+    endif
+
+!----------------------------------------------------------------------
+! 2I contributions
+!----------------------------------------------------------------------
+    if (cfgK%n2I > 0 .and. cfgB%n2I > 0) then
+           
+       ! Initialise the hash table
+       initial_size=max(2**15,cfgK%n2I)
+       call h%initialise_table(initial_size)
+       
+       ! Insert the ket 2I confs and their indices into the hash table
+       do n=1,cfgK%n2h
+          do ikconf=cfgK%off2I(n),cfgK%off2I(n+1)-1
+             key=cfgK%conf2I(:,:,ikconf)
+             call h%insert_key(key,ikconf)
+          enddo
+       enddo
+       
+       ! Loop over bra 2I confs
+       do n=1,cfgB%n2h
+          do ibconf=cfgB%off2I(n),cfgB%off2I(n+1)-1
+
+             ! Is this also a ket 2I conf?
+             key=cfgB%conf2I(:,:,ibconf)
+             if (h%key_exists(key)) then
+
+                ! Retrieve the ket conf index
+                ikconf=h%get_value(key)
+
+                ! Number of open shells
+                nopen=sop_nopen(cfgB%sop2I(:,:,ibconf),n_int)
+                
+                ! Cycle if there are no open shells
+                if (nopen == 0) cycle
+                
+                ! Open shell indices
+                call sop_socc_list(cfgB%sop2I(:,:,ibconf),n_int,socc,&
+                     nmo,nsocc)
+
+                ! Compute the contributions to the TDMs
+                call ondiag_batch(ibconf,ikconf,&
+                     cfgB%n2I,cfgK%n2I,&
+                     cfgB%csfs2I,cfgK%csfs2I,&
+                     csfdimB,csfdimK,nvecB,nvecK,&
+                     vecB,vecK,npairs,Bmap,Kmap,nopen,socc,cfgB%m2c,Tij)
+                
+             endif
+                
+          enddo
+       enddo
+          
+       ! Delete the hash table
+       call h%delete_table
+
+    endif
+
+!----------------------------------------------------------------------
+! 2E contributions
+!----------------------------------------------------------------------
+    if (cfgK%n2E > 0 .and. cfgB%n2E > 0) then
+           
+       ! Initialise the hash table
+       initial_size=max(2**15,cfgK%n2E)
+       call h%initialise_table(initial_size)
+       
+       ! Insert the ket 2E confs and their indices into the hash table
+       do n=1,cfgK%n2h
+          do ikconf=cfgK%off2E(n),cfgK%off2E(n+1)-1
+             key=cfgK%conf2E(:,:,ikconf)
+             call h%insert_key(key,ikconf)
+          enddo
+       enddo
+       
+       ! Loop over bra 2E confs
+       do n=1,cfgB%n2h
+          do ibconf=cfgB%off2E(n),cfgB%off2E(n+1)-1
+
+             ! Is this also a ket 2E conf?
+             key=cfgB%conf2E(:,:,ibconf)
+             if (h%key_exists(key)) then
+
+                ! Retrieve the ket conf index
+                ikconf=h%get_value(key)
+
+                ! Number of open shells
+                nopen=sop_nopen(cfgB%sop2E(:,:,ibconf),n_int)
+                
+                ! Cycle if there are no open shells
+                if (nopen == 0) cycle
+                
+                ! Open shell indices
+                call sop_socc_list(cfgB%sop2E(:,:,ibconf),n_int,socc,&
+                     nmo,nsocc)
+
+                ! Compute the contributions to the TDMs
+                call ondiag_batch(ibconf,ikconf,&
+                     cfgB%n2E,cfgK%n2E,&
+                     cfgB%csfs2E,cfgK%csfs2E,&
+                     csfdimB,csfdimK,nvecB,nvecK,&
+                     vecB,vecK,npairs,Bmap,Kmap,nopen,socc,cfgB%m2c,Tij)
+                
+             endif
+                
+          enddo
+       enddo
+          
+       ! Delete the hash table
+       call h%delete_table
+
+    endif
+
+!----------------------------------------------------------------------
+! 1I1E contributions
+!----------------------------------------------------------------------
+    if (cfgK%n1I1E > 0 .and. cfgB%n1I1E > 0) then
+           
+       ! Initialise the hash table
+       initial_size=max(2**15,cfgK%n1I1E)
+       call h%initialise_table(initial_size)
+       
+       ! Insert the ket 1I1E confs and their indices into the hash
+       ! table
+       do n=1,cfgK%n2h
+          do ikconf=cfgK%off1I1E(n),cfgK%off1I1E(n+1)-1
+             key=cfgK%conf1I1E(:,:,ikconf)
+             call h%insert_key(key,ikconf)
+          enddo
+       enddo
+       
+       ! Loop over bra 1I1E confs
+       do n=1,cfgB%n2h
+          do ibconf=cfgB%off1I1E(n),cfgB%off1I1E(n+1)-1
+
+             ! Is this also a ket 1I1E conf?
+             key=cfgB%conf1I1E(:,:,ibconf)
+             if (h%key_exists(key)) then
+
+                ! Retrieve the ket conf index
+                ikconf=h%get_value(key)
+
+                ! Number of open shells
+                nopen=sop_nopen(cfgB%sop1I1E(:,:,ibconf),n_int)
+                
+                ! Cycle if there are no open shells
+                if (nopen == 0) cycle
+                
+                ! Open shell indices
+                call sop_socc_list(cfgB%sop1I1E(:,:,ibconf),n_int,&
+                     socc,nmo,nsocc)
+
+                ! Compute the contributions to the TDMs
+                call ondiag_batch(ibconf,ikconf,&
+                     cfgB%n1I1E,cfgK%n1I1E,&
+                     cfgB%csfs1I1E,cfgK%csfs1I1E,&
+                     csfdimB,csfdimK,nvecB,nvecK,&
+                     vecB,vecK,npairs,Bmap,Kmap,nopen,socc,cfgB%m2c,Tij)
+                
+             endif
+                
+          enddo
+       enddo
+          
+       ! Delete the hash table
+       call h%delete_table
+
+    endif
+    
+!----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(key)
     
-!----------------------------------------------------------------------
-! Check
-!----------------------------------------------------------------------
-    do ipair=1,npairs
-       print*,'-------------------------------------'
-       print*,Bmap(ipair),Kmap(ipair)
-       print*,'-------------------------------------'
-       do i=1,nmo
-          if (abs(Tij(i,i,ipair)) > 1e-8_dp) print*,i,Tij(i,i,ipair)
-       enddo
-    enddo
-    STOP
-    
     return
     
   end subroutine Tii_all
+
+!######################################################################
+! ondiag_batch: Computes a batch of on-diagonal triplet TDM matrix
+!               elements for a given pair of (identical) bra and ket
+!               confs
+!######################################################################
+  subroutine ondiag_batch(ibconf,ikconf,nbconf,nkconf,bcsfs,kcsfs,&
+       csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,npairs,Bmap,Kmap,nopen,&
+       socc,m2c,Tij)
+
+    use constants
+    use bitglobal
     
+    implicit none
+
+    ! Index of the bra and ket conf
+    integer(is), intent(in) :: ibconf,ikconf
+
+    ! Bra and ket CSF offsets
+    integer(is), intent(in) :: nbconf,nkconf
+    integer(is), intent(in) :: bcsfs(nbconf+1),kcsfs(nkconf+1)
+
+    ! Eigenvectors
+    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: npairs
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Open shells
+    integer(is), intent(in) :: nopen
+    integer(is), intent(in) :: socc(nmo)
+    
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+
+    ! Triplet TDMs
+    real(dp), intent(inout) :: Tij(nmo,nmo,npairs)
+
+    ! Everything else
+    integer(is)             :: ipair,Bindx,Kindx
+    integer(is)             :: ioff,iopen,i,i1,ikcsf,ibcsf
+    real(dp)                :: bcoe,kcoe,prod
+    
+    ! Loop over TDM pairs
+    do ipair=1,npairs
+
+       ! Bra and ket eigenvector indices
+       Bindx=Bmap(ipair)
+       Kindx=Kmap(ipair)
+
+       ! Initialise the spincp offset
+       ioff=offspincp(6+nopen)
+
+       ! Loop over open shells
+       do iopen=1,nopen
+
+          ! MO index
+          i=socc(iopen)
+          i1=m2c(i)
+
+          ! Loop over CSF pairs
+          do ikcsf=kcsfs(ikconf),kcsfs(ikconf+1)-1
+             kcoe=vecK(ikcsf,Kindx)
+                
+             ! Loop over bra CSFs
+             do ibcsf=bcsfs(ibconf),bcsfs(ibconf+1)-1
+                bcoe=vecB(ibcsf,Bindx)
+
+                ! Contribution to the 1-TDM
+                prod=kcoe*bcoe*spincp(ioff)
+                Tij(i1,i1,ipair)=Tij(i1,i1,ipair)+prod
+                      
+                ! Increment the spincp offset
+                ioff=ioff+1
+                
+             enddo
+
+          enddo
+             
+       enddo
+          
+    enddo
+       
+    return
+    
+  end subroutine ondiag_batch
+  
 !######################################################################
 ! Tij_0h_0h: Calculation of the Ref-Ref contributions to the MRCI
 !            triplet TDMs
