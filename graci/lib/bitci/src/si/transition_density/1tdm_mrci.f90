@@ -747,7 +747,7 @@ contains
                 ! generate configurations that interact with the
                 ! ket 1I configuration wrt the singlet excitation
                 ! operators E_a^i
-                if (nac1 > 3) cycle
+                if (nac > 3) cycle
 
                 ! Number of open shells in the ket 1I configuration
                 knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
@@ -818,7 +818,7 @@ contains
                 ! generate configurations that interact with the
                 ! ket 1I configuration wrt the singlet excitation
                 ! operators E_a^i
-                if (nac1 > 3) cycle
+                if (nac > 3) cycle
 
                 ! Number of open shells in the ket 1I configuration
                 knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)

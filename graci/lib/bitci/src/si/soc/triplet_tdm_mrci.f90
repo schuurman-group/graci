@@ -149,43 +149,43 @@ contains
     use bitglobal
     use conftype
     use mrciutils
+    use dethash
     
     implicit none
 
     ! Component of the triplet spin tensor operator
-    integer(is), intent(in) :: kval
+    integer(is), intent(in)  :: kval
     
     ! MRCI configuration derived types
-    type(mrcfg), intent(in) :: cfgB,cfgK
+    type(mrcfg), intent(in)  :: cfgB,cfgK
 
     ! Dimensions
-    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+    integer(is), intent(in)  :: csfdimB,csfdimK,nvecB,nvecK,npairs
 
     ! Eigenvectors
-    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
-    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+    real(dp), intent(in)     :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)     :: vecK(csfdimK,nvecK)
 
     ! 1-TDMs
-    real(dp), intent(inout) :: Tij(nmo,nmo,npairs)
+    real(dp), intent(inout)  :: Tij(nmo,nmo,npairs)
 
     ! Bra-ket pair to eigenvector mapping arrays
-    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+    integer(is), intent(in)  :: Bmap(npairs),Kmap(npairs)
 
-    ! Working arrays
-    integer(ib)             :: kconf_full(n_int,2)
-    integer(ib)             :: ksop_full(n_int,2)
+    ! Hash table
+    type(dhtbl)              :: h
+    integer(is)              :: initial_size
+    integer(ib), allocatable :: key(:,:)
         
     ! Open shell MO indices
-    integer(is)             :: socc(nmo)
-    integer(is)             :: nsocc
+    integer(is)              :: socc(nmo)
+    integer(is)              :: nsocc
     
     ! Everything else
-    integer(is)             :: ikconf,ibconf,nexci,n_int_I
-    integer(is)             :: nsp,nopen
-    integer(is)             :: ikcsf,ibcsf
-    integer(is)             :: iopen,ioff
-    integer(is)             :: i,i1,ipair,Bindx,Kindx
-    real(dp)                :: kcoe,bcoe,prod
+    integer(is)              :: n_int_I
+    integer(is)              :: ibconf,ikconf,nsp,nopen,ibcsf,ikcsf
+    integer(is)              :: iopen,i,i1,ipair,Bindx,Kindx,ioff
+    real(dp)                 :: kcoe,bcoe,prod
     
 !----------------------------------------------------------------------
 ! Return if k != 0. This could be checked in the calling routine, but
@@ -194,88 +194,113 @@ contains
     if (kval /= 0) return
 
 !----------------------------------------------------------------------
-! Ref contributions
+! Allocate arrays
 !----------------------------------------------------------------------
     n_int_I=cfgK%n_int_I
 
-    ! Loop over ket configurations
+    allocate(key(n_int,2))
+    
+!----------------------------------------------------------------------
+! Ref contributions
+!----------------------------------------------------------------------
+    ! Initialise the hash table
+    initial_size=2**15
+    call h%initialise_table(initial_size)
+    
+    ! Insert the ket ref confs and their indices into the hash table
+    key=0_ib
     do ikconf=1,cfgK%n0h
+       key(1:n_int_I,:)=cfgK%conf0h(:,:,ikconf)
+       call h%insert_key(key,ikconf)
+    enddo
 
-       ! Ket configuration and SOP in the full MO space
-       kconf_full=0_ib
-       ksop_full=0_ib
-       kconf_full(1:n_int_I,:)=cfgK%conf0h(:,:,ikconf)
-       ksop_full(1:n_int_I,:)=cfgK%sop0h(:,:,ikconf)
+    ! Loop over bra ref confs
+    do ibconf=1,cfgB%n0h
 
-       ! Number of open shells in the ket configuration
-       nopen=sop_nopen(cfgK%sop0h(:,:,ikconf),n_int_I)
+       ! Is this also a ket ref conf?
+       key(1:n_int_I,:)=cfgB%conf0h(:,:,ibconf)
+       if (h%key_exists(key)) then
 
-       ! Cycle if there are no open shells
-       if (nopen == 0) cycle
+          ! Retrieve the ket conf index
+          ikconf=h%get_value(key)
 
-       ! Get the list of ket open shell MOs
-       call sop_socc_list(cfgK%sop0h(:,:,ikconf),n_int_I,socc,nmo,nsocc)
-       
-       ! Number of ket CSFs
-       nsp=cfgK%ncsfs(nopen)
-       
-       ! Loop over bra configurations
-       do ibconf=1,cfgB%n0h
+          ! Number of open shells
+          nopen=sop_nopen(cfgB%sop0h(:,:,ibconf),n_int_I)
           
-          ! Compute the excitation degree between the two
-          ! configurations
-          nexci=exc_degree_conf(cfgK%conf0h(:,:,ikconf),&
-               cfgB%conf0h(:,:,ibconf),n_int_I)
-
-          ! Cycle if the excitation degree is not equal to 0
-          if (nexci /= 0) cycle
-
+          ! Cycle if there are no open shells
+          if (nopen == 0) cycle
+          
+          ! Open shell indices
+          call sop_socc_list(cfgB%sop0h(:,:,ibconf),n_int_I,socc,&
+               nmo,nsocc)
+          
+          ! Number of CSFs
+          nsp=cfgB%ncsfs(nopen)
+          
           ! Loop over TDMs
           do ipair=1,npairs
-             
+          
              ! Bra and ket eigenvector indices
              Bindx=Bmap(ipair)
              Kindx=Kmap(ipair)
-
-             ! Initialise the spincp offset
+          
+             ! spincp offset initialisation
              ioff=offspincp(6+nopen)
-             
+          
              ! Loop over open shells
              do iopen=1,nopen
           
-                ! MRCI MO index
+                ! MO index
                 i=socc(iopen)
-                
-                ! Canonical MO index
-                i1=cfgK%m2c(i)
-                
-                ! Loop over ket CSFs
+                i1=cfgB%m2c(i)
+          
+                ! Loop over CSF pairs                
                 do ikcsf=cfgK%csfs0h(ikconf),cfgK%csfs0h(ikconf+1)-1
                    kcoe=vecK(ikcsf,Kindx)
-                   
+                
                    ! Loop over bra CSFs
                    do ibcsf=cfgB%csfs0h(ibconf),cfgB%csfs0h(ibconf+1)-1
                       bcoe=vecB(ibcsf,Bindx)
-
+          
                       ! Contribution to the 1-TDM
                       prod=kcoe*bcoe*spincp(ioff)
                       Tij(i1,i1,ipair)=Tij(i1,i1,ipair)+prod
                       
-                      ! Update the spincp offset
+                      ! Increment the spincp offset
                       ioff=ioff+1
                       
                    enddo
-
                 enddo
-                      
+                   
              enddo
              
           enddo
           
-       enddo
+       endif
        
     enddo
+       
+    ! Delete the hash table
+    call h%delete_table
 
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(key)
+    
+!----------------------------------------------------------------------
+! Check
+!----------------------------------------------------------------------
+    do ipair=1,npairs
+       print*,'-------------------------------------'
+       print*,Bmap(ipair),Kmap(ipair)
+       print*,'-------------------------------------'
+       do i=1,nmo
+          if (abs(Tij(i,i,ipair)) > 1e-8_dp) print*,i,Tij(i,i,ipair)
+       enddo
+    enddo
+    STOP
+    
     return
     
   end subroutine Tii_all
@@ -717,7 +742,7 @@ contains
                 ! generate configurations that interact with the
                 ! ket 1I configuration wrt the triplet excitation
                 ! operators T_ij^(1,k)
-                if (nac1 > 3) cycle
+                if (nac > 3) cycle
 
                 ! Number of open shells in the ket 1I configuration
                 knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
@@ -792,7 +817,7 @@ contains
                 ! generate configurations that interact with the
                 ! ket 1I configuration wrt the singlet excitation
                 ! operators E_a^i
-                if (nac1 > 3) cycle
+                if (nac > 3) cycle
 
                 ! Number of open shells in the ket 1I configuration
                 knopen=sop_nopen(ksop_int(1:n_int_I,:),n_int_I)
