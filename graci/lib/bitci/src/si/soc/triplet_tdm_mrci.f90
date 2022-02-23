@@ -186,6 +186,10 @@ contains
     integer(is)              :: n,ibconf,ikconf,nopen,ibcsf,ikcsf
     integer(is)              :: iopen,i,i1,ipair,Bindx,Kindx,ioff
     real(dp)                 :: kcoe,bcoe,prod
+
+    ! TEST
+    real(dp) :: trace
+    ! TEST
     
 !----------------------------------------------------------------------
 ! Return if k != 0. This could be checked in the calling routine, but
@@ -523,6 +527,31 @@ contains
        call h%delete_table
 
     endif
+
+!----------------------------------------------------------------------
+! TEST
+!----------------------------------------------------------------------
+    !do ipair=1,npairs
+    !   
+    !   if (Bmap(ipair) /= Kmap(ipair)) cycle
+    !
+    !   print*,''
+    !   print*,'-------------------------------------'
+    !   print*,'State:',Bmap(ipair)
+    !   print*,'-------------------------------------'
+    !   
+    !   trace=0.0d0
+    !   do i=1,nmo
+    !
+    !      !print*,i,Tij(i,i,ipair)
+    !
+    !      trace=trace+Tij(i,i,ipair)
+    !   enddo
+    !
+    !   print*,''
+    !   print*,'Trace/sqrt(2):',trace/sqrt(2.0d0)
+    !   
+    !enddo
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -604,7 +633,8 @@ contains
                 bcoe=vecB(ibcsf,Bindx)
 
                 ! Contribution to the 1-TDM
-                prod=kcoe*bcoe*spincp(ioff)
+                prod=bcoe*bcoe*spincp(ioff)
+                
                 Tij(i1,i1,ipair)=Tij(i1,i1,ipair)+prod
                       
                 ! Increment the spincp offset
@@ -617,7 +647,7 @@ contains
        enddo
           
     enddo
-       
+
     return
     
   end subroutine ondiag_batch

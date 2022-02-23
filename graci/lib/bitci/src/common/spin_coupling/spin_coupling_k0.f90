@@ -140,7 +140,7 @@ contains
 !----------------------------------------------------------------------
     call ondiag_coeffs_k0(nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
          csfcoe,detvec,spincpdim,spincp,nii)
-    
+
 !----------------------------------------------------------------------
 ! Fill in the array of bit strings with N set bits, from which the
 ! pattern numbers will be derived by clearing bits
@@ -1482,16 +1482,20 @@ contains
        endif
 
        ! Multiply the CSF coefficients by the spin factor
-       coe(:,idet)=csfcoe(:,idet,nopen)*sfac
+       coe1(:,idet)=coe(:,idet)*sfac
        
     enddo
 
 !----------------------------------------------------------------------
 ! Compute the on-diagonal spin-coupling coefficients
 !----------------------------------------------------------------------
+    ! Contraction of the coe and coe1^T matrices
     call dgemm('N','T',nsp,nsp,ndet,1.0d0,coe,nsp,coe1,nsp,0.0d0,&
          spincoe,nsp)
 
+    ! 1/sqrt(2) prefactor
+    spincoe=spincoe/sqrt(2.0d0)
+    
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
