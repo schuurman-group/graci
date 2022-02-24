@@ -6,8 +6,8 @@ import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.properties.moments as moments
-import graci.properties.transition as transition
-import graci.properties.spinorbit as spinorbit
+import graci.interaction.transition as transition
+import graci.interaction.spinorbit as spinorbit
 
 # molecule section input keywords and data types
 molecule_kword =     {'xyz_file' : str,

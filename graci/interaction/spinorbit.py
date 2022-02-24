@@ -5,7 +5,7 @@ elements
 
 import sys as sys
 import numpy as np
-import graci.properties.interaction as interaction
+import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
@@ -78,8 +78,9 @@ class Spinorbit(interaction.Interaction):
 
         # construct the trans_list array
         # currently store them as [initial state, final state]
-        self.build_trans_list()
-
+        #self.build_trans_list_old()
+        self.build_trans_list(list_type='full')
+        
         # get the reduced matrix elements
         # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
         self.build_redmat()

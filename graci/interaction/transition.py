@@ -8,7 +8,7 @@ import functools
 import operator
 import importlib
 from sympy import LeviCivita
-import graci.properties.interaction as interaction
+import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
@@ -74,7 +74,11 @@ class Transition(interaction.Interaction):
 
         # construct the trans_list array
         # currently store them as [initial state, final state]
-        self.build_trans_list()
+        if self.braket_iden:
+            list_type = 'lower_i>j'
+        else:
+            list_type = 'full'
+        self.build_trans_list(list_type=list_type)
 
         # grab the transition density matrices
         self.build_tdms()

@@ -3,6 +3,7 @@ Parent state interaction class
 """
 
 import graci.utils.timing as timing
+import sys as sys
 
 class Interaction:
     """Parent state interaction class to be inherited by any module
@@ -111,15 +112,34 @@ class Interaction:
 
     #
     @timing.timed
-    def build_trans_list(self):
-        """built an array of initial states, ordered by adiabatic energy
-           the symmetries of each state will be stored in a separate 
-           array"""
+    def build_trans_list(self, list_type='full'):
+        """
+        builds an array of initial and final states, ordered by
+           adiabatic energy. The symmetries of each state will be
+           stored in a separatearray.
+
+           The string list_type can be one of the following:
+
+           'full'      <-> build the full matrix of initial and final
+                           state pairs
+
+           'lower'     <-> build the lower triangle of initial and final
+                           state pairs
+
+           'lower_i>j' <-> build the lower triangle of initial and final
+                           state pairs minus the on-diagonal elements
+           """
+
+        # check on list_type
+        allowed_types = ['full', 'lower', 'lower_i>j']
+        if list_type not in allowed_types:
+            sys.exit('\n Illegal list_type in build_trans_list.'
+                     +' Allowed types: \n\n '+str(allowed_types))
 
         # determine what initial states to include
         # -------------------------------------------------
-
-        state_list  = []
+            
+        state_list = []
 
         # iterate through the initial states, adding roots
         # to various irreps as needed -- these states are 
@@ -131,7 +151,7 @@ class Interaction:
             for istate in self.init_states:
                 if istate < ninit_total:
                     state_list.append(istate)
-        
+
         # use the istate array (format = irrep.state) to select
         # individual states - input is form irrep.state
         if self.init_states_sym is not None:
@@ -146,9 +166,6 @@ class Interaction:
         self.ket_list = sorted(list(set(state_list)))
         ket_sym  = [self.ket_obj.state_sym(self.ket_list[i])[0] 
                                     for i in range(len(self.ket_list))]
-
-        if len(self.ket_list) == 0:
-            sys.exit('no initial states selected in Transition')
 
         # determine what final states to include
         # -------------------------------------------------
@@ -201,15 +218,16 @@ class Interaction:
             for b_st in bra_list:
                 bsym = self.bra_obj.state_sym(b_st)
  
-                # exclude bra == ket pairs
-                if self.braket_iden and k_st == b_st:
+                # exclude bra == ket pairs: 'lower_i>j'
+                if list_type == 'lower_i>j' and k_st == b_st:
                     continue
 
-                # only include unique pairs
-                if self.trans_index(k_st, b_st) is not None:
+                # only include unique pairs: 'lower' and 'lower_i>j'
+                if list_type != 'full' \
+                   and self.trans_index(k_st, b_st) is not None:
                     continue
 
-                # only add unique pairs
+                # add the state pair
                 self.trans_list_sym[bsym[0]][ksym[0]].append(
                                            [bsym[1], ksym[1]])
                 self.trans_list.append([b_st, k_st])

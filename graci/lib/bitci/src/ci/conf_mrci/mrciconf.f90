@@ -231,7 +231,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
      write(iscratch) n_int_I
      write(iscratch) nmoI
      write(iscratch) nmoE
-     write(iscratch) ntotal
+     write(iscratch) ntotal(irrep)
      write(iscratch) cfgM(irrep)%nR
      write(iscratch) cfgM(irrep)%n1h
      write(iscratch) cfgM(irrep)%n2h
