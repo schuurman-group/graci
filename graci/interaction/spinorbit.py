@@ -25,7 +25,7 @@ class Spinorbit(interaction.Interaction):
         
         # user defined quanties 
         self.label      = 'spinorbit'
-                
+
         # global variables
         # Class name
         self.class_name = 'spinorbit'
@@ -56,34 +56,17 @@ class Spinorbit(interaction.Interaction):
         elements from all states in method object should be used
         """
 
-        # Bra and ket total spins and multiplicities
-        self.mult_bra = self.bra_obj.mult
-        self.mult_ket = self.ket_obj.mult
-        self.S_bra    = (self.mult_bra-1)/2
-        self.S_ket    = (self.mult_ket-1)/2
-
-        # Bra and ket projected spins
-        self.M_bra = [-self.S_bra + i for i in range(self.mult_bra)]
-        self.M_ket = [-self.S_ket + i for i in range(self.mult_ket)]
-        
-        # Check on spin multiplicities:
-        # (1) Delta S = -1, 0 or +1 must hold
-        # (2) In the case of Delta S = 0, only S > 0 must hold
-        if self.S_bra - self.S_ket not in [-1., 0., 1.]:
-            sys.exit('\n ERROR: non-sensical S_bra, S_ket combination' \
-                     +'in spinorbit')
-        if self.S_bra == self.S_ket and self.S_bra == 0.:
-            sys.exit('\n ERROR: non-sensical S_bra, S_ket combination ' \
-                     +'in spinorbit')
+        # bra and ket total spins, multiplicities, etc
+        self.set_spins()
 
         # first check to see if bra and ket are identical
         if (type(self.bra_obj).__name__ == type(self.ket_obj).__name__ 
             and self.bra_obj.label == self.ket_obj.label):
             self.braket_iden = True
 
+        # bra/ket mol and scf objects
         mol_bra = self.bra_obj.scf.mol
         mol_ket = self.ket_obj.scf.mol
-
         scf_bra = self.bra_obj.scf
         scf_ket = self.ket_obj.scf
 
@@ -96,7 +79,7 @@ class Spinorbit(interaction.Interaction):
             if mol_bra.pymol().atom != mol_ket.pymol().atom:
                 sys.exit('spin-orbit coupling requires same geometry'+
                          ' and basis set')
-                
+
         # initialize the bitsi library for the calculation of
         # spin-orbit matrix elements
         bitsi_init.init(self, 'soc')
@@ -119,7 +102,37 @@ class Spinorbit(interaction.Interaction):
 
         # SOC Hamiltonian matrix elements
         hsoc = self.build_hsoc()
-            
+
+    #
+    def set_spins(self):
+        """
+        sets the bra and ket S, M, etc. values
+        """
+
+        # Total spins
+        self.mult_bra = self.bra_obj.mult
+        self.mult_ket = self.ket_obj.mult
+
+        # Spin multiplicities
+        self.S_bra    = (self.mult_bra-1)/2
+        self.S_ket    = (self.mult_ket-1)/2
+
+        # All projected spins
+        self.M_bra = [-self.S_bra + i for i in range(self.mult_bra)]
+        self.M_ket = [-self.S_ket + i for i in range(self.mult_ket)]
+        
+        # Delta S = -1, 0 or +1 must hold
+        if self.S_bra - self.S_ket not in [-1., 0., 1.]:
+            sys.exit('\n ERROR: non-sensical S_bra, S_ket combination' \
+                     +'in spinorbit')
+        
+        # In the case of Delta S = 0, S > 0 must hold
+        if self.S_bra == self.S_ket and self.S_bra == 0.:
+            sys.exit('\n ERROR: non-sensical S_bra, S_ket combination ' \
+                     +'in spinorbit')
+        
+        return
+        
     #
     @timing.timed
     def build_redmat(self):
@@ -162,20 +175,34 @@ class Spinorbit(interaction.Interaction):
         nao = mol.nao_nr()
         
         # Initialise arrays
-        self.h1e = np.zeros((3, nao, nao))
-                
+        self.h1e = np.zeros((3, nao, nao), dtype=np.cdouble)
+        hcart_ao = np.zeros((3, nao, nao), dtype=float)
+        hcart_mo = np.zeros((3, nao, nao), dtype=float)
+        
         # One-electron contributions
         for iatm in range(mol.natm):
             Z   = mol.atom_charge(iatm)
             xyz = mol.atom_coord(iatm)
             mol.set_rinv_orig(xyz)
-            self.h1e += Z * mol.intor('cint1e_prinvxp_sph', 3)
+            hcart_ao += Z * mol.intor('cint1e_prinvxp_sph', 3)
 
         # Mean-field two-electron contributions
-        
+        # (We will fill this is once the rest of the code is
+        # debugged and verified working)
+
         
         # Transform to the MO basis
-
+        orbs     = self.bra_obj.scf.orbs
+        hcart_mo = np.matmul(np.matmul(orbs.T, hcart_ao), orbs)
+        
+        # Transform to the spherical tensor representation
+        ci = np.sqrt(-1+0j)
+        # k = -1: x - iy
+        self.h1e[0,:,:] = hcart_mo[0,:,:] - ci * hcart_mo[1,:,:]
+        # k = +1: x + iy
+        self.h1e[2,:,:] = hcart_mo[0,:,:] + ci * hcart_mo[1,:,:]
+        # k = 0: z 
+        self.h1e[1,:,:] = hcart_mo[2,:,:]
         
         return
         
@@ -190,12 +217,13 @@ class Spinorbit(interaction.Interaction):
         indx_ket = self.mult_ket * I_ket + M_ket + self.S_ket
         
         indx_bra = self.mult_bra * I_bra + M_bra + self.S_bra \
-                   + len(self.init_states) - 2
+                   + len(self.init_states)
         
         return int(indx_bra), int(indx_ket)
 
 
     #
+    @timing.timed
     def build_hsoc(self):
         """
         Builds the entire SOC Hamiltonian matrix
@@ -206,11 +234,10 @@ class Spinorbit(interaction.Interaction):
         nm_ket = len(self.init_states)
 
         # Number of spin-orbit coupled states
-        dim_bra = nm_bra * self.mult_bra
-        dim_ket = nm_ket * self.mult_ket
-
+        dim = nm_bra * self.mult_bra + nm_ket * self.mult_ket
+        
         # Initialise hsoc (complex matrix)
-        hsoc = np.zeros((dim_bra, dim_ket), dtype=np.cdouble)
+        hsoc = np.zeros((dim, dim), dtype=np.cdouble)
 
         # Loop over pairs of spin-orbit coupled states
         for I_ket in range(nm_ket):
@@ -221,7 +248,6 @@ class Spinorbit(interaction.Interaction):
                         # spin-coupled state indices
                         i, j = self.hsoc_indx(I_bra, I_ket,
                                               M_bra, M_ket)
-
                         # H_ij^(SOC)
                         hsoc[i, j] = self.contract_redmat(I_bra, I_ket,
                                                           M_bra, M_ket)
