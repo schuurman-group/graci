@@ -29,9 +29,10 @@ class Spinorbit(interaction.Interaction):
         # global variables
         # Class name
         self.class_name = 'spinorbit'
-        # Labels of the manifolds of states in the 3 unique
+        # labels of the manifolds of states in the 3 unique
         # blocks of H_SOC
         self.blkstr     = [['bra', 'bra'], ['ket', 'ket'], ['bra', 'ket']]
+        self.ifdict     = {'bra' : 'final', 'ket' : 'init'}
         # Clebsch-Gordan coeficients
         self.cgcoe      = []
         # Reduced matrix elements
@@ -98,19 +99,22 @@ class Spinorbit(interaction.Interaction):
 
         # get the one-electron SOC matrices
         self.build_h1e()
-            
+
+        # initialise the H_soc array
+        dim = len(self.final_states) * self.mult_bra \
+            + len(self.init_states)  * self.mult_ket
+        self.hsoc = np.zeros((dim,dim), dtype=np.cdouble)
+        
         # loop over the blocks of H_SOC
         for iblock in range(3):
 
             bra = getattr(self, self.blkstr[iblock][0]+'_obj')
             ket = getattr(self, self.blkstr[iblock][1]+'_obj')
 
-            # zero block if both manifolds of states are singlets
+            # skip if both manifolds of states are singlets
             if bra.mult == 1 and ket.mult == 1:
-                nmo    = bra.scf.nmo
-                npairs = len(self.trans_list[iblock])
-                self.redmat.append(np.zeros((nmo, nmo,npairs),
-                                            dtype=float))
+                self.redmat.append([])
+                self.cgcoe.append([])
                 continue
             
             # initialize the bitsi library for the calculation of
@@ -146,8 +150,8 @@ class Spinorbit(interaction.Interaction):
         self.mult_ket = self.ket_obj.mult
 
         # Spin multiplicities
-        self.S_bra    = (self.mult_bra-1)/2
-        self.S_ket    = (self.mult_ket-1)/2
+        self.S_bra    = (self.mult_bra - 1)/2
+        self.S_ket    = (self.mult_ket - 1)/2
 
         # All projected spins
         self.M_bra = [-self.S_bra + i for i in range(self.mult_bra)]
@@ -217,7 +221,8 @@ class Spinorbit(interaction.Interaction):
             xyz = mol.atom_coord(iatm)
             mol.set_rinv_orig(xyz)
             hcart_ao += Z * mol.intor('cint1e_prinvxp_sph', 3)
-
+        hcart_ao = hcart_ao * constants.fine_str**2 / 2
+            
         # Mean-field two-electron contributions
         # (We will fill this is once the rest of the code is
         # debugged and verified working)
@@ -237,22 +242,7 @@ class Spinorbit(interaction.Interaction):
         self.h1e[1,:,:] = hcart_mo[2,:,:]
         
         return
-        
-    #
-    def hsoc_indx(self, I_bra, I_ket, M_bra, M_ket):
-        """
-        Given bra and ket multiplet indices, I_bra and I_ket,
-        and projected spins, M_bra and M_ket, returns the
-        corresponding element of the SOC Hamiltonian matrix
-        """
     
-        indx_ket = self.mult_ket * I_ket + M_ket + self.S_ket
-        
-        indx_bra = self.mult_bra * I_bra + M_bra + self.S_bra \
-                   + len(self.init_states)
-        
-        return int(indx_bra), int(indx_ket)
-
 
     #
     @timing.timed
@@ -270,35 +260,50 @@ class Spinorbit(interaction.Interaction):
         #-----------------------------------------------------------
         # the same goes for the hsoc_indx and cgcoe_indx functions
         #-----------------------------------------------------------
+
+        # Number of bra and ket multiplets in this block
+        fstring = self.ifdict[self.blkstr[iblock][0]]
+        istring = self.ifdict[self.blkstr[iblock][1]]
+        nm_bra = len(getattr(self, fstring+'_states'))
+        nm_ket = len(getattr(self, istring+'_states'))
+
+        # Multiplicities in this block
+        mult_bra = getattr(self, 'mult_'+self.blkstr[iblock][0])
+        mult_ket = getattr(self, 'mult_'+self.blkstr[iblock][1])
         
-        ## Number of bra and ket multiplets
-        #nm_bra = len(self.final_states)
-        #nm_ket = len(self.init_states)
-        #
-        ## Number of spin-orbit coupled states
-        #dim = nm_bra * self.mult_bra + nm_ket * self.mult_ket
-        #
-        ## Initialise hsoc (complex matrix)
-        #self.hsoc = np.zeros((dim, dim), dtype=np.cdouble)
-        #
-        ## Loop over pairs of spin-orbit coupled states
-        #for I_ket in range(nm_ket):
-        #    for M_ket in self.M_ket:
-        #        for I_bra in range(nm_bra):
-        #            for M_bra in self.M_bra:
-        #
-        #                # spin-coupled state indices
-        #                i, j = self.hsoc_indx(I_bra, I_ket,
-        #                                      M_bra, M_ket)
-        #                # H_ij^(SOC)
-        #                self.hsoc[i, j] = self.contract_redmat( I_bra, I_ket,
-        #                                                        M_bra, M_ket)
+        # Loop over pairs of spin-orbit coupled states in this block
+        Mb = getattr(self, 'M_'+self.blkstr[iblock][0])
+        Mk = getattr(self, 'M_'+self.blkstr[iblock][1])
+        for I_ket in range(nm_ket):
+            for M_ket in Mk:
+                for I_bra in range(nm_bra):
+                    for M_bra in Mb:
+
+                        # Skip the lower triangle of this block if
+                        # the bra and ket manifolds are the same
+                        if iblock in [0, 1] and I_bra < I_ket:
+                            continue
                         
+                        # spin-coupled state indices
+                        i, j = self.hsoc_indx(mult_bra, mult_ket,
+                                              I_bra, I_ket,
+                                              M_bra, M_ket, iblock)
+
+                        # block of redmat under consideration
+                        rindx = I_ket * nm_bra + I_bra
+                        
+                        # H_ij^(SOC)
+                        self.hsoc[i, j] = self.contract_redmat(mult_bra, mult_ket,
+                                                               I_bra, I_ket,
+                                                               M_bra, M_ket,
+                                                               iblock, rindx)
+        
         return
 
     
     #
-    def contract_redmat(self, I_bra, I_ket, M_bra, M_ket):
+    def contract_redmat(self, mult_bra, mult_ket, I_bra, I_ket,
+                        M_bra, M_ket, iblock, rindx):
         """
         Computes a single element 
         < I_bra M_bra | H_SOC | I_ket M_ket >
@@ -307,24 +312,51 @@ class Spinorbit(interaction.Interaction):
         scaled one-electron SO matrices h^(k), k=-1,0,+1
         """
 
+        S_ket = (mult_ket - 1) / 2
+        S_bra = (mult_bra - 1) / 2
+        
         # Sum of Clebsch-Gordan coefficient scaled one-electron
         # SO matrices
         nmo    = self.bra_obj.scf.nmo
         hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
         kval = [-1, 0, 1]
+        coe  = [-1., np.sqrt(2.), 1.]
         for n in range(3):
-            i, i12 = self.cgcoe_indx(self.S_bra, M_bra, self.S_ket,
-                                     M_ket, kval[n])
-            hscale += self.h1e[n, :, :] * self.cgcoe[i12, i]
+            i, i12 = self.cgcoe_indx(S_bra, M_bra, S_ket, M_ket, kval[n])
+            hscale += self.h1e[n, :, :] * self.cgcoe[iblock][i12, i] * coe[n]
             
-        print('\n How do we access the correct block of self.redmat?')
-        # (Look at self.build_redmat...)
-        sys.exit()
+        # H_SOC matrix element: 1/2 Sum_pq redmat_pq hscale_pq
+        hij = 0.5*np.einsum('ij,ij->',
+                            self.redmat[iblock][:, :, rindx], hscale)
 
-        hij = 0.
-        
         return hij
 
+    #
+    def hsoc_indx(self, mult_bra, mult_ket, I_bra, I_ket, M_bra, M_ket,
+                  iblock):
+        """
+        Given bra and ket multiplet indices, I_bra and I_ket,
+        and projected spins, M_bra and M_ket, returns the
+        corresponding element of the SOC Hamiltonian matrix
+        """
+
+        S_ket = (mult_ket - 1) / 2
+        
+        S_bra = (mult_bra - 1) / 2
+        
+        indx_ket = mult_ket * I_ket + M_ket + S_ket
+        
+        indx_bra = mult_bra * I_bra + M_bra + S_bra
+
+        if iblock == 0:
+            indx_bra += len(self.init_states)
+            indx_ket += len(self.init_states)
+        elif iblock == 2:
+            indx_bra += len(self.init_states)
+
+        return int(indx_bra), int(indx_ket)
+
+    
     #
     def cgcoe_indx(self, S, M, s1, m1, k):
         """
