@@ -7,11 +7,8 @@ import numpy as np
 import graci.core.libs as libs
 
 #
-def init(si_method, calctype):
+def init(bra, ket, calctype):
     """Initialize the bitci library"""
-
-    bra = si_method.bra_obj
-    ket = si_method.ket_obj
 
     # if the number of mos is different between bra and ket, end
     if bra.scf.nmo != ket.scf.nmo:
