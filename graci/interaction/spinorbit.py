@@ -26,6 +26,7 @@ class Spinorbit(interaction.Interaction):
         # user defined quanties 
         self.label        = 'spinorbit'
         self.print_thresh = 1.
+        self.mf2e         = False
         
         # global variables
         # Class name
@@ -57,6 +58,8 @@ class Spinorbit(interaction.Interaction):
         self.eig        = None
         # List of multiplet indices and projected spins
         self.stlbl      = None
+        # MF density matrix (AO basis)
+        self.rho_ao     = None
         
     #
     @timing.timed
@@ -75,6 +78,9 @@ class Spinorbit(interaction.Interaction):
 
         # bra and ket multiplet indices and M-values
         self.set_stlbl()
+
+        # get the MF density matrix
+        self.build_rho()
         
         # first check to see if bra and ket are identical
         if (type(self.bra_obj).__name__ == type(self.ket_obj).__name__ 
@@ -207,7 +213,34 @@ class Spinorbit(interaction.Interaction):
         for i in self.final_states:
             for m in self.M_bra:
                 self.stlbl.append([self.bra_obj.label, i, m])
+
     
+    #
+    def build_rho(self):
+        """
+        sets up the mean-field density matrix
+        """
+
+        # Average density matrix across states
+        nmo    = self.bra_obj.scf.nmo
+        rho_mo = np.zeros((nmo, nmo), dtype=float)
+
+        for i in self.init_states:
+            rho_mo += self.ket_obj.dmat[i, :, :]
+
+        for i in self.final_states:
+            rho_mo += self.bra_obj.dmat[i, :, :]
+
+        nsta = len(self.init_states) + len(self.final_states)
+
+        rho_mo = rho_mo / nsta
+
+        # Transform to the AO basis
+        orbs        = self.bra_obj.scf.orbs
+        self.rho_ao = np.matmul(np.matmul(orbs, rho_mo), orbs.T)
+        
+        return
+        
     #
     @timing.timed
     def build_redmat(self, bra, ket, iblock):
@@ -252,7 +285,6 @@ class Spinorbit(interaction.Interaction):
         # Initialise arrays
         self.h1e = np.zeros((3, nao, nao), dtype=np.cdouble)
         hcart_ao = np.zeros((3, nao, nao), dtype=float)
-        hcart_mo = np.zeros((3, nao, nao), dtype=float)
         
         # One-electron contributions
         for iatm in range(mol.natm):
@@ -263,9 +295,12 @@ class Spinorbit(interaction.Interaction):
         hcart_ao = hcart_ao * constants.fine_str**2 / 2
             
         # Mean-field two-electron contributions
-        # (We will fill this is once the rest of the code is
-        # debugged and verified working)
-        
+        if self.mf2e:
+            h2e_ao    = mol.intor("cint2e_p1vxp1_sph", comp=3, aosym="s1")
+            h2e_ao   *= -0.5 * constants.fine_str**2
+            hcart_ao += (np.einsum("ijklm,lm->ijk", h2e_ao, self.rho_ao)
+                         - 1.5 * (np.einsum("ijklm, kl->ijm", h2e_ao, self.rho_ao)
+                         + np.einsum("ijklm,mj->ilk", h2e_ao, self.rho_ao)))
         
         # Transform to the MO basis
         orbs     = self.bra_obj.scf.orbs
@@ -367,15 +402,14 @@ class Spinorbit(interaction.Interaction):
         # SO matrices
         nmo    = self.bra_obj.scf.nmo
         hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
-        kval = [-1, 0, 1]
-        coe  = [-1., np.sqrt(2.), 1.]
+        kval   = [-1, 0, 1]
+        coe    = [1., np.sqrt(2.), -1.]
         for n in range(3):
             i, i12  = self.cgcoe_indx(S_bra, M_bra, S_ket, M_ket, kval[n])
-            hscale += self.h1e[n, :, :] * self.cgcoe[iblock][i12, i] * coe[n]
-            
+            hscale += self.h1e[2-n, :, :] * self.cgcoe[iblock][i12, i] * coe[n]
+        
         # H_SOC matrix element: 1/2 Sum_pq redmat_pq hscale_pq
-        hij = 0.5*np.einsum('ij,ij->',
-                            self.redmat[iblock][:, :, rindx], hscale)
+        hij = 0.5*np.einsum('ij,ij', self.redmat[iblock][:, :, rindx], hscale)
 
         return hij
 

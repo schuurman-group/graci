@@ -412,7 +412,7 @@ def print_spinorbit_header(label):
         outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
         outfile.write(  '\n '+str(pstr))
         outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
-        outfile.write(  '\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'*LLEN)+'\n')
         outfile.flush()
 
     return
