@@ -140,11 +140,10 @@ class Spinorbit(interaction.Interaction):
             # finalize the bitsi library
             bitsi_init.finalize()
 
-        # test: print the H_SOC elements
+        # print the H_SOC elements
         self.print_hsoc()
-            
-        sys.exit()
 
+    
     #
     def set_spins(self):
         """
@@ -373,7 +372,13 @@ class Spinorbit(interaction.Interaction):
     
     #
     def print_hsoc(self):
+        """
+        prints the SOC values to the log file
+        """
 
+        # section header
+        output.print_spinorbit_header(self.label)
+        
         # List of all all multiplet indices and projected
         # spin values
         stlbl = []        
@@ -384,58 +389,9 @@ class Spinorbit(interaction.Interaction):
         for i in self.final_states:
             for m in self.M_bra:
                 stlbl.append([self.bra_obj.label, i+1, m])
-
-        # table header
-        llen = max(len(self.ket_obj.label), len(self.bra_obj.label))
-        
-        delim = ' '+'-'*(39+2*llen)
-        print('\n'+delim)
-        
-        fstr = '  {:<'+str(llen)+'}' \
-            + ' {:>3}' \
-            + ' {:>4}' \
-            + '   ' \
-            + ' {:<'+str(llen)+'}' \
-            + ' {:>3}' \
-            + ' {:>4}' \
-            + ' {:>9}'
-
-        print(fstr.format('Bra',
-                          'I',
-                          'M',
-                          'Ket',
-                          'I',
-                          'M',
-                          '<SOC>'))
-        print(delim)
-        
-        # matrix elements
-        fstr = '  {:<'+str(llen)+'}' \
-            + ' {:3d}' \
-            + ' {:4.1f}' \
-            + '   ' \
-            + ' {:<'+str(llen)+'}' \
-            + ' {:3d}' \
-            + ' {:4.1f}' \
-            + ' {:9.4f}' \
-            + ' {:>4}'
-        
-        for i in range(self.hdim):
-            for j in range(0, i):
-
-                soc_cm = np.abs(self.hsoc[i,j]) * constants.au2cm
-
-                if np.abs(soc_cm) > self.print_thresh:
-                    #print(delim)
-                    print(fstr.format(stlbl[i][0],
-                                      stlbl[i][1],
-                                      stlbl[i][2],
-                                      stlbl[j][0],
-                                      stlbl[j][1],
-                                      stlbl[j][2],
-                                      np.abs(soc_cm),
-                                      'cm-1'))
-        # footer
-        print(delim)
+                
+        # output the SOC matrix elements
+        output.print_spinorbit_table(self.hsoc, self.hdim, stlbl,
+                                     self.print_thresh)
                     
         return

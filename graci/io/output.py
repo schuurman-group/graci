@@ -396,3 +396,86 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
 
     return
 
+
+def print_spinorbit_header(label):
+    """ print out Spinorbit section header"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'Spinorbit, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN))
+        outfile.flush()
+
+    return
+
+def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
+    """print out the summary files for the transition moments"""
+
+    # max bra/ket label length
+    llen = max([len(lbl[0]) for lbl in stlbl])
+
+    # table header
+    delim = ' '+'-'*(49+2*llen)
+    print('\n'+delim)
+    fstr = '  {:<'+str(llen)+'}' \
+        + ' {:<3}' \
+        + ' {:>4}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:>3}' \
+        + ' {:>4}' \
+        + ' {:>9}' \
+        + ' {:>9}' \
+    
+    print(fstr.format('Bra',
+                      'I',
+                      'M',
+                      'Ket',
+                      'I',
+                      'M',
+                      'Im <SOC>',
+                      'Re <SOC>'))
+    print(delim)
+
+    # matrix elements
+    fstr = '  {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + ' {:4.1f}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + ' {:4.1f}' \
+        + ' {:9.4f}' \
+        + ' {:9.4f}' \
+        + ' {:>4}'
+    
+    for i in range(hdim):
+        for j in range(0, i):
+            
+            soc_cm = hsoc[i,j] * constants.au2cm
+            
+            if np.abs(soc_cm) > thrsh:
+                print(fstr.format(stlbl[i][0],
+                                  stlbl[i][1],
+                                  stlbl[i][2],
+                                  stlbl[j][0],
+                                  stlbl[j][1],
+                                  stlbl[j][2],
+                                  np.real(soc_cm),
+                                  np.imag(soc_cm),
+                                  'cm-1'))
+    # footer
+    print(delim)
+    
+    sys.exit()
+
+    return
