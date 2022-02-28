@@ -24,8 +24,9 @@ class Spinorbit(interaction.Interaction):
         super().__init__()
         
         # user defined quanties 
-        self.label      = 'spinorbit'
-
+        self.label        = 'spinorbit'
+        self.print_thresh = 1.
+        
         # global variables
         # Class name
         self.class_name = 'spinorbit'
@@ -49,7 +50,9 @@ class Spinorbit(interaction.Interaction):
         # One electron SOC matrices
         self.h1e        = None
         # SOC Hamiltonian matrix
+        self.hdim       = None
         self.hsoc       = None
+        
         
     #
     @timing.timed
@@ -101,9 +104,9 @@ class Spinorbit(interaction.Interaction):
         self.build_h1e()
 
         # initialise the H_soc array
-        dim = len(self.final_states) * self.mult_bra \
+        self.hdim = len(self.final_states) * self.mult_bra \
             + len(self.init_states)  * self.mult_ket
-        self.hsoc = np.zeros((dim,dim), dtype=np.cdouble)
+        self.hsoc = np.zeros((self.hdim, self.hdim), dtype=np.cdouble)
         
         # loop over the blocks of H_SOC
         for iblock in range(3):
@@ -137,6 +140,9 @@ class Spinorbit(interaction.Interaction):
             # finalize the bitsi library
             bitsi_init.finalize()
 
+        # test: print the H_SOC elements
+        self.print_hsoc()
+            
         sys.exit()
 
     #
@@ -250,17 +256,7 @@ class Spinorbit(interaction.Interaction):
         """
         Builds the iblock'th block of the SOC Hamiltonian matrix
         """
-
-        #-----------------------------------------------------------
-        # We need to modify the following to be able to work with
-        # the bra-bra, ket-ket and bra-ket blocks
-        #-----------------------------------------------------------
-        # i.e., things like self.init_states need to be replaced
-        # with getattr(self, ...), etc.
-        #-----------------------------------------------------------
-        # the same goes for the hsoc_indx and cgcoe_indx functions
-        #-----------------------------------------------------------
-
+        
         # Number of bra and ket multiplets in this block
         fstring = self.ifdict[self.blkstr[iblock][0]]
         istring = self.ifdict[self.blkstr[iblock][1]]
@@ -293,10 +289,11 @@ class Spinorbit(interaction.Interaction):
                         rindx = I_ket * nm_bra + I_bra
                         
                         # H_ij^(SOC)
-                        self.hsoc[i, j] = self.contract_redmat(mult_bra, mult_ket,
-                                                               I_bra, I_ket,
-                                                               M_bra, M_ket,
-                                                               iblock, rindx)
+                        self.hsoc[i, j] = \
+                            self.contract_redmat(mult_bra, mult_ket,
+                                                 I_bra, I_ket,
+                                                 M_bra, M_ket,
+                                                 iblock, rindx)
         
         return
 
@@ -322,7 +319,7 @@ class Spinorbit(interaction.Interaction):
         kval = [-1, 0, 1]
         coe  = [-1., np.sqrt(2.), 1.]
         for n in range(3):
-            i, i12 = self.cgcoe_indx(S_bra, M_bra, S_ket, M_ket, kval[n])
+            i, i12  = self.cgcoe_indx(S_bra, M_bra, S_ket, M_ket, kval[n])
             hscale += self.h1e[n, :, :] * self.cgcoe[iblock][i12, i] * coe[n]
             
         # H_SOC matrix element: 1/2 Sum_pq redmat_pq hscale_pq
@@ -374,3 +371,71 @@ class Spinorbit(interaction.Interaction):
         
         return i, i12
     
+    #
+    def print_hsoc(self):
+
+        # List of all all multiplet indices and projected
+        # spin values
+        stlbl = []        
+        for i in self.init_states:
+            for m in self.M_ket:
+                stlbl.append([self.ket_obj.label, i+1, m])
+        
+        for i in self.final_states:
+            for m in self.M_bra:
+                stlbl.append([self.bra_obj.label, i+1, m])
+
+        # table header
+        llen = max(len(self.ket_obj.label), len(self.bra_obj.label))
+        
+        delim = ' '+'-'*(39+2*llen)
+        print('\n'+delim)
+        
+        fstr = '  {:<'+str(llen)+'}' \
+            + ' {:>3}' \
+            + ' {:>4}' \
+            + '   ' \
+            + ' {:<'+str(llen)+'}' \
+            + ' {:>3}' \
+            + ' {:>4}' \
+            + ' {:>9}'
+
+        print(fstr.format('Bra',
+                          'I',
+                          'M',
+                          'Ket',
+                          'I',
+                          'M',
+                          '<SOC>'))
+        print(delim)
+        
+        # matrix elements
+        fstr = '  {:<'+str(llen)+'}' \
+            + ' {:3d}' \
+            + ' {:4.1f}' \
+            + '   ' \
+            + ' {:<'+str(llen)+'}' \
+            + ' {:3d}' \
+            + ' {:4.1f}' \
+            + ' {:9.4f}' \
+            + ' {:>4}'
+        
+        for i in range(self.hdim):
+            for j in range(0, i):
+
+                soc_cm = np.abs(self.hsoc[i,j]) * constants.au2cm
+
+                if np.abs(soc_cm) > self.print_thresh:
+                    #print(delim)
+                    print(fstr.format(stlbl[i][0],
+                                      stlbl[i][1],
+                                      stlbl[i][2],
+                                      stlbl[j][0],
+                                      stlbl[j][1],
+                                      stlbl[j][2],
+                                      np.abs(soc_cm),
+                                      'cm-1'))
+        # footer
+        print(delim)
+                    
+        return

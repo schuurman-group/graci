@@ -103,6 +103,7 @@ spinorbit_kword = {'init_states'      : int,
                    'all_final_states' : bool,
                    'init_label'       : str,
                    'final_label'      : str,
+                   'print_thresh'     : float,
                    'label'            : str
                    }
 
