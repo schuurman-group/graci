@@ -142,7 +142,8 @@ class Spinorbit(interaction.Interaction):
 
         # print the H_SOC elements
         self.print_hsoc()
-
+        
+        del(self.cgcoe, self.redmat)
     
     #
     def set_spins(self):

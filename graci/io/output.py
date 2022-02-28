@@ -442,8 +442,8 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
                       'Ket',
                       'I',
                       'M',
-                      'Im <SOC>',
-                      'Re <SOC>'))
+                      'Re <SOC>',
+                      'Im <SOC>'))
     print(delim)
 
     # matrix elements
@@ -460,9 +460,9 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
     
     for i in range(hdim):
         for j in range(0, i):
-            
+
             soc_cm = hsoc[i,j] * constants.au2cm
-            
+
             if np.abs(soc_cm) > thrsh:
                 print(fstr.format(stlbl[i][0],
                                   stlbl[i][1],
@@ -476,6 +476,4 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
     # footer
     print(delim)
     
-    sys.exit()
-
     return
