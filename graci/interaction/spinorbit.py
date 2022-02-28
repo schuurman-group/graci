@@ -52,7 +52,11 @@ class Spinorbit(interaction.Interaction):
         # SOC Hamiltonian matrix
         self.hdim       = None
         self.hsoc       = None
-        
+        # eigenpairs of H_SOC
+        self.vec        = None
+        self.eig        = None
+        # List of multiplet indices and projected spins
+        self.stlbl      = None
         
     #
     @timing.timed
@@ -63,9 +67,15 @@ class Spinorbit(interaction.Interaction):
         elements from all states in method object should be used
         """
 
+        # section header
+        output.print_spinorbit_header(self.label)
+        
         # bra and ket total spins, multiplicities, etc
         self.set_spins()
 
+        # bra and ket multiplet indices and M-values
+        self.set_stlbl()
+        
         # first check to see if bra and ket are identical
         if (type(self.bra_obj).__name__ == type(self.ket_obj).__name__ 
             and self.bra_obj.label == self.ket_obj.label):
@@ -86,7 +96,7 @@ class Spinorbit(interaction.Interaction):
             if mol_bra.pymol().atom != mol_ket.pymol().atom:
                 sys.exit('spin-orbit coupling requires same geometry'+
                          ' and basis set')
-
+                
         # construct the trans_list arrays for each of the
         # bra-bra, ket-ket and bra-ket blocks of H_SOC
         # currently store them as [initial state, final state]
@@ -140,9 +150,15 @@ class Spinorbit(interaction.Interaction):
             # finalize the bitsi library
             bitsi_init.finalize()
 
+        # add in the on-diagonal elements
+        self.hsoc_ondiag()
+
+        # diagonalise H_soc
+        self.eig, self.vec = np.linalg.eigh(self.hsoc)
+
         # print the H_SOC elements
         self.print_hsoc()
-        
+
         del(self.cgcoe, self.redmat)
     
     #
@@ -174,7 +190,24 @@ class Spinorbit(interaction.Interaction):
                      +'in spinorbit')
         
         return
+
+    
+    #
+    def set_stlbl(self):
+        """
+        list of all all multiplet indices and projected spin values
+        """
         
+        self.stlbl = []
+        
+        for i in self.init_states:
+            for m in self.M_ket:
+                self.stlbl.append([self.ket_obj.label, i, m])
+        
+        for i in self.final_states:
+            for m in self.M_bra:
+                self.stlbl.append([self.bra_obj.label, i, m])
+    
     #
     @timing.timed
     def build_redmat(self, bra, ket, iblock):
@@ -294,10 +327,28 @@ class Spinorbit(interaction.Interaction):
                                                  I_bra, I_ket,
                                                  M_bra, M_ket,
                                                  iblock, rindx)
-        
+                        self.hsoc[j, i] = np.conj(self.hsoc[i, j])
+                        
         return
 
     
+    #
+    def hsoc_ondiag(self):
+        """
+        Adds the on-diagonal elements of H_SOC
+        """
+
+        for i in range(self.hdim):
+
+            indx = self.stlbl[i][1]
+            
+            if self.stlbl[i][0] == self.bra_obj.label:
+                self.hsoc[i ,i] = self.bra_obj.mrci_ener[indx]
+            else:
+                self.hsoc[i ,i] = self.ket_obj.mrci_ener[indx]
+        
+        return
+        
     #
     def contract_redmat(self, mult_bra, mult_ket, I_bra, I_ket,
                         M_bra, M_ket, iblock, rindx):
@@ -370,29 +421,19 @@ class Spinorbit(interaction.Interaction):
         i12 = (i1 - 1) * 3 + i2 - 1
         
         return i, i12
-    
+
+
     #
     def print_hsoc(self):
         """
         prints the SOC values to the log file
         """
-
-        # section header
-        output.print_spinorbit_header(self.label)
-        
-        # List of all all multiplet indices and projected
-        # spin values
-        stlbl = []        
-        for i in self.init_states:
-            for m in self.M_ket:
-                stlbl.append([self.ket_obj.label, i+1, m])
-        
-        for i in self.final_states:
-            for m in self.M_bra:
-                stlbl.append([self.bra_obj.label, i+1, m])
                 
         # output the SOC matrix elements
-        output.print_spinorbit_table(self.hsoc, self.hdim, stlbl,
+        output.print_spinorbit_table(self.hsoc, self.hdim, self.stlbl,
                                      self.print_thresh)
-                    
+
+        # output the eigenvectors of H_SOC
+        output.print_hsoc_eig(self.eig, self.vec, self.hdim, self.stlbl)
+        
         return
