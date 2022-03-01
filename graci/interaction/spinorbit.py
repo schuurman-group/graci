@@ -60,6 +60,9 @@ class Spinorbit(interaction.Interaction):
         self.stlbl      = None
         # MF density matrix (AO basis)
         self.rho_ao     = None
+
+        # allowed MF 2e integral schemes
+        self.allowed_mf2e = ['off', 'atomic', 'full']
         
     #
     @timing.timed
@@ -72,6 +75,12 @@ class Spinorbit(interaction.Interaction):
 
         # section header
         output.print_spinorbit_header(self.label)
+
+        # check on the MF 2e integral scheme
+        if self.mf2e not in self.allowed_mf2e:
+            print('\n Unrecognised mf2e value: '+self.mf2e
+                  +'\n Allowed values: '+str(self.allowed_mf2e))
+            sys.exit()
         
         # bra and ket total spins, multiplicities, etc
         self.set_spins()
@@ -220,21 +229,18 @@ class Spinorbit(interaction.Interaction):
         """
         sets up the mean-field density matrix
         """
+        nsta = len(self.init_states) + len(self.final_states)
+        nmo    = self.bra_obj.scf.nmo
 
         # Average density matrix across states
-        nmo    = self.bra_obj.scf.nmo
         rho_mo = np.zeros((nmo, nmo), dtype=float)
 
         for i in self.init_states:
-            rho_mo += self.ket_obj.dmat[i, :, :]
+            rho_mo += self.ket_obj.dmat[i, :, :] / nsta
 
         for i in self.final_states:
-            rho_mo += self.bra_obj.dmat[i, :, :]
-
-        nsta = len(self.init_states) + len(self.final_states)
-
-        rho_mo = rho_mo / nsta
-
+            rho_mo += self.bra_obj.dmat[i, :, :] / nsta
+        
         # Transform to the AO basis
         orbs        = self.bra_obj.scf.orbs
         self.rho_ao = np.matmul(np.matmul(orbs, rho_mo), orbs.T)
@@ -323,8 +329,8 @@ class Spinorbit(interaction.Interaction):
     #
     def build_mf_atomic(self, mol):
         """
-        builds the one-centre approximation to the mean-field
-        two-electron SOC integrals
+        builds the atomic one-centre approximation to the
+        mean-field two-electron SOC integrals
         """
 
         # function result
@@ -375,8 +381,8 @@ class Spinorbit(interaction.Interaction):
         # Number of bra and ket multiplets in this block
         fstring = self.ifdict[self.blkstr[iblock][0]]
         istring = self.ifdict[self.blkstr[iblock][1]]
-        nm_bra = len(getattr(self, fstring+'_states'))
-        nm_ket = len(getattr(self, istring+'_states'))
+        nm_bra  = len(getattr(self, fstring+'_states'))
+        nm_ket  = len(getattr(self, istring+'_states'))
 
         # Multiplicities in this block
         mult_bra = getattr(self, 'mult_'+self.blkstr[iblock][0])
@@ -439,14 +445,13 @@ class Spinorbit(interaction.Interaction):
         < I_bra M_bra | H_SOC | I_ket M_ket >
         of the SOC Hamiltonian matrix via the contraction
         of the reduced matrices with the Clebsch-Gordan coefficient-
-        scaled one-electron SO matrices h^(k), k=-1,0,+1
+        scaled one-electron SOC matrices h^(k), k=-1,0,+1
         """
 
         S_ket = (mult_ket - 1) / 2
         S_bra = (mult_bra - 1) / 2
         
-        # Sum of Clebsch-Gordan coefficient scaled one-electron
-        # SO matrices
+        # Sum of the scaled one-electron SOC matrices
         nmo    = self.bra_obj.scf.nmo
         hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
         kval   = [-1, 0, 1]
@@ -455,8 +460,8 @@ class Spinorbit(interaction.Interaction):
             i, i12  = self.cgcoe_indx(S_bra, M_bra, S_ket, M_ket, kval[n])
             hscale += self.h1e[2-n, :, :] * self.cgcoe[iblock][i12, i] * coe[n]
         
-        # H_SOC matrix element: 1/2 Sum_pq redmat_pq hscale_pq
-        hij = 0.5*np.einsum('ij,ij', self.redmat[iblock][:, :, rindx], hscale)
+        # Contraction with the reduced matrix
+        hij = 0.5 * np.einsum('ij,ij', self.redmat[iblock][:, :, rindx], hscale)
 
         return hij
 
