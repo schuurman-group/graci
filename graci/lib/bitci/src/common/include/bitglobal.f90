@@ -49,13 +49,11 @@ module bitglobal
   !
   integer(is)              :: nspincp(2)      ! Number of unique spin coupling
                                               ! coefficients 
-  integer(is)              :: npattern1,&     ! Number of Case 1 and Case 2
-                              npattern2       ! patterns
   integer(ib), allocatable :: N1s(:)          ! Bit strings comprised of N 1's
 
-  integer(is), allocatable :: patternmap(:)   ! Pattern value -> array index
+  integer(is), allocatable :: patmap(:)       ! Pattern value -> array index
                                               ! mapping
-  integer(is)              :: offspincp(4)    ! Spincp array offsets for the
+  integer(is), allocatable :: offspincp(:)    ! Spincp array offsets for the
                                               ! different coefficient cases
   real(dp), allocatable    :: spincp(:)       ! All spin coupling coefficients
   
@@ -167,5 +165,45 @@ module bitglobal
   integer(is) :: nelB,nelB_alpha,nelB_beta,nelB_spin(2)
   integer(is) :: nelK,nelK_alpha,nelK_beta,nelK_spin(2)
 
+  !
+  ! Bra and ket CSFs
+  !
+  integer(is)              :: ncsfsB(0:nocase2),& ! Number of CSFs as a function of
+                              ncsfsK(0:nocase2)   ! the number of open shells
+  integer(is)              :: maxcsfB,maxcsfK     ! Maximum number of CSFs across
+                                                  ! all numbers of open shells
+  real(dp), allocatable    :: csfcoeB(:,:,:),&    ! CSF expansion coefficients
+                              csfcoeK(:,:,:)
+  integer(is)              :: ndetsB(0:nocase2),& ! Number of determinants as a
+                              ndetsK(0:nocase2)   ! function of the number of open
+                                                  ! shells
+  integer(is)              :: maxdetB,maxdetK     ! Maximum number of determinants
+                                                  ! across all numbers of open
+                                                  ! shells
+  integer(ib), allocatable :: detvecB(:,:),&      ! Encoding of the determinants
+                              detvecK(:,:)        ! contributing to the CSFs
+
+  !
+  ! Triplet spin-coupling coefficients
+  !
+  real(dp), allocatable    :: spincp_plus(:)    ! k=+1 spin-coupling coefficients
+  real(dp), allocatable    :: spincp_minus(:)   ! k=-1 spin-coupling coefficients
+  integer(is), allocatable :: patmap1(:)        ! Case 1 pattern value -> array index
+                                                ! mapping
+  integer(is), allocatable :: patmap2a_plus(:)  ! Case 2a pattern value -> array index
+                                                ! mapping, k=+1
+  integer(is), allocatable :: patmap2b_plus(:)  ! Case 2b pattern value -> array index
+                                                ! mapping, k=-1
+  integer(is), allocatable :: patmap2a_minus(:) ! Case 2a pattern value -> array index
+                                                ! mapping, k=-1
+  integer(is), allocatable :: patmap2b_minus(:) ! Case 2b pattern value -> array index
+                                                ! mapping, k=-1
+
+  integer(is), allocatable :: offplus(:)        ! k=+1 spincp array offsets for the
+                                                ! different coefficient cases
+  integer(is), allocatable :: offminus(:)       ! k=-1 spincp array offsets for the
+                                                ! different coefficient cases
+
+  
 end module bitglobal
 

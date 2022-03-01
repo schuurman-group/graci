@@ -26,7 +26,7 @@ def generate(ci_method):
     nmo = ci_method.scf.nmo
 
     # orbital occupations
-    occ = ci_method.scf.orb_occ
+    occ = ci_method.ref_occ
 
     # Number of orbitals in RAS1, RAS2, and RAS3
     m1 = ci_method.ras1.size
@@ -98,7 +98,7 @@ def autoras(ci_method):
     nmo = ci_method.scf.nmo
 
     # orbital occupations
-    orb_occ = ci_method.scf.orb_occ
+    orb_occ = ci_method.ref_occ
 
     # orbital energies
     orb_ener = ci_method.scf.orb_ener

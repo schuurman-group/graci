@@ -1,18 +1,19 @@
 !**********************************************************************
-! Calculation of 1-TDMs for MRCI wavefunctions
+! redmat_mrci: For the given bra/ket total spins S_B/S_K, returns the
+!              reduced matrix elements
+!
+!              U_ij = < S_B I || T_ij^(1) || S_K J >
+!
+!              for the requested states pairs (I,J) of MRCI
+!              wavefunctions
 !**********************************************************************
-
-!######################################################################
-! transition_density_mrci: Controls the calculation of MRCI 1-TDMs
-!######################################################################
 #ifdef CBINDING
-subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
-     npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
-     vecfileK_in) bind(c,name='transition_density_mrci')
+subroutine redmat_mrci(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+     uij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in) &
+     bind(c,name='redmat_mrci')
 #else
-subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
-     npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
-     vecfileK_in)
+subroutine redmat_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+     uij,conffileB_in,vecfileB_in,conffileK_in,vecfileK_in)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -21,8 +22,9 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   use iomod
   use conftype
   use merge
-  use tdm
-    
+  use triplet_tdm
+  use redmat
+  
   implicit none
 
   ! MRCI configuration and eigenvector file names
@@ -46,8 +48,8 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   integer(is), intent(in)  :: npairs
   integer(is), intent(in)  :: iroots(npairs,2)
   
-  ! Transition density matrix
-  real(dp), intent(out)    :: rhoij(nmo,nmo,npairs)
+  ! Reduced matrix elements
+  real(dp), intent(out)    :: uij(nmo,nmo,npairs)
 
   ! MRCI configuration derived types
   type(mrcfg)              :: cfgB,cfgK
@@ -59,22 +61,19 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   real(dp), allocatable    :: vecB(:,:),enerB(:),vecK(:,:),enerK(:)
   
   ! Everything else
-  integer(is)              :: i,j,k
+  integer(is)              :: i,j,k,kindx
   integer(is)              :: nvecB,nvecK
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: Bmap(:),Kmap(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
-  
+
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
   write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') &
-       'Transition density matrix calculation for the',&
-       trim(irreplbl(irrepB,ipg)),' &',trim(irreplbl(irrepK,ipg)),&
-       'subspaces'
+  write(6,'(3(x,a))') 'Triplet transition density matrix calculation'
   write(6,'(52a)') ('-',i=1,52)
-  
+
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the MRCI configuration and
 ! eigenvector file names from the C char type to the Fortran character
@@ -95,7 +94,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   conffileK=adjustl(trim(conffileK_in))
   vecfileK=adjustl(trim(conffileK_in))
 #endif
-  
+
 !----------------------------------------------------------------------
 ! Register the configuration and eigenvector scratch files
 !----------------------------------------------------------------------
@@ -104,7 +103,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
 
   call register_scratch_file(confscrK,conffileK)
   call register_scratch_file(vecscrK,vecfileK)
-
+  
 !----------------------------------------------------------------------
 ! Set up the bra and ket configuration derived types
 !----------------------------------------------------------------------
@@ -113,7 +112,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   
   write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
   write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
-
+  
 !----------------------------------------------------------------------
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------
@@ -196,13 +195,29 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
 
   ! Read in the eigenvectors
   call read_some_eigenpairs(vecscrK,vecK,enerK,cfgK%csfdim,nvecK,ireadK)
-  
-!----------------------------------------------------------------------
-! Compute the 1-TDMs
-!----------------------------------------------------------------------
-  call tdm_mrci(cfgB,cfgK,cfgB%csfdim,cfgK%csfdim,nvecB,nvecK,vecB,&
-       vecK,npairs,rhoij,Bmap,Kmap)
 
+!----------------------------------------------------------------------
+! Compute the triplet TDMs
+! < S_B M_B=S_B I | T_ij^(1,k) | S_K M_K=S_K J >
+!----------------------------------------------------------------------
+  ! Component of the triplet spin tensor operator
+  if (imultB == imultK) then
+     kindx=0
+  else
+     kindx=1
+  endif
+
+  ! Compute the triplet TDMs
+  call triplet_tdm_mrci(kindx,cfgB,cfgK,cfgB%csfdim,cfgK%csfdim,&
+       nvecB,nvecK,vecB,vecK,npairs,uij,Bmap,Kmap)
+
+!----------------------------------------------------------------------
+! Divide the triplet TDMs byt the Clebsch-Gordan coefficient
+! < S_K S_K; 1 k | S_B S_B > to yield the reduced matrix
+! elements < S_B I || T_ij^(1) || S_K J >
+!----------------------------------------------------------------------
+  call reduced_matrix(kindx,npairs,uij)
+  
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -225,5 +240,48 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   flush(6)
   
   return
-    
-end subroutine transition_density_mrci
+  
+end subroutine redmat_mrci
+
+!**********************************************************************
+! cgcoeff_soc: for the current bra and ket spin multiplicities,
+!              returns all the Clebsch-Gordan coefficients needed
+!              to compute SOC matrix elements from the reduced matrix
+!              elements
+!**********************************************************************
+#ifdef CBINDING
+subroutine cgcoeff_soc(n12,ntot,cg) bind(c,name='cgcoeff_soc')
+#else
+subroutine cgcoeff_soc(n12,ntot,cg)
+#endif
+
+  use constants
+  use bitglobal
+  use clebsch_gordan
+  
+  implicit none
+
+  ! Clebsch-Gordan coefficient tensor
+  integer(is), intent(in) :: n12,ntot
+  real(dp), intent(out)   :: cg(n12,ntot)
+
+  ! Everything else
+  real(dp)                :: j1,j2,J
+  
+!----------------------------------------------------------------------
+! Compute the full tensor of Clebsch-Gordan coefficients
+! < S_K M_K; 1 k | S_B M_B >
+!----------------------------------------------------------------------
+  ! Angular momenta to be coupled
+  j1=0.5d0*(dble(imultK)-1.0d0)
+  j2=1.0d0
+
+  ! Total angular momentum
+  J=0.5d0*(dble(imultB)-1.0d0)
+
+  ! Compute the coefficients
+  call cgcoeff(j1,j2,J,cg)
+  
+  return
+  
+end subroutine cgcoeff_soc

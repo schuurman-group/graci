@@ -104,8 +104,8 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
 !----------------------------------------------------------------------
   call cfg%initialise(irrep,confscr(irrep))
 
-  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
-
+  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:     ',cfg%csfdim
+  
 !----------------------------------------------------------------------
 ! Memory required to store the configuration bit strings
 !----------------------------------------------------------------------

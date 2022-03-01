@@ -396,3 +396,131 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
 
     return
 
+
+def print_spinorbit_header(label):
+    """ print out Spinorbit section header"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'Spinorbit, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN)+'\n')
+        outfile.flush()
+
+    return
+
+def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
+    """print out the summary files for the SOC matrix elements"""
+
+    # max bra/ket label length
+    llen = max([len(lbl[0]) for lbl in stlbl])
+
+    # table header
+    delim = ' '+'-'*(53+2*llen)
+    print('\n'+delim)
+    fstr = '  {:<'+str(llen)+'}' \
+        + ' {:>3}' \
+        + ' {:>4}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:>3}' \
+        + ' {:>4}' \
+        + ' {:>11}' \
+        + ' {:>11}' \
+    
+    print(fstr.format('Bra',
+                      'I',
+                      'M',
+                      'Ket',
+                      'I',
+                      'M',
+                      'Re <SOC>',
+                      'Im <SOC>'))
+    print(delim)
+
+    # matrix elements
+    fstr = '  {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + ' {:4.1f}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + ' {:4.1f}' \
+        + ' {:11.4f}' \
+        + ' {:11.4f}' \
+        + ' {:>4}'
+    
+    for i in range(hdim):
+        for j in range(0, i):
+
+            soc_cm = hsoc[i,j] * constants.au2cm
+
+            if np.abs(soc_cm) > thrsh:
+                print(fstr.format(stlbl[i][0],
+                                  stlbl[i][1] + 1,
+                                  stlbl[i][2],
+                                  stlbl[j][0],
+                                  stlbl[j][1] + 1,
+                                  stlbl[j][2],
+                                  np.real(soc_cm),
+                                  np.imag(soc_cm),
+                                  'cm-1'))
+    
+    # footer
+    print(delim)
+    
+    return
+
+def print_hsoc_eig(eig, vec, hdim, stlbl):
+    """print out the summary of the eigenpairs of H_SOC"""
+
+    # max bra/ket label length
+    llen = max([len(lbl[0]) for lbl in stlbl])
+
+    thrsh = 1e-3
+
+    delim = ' '+'-'*(31+llen)
+    
+    fstr_en = '  State {:3d}:' \
+        + ' {:10.4f},' \
+        + ' {:10.4f} eV'
+
+    fstr_vec = '  ({:7.4f}, {:7.4f})' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + ' {:4.1f}'
+
+    
+    for i in range(hdim):
+
+        print('\n'+delim)
+        
+        print(fstr_en.format(
+            i+1,
+            eig[i],
+            (eig[i] - eig[0]) * constants.au2ev))
+
+        print(delim)
+
+        indx = np.flip(np.argsort(np.abs(vec[:, i])))
+
+        for j in range(hdim):
+            if np.abs(vec[indx[j], i]) > thrsh:
+                print(fstr_vec.format(
+                    np.real(vec[indx[j], i]),
+                    np.imag(vec[indx[j], i]),
+                    stlbl[indx[j]][0],
+                    stlbl[indx[j]][1] + 1,
+                    stlbl[indx[j]][2],))
+
+        print(delim)
+                
+    return

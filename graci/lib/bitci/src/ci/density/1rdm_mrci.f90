@@ -8,7 +8,7 @@ module rdm
   implicit none
 
   ! Spin-coupling coefficients
-  real(dp), allocatable, private :: scp(:)
+  real(dp), allocatable, private :: scc(:)
   
 contains
 
@@ -62,8 +62,8 @@ contains
     rho=0.0d0
 
     arrdim=maxval(ncsfs(0:nomax))**2
-    allocate(scp(arrdim))
-    scp=0.0d0
+    allocate(scc(arrdim))
+    scc=0.0d0
 
 !----------------------------------------------------------------------
 ! (1) On-diagonal elements
@@ -103,7 +103,7 @@ contains
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-    deallocate(scp)
+    deallocate(scc)
     
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -117,8 +117,8 @@ contains
   end subroutine rdm_mrci
 
 !######################################################################
-! rdm_mrci_ondiag: Calculation of the on-diagonal elements of the MRCI
-!                  1-RDMs
+! rdm_mrci_diag: Calculation of the on-diagonal elements of the MRCI
+!                1-RDMs
 !######################################################################
   subroutine rdm_diag(cfg,csfdim,nroots,vec,rho)
 
@@ -564,7 +564,7 @@ contains
                plist(1:nexci),nexci)
 
           ! Get the spin-coupling coefficients
-          scp(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop_full,plist(1),&
+          scc(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop_full,plist(1),&
                hlist(1),knopen,nbefore)
           
           ! Idices of the 1-RDM elements
@@ -591,7 +591,7 @@ contains
                    counter=counter+1
                    
                    ! Contribution to the 1-RDM
-                   prod=kcoe*bcoe*scp(counter)
+                   prod=kcoe*bcoe*scc(counter)
                    rho(i,a,ista)=rho(i,a,ista)+prod
                    rho(a,i,ista)=rho(a,i,ista)+prod
                    
@@ -1632,7 +1632,7 @@ contains
        call get_exci_indices(kconf,bconf,n_int,hlist(1),plist(1),1)
 
        ! Get the spin-coupling coefficients
-       scp(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),hlist(1),&
+       scc(1:knsp*bnsp)=spincp_coeff(knsp,bnsp,ksop,plist(1),hlist(1),&
             knopen,knbefore)
        
        ! Idices of the 1-RDM elements
@@ -1662,7 +1662,7 @@ contains
                 if (same_class .and. ibcsf < ikcsf) cycle
                 
                 ! Contribution to the 1-RDM
-                prod=kcoe*bcoe*scp(counter)
+                prod=kcoe*bcoe*scc(counter)
                 rho(i,a,ista)=rho(i,a,ista)+prod
                 rho(a,i,ista)=rho(a,i,ista)+prod
                 

@@ -247,7 +247,11 @@ contains
        ! Cycle if the number of open shells is greater than nomax
        nopen=sop_nopen(key,n_int)
        if (nopen > nomax) cycle
-        
+
+       ! Cycle if the spin multiplicity cannot be supported by the
+       ! number of open shells
+       if (nopen < imult-1) cycle
+       
        ! Cycle if the excitation degree relative to the base
        ! determinant is greater than nexmax
        nexci=exc_degree_det(det(:,:,i),det0)

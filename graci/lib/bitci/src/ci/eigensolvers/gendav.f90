@@ -25,11 +25,16 @@ module gendav
   integer(is), allocatable :: s2f(:)
   integer(is), allocatable :: idiag(:)
   real(dp), allocatable    :: subeig(:),subvec(:,:)
-  real(dp), allocatable    :: work(:)
+
+  ! Work arrays
+  real(dp), allocatable    :: work(:),work2(:,:)
   
   ! Counters, etc.
   integer(is)              :: currdim,nconv,nnew,nsigma
   integer(is), allocatable :: iconv(:)
+
+  ! Timers
+  real(dp)                 :: times(2,4)
   
 contains
 
@@ -151,6 +156,13 @@ contains
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
+    ! Individual timers
+    call report_times(times(1,1),times(2,1),'sigma_vectors')
+    call report_times(times(1,2),times(2,2),'subspace_hamiltonian')
+    call report_times(times(1,3),times(2,3),'residual_vectors')
+    call report_times(times(1,4),times(2,4),'subspace_vectors')
+    
+    ! Total times
     call get_times(twall_end,tcpu_end)
     call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'generalised_davidson')
@@ -192,15 +204,18 @@ contains
     endif
 
 !----------------------------------------------------------------------
+! Initialise the gendav timers
+!----------------------------------------------------------------------
+    times=0.0d0
+    
+!----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     ! Subspace vectors
-    !allocate(bvec(maxvec,matdim))
     allocate(bvec(matdim,maxvec))
     bvec=0.0d0
     
     ! Sigma vectors
-    !allocate(sigvec(maxvec,matdim))
     allocate(sigvec(matdim,maxvec))
     sigvec=0.0d0
 
@@ -219,7 +234,7 @@ contains
     ! Residual norms
     allocate(rnorm(blocksize))
     rnorm=0.0d0
-
+    
     ! Convergence flags
     allocate(iconv(blocksize))
     iconv=0
@@ -229,12 +244,12 @@ contains
     allocate(idiag(matdim))
     idiag=0
 
-    ! Generalised Davidson correction vector work array
-    if (ipre == 2) then
-       allocate(work(matdim))
-       work=0.0d0
-    endif
-    
+    ! Work array
+    allocate(work(matdim))
+    allocate(work2(matdim,blocksize))
+    work=0.0d0
+    work2=0.0d0
+        
     return
     
   end subroutine gdavinit
@@ -259,6 +274,7 @@ contains
     if (allocated(subeig)) deallocate(subeig)
     if (allocated(subvec)) deallocate(subvec)
     if (allocated(work)) deallocate(work)
+    if (allocated(work2)) deallocate(work2)
     
     return
     
@@ -462,6 +478,7 @@ contains
     use constants
     use sigma_mrci
     use iomod
+    use timing
     
     implicit none
 
@@ -482,9 +499,18 @@ contains
     !
     integer(is), intent(in) :: isigma(3)
 
+    ! Timing variables
+    real(dp)                     :: tcpu_start,tcpu_end,twall_start,&
+                                    twall_end
+    
     ! Everything else
     integer(is)             :: ki,kf
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Update the total no. sigma vector calculations
 !----------------------------------------------------------------------
@@ -511,6 +537,13 @@ contains
        call sigma_disk(isigma(2),isigma(3),matdim,nnew,&
             bvec(:,ki:kf),sigvec(:,ki:kf),hdiag)
     end select
+
+!----------------------------------------------------------------------
+! End timing and update the sigma vector timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,1)=times(1,1)+twall_end-twall_start
+    times(2,1)=times(2,1)+tcpu_end-tcpu_start
     
     return
     
@@ -523,31 +556,62 @@ contains
   subroutine subspace_hamiltonian(matdim,blocksize)
 
     use constants
+    use timing
     
     implicit none
 
     ! Dimensions
     integer(is), intent(in) :: matdim,blocksize
 
+    ! Work array
+    real(dp), allocatable   :: bsigma(:,:)
+    
+    ! Timing variables
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
+    
     ! Everything else
-    integer(is)             :: i,j,j1
+    integer(is)             :: i,j,j1,i1,i2
 
-    ! Loop over subspace vectors
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(bsigma(currdim,nnew))
+
+!----------------------------------------------------------------------
+! Compute the subspace Hamiltonian matrix elements
+!----------------------------------------------------------------------
+    ! b^T sigma matrix product
+    i1=currdim-nnew+1
+    i2=currdim
+    call dgemm('T','N',currdim,nnew,matdim,1.0d0,bvec(:,1:i2),matdim,&
+         sigvec(:,i1:i2),matdim,0.0d0,bsigma,currdim)
+
+    ! Fill in the Gmat array
     do i=1,currdim
-
-       ! Loop over new sigma vectors
        do j=1,nnew
-       
-          ! Index of the subspace and sigma vectors
           j1=currdim-nnew+j
-          
-          ! G_ij = < b_i | H | b_j > = < b_i | sigma_j >
-          Gmat(i,j1)=dot_product(bvec(:,i),sigvec(:,j1))
+          Gmat(i,j1)=bsigma(i,j)
           Gmat(j1,i)=Gmat(i,j1)
-          
        enddo
-
     enddo
+
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(bsigma)
+    
+!----------------------------------------------------------------------
+! End timing and update the subspace Hamiltonian construction timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,2)=times(1,2)+twall_end-twall_start
+    times(2,2)=times(2,2)+tcpu_end-tcpu_start
     
     return
     
@@ -584,6 +648,7 @@ contains
 
     use constants
     use iomod
+    use timing
     
     implicit none
 
@@ -594,63 +659,94 @@ contains
     real(dp), intent(in)    :: tol
 
     ! Working arrays
-    real(dp), allocatable   :: rvec(:)
-        
-    ! Everything else
-    integer(is)             :: ki,kf,k,k1,i,inc
+    real(dp), allocatable   :: alpha_bar(:,:)
     
+    ! Timing variables
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
+    
+    ! Everything else
+    integer(is)             :: ki,kf,k,k1,i
+
     !******************************************************************
-    ! r_k = Sum_i alpha_ik * (sigma_k - rho_k b_i),
+    ! r_k = Sum_i alpha_ik * (sigma_i - rho_k b_i),
     !
     ! where alpha_k and rho_k are the subspace eigenpairs, and sigma
     ! and b are the sigma and subspace vectors.    
     !******************************************************************
 
 !----------------------------------------------------------------------
-! Allocate arrays
+! Start timing
 !----------------------------------------------------------------------
-    allocate(rvec(matdim))
-    rvec=0
+    call get_times(twall_start,tcpu_start)
     
 !----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(alpha_bar(currdim,blocksize))
+        
+!----------------------------------------------------------------------
 ! Compute the residual vectors
-! r_k = Sum_i alpha_ik * (sigma_k - rho_k b_i),
+! r_k = Sum_i alpha_ik * (sigma_i - rho_k b_i),
+!----------------------------------------------------------------------
+    ! (alpha_bar)_ik = alpha_ik * rho_K
+    do k=1,blocksize
+       do i=1,currdim
+          alpha_bar(i,k)=alpha(i,k)*rho(k)
+       enddo
+    enddo
+    
+    ! sigma alpha
+    call dgemm('N','N',matdim,blocksize,currdim,1.0d0,&
+         sigvec(1:matdim,1:currdim),matdim,&
+         alpha(1:currdim,1:blocksize),currdim,&
+         0.0d0,work2,matdim)
+
+    ! sigma alpha - b alpha_bar
+    call dgemm('N','N',matdim,blocksize,currdim,-1.0d0,&
+         bvec(1:matdim,1:currdim),matdim,&
+         alpha_bar(1:currdim,1:blocksize),currdim,&
+         1.0d0,work2,matdim)
+
+!----------------------------------------------------------------------
+! Save the residual vectors for the unconverged roots
 !----------------------------------------------------------------------
     ! Initialisation
     ki=currdim+1
     kf=currdim+nnew
     bvec(:,ki:kf)=0.0d0
-
+    
     ! Loop over roots
     nnew=0
     do k=1,blocksize
 
-       ! Compute the residual vector
-       rvec=0.0d0
-       do i=1,currdim
-          rvec=rvec+alpha(i,k)*(sigvec(:,i)-rho(k)*bvec(:,i))          
-       enddo
-
        ! Residual norm
-       rnorm(k)=sqrt(dot_product(rvec,rvec))
-
+       rnorm(k)=sqrt(dot_product(work2(:,k),work2(:,k)))
+    
        ! Update the convergence information
        if (rnorm(k) < tol) iconv(k)=1
-
+    
        ! Save the residual vector and corresponding eigenvalue if it
        ! corresponds to an unconverged root
        if (iconv(k) == 0) then
           nnew=nnew+1
-          bvec(:,ki-1+nnew)=rvec
+          bvec(:,ki-1+nnew)=work2(:,k)
           rho1(nnew)=rho(k)
        endif
        
     enddo
-    
+        
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-    deallocate(rvec)
+    deallocate(alpha_bar)
+    
+!----------------------------------------------------------------------
+! End timing and update the residual vector timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,3)=times(1,3)+twall_end-twall_start
+    times(2,3)=times(2,3)+tcpu_end-tcpu_start
     
     return
     
@@ -773,21 +869,35 @@ contains
   subroutine subspace_vectors(matdim,blocksize,tol)
 
     use constants
+    use utils
+    use timing
     
     implicit none
 
     ! Dimensions
-    integer(is), intent(in)  :: matdim,blocksize
+    integer(is), intent(in) :: matdim,blocksize
 
     ! Convergence threshold
-    real(dp), intent(in)     :: tol
+    real(dp), intent(in)    :: tol
 
     ! Orthogonalised correction vector norms
-    real(dp)                 :: bnorm(blocksize)
-      
-    ! Everything else
-    integer(is)              :: ki,kf,k,k1,i,n
+    real(dp)                :: bnorm(blocksize)
 
+    ! Overlaps, etc
+    real(dp), allocatable   :: Smat(:,:),Sinvsq(:,:)
+    
+    ! Timing variables
+    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
+                               twall_end
+    
+    ! Everything else
+    integer(is)             :: ki,kf,k,k1,i,n
+
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Indices of the positions in the bvec array in which the new subspace
 ! vectors will be stored
@@ -795,39 +905,93 @@ contains
     ki=currdim+1
     kf=currdim+nnew
     
+!!----------------------------------------------------------------------
+!! Old: compute the (non-normalised) new subspace vectors using MGS
+!!      orthogonalisation    
+!!----------------------------------------------------------------------
+!    ! Loop over correction vectors
+!    k1=0
+!    do k=ki,kf
+!       k1=k1+1
+!    
+!       ! Orthogonalise the correction vector against all previous
+!       ! subspace vectors
+!       do i=1,k-1
+!          bvec(:,k)=bvec(:,k) &
+!               -dot_product(bvec(:,k),bvec(:,i))*bvec(:,i) &
+!               /dot_product(bvec(:,i),bvec(:,i))
+!       enddo
+!    
+!       ! Norm of the orthogonalised correction vector
+!       bnorm(k1)=sqrt(dot_product(bvec(:,k),bvec(:,k)))
+!       
+!    enddo
+!
+!!----------------------------------------------------------------------
+!! Expand the subspace by adding orthonormalised correction vectors 
+!!----------------------------------------------------------------------
+!    ! Loop over orthogonalised correction vectors
+!    n=0
+!    do k=ki,kf
+!       
+!       ! Add the orthonormalised correction vector to the subspace
+!       n=n+1
+!       bvec(:,k)=bvec(:,k)/bnorm(n)
+!    
+!    enddo
+
 !----------------------------------------------------------------------
-! Compute the (non-normalised) new subspace vectors
+! New orthonormalisation of the correction vectors
 !----------------------------------------------------------------------
-    ! Loop over correction vectors
+! Performed in two steps:
+!
+! (1) Gram-Schmidt orthogonalisation against the previous subspace
+!     vectors
+!
+! (2) Symmetric orthogonalisation within the space spanned by the
+!     intermediately orthogonalised correction vectors from (1)
+!----------------------------------------------------------------------
+    ! Overlaps between the previous subspace vectors and the correction
+    ! vectors
+    allocate(Smat(currdim,nnew))
+    call dgemm('T','N',currdim,nnew,matdim,1.0d0,bvec(:,1:currdim),&
+         matdim,bvec(:,ki:kf),matdim,0.0d0,Smat,currdim)
+
+    ! GS orthogonalisation of the correction vectors against the previous
+    ! subspace vectors
     k1=0
     do k=ki,kf
        k1=k1+1
-
-       ! Orthogonalise the correction vector against all previous
-       ! subspace vectors
-       do i=1,k-1
-          bvec(:,k)=bvec(:,k) &
-               -dot_product(bvec(:,k),bvec(:,i))*bvec(:,i) &
-               /dot_product(bvec(:,i),bvec(:,i))
+       do i=1,currdim
+          bvec(:,k)=bvec(:,k)-Smat(i,k1)*bvec(:,i)
        enddo
-
-       ! Norm of the orthogonalised correction vector
-       bnorm(k1)=sqrt(dot_product(bvec(:,k),bvec(:,k)))
-       
+       bvec(:,k)=bvec(:,k)/sqrt(dot_product(bvec(:,k),bvec(:,k)))
     enddo
+
+    ! Overlaps between the intermediately orthogonalised correction
+    ! vectors
+    deallocate(Smat)
+    allocate(Smat(nnew,nnew))
+    call dgemm('T','N',nnew,nnew,matdim,1.0d0,bvec(:,ki:kf),matdim,&
+         bvec(:,ki:kf),matdim,0.0d0,Smat,nnew)
     
-!----------------------------------------------------------------------
-! Expand the subspace by adding orthonormalised correction vectors 
-!----------------------------------------------------------------------
-    ! Loop over orthogonalised correction vectors
-    n=0
-    do k=ki,kf
-       
-       ! Add the orthonormalised correction vector to the subspace
-       n=n+1
-       bvec(:,k)=bvec(:,k)/bnorm(n)
+    ! Inverse square root of the overlap matrix
+    allocate(Sinvsq(nnew,nnew))
+    call invsqrt_matrix(Smat,Sinvsq,nnew)
+    
+    ! Symmetric orthogonalisation of the intermediately orthogonalised
+    ! correction vectors amongst themselves
+    call dgemm('N','N',matdim,nnew,nnew,1.0d0,bvec(:,ki:kf),matdim,&
+         Sinvsq,nnew,0.0d0,work2(:,1:nnew),matdim)
+    
+    bvec(:,ki:kf)=work2(:,1:nnew)
 
-    enddo
+!----------------------------------------------------------------------
+! End timing and update the subspace vector timer
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    times(1,4)=times(1,4)+twall_end-twall_start
+    times(2,4)=times(2,4)+tcpu_end-tcpu_start
     
     return
     

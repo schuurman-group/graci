@@ -41,6 +41,9 @@ module dethash
      ! Keys (determinants) stored in the hash table
      integer(ib), allocatable   :: keys(:,:,:)
 
+     ! Values stored in the hash table
+     integer(is), allocatable   :: values(:)
+     
      ! Hashes of the keys stored in the hash table
      integer(ib), allocatable   :: hashes(:)
 
@@ -67,6 +70,9 @@ module dethash
      ! Retrieve the index of a given key (determinant)
      procedure, non_overridable :: get_index
 
+     ! Retrieve the value for a given key
+     procedure, non_overridable :: get_value
+     
      ! Insert the key (determinant) into the hash table
      procedure, non_overridable :: insert_key
 
@@ -117,15 +123,18 @@ contains
     
     ! Allocate arrays
     if (allocated(h%keys)) deallocate(h%keys)
+    if (allocated(h%values)) deallocate(h%values)
     if (allocated(h%hashes)) deallocate(h%hashes)
     if (allocated(h%full)) deallocate(h%full)
     if (allocated(h%deleted)) deallocate(h%deleted)
     allocate(h%keys(n_int,2,h%n_buckets))
+    allocate(h%values(h%n_buckets))
     allocate(h%hashes(h%n_buckets))
     allocate(h%full(h%n_buckets))
     allocate(h%deleted(h%n_buckets))
     
-    ! Initialise the full and deletrd flag arrays to 0
+    ! Initialise arrays
+    h%values=0
     h%full=0
     h%deleted=0
     
@@ -146,13 +155,15 @@ contains
 
     ! Deallocate arrays
     deallocate(h%keys)
+    deallocate(h%values)
     deallocate(h%hashes)
     deallocate(h%full)
     deallocate(h%deleted)
     
-    ! Zero the number of buckets and keys stored
+    ! Zero the number of buckets, keys stored, and collisions
     h%n_buckets=0
     h%n_keys_stored=0
+    h%n_collisions=0
     
     return
     
@@ -183,7 +194,6 @@ contains
 !----------------------------------------------------------------------
 ! Get the hash index for the determinant key
 !----------------------------------------------------------------------
-    !hash=key_hash(h,key)
     hash=det_hash(key)
     nb=h%n_buckets
     i1=iand(hash,nb-1)+1
@@ -198,10 +208,10 @@ contains
        ! Exit the loop when an empty bucket or the key is found
        if (h%full(i1)==0) then
           ! Empty bucket: the key is not yet in the hash table
-          kindx=i1
           exit
        else if (keys_equal(h%keys(:,:,i1),key)) then
           ! The key is already stored in the hash table
+          kindx=i1
           exit
        else
           ! Quadratic probing
@@ -215,7 +225,43 @@ contains
     return
     
   end function get_index
-  
+
+!######################################################################
+! get_value: retrieve the value associated with a given key
+!######################################################################
+  function get_value(h,key) result(val)
+
+    use constants
+
+    implicit none
+
+    class(dhtbl), intent(in) :: h
+    integer(ib), intent(in)  :: key(n_int,2)
+    integer(is)              :: val
+    integer(ib)              :: indx
+
+    !
+    ! Retrieve the index of the key
+    !
+    indx=h%get_index(key)
+
+    !
+    ! Return a value of -1 if the key is not in the table
+    !
+    if (indx == -1) then
+       val=-1
+       return
+    endif
+    
+    !
+    ! Value
+    !
+    val=h%values(indx)
+    
+    return
+    
+  end function get_value
+    
 !######################################################################
 ! keys_equal: returns .true. if the two determinant keys are equal,
 !             .false. otherwise
@@ -246,20 +292,21 @@ contains
   end function keys_equal
 
 !######################################################################
-! insert_key: stores a single key in the hash table if it is not
-!             already in the hash table
+! insert_key: stores a single key and, optionally, value in the hash
+!             table if the key is not already stored
 !######################################################################
-  subroutine insert_key(h,key)
+  subroutine insert_key(h,key,val)
     
     use constants
     
     implicit none
 
-    class(dhtbl), intent(inout) :: h
-    integer(ib), intent(in)     :: key(n_int,2)
-    integer(ib)                 :: hash,indx
-    integer(ib)                 :: nb,i1,step
-    logical                     :: collision
+    class(dhtbl), intent(inout)       :: h
+    integer(ib), intent(in)           :: key(n_int,2)
+    integer(is), optional, intent(in) :: val
+    integer(ib)                       :: hash,indx
+    integer(ib)                       :: nb,i1,step
+    logical                           :: collision
     
 !----------------------------------------------------------------------
 ! Get the key index
@@ -312,7 +359,7 @@ contains
 !----------------------------------------------------------------------
 ! Return if the key is already stored in the hash table
 !----------------------------------------------------------------------
-    if (indx.eq.-1) return
+    if (indx == -1) return
 
 !----------------------------------------------------------------------
 ! Update the number of collisions
@@ -329,6 +376,11 @@ contains
 !----------------------------------------------------------------------
     h%keys(:,:,indx)=key
 
+!----------------------------------------------------------------------
+! Optional: insert the value into the hash table
+!----------------------------------------------------------------------
+    if (present(val)) h%values(indx)=val
+    
 !----------------------------------------------------------------------
 ! Insert the hash function value into the auxiliary hashes array
 !----------------------------------------------------------------------
@@ -427,10 +479,12 @@ contains
     class(dhtbl), intent(inout) :: h
 
     integer(ib), allocatable    :: keys_save(:,:,:)
+    integer(is), allocatable    :: values_save(:)
     integer(ib), allocatable    :: hashes_save(:)
     integer(is), allocatable    :: full_save(:)
     integer(is), allocatable    :: deleted_save(:)
     integer(ib), allocatable    :: key(:,:)
+    integer(is)                 :: val
     integer(ib)                 :: hash
     integer(is)                 :: k,bucket,nkeys,n_buckets_old
     integer(ib)                 :: kindx,i1,indx,nb,step
@@ -443,13 +497,15 @@ contains
 
     ! Allocate the temporary arrays
     allocate(keys_save(n_int,2,n_buckets_old))
+    allocate(values_save(n_buckets_old))
     allocate(hashes_save(n_buckets_old))
     allocate(full_save(n_buckets_old))
     allocate(deleted_save(n_buckets_old))
     allocate(key(n_int,2))
 
-    ! Save the old key and hash values
+    ! Save the old key, value and hash values
     keys_save=h%keys
+    values_save=h%values
     hashes_save=h%hashes
     full_save=h%full
     deleted_save=h%deleted
@@ -459,6 +515,7 @@ contains
 !----------------------------------------------------------------------
     ! Deallocate arrays
     deallocate(h%keys)
+    deallocate(h%values)
     deallocate(h%hashes)
     deallocate(h%full)
     deallocate(h%deleted)
@@ -468,6 +525,7 @@ contains
     
     ! Allocate arrays
     allocate(h%keys(n_int,2,h%n_buckets))
+    allocate(h%values(h%n_buckets))
     allocate(h%hashes(h%n_buckets))
     allocate(h%full(h%n_buckets))
     allocate(h%deleted(h%n_buckets))
@@ -489,6 +547,9 @@ contains
        ! Current key
        key=keys_save(:,:,bucket)
 
+       ! Current value
+       val=values_save(bucket)
+       
        ! Current hashed key value
        hash=hashes_save(bucket)
        
@@ -536,6 +597,9 @@ contains
        ! Insert the determinant key
        h%keys(:,:,indx)=key
 
+       ! Insert the value
+       h%values(indx)=val
+       
        ! Insert the hash function value into the auxiliary hashes array
        h%hashes(indx)=hash
 
@@ -548,6 +612,7 @@ contains
 ! Deallocate the temporary arrays
 !----------------------------------------------------------------------
     deallocate(keys_save)
+    deallocate(values_save)
     deallocate(hashes_save)
     deallocate(full_save)
     deallocate(deleted_save)
@@ -621,7 +686,7 @@ contains
        endif
 
        ! If the buffer is full, write it to disk
-       if (counter.eq.buffer_size) then
+       if (counter == buffer_size) then
           write(unit) counter,buffer
           counter=0
        endif
@@ -629,7 +694,7 @@ contains
     enddo
 
     ! Last record
-    if (counter.gt.0) write(unit) counter,buffer
+    if (counter > 0) write(unit) counter,buffer
 
 !----------------------------------------------------------------------
 ! Close the determinant file
@@ -743,7 +808,7 @@ contains
 !----------------------------------------------------------------------
 ! Return if the key is not stored in the hash table
 !----------------------------------------------------------------------
-    if (indx.eq.-1) return
+    if (indx == -1) return
     
 !----------------------------------------------------------------------
 ! Update the number of filled buckets
@@ -755,6 +820,11 @@ contains
 !----------------------------------------------------------------------
     h%keys(:,:,indx)=0_ib
 
+!----------------------------------------------------------------------
+! Delete the value from the hash table
+!----------------------------------------------------------------------
+    h%values(indx)=0
+    
 !----------------------------------------------------------------------
 ! Delete the hash function value from the auxiliary hashes array
 !----------------------------------------------------------------------

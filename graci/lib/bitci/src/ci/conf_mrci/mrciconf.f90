@@ -19,6 +19,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   use conftype
   use holeconfs
   use confbuilder
+  use filter_confs
   use confinfo
   use timing
 
@@ -230,7 +231,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
      write(iscratch) n_int_I
      write(iscratch) nmoI
      write(iscratch) nmoE
-     write(iscratch) ntotal
+     write(iscratch) ntotal(irrep)
      write(iscratch) cfgM(irrep)%nR
      write(iscratch) cfgM(irrep)%n1h
      write(iscratch) cfgM(irrep)%n2h
@@ -274,6 +275,9 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
      ! MO mapping arrays
      write(iscratch) cfgM(irrep)%m2c
      write(iscratch) cfgM(irrep)%c2m
+
+     ! Number of CSFs as a function of the the number of open shells
+     write(iscratch) ncsfs
      
      ! Close the scratch file
      close(iscratch)

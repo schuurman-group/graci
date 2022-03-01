@@ -226,7 +226,7 @@ contains
     use constants
     use bitglobal
     use conftype
-    use holeconfs
+    use filter_confs
     use iomod
     
     implicit none
@@ -448,6 +448,9 @@ contains
     ! MO mapping arrays
     write(iscratch) cfg_new%m2c
     write(iscratch) cfg_new%c2m
+
+    ! Number of CSFs as a function of the the number of open shells
+    write(iscratch) ncsfs
     
     ! Close the scratch file
     close(iscratch)
