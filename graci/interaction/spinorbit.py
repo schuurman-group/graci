@@ -26,7 +26,7 @@ class Spinorbit(interaction.Interaction):
         # user defined quanties 
         self.label        = 'spinorbit'
         self.print_thresh = 1.
-        self.mf2e         = False
+        self.mf2e         = 'atomic'
         
         # global variables
         # Class name
@@ -238,7 +238,7 @@ class Spinorbit(interaction.Interaction):
         # Transform to the AO basis
         orbs        = self.bra_obj.scf.orbs
         self.rho_ao = np.matmul(np.matmul(orbs, rho_mo), orbs.T)
-        
+
         return
         
     #
@@ -295,13 +295,15 @@ class Spinorbit(interaction.Interaction):
         hcart_ao = hcart_ao * constants.fine_str**2 / 2
             
         # Mean-field two-electron contributions
-        if self.mf2e:
+        if self.mf2e == 'full':
             h2e_ao    = mol.intor("cint2e_p1vxp1_sph", comp=3, aosym="s1")
             h2e_ao   *= -0.5 * constants.fine_str**2
             hcart_ao += (np.einsum("ijklm,lm->ijk", h2e_ao, self.rho_ao)
                          - 1.5 * (np.einsum("ijklm, kl->ijm", h2e_ao, self.rho_ao)
                          + np.einsum("ijklm,mj->ilk", h2e_ao, self.rho_ao)))
-        
+        elif self.mf2e == 'atomic':
+            hcart_ao += self.build_mf_atomic(mol)
+            
         # Transform to the MO basis
         orbs     = self.bra_obj.scf.orbs
         hcart_mo = np.matmul(np.matmul(orbs.T, hcart_ao), orbs)
@@ -316,8 +318,53 @@ class Spinorbit(interaction.Interaction):
         self.h1e[1,:,:] = hcart_mo[2,:,:]
         
         return
-    
 
+    
+    #
+    def build_mf_atomic(self, mol):
+        """
+        builds the one-centre approximation to the mean-field
+        two-electron SOC integrals
+        """
+
+        # function result
+        nao    = mol.nao_nr()
+        h2e_ao = np.zeros((3, nao, nao), dtype=float)
+
+        # atom indices for each shell
+        shell_atm = np.array([shell[0] for shell in mol._bas])
+
+        for iatm in range(mol.natm):
+
+            # shell indices for this atom
+            shells     = mol.atom_shell_ids(iatm)
+            shls_slice = [shells[0], shells[-1]+1] * 4
+
+            # fetch the integrals for this atomic centre
+            ints = mol.intor("cint2e_p1vxp1_sph", shls_slice=shls_slice,
+                             comp=3, aosym="s1")
+            ints *= -0.5 * constants.fine_str**2
+
+            # density matrix for this block of AOs
+            ji, jf = mol.nao_nr_range(shells[0], shells[-1]+1)
+            rho = self.rho_ao[ji:jf, ji:jf]
+
+            # contraction with the density matrix
+            h = (np.einsum("ijklm,lm->ijk", ints, rho)
+                         - 1.5 * (np.einsum("ijklm, kl->ijm", ints, rho)
+                         + np.einsum("ijklm,mj->ilk", ints, rho)))
+
+            # mapping back up to the full set of AOs
+            p = -1
+            for p1 in range(ji, jf):
+                p += 1
+                q = -1
+                for q1 in range(ji, jf):
+                    q += 1
+                    h2e_ao[:, p1, q1] = h[:, p, q]
+
+        return h2e_ao
+    
     #
     @timing.timed
     def build_hsoc(self, iblock):
