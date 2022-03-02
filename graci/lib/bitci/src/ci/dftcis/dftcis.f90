@@ -244,9 +244,12 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
 
   ! MO selection threshold
   real(dp), parameter      :: targ=0.9025d0
+
+  ! Limit on the size of the RAS spaces
+  integer(is), parameter   :: maxras=60
   
   ! Everything else
-  integer(is)              :: k,n
+  integer(is)              :: k,n,np,nh,ihomo
   integer(is), allocatable :: indx(:)
   real(dp), allocatable    :: abscoe(:)
   real(dp)                 :: sumsq
@@ -310,6 +313,39 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
      
   enddo
 
+!----------------------------------------------------------------------
+! Ensure that the RAS spaces are reasonably sized
+!----------------------------------------------------------------------
+  ! Base conf HOMO index (note that we are taking M=S)
+  ihomo=nel_alpha
+
+  ! Trim the particle MOs  
+  np=sum(domph(ihomo+1:nmo))
+  if (np > maxras) then
+     n=np
+     do k=nmo,ihomo+1,-1
+        if (domph(k) == 1) then
+           domph(k)=0
+           n=n-1
+           if (n == maxras) exit
+        endif
+     enddo
+  endif
+
+  ! Trim the hole MOs, excluding any core ones flagged in the icvs
+  ! array
+  nh=sum(domph(1:ihomo))
+  if (nh > maxras) then
+     n=nh
+     do k=1,ihomo
+        if (domph(k) == 1 .and. icvs(k) /= 1) then
+           domph(k)=0
+           n=n-1
+           if (n == maxras) exit
+        endif
+     enddo
+  endif
+  
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------

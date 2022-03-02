@@ -23,7 +23,7 @@ subroutine prune_ref_space(nroots,confscr,nconf,vecscr)
   
   ! Number of roots per irrep
   integer(is), intent(in)    :: nroots(0:nirrep-1)
-  
+
   ! Array of reference configuration scratch file numbers
   integer(is), intent(in)    :: confscr(0:nirrep-1)
 
@@ -342,6 +342,7 @@ subroutine get_deadwood(nconf,refdim,nroots,vec0,offset,idead)
 
   use constants
   use bitglobal
+  use utils
   
   implicit none
 
