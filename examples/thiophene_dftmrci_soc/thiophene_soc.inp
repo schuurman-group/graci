@@ -1,0 +1,49 @@
+ $molecule section
+ S   0.0000000   0.0000000   1.1953010
+ C   0.0000000   1.2352820  -0.0063870
+ C   0.0000000  -1.2352820  -0.0063870
+ C   0.0000000   0.7083590  -1.2739000
+ C   0.0000000  -0.7083590  -1.2739000
+ H   0.0000000   2.2731490   0.2856980
+ H   0.0000000  -2.2731490   0.2856980
+ H   0.0000000   1.3176070  -2.1663820
+ H   0.0000000  -1.3176070  -2.1663820
+ basis        = def2-tzvpd
+ ri_basis     = def2-tzvpd-ri
+ use_sym      = True
+ use_df       = True
+ $end
+
+ $scf section
+ charge       = 0
+ mult         = 1
+ xc           = bhandhlyp
+ verbose      = 4
+ $end
+
+ $dftmrci section
+ label        = singlet
+ mult         = 1
+ nstates      = 4 3 3 3
+ hamiltonian  = grimme_standard
+ $end
+
+ $dftmrci section
+ label        = triplet
+ mult         = 3
+ nstates      = 4 3 3 3
+ hamiltonian  = grimme_standard
+ ras1         = 20:23
+ ras3         = 24:27
+ nhole1       = 2
+ nelec3       = 2
+ $end
+
+ $spinorbit section
+ init_label   = singlet
+ final_label  = triplet
+ init_states  = 1:4
+ final_states = 1:4
+ $end
+
+ 
