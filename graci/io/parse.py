@@ -13,6 +13,7 @@ import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
+import graci.overlap.overlap as overlap
 
 from pyscf import gto
 

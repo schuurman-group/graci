@@ -127,7 +127,7 @@ class Spinorbit(interaction.Interaction):
 
         # get the one-electron SOC matrices
         self.build_h1e()
-
+        
         # initialise the H_soc array
         self.hdim = len(self.final_states) * self.mult_bra \
             + len(self.init_states)  * self.mult_ket
@@ -164,13 +164,13 @@ class Spinorbit(interaction.Interaction):
             
             # finalize the bitsi library
             bitsi_init.finalize()
-
+            
         # add in the on-diagonal elements
         self.hsoc_ondiag()
-
+        
         # diagonalise H_soc
         self.eig, self.vec = np.linalg.eigh(self.hsoc)
-
+        
         # print the H_SOC elements
         self.print_hsoc()
 

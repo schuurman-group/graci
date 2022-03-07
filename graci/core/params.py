@@ -108,6 +108,14 @@ spinorbit_kword = {'init_states'      : int,
                    'label'            : str
                    }
 
+# overlap section input keywords and data types
+overlap_kword = {'bra_states' : int,
+                 'ket_states' : int,
+                 'bra_label'  : str,
+                 'ket_label'  : str,
+                 'calc'       : str
+                 }
+
 #----------------------------------------------------
 
 # used to parameterize new Hamiltonians
@@ -120,11 +128,13 @@ parameterize_kword = {'algorithm' : str,
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_objs = ['Molecule', 'Parameterize','Scf', 'Dftmrci',
-              'Dftmrenpt2', 
-              'Transition', 'Spinorbit']
-method_objs = ['Scf', 'Dftmrci', 'Dftmrenpt2']
-si_objs     = ['Transition', 'Spinorbit']
+valid_objs   = ['Molecule', 'Parameterize','Scf', 'Dftmrci',
+                'Dftmrenpt2', 
+                'Transition', 'Spinorbit',
+                'Overlap']
+method_objs  = ['Scf', 'Dftmrci', 'Dftmrenpt2']
+si_objs      = ['Transition', 'Spinorbit']
+overlap_objs = ['Overlap']
 
 ##############################################
 kwords = {'Molecule'     : molecule_kword,
@@ -133,6 +143,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Dftmrci'      : dftmrci_kword,
           'Dftmrenpt2'   : dftmrenpt2_kword,
           'Transition'   : transition_kword,
-          'Spinorbit'    : spinorbit_kword
+          'Spinorbit'    : spinorbit_kword,
+          'Overlap'      : overlap_kword
          }
 

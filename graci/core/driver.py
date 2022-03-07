@@ -25,6 +25,7 @@ class Driver:
         scf_objs     = []
         postscf_objs = []
         si_objs      = []
+        overlap_objs = []
         for obj in calc_array:
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
@@ -35,7 +36,9 @@ class Driver:
                 postscf_objs.append(obj)
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
-
+            elif type(obj).__name__ in params.overlap_objs:
+                overlap_objs.append(obj)
+                
         # Load required libraries
         #-----------------------------------------------------
         # for now, assume postscf will require bitci
@@ -45,6 +48,9 @@ class Driver:
         if len(si_objs) > 0:
             libs.lib_load('bitsi')
 
+        if len(overlap_objs) > 0:
+            libs.lib_load('bitwf')
+            
         # Molecule sections 
         # ----------------------------------------------------
 
@@ -170,6 +176,38 @@ class Driver:
             si_obj.run()
             chkpt.write(si_obj)
 
+        # Overlap sections
+        # ----------------------------------------------------
+
+        for overlap_obj in overlap_objs:
+            # first check if bra/ket method is set. If not
+            # and there is a single postscf method, we can
+            # determine a sensible default
+            if (overlap_obj.ket_label is None and overlap_obj.bra_label
+                    is None and len(postscf_objs) == 1):
+                overlap_obj.set_bra(postscf_objs[0])
+                overlap_obj.set_ket(postscf_objs[0])
+
+            # else, we use the label names to determine bra
+            # and ket states. If things don't match up, fail
+            # with an error message
+            else:
+                for postscf in postscf_objs:
+                    if overlap_obj.ket_label == postscf.label:
+                        overlap_obj.set_ket(postscf)
+                    if overlap_obj.bra_label == postscf.label:
+                        overlap_obj.set_bra(postscf)
+
+            if (overlap_obj.bra_exists() is False or 
+                overlap_obj.ket_exists() is False):
+                output.print_message(type(overlap_obj).__name__+' section, '+
+                        'label='+str(overlap_obj.label)+
+                        ' has no bra/ket defined. Please check input')
+                sys.exit(1)
+
+            overlap_obj.run()
+            chkpt.write(overlap_obj)
+        
         return
 
 

@@ -524,3 +524,24 @@ def print_hsoc_eig(eig, vec, hdim, stlbl):
         print(delim)
                 
     return
+
+
+def print_overlap_header(label):
+    """print out Overlap section header"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'Overlap, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN)+'\n')
+        outfile.flush()
+
+    return

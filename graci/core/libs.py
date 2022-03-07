@@ -20,7 +20,7 @@ hamiltonians   = ['canonical',
                   'heil18_standard',
                   'heil18_short']
 
-libraries      = ['bitci','bitsi']
+libraries      = ['bitci','bitsi','bitwf']
 
 # registry of bitci functions
 bitci_registry = {
@@ -122,6 +122,16 @@ bitsi_intent   = {
     'cgcoeff_soc'             : ['in','in','out']
 }
 
+# registry of bitwf functions
+bitwf_registry = {
+    'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
+                          'double','string']
+}
+
+bitwf_intent = {
+    'bitwf_initialise' : ['in','in','in','in','in','in','double']
+}
+
 # list of existing library objects
 lib_objs = {}
 
@@ -129,7 +139,7 @@ def lib_load(name):
     """load a library object and add it to lib_objs dictionary"""
     global lib_objs
 
-    # if we haven't loaded the bitsi object, do so now
+    # if we haven't loaded the bitX object, do so now
     if name not in lib_objs.keys() and name in libraries:
         # load the appropriate library
         rel_path = '/graci/lib/bitci/lib/lib'+str(name)+'.{}'
@@ -148,6 +158,7 @@ def lib_func(name, args):
     """call a function from a fortran library"""
     global bitci_registry, bitci_intent
     global bitsi_registry, bitsi_intent
+    global bitwf_registry, bitwf_intent
     global lib_objs
 
     if name in bitci_registry:
@@ -156,6 +167,9 @@ def lib_func(name, args):
     elif name in bitsi_registry:
         arg_list   = bitsi_registry[name]
         arg_intent = bitsi_intent[name]
+    elif name in bitwf_registry:
+        arg_list   = bitwf_registry[name]
+        arg_intent = bitwf_intent[name]
     else:
         sys.exit('function: '+str(name)+' not found.') 
 
@@ -188,7 +202,12 @@ def lib_func(name, args):
             getattr(lib_objs['bitsi'], name)(*arg_ptr)
         else:
             getattr(lib_objs['bitsi'], name)()
-
+    elif name in bitwf_registry:
+        if len(args) > 0:
+            getattr(lib_objs['bitwf'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['bitwf'], name)()
+            
     args_out = ()
     for i in range(len(args)):
         if arg_intent[i] == 'out':
