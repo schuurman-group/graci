@@ -294,15 +294,19 @@ def check_input(run_list):
         # save section labels -- make sure all our unique
         section_lbls.append(obj.label)
 
-    for obj_indx in range(len(section_lbls)):
-        # save section labels -- make sure all our unique
-        lbl_tst = run_list[obj_indx].label
-        indices = [index for index,lbl in enumerate(section_lbls) 
-                                                  if lbl == lbl_tst]
+    # we don't actually want to do this -- if labels are wrong/inconsistent
+    # we should not guess at how to rename them. Will likely delete
+    # this eventually, then add a check in the driver to give a warning
+    # for ambiguously labeled sections
+    #for obj_indx in range(len(section_lbls)):
+    #    # save section labels -- make sure all our unique
+    #    lbl_tst = run_list[obj_indx].label
+    #    indices = [index for index,lbl in enumerate(section_lbls) 
+    #                                              if lbl == lbl_tst]
         # if multiple identical sections -- rename
-        if len(indices) > 1:
-            for suffix in range(len(indices)):
-                run_list[indices[suffix]].label += str(suffix+1)
+    #    if len(indices) > 1:
+    #        for suffix in range(len(indices)):
+    #            run_list[indices[suffix]].label += str(suffix+1)
 
     return
     

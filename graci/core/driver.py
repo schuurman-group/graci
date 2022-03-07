@@ -131,25 +131,11 @@ class Driver:
 
                 # if labels match -- set the geometry
                 # to the molecule object
-                if postscf.label == scf_obj.label:
-                    postscf.set_scf(scf_obj)
-                    break
-
-                # if we didn't match labels, but there is a single
-                # molecule object, 
-                if postscf.scf_exists() is False and len(scf_objs)==1:
+                if postscf.label == scf_obj.label or len(scf_objs)==1:
                     postscf.set_scf(scf_obj)
 
-                # if we have a label problem, then we should exit
-                # with an error
-                if postscf.scf_exists() is False:
-                    output.print_message(type(postscf).__name__ +
-                            ' section, label=' + str(postscf.label) +
-                            ' has no scf section. Please check input')
-                    sys.exit(1)
-
-                postscf.run()
-                chkpt.write(postscf)
+                    postscf.run()
+                    chkpt.write(postscf)
 
         # State interaction Sections 
         # ----------------------------------------------------
