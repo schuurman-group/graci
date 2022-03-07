@@ -31,7 +31,7 @@ def prune(ci_method):
     
     # Number of ref confs for each irrep
     nconf    = ci_method.ref_wfn.nconf
-    
+
     # Call to the bitci ref space pruning routine
     args = (nroots, confunit, nconf, ciunit)
     (nconf_new) = libs.lib_func('prune_ref_space',args)
