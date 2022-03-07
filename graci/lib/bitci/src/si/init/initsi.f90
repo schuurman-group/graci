@@ -4,21 +4,35 @@
 !                   perform a State Interaction calculation.
 !######################################################################
 #ifdef CBINDING
-subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1) &
-     bind(c,name='bitsi_initialise')
+subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
+     calctype_in) bind(c,name='bitsi_initialise')
 #else
-subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1)
+subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
+     calctype_in)
 #endif
 
+  use iso_c_binding, only: C_CHAR
   use constants
   use bitglobal
   use setsym
   use csf
   use spin_coupling
+  use spin_coupling_k0
+  use spin_coupling_k1
   use iomod
   
   implicit none
 
+  ! Calculation type
+#ifdef CBINDING
+  character(kind=C_CHAR), intent(in) :: calctype_in(*)
+  character(len=255)                 :: calctype
+  integer(is)                        :: length
+#else
+  character(len=*), intent(in)       :: calctype_in
+  character(len=255)                 :: calctype
+#endif
+  
   ! Bra and Ket spin multiplicities and numbers of electrons
   integer(is), intent(in) :: imultB1,imultK1,nelB1,nelK1
 
@@ -29,12 +43,24 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1)
   integer(is), intent(in) :: ipg1
   
   ! Calculation type
-  logical                 :: samemult,soc,rdm,dyson
+  logical                 :: samemult
   
   ! Everything else
-  real(dp)                :: s,smax
+  real(dp)                :: s,smax,sb,sk
+  real(dp)                :: tiny=1e-10_dp
   logical                 :: verbose
-  
+
+!----------------------------------------------------------------------
+! If C bindings are on, then convert the calculation type character
+! string from the C char type to the Fortran character type
+!----------------------------------------------------------------------
+#ifdef CBINDING
+  length=cstrlen(calctype_in)
+  call c2fstr(calctype_in,calctype,length)
+#else
+  calctype=adjustl(trim(calctype_in))
+#endif
+
 !----------------------------------------------------------------------
 ! Quick sanity check on the numbers of electrons and spin
 ! multiplicities
@@ -57,7 +83,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1)
 
 !----------------------------------------------------------------------
 ! Exit if the requested spin multiplicity is not supported by the
-! maximum number of openshells
+! maximum number of open shells
 !----------------------------------------------------------------------
   ! S_max
   smax=dble(nomax)/2.0d0
@@ -135,95 +161,125 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1)
 
   ! Number of irreps
   nirrep=pgdim(ipg)
-  
+
 !----------------------------------------------------------------------
-! Is this a spin-orbit coupling calculation?
+! Make sure that the calculation type is recognised
 !----------------------------------------------------------------------
-  soc=.false.
-  rdm=.false.
-  dyson=.false.
-  
-  if (abs(imultB-imultK) == 2) then
+  select case(calctype)
 
-     ! SOC calculation
-     soc=.true.
-     samemult=.false.
+  case('tdm')
+     continue
 
-  else if (abs(imultB-imultK) == 1) then
+  case('soc')
+     continue
 
-     ! Dyson orbital calculation
-     dyson=.true.
-     samemult=.false.
-     
-  else if (imultB == imultK) then
-
-     ! 1-RDM or 1-TDM calculation
-     rdm=.true.
-     samemult=.true.
-
-  else
-
-     ! Non-sensical combination of bra and ket spin multiplicities
-     write(errmsg,'(a,1x,i0,a,i0)') &
-          'Non-sensical combination of bra/ket spin multiplicities:',&
-          imultB,'/',imultK
+  case default
+     errmsg='Error in bitsi_intialise: unrecognised calculation type:'&
+          //' '//trim(calctype)
      call error_control
 
-  endif
+  end select
+        
+!----------------------------------------------------------------------
+! Sanity checks on the bra and ket spin multiplicities
+!----------------------------------------------------------------------
+  select case(calctype)
 
+  case('tdm')
+     ! Calculation of matrix elements over the singlet excitation
+     ! operators: used in the calculation of 1-TDMs
+
+     ! Bra and ket spin multiplicities have to be equal
+     if (imultB /= imultK) then
+        errmsg='Error in bitsi_intialise: same bra and ket '&
+             //'multiplicities required for a 1-TDM calculation'
+        call error_control
+     endif
+     
+  case('soc')
+     ! Calculation of matrix elements over the triplet excitation
+     ! operators: used in the calculation of SOC matrix elemens
+
+     ! SOC calculations don't make sense unless Delta S = 0, +1
+     ! because we are only considering the matrix elements
+     ! over T_pq^(1,k), k=0,+1 (the k=-1 terms can be generated
+     ! from the k=+1 ones)
+     sb=dble(imultB-1)/2.0
+     sk=dble(imultk-1)/2.0
+     if (sb-sk > 1.0d0+tiny .or. sb-sk < 0.0d0-tiny) then
+        errmsg='Error in bitsi_intialise: |S_bra-S_ket| = 0 or 1'
+        call error_control
+     endif
+     
+  end select
+     
 !----------------------------------------------------------------------
 ! Generate the bra and ket CSFs
 !----------------------------------------------------------------------
-  ! 1-RDM or 1-TDM calculation: equal bra and ket spin multiplicities
-  if (rdm) then
+  select case(calctype)
+
+  case('tdm')
+     ! 1-TDM calculation: equal bra and ket spin multiplicities
      verbose=.false.
      call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,maxdet,&
           csfcoe,detvec,verbose)
-  endif
-     
-  ! SOC calculation: non-equal bra and ket spin multiplicities, equal
-  ! numbers of electrons
-  if (soc) then
-     verbose=.true.
-     errmsg='SOC calculations not yet supported in bitSI'
-     call error_control
-  endif
 
-  ! Dyson orbital calculation: non-equal bra and ket spin
-  ! multiplicities and non-equal numbers of electrons
-  if (dyson) then
-     verbose=.true.
-     errmsg='Dyson orbital calculations not yet supported in bitSI'
-     call error_control
-  endif
+  case('soc')
+     ! SOC calculation: potentially non-equal bra and ket spin
+     !                  multiplicities
+     verbose=.false.
+     if (imultB /= imultK) then
+        ! Bra CSFs
+        call generate_csfs(imultB,nocase2,ncsfsB,ndetsB,maxcsfB,&
+             maxdetB,csfcoeB,detvecB,verbose)
+        ! Ket CSFs
+        call generate_csfs(imultK,nocase2,ncsfsK,ndetsK,maxcsfK,&
+             maxdetK,csfcoeK,detvecK,verbose)
+     else
+        ! Equal bra and ket CSFs
+        call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,&
+             maxdet,csfcoe,detvec,verbose)
+     endif
+     
+  end select
   
 !----------------------------------------------------------------------
 ! Compute the spin-coupling coefficients
 !----------------------------------------------------------------------
-  ! 1-RDM or 1-TDM calculation: equal bra and ket spin multiplicities
-  if (rdm) then
+  select case(calctype)
+
+  case('tdm')
+     ! 1-TDM calculation: calculation of spin-coupling coefficients
+     !                    over the singlet excitation operators E_pq
      verbose=.false.
      call generate_coupling_coefficients(imultB,nocase1,nocase2,&
-          maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,npattern1,&
-          npattern2,nspincp,N1s,verbose,spincp,patternmap,offspincp)
-  endif
+          maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,nspincp,N1s,&
+          verbose,spincp,patmap,offspincp)
+
+  case('soc')
+     ! SOC calculation: calculation of spin-coupling coefficients for
+     !                  the triplet excitation operators
+     !                  T_pq^(1,k), k = 0 or +1
+     verbose=.true.
+     if (imultB == imultK) then
+        ! Same spin multiplicities: compute spin-coupling coefficients
+        ! for T_pq^(1,k=0)
+        call scc_k0(imultB,nocase1,nocase2,maxcsf,maxdet,ncsfs,ndets,&
+             csfcoe,detvec,nspincp,N1s,verbose,spincp,patmap,offspincp)
+     else
+        ! Different spin multiplicities: compute spin-coupling
+        ! coefficients for T_pq^(1,k), k=-1,+1
+        call scc_k1(imultB,imultK,&
+             nocase1,nocase2,&
+             maxcsfB,maxdetB,ncsfsB,ndetsB,csfcoeB,detvecB,&
+             maxcsfK,maxdetK,ncsfsK,ndetsK,csfcoeK,detvecK,&
+             nspincp,N1s,verbose,spincp_plus,spincp_minus,&
+             patmap1,patmap2a_plus,patmap2b_plus,&
+             patmap2a_minus,patmap2b_minus,offplus,offminus)
+     endif
      
-  ! SOC calculation: non-equal bra and ket spin multiplicities, equal
-  ! numbers of electrons
-  if (soc) then
-     verbose=.true.
-     errmsg='SOC calculations not yet supported in bitSI'
-     call error_control
-  endif
-
-  ! Dyson orbital calculation: non-equal bra and ket spin
-  ! multiplicities and non-equal numbers of electrons
-  if (dyson) then
-     verbose=.true.
-     errmsg='Dyson orbital calculations not yet supported in bitSI'
-     call error_control
-  endif
-
+  end select
+  
 !----------------------------------------------------------------------
 ! Scratch directory: the top-level bitscratch directory is assumed to
 ! have already been created in a preceding bitci calculation

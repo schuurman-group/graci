@@ -24,8 +24,6 @@
  H   0.0000   0.0000   2.4899
  H   0.0000   0.0000  -2.4899
  units        = angstrom
- charge       = 0
- mult         = 1
  basis        = cc-pvdz
  ri_basis     = cc-pvdz-jkfit
  use_sym      = False
@@ -33,6 +31,8 @@
  $end
 
  $scf section
+ charge       = 0
+ mult         = 1
  xc           = bhandhlyp
  verbose      = 4
  $end

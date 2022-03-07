@@ -716,7 +716,7 @@ contains
           ! DFT/MRCI corrections
           ! Note that we will have to take account of the nexci=0
           ! case once we implement the Dusseldorf group Hamiltonians...
-          if (nexci > 0) then
+          if (nexci > 0 .and. ldftmrci) then
              hij=reshape(subhmat(bcsf:bcsf,kcsf:kcsf),(/1/))
              call hij_dftmrci_batch(hij,1,1,subavii(bcsf),subavii(kcsf))
              subhmat(bcsf,kcsf)=hij(1)

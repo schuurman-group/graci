@@ -92,7 +92,7 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
   write(6,'(3(x,a))') 'DFT/CIS calculation in the',&
        trim(irreplbl(irrep,ipg)),'subspace'
   write(6,'(52a)') ('-',i=1,52)
-  
+
 !----------------------------------------------------------------------
 ! Checks on the no. open shells/multiplicity
 !----------------------------------------------------------------------
@@ -103,6 +103,13 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
      call error_control
   endif
 
+  ! Triplets not yet coded up
+  if (imult == 3) then
+     errmsg='Error in diag_dftcis: triplet calculations are not yet'&
+          //' supported'
+     call error_control
+  endif
+  
 !----------------------------------------------------------------------
 ! Load the DFT/MRCI Hamiltonian parameters
 !----------------------------------------------------------------------

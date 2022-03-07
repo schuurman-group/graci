@@ -1,6 +1,21 @@
 !**********************************************************************
 ! Construction of the base determinant and configuration
 !**********************************************************************
+! *** IMPORTANT ***
+!----------------------------------------------------------------------
+! The base determinant has the same spin multiplicity as the computed
+! eigenstates
+!----------------------------------------------------------------------
+! However, for technical reasons associated with the application of
+! DFT/MRCI corrections, the base configuration will always correspond
+! to either:
+!
+! (1) the singlet occupation string 2...22 if mod(imult,2) = 1
+!
+! or
+!
+! (2) the doublet occupation string 2...21 if mod(imult,2) = 0
+!**********************************************************************
 module baseconf
 
   implicit none
@@ -83,6 +98,12 @@ end subroutine generate_base_det
 !######################################################################
 ! generate_base_conf: Generates a configuration bit string pair
 !                     corresponding to the base spatial occupation
+!
+!                     For mod(imult,2) = 0, this is the closed shell
+!                     configuration 2...22
+!
+!                     For mod(imult,2) = 1, this is the open shell
+!                     configuration 2...21
 !######################################################################
   subroutine generate_base_conf
 
@@ -91,7 +112,7 @@ end subroutine generate_base_det
         
     implicit none
 
-    integer(is) :: imo,i,k
+    integer(is) :: ihomo,imo,i,k
     integer(is) :: ndocc,nopen
     
 !----------------------------------------------------------------------
@@ -107,57 +128,61 @@ end subroutine generate_base_det
     iocc0=0
     
 !----------------------------------------------------------------------
-! Number of doubly-occupied and singly-occupied spatial orbitals in
-! the base determinant(s)
+! Construct the base configuration
 !----------------------------------------------------------------------
-    nopen=imult-1
-    ndocc=(nel-nopen)/2
+    select case(mod(imult,2))
 
-!----------------------------------------------------------------------
-! Construct the base configuration following the aufbau principle
-!----------------------------------------------------------------------
-    !
-    ! Doubly-occupied orbitals
-    !
-    do imo=1,ndocc
+    case(1)
+       ! mod(imult,2) = 1 <-> |2...22>
+       
+       ! Loop over occupied MOs
+       do imo=1,nel/2
 
-       ! Save the MO occupation
-       iocc0(imo)=2
-       
-       ! Block index
-       k=(imo-1)/64+1
+          ! Block index
+          k=(imo-1)/64+1
 
-       ! Orbital index
-       i=imo-(k-1)*64-1
+          ! Orbital index
+          i=imo-(k-1)*64-1
+          
+          ! Set the bits
+          conf0(k,1)=ibset(conf0(k,1),i)       
+          conf0(k,2)=ibset(conf0(k,2),i)
 
-       ! Set the bits
-       conf0(k,1)=ibset(conf0(k,1),i)       
-       conf0(k,2)=ibset(conf0(k,2),i)
+          ! Save the MO occupation
+          iocc0(imo)=2
+          
+       enddo
        
-    enddo
+    case(0)
+       ! mod(imult,2) = 0 <-> |2...21>
 
-    !
-    ! Singly-occupied orbitals
-    !
-    ! Loop over the unpaired electrons
-    do imo=ndocc+1,ndocc+nopen
+       ! HOMO index
+       ihomo=(nel+1)/2
 
-       ! Save the MO occupation
-       iocc0(imo)=1
+       ! Loop over occupied MOs
+       do imo=1,ihomo
+
+          ! Block index
+          k=(imo-1)/64+1
+             
+          ! Orbital index
+          i=imo-(k-1)*64-1
+             
+          if (imo == ihomo) then
+             ! Singly-occupied MO
+             conf0(k,1)=ibset(conf0(k,1),i)
+             iopen0(imo)=1
+             iocc0(imo)=1
+          else
+             ! Doubly-occupied MO
+             conf0(k,1)=ibset(conf0(k,1),i)       
+             conf0(k,2)=ibset(conf0(k,2),i)
+             iocc0(imo)=2
+          endif
+          
+       enddo
        
-       ! Save the indices of the open-shell MOs
-       iopen0(imo)=1
-       
-       ! Block index
-       k=(imo-1)/64+1
-       
-       ! Orbital index
-       i=imo-1-(k-1)*64
-       
-       ! Set the bit
-       conf0(k,1)=ibset(conf0(k,1),i)       
-       
-    enddo
+    end select
     
     return
     

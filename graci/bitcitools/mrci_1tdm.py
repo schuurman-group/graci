@@ -1,6 +1,6 @@
 """
 Module for the calculation of MRCI one-electron reduced
-transitionndensity matrices
+transition density matrices
 """
 
 import sys as sys
@@ -11,7 +11,8 @@ import graci.utils.timing as timing
 
 @timing.timed
 def tdm(bra, ket, trans_list):
-    """Calculation of the MRCI 1-TDMs for all states"""
+    """Calculation of the MRCI 1-TDMs for all pairs of 
+      states in trans_list"""
 
     # number of irreps
     nirr_ket = ket.n_irrep()
@@ -29,14 +30,14 @@ def tdm(bra, ket, trans_list):
     # 1-TDMs for all irreps
     rho = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
     
-    # Loop over irreps in initial state
+    # Loop over pairs of irreps for the initial and final manifolds
     for ket_irr in range(nirr_ket):
         for bra_irr in range(nirr_bra):
 
             # pairs of states for this bra irrep and ket irrep
             # bitsi uses Fortran indexing for these, hence the +1
             npairs = len(trans_list[bra_irr][ket_irr])
-            
+
             if npairs == 0:
                 continue
 

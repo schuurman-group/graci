@@ -101,18 +101,25 @@ bitci_intent = {
 # registry of bitsi functions
 bitsi_registry = {
     'bitsi_initialise'        : ['int32','int32','int32','int32','int32',
-                                  'int32'],
+                                  'int32','string'],
     'bitsi_finalise'          : [],
     'transition_density_mrci' : ['int32','int32','int32','int32','int32',
                                  'int32','double','string','string',
-                                 'string','string']
+                                 'string','string'],
+    'redmat_mrci'             : ['int32','int32','int32','int32','int32',
+                                 'int32','double','string','string',
+                                 'string','string'],
+    'cgcoeff_soc'             : ['int32','int32','double']
 }
 
 bitsi_intent   = {
-    'bitsi_initialise'        : ['in','in','in','in','in','in'],
+    'bitsi_initialise'        : ['in','in','in','in','in','in','in'],
     'bitsi_finalise'          : [],
     'transition_density_mrci' : ['in','in','in','in','in','in','out',
-                                 'in','in','in','in']
+                                 'in','in','in','in'],
+    'redmat_mrci'             : ['in','in','in','in','in','in','out',
+                                 'in','in','in','in'],
+    'cgcoeff_soc'             : ['in','in','out']
 }
 
 # list of existing library objects

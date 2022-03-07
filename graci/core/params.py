@@ -6,19 +6,19 @@ import graci.methods.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.properties.moments as moments
-import graci.properties.transition as transition
-import graci.properties.spinorbit as spinorbit
+import graci.interaction.transition as transition
+import graci.interaction.spinorbit as spinorbit
 
 # molecule section input keywords and data types
 molecule_kword =     {'xyz_file' : str,
                       'units'    : str,
-                      'charge'   : int,
-                      'mult'     : int,
                       'basis'    : str,
                       'ri_basis' : str,
                       'ao_cart'  : bool,
                       'use_sym'  : bool,
                       'use_df'   : bool,
+                      'mult'     : int,
+                      'charge'   : int,
                       'label'    : str
                      }
 
@@ -29,10 +29,14 @@ scf_kword      = {'xc'             : str,
                   'restart'        : bool,
                   'print_orbitals' : bool,
                   'verbose'        : int,
+                  'charge'         : int,
+                  'mult'           : int,
                   'label'          : str}
 
 # MRCI section input keywords and data types
-dftmrci_kword  = {'nstates'        : int,
+dftmrci_kword  = {'mult'           : int,
+                  'charge'         : int,
+                  'nstates'        : int,
                   'hamiltonian'    : str,
                   'ras1'           : int,
                   'ras2'           : int,
@@ -59,7 +63,9 @@ dftmrci_kword  = {'nstates'        : int,
                  }
 
 # DFT/MR-ENPT2 section input keywords and data types
-dftmrenpt2_kword  = {'nstates'        : int,
+dftmrenpt2_kword  = {'mult'           : int,
+                     'charge'         : int,
+                     'nstates'        : int,
                      'hamiltonian'    : str,
                      'ras1'           : int,
                      'ras2'           : int,
@@ -89,12 +95,17 @@ transition_kword = {'init_states'      : int,
                     'label'            : str
                    }
 
-# molecule section input keywords and data typess
-spinorbit_kword = {'bra_states' : int,
-                   'ket_states' : int,
-                   'bra_label'  : str,
-                   'ket_label'  : str,
-                   'label'      : str
+# spinorbit section input keywords and data typess
+spinorbit_kword = {'init_states'      : int, 
+                   'final_states'     : int,
+                   'init_states_sym'  : float,
+                   'final_states_sym' : float,
+                   'all_final_states' : bool,
+                   'init_label'       : str,
+                   'final_label'      : str,
+                   'print_thresh'     : float,
+                   'mf2e'             : str,
+                   'label'            : str
                    }
 
 #----------------------------------------------------

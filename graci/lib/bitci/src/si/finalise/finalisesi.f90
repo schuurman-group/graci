@@ -17,16 +17,30 @@ subroutine bitsi_finalise()
   !
   ! Deallocate arrays
   !
-  if (allocated(scrunit))     deallocate(scrunit)
-  if (allocated(scrname))     deallocate(scrname)
-  if (allocated(patternmap))  deallocate(patternmap)
-  if (allocated(N1s))         deallocate(N1s)
-  if (allocated(spincp))      deallocate(spincp)
-  if (allocated(det0))        deallocate(det0)
-  if (allocated(conf0))       deallocate(conf0)
-  if (allocated(csfcoe))      deallocate(csfcoe)
-  if (allocated(detvec))      deallocate(detvec)
-
+  if (allocated(scrunit))        deallocate(scrunit)
+  if (allocated(scrname))        deallocate(scrname)
+  if (allocated(patmap))         deallocate(patmap)
+  if (allocated(patmap1))        deallocate(patmap1)
+  if (allocated(patmap2a_plus))  deallocate(patmap2a_plus)
+  if (allocated(patmap2b_plus))  deallocate(patmap2b_plus)
+  if (allocated(patmap2a_minus)) deallocate(patmap2a_minus)
+  if (allocated(patmap2b_minus)) deallocate(patmap2b_minus)
+  if (allocated(N1s))            deallocate(N1s)
+  if (allocated(spincp))         deallocate(spincp)
+  if (allocated(spincp_plus))    deallocate(spincp_plus)
+  if (allocated(spincp_minus))   deallocate(spincp_minus)
+  if (allocated(offspincp))      deallocate(offspincp)
+  if (allocated(offplus))        deallocate(offplus)
+  if (allocated(offminus))       deallocate(offminus)
+  if (allocated(det0))           deallocate(det0)
+  if (allocated(conf0))          deallocate(conf0)
+  if (allocated(csfcoe))         deallocate(csfcoe)
+  if (allocated(csfcoeB))        deallocate(csfcoeB)
+  if (allocated(csfcoeK))        deallocate(csfcoeK)
+  if (allocated(detvec))         deallocate(detvec)
+  if (allocated(detvecB))        deallocate(detvecB)
+  if (allocated(detvecK))        deallocate(detvecK)
+  
   !
   ! To be on the safe side, scrub all other global variables
   !
@@ -34,8 +48,6 @@ subroutine bitsi_finalise()
   maxunits=0
   nscratch=0
   nspincp=0
-  npattern1=0
-  npattern2=0
   nmo=0
   nel=0
   nel_alpha=0
@@ -43,8 +55,14 @@ subroutine bitsi_finalise()
   nel_spin=0
   imult=0
   ncsfs=0
+  ncsfsB=0
+  ncsfsK=0
   maxcsf=0
+  maxcsfB=0
+  maxcsfK=0
   maxdet=0
+  maxdetB=0
+  maxdetK=0
   imultB=0
   imultK=0
   nelB=0

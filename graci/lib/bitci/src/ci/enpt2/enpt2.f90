@@ -11,13 +11,13 @@
 module epstein_nesbet
 
   use constants
-  
+
   implicit none
 
   ! Temporary Hij array
   integer(is), private           :: harr2dim
   real(dp), allocatable, private :: harr2(:)
-  
+
 contains
 
 !######################################################################
@@ -60,7 +60,7 @@ contains
 
     ! Everything else
     integer(is)              :: i
-    
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -112,7 +112,7 @@ contains
 ! Divide by (H_nn - E^0_I)
 !----------------------------------------------------------------------
     call apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim)
-    
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -1001,7 +1001,7 @@ contains
 
     use constants
     use bitglobal
-    
+
     implicit none
 
     ! Configuration indices
@@ -1023,23 +1023,19 @@ contains
     real(dp), intent(in)    :: vec0(refdim,nroots)
     
     ! Everything else
-    integer(is)             :: bomega,komega,ikcsf,ibcsf
+    integer(is)             :: ikcsf,ibcsf
     integer(is)             :: j,counter
 
     ! Loop over roots
     do j=1,nroots
-
+    
        counter=0
        
        ! Loop over ket CSFs (reference space CSFs)
-       komega=0
        do ikcsf=kcsfs(kconf),kcsfs(kconf+1)-1
-          komega=komega+1
           
           ! Loop over bra CSFs (MRCI CSFs not in the reference space)
-          bomega=0
           do ibcsf=bcsfs(bconf),bcsfs(bconf+1)-1
-             bomega=bomega+1
              counter=counter+1
              
              Avec(ibcsf,j)=Avec(ibcsf,j)&
@@ -1048,9 +1044,9 @@ contains
           enddo
                     
        enddo
-
+    
     enddo
-       
+
     return
     
   end subroutine contract_hmat_vec0
