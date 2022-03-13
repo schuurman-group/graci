@@ -94,7 +94,7 @@ contains
 !----------------------------------------------------------------------
     call generate_ras_dets(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
          nras3,mras3,ndet,detscr,.false.)
-
+    
 !----------------------------------------------------------------------
 ! Determine the unique reference space SOPs
 !----------------------------------------------------------------------

@@ -5,7 +5,7 @@
 ! order of in increasing irrep index.
 !**********************************************************************
 ! The subroutine det_sort_spin is of central importance: by sorting
-! the set of determinants by either their alpha strings, we can
+! the set of determinants by either their alpha or beta strings, we can
 ! achieve an O(N^1.5) scaling of the sigma-vector code with the number
 ! of determinants.
 !**********************************************************************

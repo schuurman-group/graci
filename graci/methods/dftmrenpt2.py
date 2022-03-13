@@ -7,6 +7,7 @@ import importlib
 import graci.io.convert as convert
 import ctypes as ctypes
 import numpy as np
+import copy as copy
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
