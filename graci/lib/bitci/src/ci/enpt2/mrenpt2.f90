@@ -3,10 +3,11 @@
 ! corrections
 !######################################################################
 #ifdef CBINDING
-subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr) &
-     bind(c,name="mrenpt2")
+subroutine mrenpt2(irrep,nroots,nextra,multistate,confscr,vecscr,&
+     vec0scr) bind(c,name="mrenpt2")
 #else
-subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr)
+subroutine mrenpt2(irrep,nroots,nextra,multistate,confscr,vecscr,&
+       vec0scr)
 #endif
 
   use constants
@@ -26,6 +27,9 @@ subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr)
 
   ! Number of extra roots to include in the ENPT2 calculation
   integer(is), intent(in)  :: nextra
+
+  ! Multistate calculation?
+  logical, intent(in)      :: multistate
   
   ! Array of MRCI configuration scratch file numbers
   integer(is), intent(in)  :: confscr(0:nirrep-1)
@@ -58,6 +62,9 @@ subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr)
   ! 2nd-order corrected energies
   real(dp), allocatable    :: EPT2(:)
 
+  ! QDPT2 energies and mixing coefficients
+  real(dp), allocatable    :: EQD(:),mix(:,:),work(:,:)
+  
   ! I/O variables
   integer(is)              :: iscratch
   character(len=60)        :: vecfile
@@ -142,6 +149,12 @@ subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr)
 
   allocate(Sinvsq(nroots,nroots))
   Sinvsq=0.0d0
+
+  if (multistate) then
+     allocate(EQD(nvec))
+     allocate(mix(nvec,nvec))
+     allocate(work(cfg%csfdim,nvec))
+  endif
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
@@ -156,15 +169,35 @@ subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr)
 !----------------------------------------------------------------------
 ! Compute the ENPT2 energy and wave function corrections
 !----------------------------------------------------------------------
-  call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec)
+  if (multistate) then
+     call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+          vec0scr(irrep),Avec,E2,nvec,multistate,EQD,mix)
+  else
+     call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+          vec0scr(irrep),Avec,E2,nvec,multistate)
+  endif
 
+!----------------------------------------------------------------------
+! Mix the 1st-order corrected wave functions using the QDPT2
+! coefficients
+!----------------------------------------------------------------------
+  if (multistate) then
+     work=Avec
+     Avec=matmul(work,mix)
+  endif
+     
 !----------------------------------------------------------------------
 ! Sort the 2nd-order corrected energies
 !----------------------------------------------------------------------
   ! 2nd-order corrected energies
-  EPT2=E0+E2
-
+  if (multistate) then
+     ! Take the multi-state energies
+     EPT2=EQD
+  else
+     ! Take the single-state energies
+     EPT2=E0+E2
+  endif
+  
   ! Sorting
   call dsortindxa1('A',nvec,EPT2,indx)
 
@@ -216,7 +249,7 @@ subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr)
   ! Orthogonalise
   Avec(:,1:nroots)=Avec_ortho
   Avec_ortho=matmul(Avec(:,1:nroots),Sinvsq)
-
+  
 !----------------------------------------------------------------------
 ! Write the 2nd-order corrected energies and 1st-order corrected
 ! wave functions to disk
@@ -265,6 +298,9 @@ subroutine mrenpt2(irrep,nroots,nextra,confscr,vecscr,vec0scr)
   deallocate(indx)
   deallocate(Smat)
   deallocate(Sinvsq)
+  if (allocated(EQD)) deallocate(EQD)
+  if (allocated(mix)) deallocate(mix)
+  if (allocated(work)) deallocate(work)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report

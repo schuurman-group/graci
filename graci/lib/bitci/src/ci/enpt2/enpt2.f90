@@ -24,7 +24,7 @@ contains
 ! enpt2: Computes a batch of ENPT2 energy and wave function corrections
 !######################################################################
   subroutine enpt2(cfg,hdiag,averageii,csfdim,confdim,vec0scr,Avec,&
-       E2,nroots)
+       E2,nroots,multistate,EQD,mix)
 
     use constants
     use bitglobal
@@ -34,33 +34,39 @@ contains
     implicit none
 
     ! MRCI configuration derived type
-    type(mrcfg), intent(in) :: cfg
+    type(mrcfg), intent(in)         :: cfg
 
     ! No. CSFs and configurations
-    integer(is), intent(in) :: csfdim,confdim
+    integer(is), intent(in)         :: csfdim,confdim
     
     ! On-diagonal Hamiltonian matrix elements and their
     ! spin-coupling averaged values
-    real(dp), intent(in)    :: hdiag(csfdim),averageii(confdim)
+    real(dp), intent(in)            :: hdiag(csfdim),averageii(confdim)
 
     ! Reference space eigenpair scratch file number
-    integer(is), intent(in) :: vec0scr
+    integer(is), intent(in)         :: vec0scr
 
     ! Number of roots
-    integer(is), intent(in) :: nroots
+    integer(is), intent(in)         :: nroots
 
     ! ENPT2 wave function and energy corrections
-    real(dp), intent(out)   :: Avec(csfdim,nroots)
-    real(dp), intent(out)   :: E2(nroots)
+    real(dp), intent(out)           :: Avec(csfdim,nroots)
+    real(dp), intent(out)           :: E2(nroots)
+
+    ! Multistate flag
+    logical, intent(in)             :: multistate
+
+    ! Multistate energies and mixing coefficients
+    real(dp), optional, intent(out) :: EQD(nroots),mix(nroots,nroots)
     
     ! Reference space eigenpairs
-    integer(is)              :: refdim
-    integer(is), allocatable :: iroots(:)
-    real(dp), allocatable    :: e0(:),vec0(:,:)
+    integer(is)                     :: refdim
+    integer(is), allocatable        :: iroots(:)
+    real(dp), allocatable           :: e0(:),vec0(:,:)
 
     ! Everything else
-    integer(is)              :: i
-
+    integer(is)                     :: i
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -109,10 +115,16 @@ contains
     call avec_2h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots)
 
 !----------------------------------------------------------------------
+! QDPT2 energies and mixing coefficients
+!----------------------------------------------------------------------
+    if (multistate) call qdpt2(cfg,Avec,hdiag,e0,EQD,mix,csfdim,&
+         nroots,refdim)
+    
+!----------------------------------------------------------------------
 ! Divide by (H_nn - E^0_I)
 !----------------------------------------------------------------------
     call apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim)
-
+    
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -1109,6 +1121,96 @@ contains
     
   end subroutine apply_denominator
 
+!######################################################################
+! qdpt2: constructs and diagonalises the QDPT2 effective Hamiltonian
+!        using the ENPT2 Hamiltonian partitioning  
+!######################################################################
+  subroutine qdpt2(cfg,Avec,hdiag,e0,EQD,mix,csfdim,nroots,refdim)
+
+    use constants
+    use bitglobal
+    use conftype
+    use utils
+    use iomod
+    
+    implicit none
+
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in) :: cfg
+
+    ! Dimensions
+    integer(is), intent(in) :: csfdim,nroots,refdim
+
+    ! On-diagonal Hamiltonian matrix elements
+    real(dp), intent(in)    :: hdiag(csfdim)
+
+    ! A-vector
+    real(dp), intent(inout) :: Avec(csfdim,nroots)
+    
+    ! Reference space eigenvalues
+    real(dp), intent(in)    :: e0(nroots)
+
+    ! QDPT2 energies and mixing coefficients
+    real(dp)                :: EQD(nroots)
+    real(dp)                :: mix(nroots,nroots)
+
+    ! Effective Hamiltonian matrix and eigenpairs
+    real(dp), allocatable   :: heff(:,:)
+
+    ! Everything else
+    integer(is)             :: i,j,icsf
+    real(dp)                :: fac
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(heff(nroots,nroots))
+    heff=0.0d0
+
+!----------------------------------------------------------------------
+! Construct the QDPT2 effective Hamiltonian matrix
+!----------------------------------------------------------------------
+    ! Loop over pairs of roots
+    do i=1,nroots
+       do j=i,nroots
+
+          ! E_i^(0) \delta_ij
+          if (i == j) heff(i,j)=e0(i)
+
+          ! Loop over FOIS CSFs
+          do icsf=refdim+1,csfdim
+
+             fac=1.0d0/(e0(i)-hdiag(icsf)) &
+                  +1.0d0/(e0(j)-hdiag(icsf))
+             fac=0.5d0*fac
+
+             heff(i,j)=heff(i,j)+Avec(icsf,i)*Avec(icsf,j)*fac
+             
+          enddo
+          
+          heff(j,i)=heff(i,j)
+
+       enddo
+    enddo
+    
+!----------------------------------------------------------------------
+! Diagonalise the effective Hamiltonian
+!----------------------------------------------------------------------
+    ! Eigenpairs of H_eff
+    call diag_matrix_real(heff,EQD,mix,nroots)
+
+    ! Add E_SCF to the eigenvalues
+    EQD=EQD+escf
+    
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(heff)
+    
+    return
+    
+  end subroutine qdpt2
+  
 !######################################################################
   
 end module epstein_nesbet

@@ -65,6 +65,7 @@ dftmrci_kword  = {'mult'           : int,
 # DFT/MR-ENPT2 section input keywords and data types
 dftmrenpt2_kword  = {'mult'           : int,
                      'charge'         : int,
+                     'multistate'     : bool,
                      'nstates'        : int,
                      'hamiltonian'    : str,
                      'ras1'           : int,

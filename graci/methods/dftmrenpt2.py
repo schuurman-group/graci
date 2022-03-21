@@ -40,6 +40,7 @@ class Dftmrenpt2:
         # user defined quanties
         self.charge         = 0
         self.mult           = None
+        self.multistate     = False
         self.nstates        = []
         self.hamiltonian    = 'canonical'
         self.ras1           = []

@@ -973,7 +973,8 @@ contains
 !----------------------------------------------------------------------
 ! Compute the ENPT2 wave function corrections
 !----------------------------------------------------------------------
-    call enpt2(cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,nguess)
+    call enpt2(cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,nguess,&
+         .false.)
 
 !----------------------------------------------------------------------
 ! Read in the reference space eigenpairs

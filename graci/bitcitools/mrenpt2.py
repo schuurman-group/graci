@@ -14,6 +14,9 @@ import graci.io.convert as convert
 def corrections(ci_method):
     """Calculation of the ENPT2 corrections"""
 
+    # is this a multistate MR-ENPT2 calculation?
+    multistate = ci_method.multistate
+    
     # nirr is given by the length of the nstates vector in ci obj
     nirr = ci_method.n_irrep()
 
@@ -40,7 +43,9 @@ def corrections(ci_method):
         # Number of extra roots
         nextra = ci_method.nextra['enpt2'][irrep]
         
-        args = (irrep, nroots, nextra, ci_confunits, ciunit, ref_ciunits)
+        args = (irrep, nroots, nextra, multistate, ci_confunits, ciunit,
+                ref_ciunits)
+
         ciunit = libs.lib_func('mrenpt2', args)
 
         # Bitci eigenvector scratch number
