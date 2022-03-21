@@ -1159,7 +1159,7 @@ contains
 
     ! Everything else
     integer(is)             :: i,j,icsf
-    real(dp)                :: fac
+    real(dp)                :: fac,di,dj
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1180,10 +1180,15 @@ contains
           ! Loop over FOIS CSFs
           do icsf=refdim+1,csfdim
 
-             fac=1.0d0/(e0(i)-hdiag(icsf)) &
-                  +1.0d0/(e0(j)-hdiag(icsf))
-             fac=0.5d0*fac
+             ! ISA factors
+             di=0.02d0/(e0(i)-hdiag(icsf))
+             dj=0.02d0/(e0(j)-hdiag(icsf))
 
+             ! ISA-shifted denominators
+             fac=0.5d0/(e0(i)-hdiag(icsf)+di)
+             fac=fac+0.5d0/(e0(j)-hdiag(icsf)+dj)
+
+             ! <I|H|i> <i|H|J> / (E_I^0 - H_ii + Delta_Ii) + (I<->J)
              heff(i,j)=heff(i,j)+Avec(icsf,i)*Avec(icsf,j)*fac
              
           enddo
