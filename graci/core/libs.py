@@ -62,8 +62,8 @@ bitci_registry = {
     'wf_mrci'                : ['int32','int32','int32','int32',
                                 'int32','string','string', 'int32',
                                 'int32'],
-    'mrenpt2'                : ['int32','int32','int32','logical','int32',
-                                'int32','int32']
+    'mrenpt2'                : ['int32','int32','int32','double',
+                                'logical','int32','int32','int32']
 }
 
 bitci_intent = {
@@ -94,7 +94,7 @@ bitci_intent = {
     'density_mrci'           : ['in','in','in','out','in','in'],
     'wf_mrci'                : ['in','in','in','in','in','in','in',
                                 'in','out'],
-    'mrenpt2'                : ['int','int','in','in','in','out','in']
+    'mrenpt2'                : ['in','in','in','in','in','in','out','in']
 }
 
 

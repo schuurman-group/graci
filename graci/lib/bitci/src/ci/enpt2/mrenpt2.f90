@@ -3,11 +3,11 @@
 ! corrections
 !######################################################################
 #ifdef CBINDING
-subroutine mrenpt2(irrep,nroots,nextra,multistate,confscr,vecscr,&
-     vec0scr) bind(c,name="mrenpt2")
+subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
+     vecscr,vec0scr) bind(c,name="mrenpt2")
 #else
-subroutine mrenpt2(irrep,nroots,nextra,multistate,confscr,vecscr,&
-       vec0scr)
+subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
+       vecscr,vec0scr)
 #endif
 
   use constants
@@ -28,6 +28,9 @@ subroutine mrenpt2(irrep,nroots,nextra,multistate,confscr,vecscr,&
   ! Number of extra roots to include in the ENPT2 calculation
   integer(is), intent(in)  :: nextra
 
+  ! ISA shift
+  real(dp), intent(in)     :: shift
+  
   ! Multistate calculation?
   logical, intent(in)      :: multistate
   
@@ -171,10 +174,10 @@ subroutine mrenpt2(irrep,nroots,nextra,multistate,confscr,vecscr,&
 !----------------------------------------------------------------------
   if (multistate) then
      call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-          vec0scr(irrep),Avec,E2,nvec,multistate,EQD,mix)
+          vec0scr(irrep),Avec,E2,nvec,shift,multistate,EQD,mix)
   else
      call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-          vec0scr(irrep),Avec,E2,nvec,multistate)
+          vec0scr(irrep),Avec,E2,nvec,shift,multistate)
   endif
 
 !----------------------------------------------------------------------

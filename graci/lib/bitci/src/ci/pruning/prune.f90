@@ -172,7 +172,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !----------------------------------------------------------------------
   call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec,.false.)
+       vec0scr(irrep),Avec,E2,nvec,0.0d0,.false.)
 
 !----------------------------------------------------------------------
 ! Sort the 2nd-order corrected energies

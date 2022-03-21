@@ -16,6 +16,9 @@ def corrections(ci_method):
 
     # is this a multistate MR-ENPT2 calculation?
     multistate = ci_method.multistate
+
+    # ISA shift
+    shift = ci_method.shift
     
     # nirr is given by the length of the nstates vector in ci obj
     nirr = ci_method.n_irrep()
@@ -43,8 +46,8 @@ def corrections(ci_method):
         # Number of extra roots
         nextra = ci_method.nextra['enpt2'][irrep]
         
-        args = (irrep, nroots, nextra, multistate, ci_confunits, ciunit,
-                ref_ciunits)
+        args = (irrep, nroots, nextra, shift, multistate, ci_confunits,
+                ciunit, ref_ciunits)
 
         ciunit = libs.lib_func('mrenpt2', args)
 

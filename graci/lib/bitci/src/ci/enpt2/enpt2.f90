@@ -24,7 +24,7 @@ contains
 ! enpt2: Computes a batch of ENPT2 energy and wave function corrections
 !######################################################################
   subroutine enpt2(cfg,hdiag,averageii,csfdim,confdim,vec0scr,Avec,&
-       E2,nroots,multistate,EQD,mix)
+       E2,nroots,shift,multistate,EQD,mix)
 
     use constants
     use bitglobal
@@ -53,6 +53,9 @@ contains
     real(dp), intent(out)           :: Avec(csfdim,nroots)
     real(dp), intent(out)           :: E2(nroots)
 
+    ! ISA shift
+    real(dp), intent(in)            :: shift
+    
     ! Multistate flag
     logical, intent(in)             :: multistate
 
@@ -118,7 +121,7 @@ contains
 ! QDPT2 energies and mixing coefficients
 !----------------------------------------------------------------------
     if (multistate) call qdpt2(cfg,Avec,hdiag,e0,EQD,mix,csfdim,&
-         nroots,refdim)
+         nroots,refdim,shift)
     
 !----------------------------------------------------------------------
 ! Divide by (H_nn - E^0_I)
@@ -1125,7 +1128,8 @@ contains
 ! qdpt2: constructs and diagonalises the QDPT2 effective Hamiltonian
 !        using the ENPT2 Hamiltonian partitioning  
 !######################################################################
-  subroutine qdpt2(cfg,Avec,hdiag,e0,EQD,mix,csfdim,nroots,refdim)
+  subroutine qdpt2(cfg,Avec,hdiag,e0,EQD,mix,csfdim,nroots,refdim,&
+       shift)
 
     use constants
     use bitglobal
@@ -1151,9 +1155,12 @@ contains
     real(dp), intent(in)    :: e0(nroots)
 
     ! QDPT2 energies and mixing coefficients
-    real(dp)                :: EQD(nroots)
-    real(dp)                :: mix(nroots,nroots)
+    real(dp), intent(out)   :: EQD(nroots)
+    real(dp), intent(out)   :: mix(nroots,nroots)
 
+    ! ISA shift
+    real(dp), intent(in)    :: shift
+    
     ! Effective Hamiltonian matrix and eigenpairs
     real(dp), allocatable   :: heff(:,:)
 
@@ -1181,8 +1188,8 @@ contains
           do icsf=refdim+1,csfdim
 
              ! ISA factors
-             di=0.02d0/(e0(i)-hdiag(icsf))
-             dj=0.02d0/(e0(j)-hdiag(icsf))
+             di=shift/(e0(i)-hdiag(icsf))
+             dj=shift/(e0(j)-hdiag(icsf))
 
              ! ISA-shifted denominators
              fac=0.5d0/(e0(i)-hdiag(icsf)+di)
