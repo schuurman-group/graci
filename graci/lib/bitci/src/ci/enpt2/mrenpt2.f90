@@ -181,6 +181,13 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   endif
 
 !----------------------------------------------------------------------
+! Add in the zeroth-order wave functions
+!----------------------------------------------------------------------
+  do i=1,nvec
+     Avec(1:refdim,i)=vec0(:,i)
+  enddo
+  
+!----------------------------------------------------------------------
 ! Mix the 1st-order corrected wave functions using the QDPT2
 ! coefficients
 !----------------------------------------------------------------------
@@ -188,7 +195,7 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
      work=Avec
      Avec=matmul(work,mix)
   endif
-     
+  
 !----------------------------------------------------------------------
 ! Sort the 2nd-order corrected energies
 !----------------------------------------------------------------------
@@ -210,13 +217,11 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   enddo
   
 !----------------------------------------------------------------------
-! Construct the 1st-order corrected wave functions
-! (for the nroots lowest energy roots only)
+! 1st-order corrected wave functions for the nroots lowest energy
+! roots only
 !----------------------------------------------------------------------
-  ! Add in the zeroth-order wave functions
   do i=1,nroots
      Avec_ortho(:,i)=Avec(:,indx(i))
-     Avec_ortho(1:refdim,i)=vec0(:,indx(i))
   enddo
   
 !----------------------------------------------------------------------
