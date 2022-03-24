@@ -459,7 +459,7 @@ contains
        enddo
        ! Exit here if the trace of the 1-RDM does not equal the
        ! no. electrons
-       if (abs(trace-nel) > 1e-10_dp) then
+       if (abs(trace-nel) > 1e-6_dp) then
           errmsg='Incorrect Tr(rho) in rdm_mrci_diag'
           call error_control
        endif
