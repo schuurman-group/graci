@@ -13,7 +13,7 @@ import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
-import graci.overlap.overlap as overlap
+import graci.interaction.overlap as overlap
 
 from pyscf import gto
 
@@ -265,32 +265,21 @@ def check_input(run_list):
                     
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
-        if type(obj).__name__ == 'Transition' or type(obj).__name__ == 'Spinorbit':
-            if obj.init_states is not None:
-                if not isinstance(obj.init_states, (list, np.ndarray)):
-                    obj.init_states = [obj.init_states]
+        if (type(obj).__name__ == 'Transition' or 
+             type(obj).__name__ == 'Spinorbit' or
+               type(obj).__name__ == 'Overlap'):
+            if obj.ket_states is not None:
+                if not isinstance(obj.ket_states, (list, np.ndarray)):
+                    obj.ket_states = [obj.ket_states]
                 # shift state index to range 1 -> 0
-                obj.init_states = [obj.init_states[i] - 1 
-                                for i in range(len(obj.init_states))]
+                obj.ket_states = [obj.ket_states[i] - 1 
+                                for i in range(len(obj.ket_states))]
 
-            if obj.final_states is not None:
-                if not isinstance(obj.final_states, (list, np.ndarray)):
-                    obj.final_states = [obj.final_states]
-                obj.final_states = [obj.final_states[i] - 1 
-                               for i in range(len(obj.final_states))]
-
-            if obj.init_states_sym is not None:
-                if not isinstance(obj.init_states_sym, (list, np.ndarray)):
-                    obj.init_states_sym = [obj.init_states_sym]
-                # shift irrep and state to range 1.1 -> 0.0
-                obj.init_states_sym = [obj.init_states_sym[i] - 1.1
-                               for i in range(len(obj.init_states_sym))]
-
-            if obj.final_states_sym is not None:
-                if not isinstance(obj.final_states_sym, (list, np.ndarray)):
-                    obj.final_states_sym = [obj.final_states_sym]
-                obj.final_states_sym = [obj.final_states_sym[i] - 1.1
-                               for i in range(len(obj.final_states_sym))]
+            if obj.bra_states is not None:
+                if not isinstance(obj.bra_states, (list, np.ndarray)):
+                    obj.bra_states = [obj.bra_states]
+                obj.bra_states = [obj.bra_states[i] - 1 
+                               for i in range(len(obj.bra_states))]
 
         # save section labels -- make sure all our unique
         section_lbls.append(obj.label)

@@ -29,7 +29,7 @@ def refine_ref_space(ci_method):
     ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
 
     # No. roots per irrep
-    nstates = ci_method.n_state_sym()
+    nstates = ci_method.n_states_sym()
 
     # Configuration selection threshold. We will just hardcode this
     # for now

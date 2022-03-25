@@ -46,8 +46,8 @@ def redmat(bra, ket, trans_list):
                 (2*npairs), order='F')
 
             # total number of bra and ket roots for this irrep
-            bra_tot = bra.n_state_sym(bra_irr)
-            ket_tot = ket.n_state_sym(ket_irr)
+            bra_tot = bra.n_states_sym(bra_irr)
+            ket_tot = ket.n_states_sym(ket_irr)
 
             # Triplet TDM array
             uij = np.zeros((nmo*nmo*npairs), dtype=np.float64)

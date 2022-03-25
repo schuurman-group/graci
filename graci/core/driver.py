@@ -143,6 +143,9 @@ class Driver:
                     postscf.run()
                     chkpt.write(postscf)
 
+        # All SCF + POST-SCF objects are run first before state interaction
+        # objects are evaluated
+
         # State interaction Sections 
         # ----------------------------------------------------
 
@@ -151,7 +154,7 @@ class Driver:
             # first check if init/final_method is set. If not
             # and there is a single postscf method, we can
             # determine a sensible default
-            if (si_obj.init_label is None and si_obj.final_label
+            if (si_obj.bra_label is None and si_obj.ket_label
                     is None and len(postscf_objs) == 1):
                 si_obj.set_bra(postscf_objs[0])
                 si_obj.set_ket(postscf_objs[0])
@@ -161,10 +164,10 @@ class Driver:
             # with an error message
             else:
                 for postscf in postscf_objs:
-                    if si_obj.init_label == postscf.label:
-                        si_obj.set_ket(postscf)
-                    if si_obj.final_label == postscf.label:
+                    if si_obj.bra_label == postscf.label:
                         si_obj.set_bra(postscf)
+                    if si_obj.ket_label == postscf.label:
+                        si_obj.set_ket(postscf)
 
             if (si_obj.bra_exists() is False or 
                 si_obj.ket_exists() is False):
@@ -176,38 +179,6 @@ class Driver:
             si_obj.run()
             chkpt.write(si_obj)
 
-        # Overlap sections
-        # ----------------------------------------------------
-
-        for overlap_obj in overlap_objs:
-            # first check if bra/ket method is set. If not
-            # and there is a single postscf method, we can
-            # determine a sensible default
-            if (overlap_obj.ket_label is None and overlap_obj.bra_label
-                    is None and len(postscf_objs) == 1):
-                overlap_obj.set_bra(postscf_objs[0])
-                overlap_obj.set_ket(postscf_objs[0])
-
-            # else, we use the label names to determine bra
-            # and ket states. If things don't match up, fail
-            # with an error message
-            else:
-                for postscf in postscf_objs:
-                    if overlap_obj.ket_label == postscf.label:
-                        overlap_obj.set_ket(postscf)
-                    if overlap_obj.bra_label == postscf.label:
-                        overlap_obj.set_bra(postscf)
-
-            if (overlap_obj.bra_exists() is False or 
-                overlap_obj.ket_exists() is False):
-                output.print_message(type(overlap_obj).__name__+' section, '+
-                        'label='+str(overlap_obj.label)+
-                        ' has no bra/ket defined. Please check input')
-                sys.exit(1)
-
-            overlap_obj.run()
-            chkpt.write(overlap_obj)
-        
         return
 
 

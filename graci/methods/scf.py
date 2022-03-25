@@ -183,12 +183,12 @@ class Scf:
         return
 
     #
-    def n_state(self):
+    def n_states(self):
         """return number of states optmizied, i.e. 1"""
         return 1
 
     #
-    def n_state_sym(self, irrep):
+    def n_states_sym(self, irrep):
         """number of states computed"""
 
         if irrep == self.state_sym:

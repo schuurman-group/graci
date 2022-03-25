@@ -227,9 +227,9 @@ def print_refdiag_summary(ci_method):
     
         nirr = len(ci_method.nstates)
         for i in range(nirr):
-            if ci_method.n_state_sym(i) > 0:
+            if ci_method.n_states_sym(i) > 0:
                 outfile.write('\n')
-                for n in range(ci_method.n_state_sym(i)):
+                for n in range(ci_method.n_states_sym(i)):
                     outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
                         .format(n+1, ci_method.scf.mol.irreplbl[i],
                         ci_method.ref_ener[i,n],

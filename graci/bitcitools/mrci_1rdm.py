@@ -32,7 +32,7 @@ def rdm(ci_method):
     
     # Loop over irreps
     for irr in range(ci_method.n_irrep()):
-        states = [n for n in range(ci_method.n_state_sym(irr))]
+        states = [n for n in range(ci_method.n_states_sym(irr))]
         
         # States for which the 1-RDMs are required (note that bitCI
         # uses Fortran indexing here)

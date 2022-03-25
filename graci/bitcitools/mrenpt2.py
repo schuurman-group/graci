@@ -35,7 +35,7 @@ def corrections(ci_method):
     for irrep in range(nirr):
 
         # Number of roots for the current irrep
-        nroots = ci_method.n_state_sym(irrep)
+        nroots = ci_method.n_states_sym(irrep)
 
         # Number of extra roots
         nextra = ci_method.nextra['enpt2'][irrep]
@@ -47,13 +47,13 @@ def corrections(ci_method):
         ciunits.append(ciunit)
 
     # Retrieve the MR-ENPT2 energies
-    maxroots = max(ci_method.n_state_sym())
+    maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
-        if ci_method.n_state_sym(irrep) > 0:
+        if ci_method.n_states_sym(irrep) > 0:
 
             # Number of roots for the current irrep
-            nroots = ci_method.n_state_sym(irrep)
+            nroots = ci_method.n_states_sym(irrep)
 
             args = (ciunits[irrep], nroots, ener[irrep,:nroots])
             (ener[irrep,:nroots]) = \
@@ -70,7 +70,7 @@ def corrections(ci_method):
     # Print the report of the MR-ENPT2 states 
     output.print_dftmrenpt2_states_header()
     ciunits = np.array(ciunits, dtype=int)
-    nstates = ci_method.n_state_sym()
+    nstates = ci_method.n_states_sym()
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)  
     
