@@ -61,12 +61,10 @@ class Interaction:
         self.states[lbl] = state_list
 
         # also store state symmetries
-        syms = []
+        self.symmetries[lbl] = []
         for state in state_list:
             # state_sym returns an [irrep, st_indx] pair
-            syms.append(obj.state_sym(state))
-
-        self.symmetries[lbl] = syms
+            self.symmetries[lbl].append(obj.state_sym(state)[0])
 
         return
 
@@ -142,6 +140,9 @@ class Interaction:
               ket not in list(self.objs.keys())):
             return None
 
+        # if bra and ket objects are same,
+        braket_same = self.same_braket()
+
         # initialize the pair list. If symblk, pair_list is an nirr x nirr
         # state pairs. Else, just a list of state pairs
         if sym_blk:
@@ -152,15 +153,15 @@ class Interaction:
             pair_list = []
 
         for k in range(len(self.states[ket])):
-            kst  = self.states[ket][k]
-            ksm = self.symmetries[ket][k]
+            kst = self.states[ket][k]
+            ksm = self.objs[ket].state_sym(kst)
     
             for b in range(len(self.states[bra])):
-                bst  = self.states[bra][b]
-                bsm = self.symmetries[bra][b]
-    
+                bst = self.states[bra][b]
+                bsm = self.objs[bra].state_sym(bst)
+   
                 # exclude bra == ket pairs: 'lower_i>j'
-                if bra == ket and kst == bst and pairs == 'nodiag':
+                if braket_same and bst == kst and pairs == 'nodiag':
                     continue
 
                 # only include unique pairs if 'lower' or 'nodiag'

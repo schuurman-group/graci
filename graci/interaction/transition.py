@@ -69,8 +69,8 @@ class Transition(interaction.Interaction):
            transitions from all states in method object should be 
            used."""
 
-        self.bra_label = self.final_label
-        self.ket_label = self.init_label
+        #self.bra_label = self.final_label
+        #self.ket_label = self.init_label
 
         mol_bra = self.bra_obj.scf.mol
         mol_ket = self.ket_obj.scf.mol
@@ -101,10 +101,10 @@ class Transition(interaction.Interaction):
         # if all_final_states is true, over-ride current contents of 
         # self.final_states
         if self.all_final_states:
-            self.final_states = range(self.bra_obj.n_states())
+            self.bra_states = range(self.bra_obj.n_states())
 
-        self.add_states('ket_states', self.ket_obj, self.init_states)
-        self.add_states('bra_states', self.bra_obj, self.final_states)
+        self.add_states('ket_states', self.ket_obj, self.ket_states)
+        self.add_states('bra_states', self.bra_obj, self.bra_states)
 
         # this is main transition_list: stored by adiabatic label
         self.trans_list = self.build_pair_list('bra_states',
@@ -147,7 +147,8 @@ class Transition(interaction.Interaction):
     def tdm(self, b_st, k_st):
         """return the tdm for the bra and ket state indicated"""
 
-        indx = self.trans_list.index(b_st, k_st)
+        indx = self.trans_list.index([b_st, k_st])
+
         if indx is not None:
             return self.tdms[:, :, indx]
         else:
@@ -179,7 +180,7 @@ class Transition(interaction.Interaction):
 #
     # 
     @timing.timed
-    def build_tdms(self, trans_list, trans_list_sym):
+    def build_tdms(self, trans_list_sym):
         """grab the TDMs from bitsi and then reshape the list of
            TDMs into a more usable format"""
 
@@ -188,12 +189,12 @@ class Transition(interaction.Interaction):
                                   trans_list_sym)
 
         # make the tdm list
-        nmo      = self.bra_obj.scf.nmo
-        npair    = len(trans_list)
-        tdms     = np.zeros((nmo, nmo, npairs), dtype=float)
+        nmo    = self.bra_obj.scf.nmo
+        npairs = len(self.trans_list)
+        tdms   = np.zeros((nmo, nmo, npairs), dtype=float)
 
-        for indx in range(len(trans_list)):
-            bk_st          = trans_list[indx]
+        for indx in range(len(self.trans_list)):
+            bk_st          = self.trans_list[indx]
             [birr, bst]    = self.bra_obj.state_sym(bk_st[0])
             [kirr, kst]    = self.ket_obj.state_sym(bk_st[1])
             sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
@@ -208,7 +209,7 @@ class Transition(interaction.Interaction):
 
         # append a '_l' or '_v' to indicate length or velocity gauge
         keyname = name+'_'+str(gauge)[0]
-        indx = self.trans_list.index(b_st, k_st)
+        indx = self.trans_list.index([b_st, k_st])
 
         if keyname in self.multipole.keys() and indx is not None:
             return self.multipole[keyname][..., indx]
@@ -226,7 +227,7 @@ class Transition(interaction.Interaction):
             istr = 'iso'
 
         keyname = 'f'+str(order)+istr+'_'+str(gauge)[0]
-        indx = self.trans_list.index(b_st, k_st)
+        indx = self.trans_list.index([b_st, k_st])
 
         if keyname in self.oscstr.keys() and indx is not None:
             return self.oscstr[keyname][..., indx]
@@ -383,7 +384,7 @@ class Transition(interaction.Interaction):
         mquad = {}
         mquad['m_quadrupole_v'] = self.contract_transitions(mquad_mo)
 
-        return
+        return mquad
 
     #
     @timing.timed
@@ -481,7 +482,7 @@ class Transition(interaction.Interaction):
         f2_v   = np.zeros((3, ntrans), dtype=float)
         f2_iso = np.zeros((ntrans), dtype=float)
 
-        for tpair in self.trans_list[0]:
+        for tpair in self.trans_list:
     
             b_st = tpair[0]
             k_st = tpair[1]
@@ -536,7 +537,7 @@ class Transition(interaction.Interaction):
             # isotropically averaged value
             f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
-            f2_iso[bk_indx] = f2_av
+            f2_iso[indx] = f2_av
 
         oscstr_v = {}
         oscstr_v['f0_v']    = f0_v
@@ -573,8 +574,8 @@ class Transition(interaction.Interaction):
             if tdm is None:
                 continue
 
-            rdm_bra = self.bra_obj.rdm1(b_st)
-            rdm_ket = self.ket_obj.rdm1(k_st)
+            rdm_bra = self.bra_obj.rdm(b_st)
+            rdm_ket = self.ket_obj.rdm(k_st)
 
             # first perform SVD of 1TDMs to get hole and
             # particle orbitals and weights and convert
@@ -606,8 +607,8 @@ class Transition(interaction.Interaction):
             wt_pairs[0::2]    = -s_srt[:npairs] 
             wt_pairs[1::2]    =  s_srt[:npairs]
 
-            nto[:, :2*npairs, bk_indx] = nto_pairs
-            nto_wt[:2*npairs, bk_indx] = wt_pairs
+            nto[:, :2*npairs, indx] = nto_pairs
+            nto_wt[:2*npairs, indx] = wt_pairs
 
             # next construct the natural difference densities
             delta      = rdm_bra - rdm_ket
@@ -632,8 +633,8 @@ class Transition(interaction.Interaction):
             wt_pairs[0::2]    = wt_srt[:npairs]
             wt_pairs[1::2]    = wt_srt[-1:-npairs-1:-1]
 
-            ndo[:, :2*npairs, bk_indx] = ndo_pairs
-            ndo_wt[:2*npairs, bk_indx] = wt_pairs
+            ndo[:, :2*npairs, indx] = ndo_pairs
+            ndo_wt[:2*npairs, indx] = wt_pairs
 
         ndo_nto = {}
         ndo_nto['ndo']    = ndo
@@ -716,7 +717,7 @@ class Transition(interaction.Interaction):
         output.print_transition_header(self.label)
 
         # get the list of ket states
-        ket_states, ket_syms = self.get_group_states('ket_states')
+        ket_states, ket_syms = self.get_states('ket_states')
 
         # print a 'transition table' for each initial state
         for iket in range(len(ket_states)):
