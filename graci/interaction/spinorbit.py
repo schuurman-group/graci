@@ -27,12 +27,19 @@ class Spinorbit(interaction.Interaction):
         self.label        = 'spinorbit'
         self.print_thresh = 1.
         self.mf2e         = 'atomic'
+        # group of objects to couple
+        couple_groups     = [None]
+        # states from each object to couple
+        couple_states     = [None]
 
         #
         # Private variables -- should not be directly referenced
         #                      outside the class
         #------------------------------------------------------------
         # global variables
+        # store the group labels globally, because the order 
+        # matters for construction of Hsoc
+        self.grp_lbls     = None
         # One electron SOC matrices
         self.h1e          = None
         # List of multiplet indices and projected spins
@@ -44,7 +51,7 @@ class Spinorbit(interaction.Interaction):
      
     #
     @timing.timed
-    def run(self):
+    def run(self, obj_list):
         """
         returns the SOC matrix elements between the bra and ket
         states. If b_state and k_state are None, assume SOC matrix
@@ -54,108 +61,95 @@ class Spinorbit(interaction.Interaction):
         # section header
         output.print_spinorbit_header(self.label)
 
-        # bra/ket mol and scf objects
-        mol_bra = self.bra_obj.scf.mol
-        mol_ket = self.ket_obj.scf.mol
-        scf_bra = self.bra_obj.scf
-        scf_ket = self.ket_obj.scf
-
-        if not self.same_braket():
-            # sanity check that orbitals and geometry are the same
-            if np.any(scf_bra.orbs != scf_ket.orbs):
-                sys.exit('spin-orbit coupling requires same'+
-                         'bra/ket orbs')
-
-            if mol_bra.pymol().atom != mol_ket.pymol().atom:
-                sys.exit('spin-orbit coupling requires same geometry'+
-                         ' and basis set')
-
         # check on the MF 2e integral scheme
         if self.mf2e not in self.allowed_mf2e:
             print('\n Unrecognised mf2e value: '+self.mf2e
                   +'\n Allowed values: '+str(self.allowed_mf2e))
             sys.exit()
 
-        bra_spin = self.SpinInfo(self.bra_obj)
-        ket_spin = self.SpinInfo(self.ket_obj)
+        # sanity check that all objects in list are compatible with
+        # spin-orbit computation
+        self.check_list(obj_list)
 
-        # Delta S = -1, 0 or +1 must hold
-        if bra_spin.S - ket_spin.S not in [-1., 0., 1.]:
-            sys.exit('\n ERROR: S_bra, S_ket spin combination not ' \
-                     +'currently supported in spinorbit')
+        # add each of the groups of states
+        obj_lbls = [grp.label for grp in obj_list]
+        self.grp_lbls = ['grp'+str(i) for i in 
+                                     range(len(self.couple_groups))]
 
-        # In the case of Delta S = 0, S > 0 must hold
-        if bra_spin.S == ket_spin.S and bra_spin.S == 0.:
-            sys.exit('\n ERROR: non-sensical S_bra, S_ket combination ' \
-                     +'in spinorbit')
+        for igrp in range(len(self.couple_groups)):
+            # this allows the same group label to appear more than once
+            indx     = obj_list.index(self.copule_groups[igrp])
+            self.add_group(self.grp_lbls[igrp], obj_list[indx], 
+                                           self.couple_states[igrp])
 
-        # bra and ket multiplet indices and M-values
-        self.stlbl = self.set_stlbl(bra_spin, ket_spin)
+        # set the multiplet indices and M-values
+        self.stlbl = self.set_stlbl()
 
         # get the MF density matrix
         self.rho_ao = self.build_rho()
-        
+
         # get the one-electron SOC matrices
         self.h1e = self.build_h1e()
         
         # initialise the H_soc array
-        hdim = len(self.bra_states) * bra_spin.mult \
-             + len(self.ket_states) * ket_spin.mult
+        hdim = 0
+        for grp in self.grp_lbls
+            hdim += len(self.get_states(grp)) * self.get_spins(grp).mult
         hsoc = np.zeros((hdim, hdim), dtype=np.cdouble)
 
-        # construct the trans_list arrays for each of the
-        # bra-bra, ket-ket and bra-ket blocks of H_SOC
-        # currently store them as [initial state, final state]
-        blocks = ['lower', 'lower', 'full']
-        grps   = [['bra','bra'], ['ket','ket'], ['bra','ket']]
-
-        # add the state groups
-        self.add_states('bra', self.bra_obj, self.bra_states)
-        self.add_states('ket', self.ket_obj, self.ket_states)
-        self.add_spins('bra', bra_spin)
-        self.add_spins('ket', ket_spin)
-
+        # construct the trans_list arrays for each of the state
+        # pair blocks of H_SOC
         # loop over the blocks of H_SOC
-        for iblock in range(len(blocks)):
-            bra_lbl  = grps[iblock][0]
-            ket_lbl  = grps[iblock][1]
-            blk_fill = blocks[iblock]
+        for iblk in range(self.n_groups()):
+            for jblk in range(iblk):
 
-            b_list     = self.build_pair_list(bra_lbl, ket_lbl, 
-                                              pairs=blk_fill)
-            b_list_sym = self.build_pair_list(bra_lbl, ket_lbl, 
-                                              pairs=blk_fill, 
-                                              sym_blk=True)
+                bra_lbl  = self.grp_lbls[iblk]
+                ket_lbl  = self.grp_lbls[jblk]
 
-            bra = self.get_bkobj(bra_lbl)
-            ket = self.get_bkobj(ket_lbl)
+                # do some sanity checking on the bra/ket pair
+                self.check_pair(bra_lbl, ket_lbl)
 
-            # skip if both manifolds of states are singlets
-            if bra.mult == 1 and ket.mult == 1:
-                continue
+                if bra_lbl == ket_lbl:
+                    blk_fill = 'lower'
+                else:
+                    blk_fill = 'full'
+
+                blk_list     = self.build_pair_list(bra_lbl, ket_lbl, 
+                                                  pairs=blk_fill)
+                blk_list_sym = self.build_pair_list(bra_lbl, ket_lbl, 
+                                                  pairs=blk_fill, 
+                                                  sym_blk=True)
+
+                bra = self.get_obj(bra_lbl)
+                ket = self.get_obj(ket_lbl)
+
+                # skip if both manifolds of states are singlets
+                if bra.mult == 1 and ket.mult == 1:
+                    continue
             
-            # initialize the bitsi library for the calculation of
-            # spin-orbit matrix elements
-            bitsi_init.init(bra, ket, 'soc')
+                # initialize the bitsi library for the calculation of
+                # spin-orbit matrix elements
+                bitsi_init.init(bra, ket, 'soc')
 
-            # get the reduced matrix elements
-            # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
-            # for the current block
-            redmat = self.build_redmat(bra, ket, b_list, b_list_sym)
+                # get the reduced matrix elements
+                # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
+                # for the current block
+                redmat = self.build_redmat(bra, ket, blk_list, 
+                                                     blk_list_sym)
 
-            # get the Clebsh-Gordan coefficients needed to
-            # compute the SOC matrix elements for the current block
-            cg_coef = mrci_soc.clebsch_gordan(bra, ket)
+                # get the Clebsh-Gordan coefficients needed to
+                # compute the SOC matrix elements for the current block
+                cg_coef = mrci_soc.clebsch_gordan(bra, ket)
 
-            # build this block of H_SOC
-            hblk = self.build_hsoc(hdim, bra_lbl, ket_lbl, b_list, 
+                # build this block of H_SOC
+                hblk = self.build_hsoc(hdim, bra_lbl, ket_lbl, blk_list, 
                                    redmat, cg_coef)
             
-            # add the current block of Hsoc to the total
-            hsoc += hblk
+                # add the current block of Hsoc to the total
+                hsoc += hblk
 
-            # finalize the bitsi library
-            bitsi_init.finalize()
+                # finalize the bitsi library
+                bitsi_init.finalize()
            
         # add in the on-diagonal elements
         hsoc += np.diag(self.hsoc_ondiag(hdim))
@@ -169,22 +163,58 @@ class Spinorbit(interaction.Interaction):
         del(cg_coef, redmat)
 
         return
-    
+   
     #
-    def set_stlbl(self, bra_spin, ket_spin):
+    def check_list(self, obj_lst)
+        """
+        Perform some sanity checks on all objs in list
+        """
+        for i in range(len(obj_list)):
+            for j in range(i):
+                if not self.same_braket(obj_list[i], obj_list[j]):
+                    # sanity check that orbitals and geometry are the same
+                    if np.any(obj_list[i].orbs != obj_list[j].orbs):
+                        sys.exit('spin-orbit coupling requires same'+
+                                 'bra/ket orbs')
+
+                    if (obj_list[i].scf.mol.pymol().atom !=
+                                     obj_list[j].scf.mol.pymol().atom):
+                        sys.exit('spin-orbit coupling requires same geometry'+
+                                 ' and basis set')
+        return
+
+    #
+    def check_pair(self, bra_lbl, ket_lbl):
+        """
+        Perform some sanity checks on the bra/ket states and objects
+        """
+
+        bra_spin = self.get_spins(bra_lbl)
+        ket_spin = self.get_spins(ket_lbl)
+
+        # Delta S = -1, 0 or +1 must hold
+        if bra_spin.S - ket_lspin.S not in [-1., 0., 1.]:
+            sys.exit('\n ERROR: S_bra, S_ket spin combination not ' \
+                     +'currently supported in spinorbit')
+
+        # In the case of Delta S = 0, S > 0 must hold
+        if bra_spin.S == ket_spin.S and bra_spin.S == 0.:
+            sys.exit('\n ERROR: non-sensical S_bra, S_ket combination ' \
+                     +'in spinorbit')
+        return
+
+    #
+    def set_stlbl(self):
         """
         list of all all multiplet indices and projected spin values
         """
         
         stlbl = []
         
-        for i in self.ket_states:
-            for m in ket_spin.M:
-                stlbl.append([self.ket_obj.label, i, m])
-        
-        for i in self.bra_states:
-            for m in bra_spin.M:
-                stlbl.append([self.bra_obj.label, i, m])
+        for igrp in self.grp_lbls:
+            for i in self.get_states(igrp):
+                for m in self.get_spins(igrp):
+                    stlbl.append([igrp, i, m])
 
         return stlbl
     
@@ -193,24 +223,72 @@ class Spinorbit(interaction.Interaction):
         """
         sets up the mean-field density matrix
         """
-        nsta = len(self.bra_states) + len(self.ket_states)
-        nmo    = self.bra_obj.scf.nmo
+        nsta = sum([len(self.get_states(lbl)) for lbl in self.grp_lbls])
+        nmo  = self.get_obj(self.grp_lbls[0]).scf.nmo
 
         # Average density matrix across states
         rho_mo = np.zeros((nmo, nmo), dtype=float)
 
-        for i in self.ket_states:
-            rho_mo += self.ket_obj.rdm(i) / nsta
+        for grp in self.grp_lbls:
+            for st in self.get_states(grp):
+                rho_mo += self.get_obj(grp).rdm(st)
 
-        for i in self.bra_states:
-            rho_mo += self.bra_obj.rdm(i) / nsta
-        
+        rho_mo /= nsta
+
         # Transform to the AO basis
-        orbs   = self.bra_obj.scf.orbs
+        orbs   = self.get_obj(self.grp_lbls[0]).scf.orbs
         rho_ao = np.matmul(np.matmul(orbs, rho_mo), orbs.T)
 
         return rho_ao
-        
+
+    #
+    def build_h1e(self):
+        """
+        Sets up the one-electron SOC matrices h^(k), k=-1,0,+1
+        """
+
+        # PySCF Mole obeject
+        mol = self.get_obj(self.grp_lbls[0]).scf.mol.pymol().copy()
+        # No. AOs
+        nao = mol.nao_nr()
+
+        # Initialise arrays
+        h1e      = np.zeros((3, nao, nao), dtype=np.cdouble)
+        hcart_ao = np.zeros((3, nao, nao), dtype=float)
+
+        # One-electron contributions
+        for iatm in range(mol.natm):
+            Z   = mol.atom_charge(iatm)
+            xyz = mol.atom_coord(iatm)
+            mol.set_rinv_orig(xyz)
+            hcart_ao += Z * mol.intor('cint1e_prinvxp_sph', 3)
+        hcart_ao = hcart_ao * constants.fine_str**2 / 2
+
+        # Mean-field two-electron contributions
+        if self.mf2e == 'full':
+            h2e_ao    = mol.intor("cint2e_p1vxp1_sph", comp=3, aosym="s1")
+            h2e_ao   *= -0.5 * constants.fine_str**2
+            hcart_ao += (np.einsum("ijklm,lm->ijk", h2e_ao, self.rho_ao)
+                         - 1.5 * (np.einsum("ijklm, kl->ijm", h2e_ao, self.rho_ao)
+                         + np.einsum("ijklm,mj->ilk", h2e_ao, self.rho_ao)))
+        elif self.mf2e == 'atomic':
+            hcart_ao += self.build_mf_atomic(mol)
+
+        # Transform to the MO basis
+        orbs     = self.get_obj(self.grp_lbls[0]).scf.orbs
+        hcart_mo = np.matmul(np.matmul(orbs.T, hcart_ao), orbs)
+
+        # Transform to the spherical tensor representation
+        ci = np.sqrt(-1+0j)
+        # k = -1: x - iy
+        h1e[0,:,:] = hcart_mo[0,:,:] - ci * hcart_mo[1,:,:]
+        # k = +1: x + iy
+        h1e[2,:,:] = hcart_mo[0,:,:] + ci * hcart_mo[1,:,:]
+        # k = 0: z 
+        h1e[1,:,:] = hcart_mo[2,:,:]
+
+        return h1e
+
     #
     @timing.timed
     def build_redmat(self, bra, ket, pair_list, pair_list_sym):
@@ -236,55 +314,6 @@ class Spinorbit(interaction.Interaction):
 
         return redmat_blk
 
-    #
-    def build_h1e(self):
-        """
-        Sets up the one-electron SOC matrices h^(k), k=-1,0,+1
-        """
-
-        # PySCF Mole obeject
-        mol = self.bra_obj.scf.mol.pymol().copy()
-
-        # No. AOs
-        nao = mol.nao_nr()
-        
-        # Initialise arrays
-        h1e      = np.zeros((3, nao, nao), dtype=np.cdouble)
-        hcart_ao = np.zeros((3, nao, nao), dtype=float)
-        
-        # One-electron contributions
-        for iatm in range(mol.natm):
-            Z   = mol.atom_charge(iatm)
-            xyz = mol.atom_coord(iatm)
-            mol.set_rinv_orig(xyz)
-            hcart_ao += Z * mol.intor('cint1e_prinvxp_sph', 3)
-        hcart_ao = hcart_ao * constants.fine_str**2 / 2
-            
-        # Mean-field two-electron contributions
-        if self.mf2e == 'full':
-            h2e_ao    = mol.intor("cint2e_p1vxp1_sph", comp=3, aosym="s1")
-            h2e_ao   *= -0.5 * constants.fine_str**2
-            hcart_ao += (np.einsum("ijklm,lm->ijk", h2e_ao, self.rho_ao)
-                         - 1.5 * (np.einsum("ijklm, kl->ijm", h2e_ao, self.rho_ao)
-                         + np.einsum("ijklm,mj->ilk", h2e_ao, self.rho_ao)))
-        elif self.mf2e == 'atomic':
-            hcart_ao += self.build_mf_atomic(mol)
-            
-        # Transform to the MO basis
-        orbs     = self.bra_obj.scf.orbs
-        hcart_mo = np.matmul(np.matmul(orbs.T, hcart_ao), orbs)
-        
-        # Transform to the spherical tensor representation
-        ci = np.sqrt(-1+0j)
-        # k = -1: x - iy
-        h1e[0,:,:] = hcart_mo[0,:,:] - ci * hcart_mo[1,:,:]
-        # k = +1: x + iy
-        h1e[2,:,:] = hcart_mo[0,:,:] + ci * hcart_mo[1,:,:]
-        # k = 0: z 
-        h1e[1,:,:] = hcart_mo[2,:,:]
-        
-        return h1e
-    
     #
     def build_mf_atomic(self, mol):
         """
@@ -343,8 +372,8 @@ class Spinorbit(interaction.Interaction):
         ket_spin = self.get_spins(ket_lbl)
 
         # Number of bra and ket multiplets in this block
-        bra_states = self.get_states(bra_lbl)[0]
-        ket_states = self.get_states(ket_lbl)[0]
+        bra_states = self.get_states(bra_lbl)
+        ket_states = self.get_states(ket_lbl)
         nm_bra = len(bra_states)
         nm_ket = len(ket_states)
 
@@ -384,13 +413,10 @@ class Spinorbit(interaction.Interaction):
         hdiag = np.zeros(dim, dtype=np.cdouble)
 
         for i in range(dim):
-            indx = self.stlbl[i][1]
-            
-            if self.stlbl[i][0] == self.bra_obj.label:
-                hdiag[i] = self.bra_obj.energies[indx]
-            else:
-                hdiag[i] = self.ket_obj.energies[indx]
-        
+            grp = self.stlbl[i][0]
+            st  = self.stlbl[i][1]
+            hdiag[i] = self.get_obj(grp).energy(st)
+
         return hdiag
         
     #
@@ -429,17 +455,23 @@ class Spinorbit(interaction.Interaction):
         bra_spin = self.get_spins(bra_lbl)
         ket_spin = self.get_spins(ket_lbl)
 
-        indx_ket = ket_spin.mult * I_ket + M_ket + ket_spin.S
         indx_bra = bra_spin.mult * I_bra + M_bra + bra_spin.S
+        indx_ket = ket_spin.mult * I_ket + M_ket + ket_spin.S
 
-        # this is a hacky -- should be change
-        if bra_lbl == ket_lbl and bra_lbl == 'bra':
-            indx_bra += len(self.ket_states)
-            indx_ket += len(self.ket_states)
-        elif bra_lbl != ket_lbl:
-            indx_bra += len(self.ket_states)
+        # now determine the offset for bra/ket indices
+        bra_off = 0
+        for i in range(self.grp_lbls.index(bra_lbl))
+            nstates  = len(self.get_states(grp_lbls[i]))
+            mult     = self.get_spins(grp_lbls[i]).mult
+            bra_off += nstates*mult
+   
+        ket_off = 0
+        for i in range(self.grp_lbls.index(ket_lbl))
+            nstates  = len(self.get_states(grp_lbls[i]))
+            mult     = self.get_spins(grp_lbls[i]).mult
+            ket_off += nstates*mult
 
-        return int(indx_bra), int(indx_ket)
+        return int(indx_bra + bra_off), int(indx_ket + ket_off)
 
     
     #

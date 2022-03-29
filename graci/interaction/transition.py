@@ -29,26 +29,27 @@ class Transition(interaction.Interaction):
         self.label          = 'Transition'
         # user defined quanties
         self.print_orbitals = False
-
         # for transition it's convenient to call these variables
         # init/final instead of ket/bra. Here we just say they
         # point to the same reference as the variables in the parent
         # class
         # list of initial states
-        #self.init_states      = self.ket_states = None
+        self.init_states      = None
         # label of section to get initial states
-        #self.init_label       = self.ket_label  = None
+        self.init_label       = None
         # list of final states
-        #self.final_states     = self.bra_states = None
+        self.final_states     = None
         # label of section to get final states 
-        #self.final_label      = self.bra_label  = None
-        
+        self.final_label      = None
         # often will want to include all states in bra object
         # if so convenient to have simple boolean to select that
         self.all_final_states = False
 
+        # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly
+        self.bra_obj    = None
+        self.ket_obj    = None
 
         # list of transitions corresponding to the tdms
         self.trans_list = []
@@ -63,14 +64,14 @@ class Transition(interaction.Interaction):
 
     #
     @timing.timed
-    def run(self):
+    def run(self, [bra_obj, ket_obj]):
         """return the transition dipole moments between the bra and
            ket states. If b_state and k_state are None, assume 
            transitions from all states in method object should be 
            used."""
 
-        #self.bra_label = self.final_label
-        #self.ket_label = self.init_label
+        self.bra_obj = bra_obj
+        self.ket_obj = ket_obj
 
         mol_bra = self.bra_obj.scf.mol
         mol_ket = self.ket_obj.scf.mol
@@ -80,7 +81,7 @@ class Transition(interaction.Interaction):
 
         # if bra and ket are same object, just need lower triangle
         # minus the diagonal elements
-        if self.same_braket():
+        if self.same_braket(self.bra_obj, self.ket_obj):
             list_type = 'nodiag'
         else:
             # sanity check that orbitals and geometry are the same

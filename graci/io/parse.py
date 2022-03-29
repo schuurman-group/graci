@@ -162,18 +162,24 @@ def parse_value(valstr):
                 range_chk.remove('')
         except ValueError:
             pass
-        range_index = range_chk[:].index(':')
 
-        if range_index == 0 or range_index == len(range_chk[:])-1:
-            sys.exit(' unknown range specified: '+str(valstr))
+        # process an array of ranges
+        chk_start   = 0
+        split_lines = []
+        indices = [i for i, j in enumerate(range_chk) if j == ':']
 
-        try:
-            rstart = int(range_chk[range_index-1])
-            rend   = int(range_chk[range_index+1])+1
-        except:
-            sys.exit('cannot convert range values: '+str(valstr))
+        for indx in indices:
 
-        split_lines[0] = list(range(rstart,rend))
+            if indx==0 or indx==len(range_chk[:])-1:
+                sys.exit(' unknown range specified: '+str(valstr))
+
+            try:
+                rstart = int(range_chk[indx-1])
+                rend   = int(range_chk[indx+1])+1
+            except:
+                sys.exit('cannot convert range values: '+str(valstr))
+
+            split_lines.append(list(range(rstart,rend)))
 
     if len(split_lines) == 1:
         if len(split_lines[0]) == 1:
@@ -190,10 +196,6 @@ def parse_value(valstr):
 def check_input(run_list):
     """Checks on the user-supplied input"""
    
-    # if any section label names are repeated, append a number to 
-    # ensure that each section label is unique
-    section_lbls = []
-
     for obj in run_list:
     
         # the class name for this run object
@@ -280,23 +282,6 @@ def check_input(run_list):
                     obj.bra_states = [obj.bra_states]
                 obj.bra_states = [obj.bra_states[i] - 1 
                                for i in range(len(obj.bra_states))]
-
-        # save section labels -- make sure all our unique
-        section_lbls.append(obj.label)
-
-    # we don't actually want to do this -- if labels are wrong/inconsistent
-    # we should not guess at how to rename them. Will likely delete
-    # this eventually, then add a check in the driver to give a warning
-    # for ambiguously labeled sections
-    #for obj_indx in range(len(section_lbls)):
-    #    # save section labels -- make sure all our unique
-    #    lbl_tst = run_list[obj_indx].label
-    #    indices = [index for index,lbl in enumerate(section_lbls) 
-    #                                              if lbl == lbl_tst]
-        # if multiple identical sections -- rename
-    #    if len(indices) > 1:
-    #        for suffix in range(len(indices)):
-    #            run_list[indices[suffix]].label += str(suffix+1)
 
     return
     

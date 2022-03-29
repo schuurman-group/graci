@@ -20,6 +20,12 @@ class Overlap(interaction.Interaction):
         self.calc       = None
         self.label      = 'Overlap'
 
+        self.bra_label  = None
+        self.ket_label  = None
+
+        self.bra_states = None
+        sekf.ket_states = None
+
     #
     @timing.timed
     def run(self):

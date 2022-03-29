@@ -12,18 +12,15 @@ class Interaction:
         # all state interaction sub-classes must have a 
         # bra object and a ket object
 
-        # user set variables
+        # no user set variables (abstract class-like)
         #-----------------------------------------
-        # labels for those objects (set by user)
-        self.bra_label    = None
-        self.ket_label    = None
-        self.bra_states   = []
-        self.ket_states   = []
 
         # Internal class variables (should not be accessed directly)
         #-----------------------------------------------------------
-        self.bra_obj      = None
-        self.ket_obj      = None
+        # list of object labels. Set from input, used to so driver
+        # knows which objects to pass
+        self.obj_lbls     = []
+
         # list of objects from which to pull states
         self.objs         = {} 
         # state list -- list of groups of states
@@ -42,18 +39,24 @@ class Interaction:
             self.M     = np.array([-self.S + i for 
                                    i in range(self.mult)], dtype=float)
 
-    def same_braket(self):
+    def same_obj(self, obj1, obj2):
         """return true if the bra and ket objects are the same"""
-        class_bra = type(self.bra_obj).__name__ 
-        class_ket = type(self.ket_obj).__name__ 
+        class_obj1 = type(obj1).__name__ 
+        class_obj2 = type(obj2).__name__ 
 
-        lbl_bra  = self.bra_obj.label
-        lbl_ket  = self.ket_obj.label
+        lbl_obj1  = obj1.label
+        lbl_obj2  = obj2.label
 
-        return class_bra == class_ket and lbl_bra == lbl_ket 
+        return class_obj1 == class_obj2 and lbl_obj1 == lbl_obj2
+
+    def n_groups(self):
+        """return the number of entries in the state group 
+           dictionary"""
+
+        return len(self.states.keys())
 
     #
-    def add_states(self, lbl, obj, state_list):
+    def add_group(self, lbl, obj, state_list):
         """append a list of states and corresponding object"""
 
         # add object and state list
@@ -65,29 +68,36 @@ class Interaction:
         for state in state_list:
             # state_sym returns an [irrep, st_indx] pair
             self.symmetries[lbl].append(obj.state_sym(state)[0])
-
+ 
+        # and store spin information
+        self.spins[lbl] = self.SpinInfo(obj)
+        
         return
 
-    # 
-    def add_spins(self, lbl, spins):
-        """add a spin object to group 'lbl'"""
-        self.spins[lbl] = spins
-        return
+    #
+    def get_lbls(self):
+        """return a list of the group labels"""
+        return list(self.states.keys())
 
     #
     def get_states(self, lbl):
         """return the states and symmetries corresponding to grp lbl"""
-
         state_list = None
-        state_sym  = None
 
         if lbl in list(self.states.keys()):
             state_list = self.states[lbl]    
 
+        return state_list
+
+    #
+    def get_syms(self, lbl)
+        """return the symmetries of the states in group 'lbl'"""
+        state_sym = None
+
         if lbl in list(self.symmetries.keys()):
             state_sym = self.symmetries[lbl]
 
-        return state_list, state_sym
+        return state_sym
 
     #
     def get_spins(self, lbl):
@@ -100,7 +110,7 @@ class Interaction:
         return spin
 
     #
-    def get_bkobj(self, lbl):
+    def get_obj(self, lbl):
         """return the method object corresponding to lbl"""
 
         obj = None
@@ -141,7 +151,7 @@ class Interaction:
             return None
 
         # if bra and ket objects are same,
-        braket_same = self.same_braket()
+        braket_same = self.same_braket(self.objs[bra], self.objs[ket])
 
         # initialize the pair list. If symblk, pair_list is an nirr x nirr
         # state pairs. Else, just a list of state pairs
@@ -176,34 +186,3 @@ class Interaction:
     
         return pair_list
 
-    #
-    def set_ket(self, ket_method):
-        """set the method used to compute the ket state(s)"""
-
-        if ket_method.label != self.ket_label:
-            print('WARNING: set_ket called, but ' + 
-                   str(ket_method.label)+' != ' + str(self.ket_label))
-
-        self.ket_obj = ket_method
-        return
-
-    # 
-    def ket_exists(self):
-        """return True is self.ket_obj is not None"""
-        return self.ket_obj is not None
-
-    #
-    def set_bra(self, bra_method):
-        """set the method used to compute the bra state(s)"""
-
-        if bra_method.label != self.bra_label:
-            print('WARNING: set_bra called, but ' + 
-                   str(bra_method.label)+' != ' + str(self.bra_label))
-
-        self.bra_obj = bra_method
-        return
-
-    # 
-    def bra_exists(self):
-        """return True is self.ket_obj is not None"""
-        return self.bra_obj is not None

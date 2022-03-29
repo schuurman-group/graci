@@ -151,34 +151,44 @@ class Driver:
 
         for si_obj in si_objs:
 
-            # first check if init/final_method is set. If not
-            # and there is a single postscf method, we can
-            # determine a sensible default
-            if (si_obj.bra_label is None and si_obj.ket_label
-                    is None and len(postscf_objs) == 1):
-                si_obj.set_bra(postscf_objs[0])
-                si_obj.set_ket(postscf_objs[0])
-
-            # else, we use the label names to determine bra
-            # and ket states. If things don't match up, fail
-            # with an error message
-            else:
-                for postscf in postscf_objs:
-                    if si_obj.bra_label == postscf.label:
-                        si_obj.set_bra(postscf)
-                    if si_obj.ket_label == postscf.label:
-                        si_obj.set_ket(postscf)
-
-            if (si_obj.bra_exists() is False or 
-                si_obj.ket_exists() is False):
+            obj_list = self.extract_si_obj_list(si_obj, postscf_objs)
+            if None in obj_list:
                 output.print_message(type(si_obj).__name__+' section, '+
                         'label='+str(si_obj.label)+
-                        ' has no bra/ket defined. Please check input')
+                        ' is missing an interaction object. '+
+                        ' Please check input')
                 sys.exit(1)
 
-            si_obj.run()
+            si_obj.run(obj_list)
             chkpt.write(si_obj)
 
         return
 
+    # 
+    def extract_si_obj_list(si_obj, postscf_objs):
+        """extract the list of required objects for an state 
+           iteraction object based on user input"""
 
+        # list of objects to be passed to interaction class
+        if type(si_obj).__name__ == 'Transition':
+            lbls = [si_obj.final_label, si_obj.init_label]
+        elif type(si_obj).__name__ == 'Spinorbit':
+            lbls = si_obj.couple_groups
+        elif type(si_obj).__name__ == 'Overlap':
+            lbls = [si_obj.bra_label, si_obj.ket_label]
+
+        obj_list = [None]*len(lbls)
+
+        # objects stored as bra/ket
+        for postscf in postscf_objs:
+            if postscf.label in lbls:
+                obj_list[lbl.index(postscf.label)] = postscf
+
+        # if user labels are  not set (i.e. None) and there's 
+        # only one postscf object, set label to that object
+        indices = [i for i, j in enumerate(lbls) if j == None]
+        if len(postscf_objs) == 1:
+            for indx in indices:
+                lbls[indx] = postscf_objs[0]
+                
+        return obj_list
