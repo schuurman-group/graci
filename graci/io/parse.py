@@ -122,8 +122,12 @@ def correct_type(value, keyword_type):
        and all elements are of 'keyword_type'"""
 
     correct = False
-    if isinstance(value, np.ndarray):
-        val_list = value.tolist()
+    if isinstance(value, (np.ndarray, list)):
+        if isinstance(value, np.ndarray):
+            val_list = value.flatten().tolist()
+        else:
+            val_list = value 
+
         if all([isinstance(elem, keyword_type) for elem in val_list]):
             correct = True
     else:
@@ -136,61 +140,84 @@ def correct_type(value, keyword_type):
 def parse_value(valstr):
     """Returns a value converted to the appropriate type and shape.
 
-    By default, spaces and newlines will be treated as delimiters. The
-    combination of both will be treated as a 2D array.
+    By default, spaces and newlines will be treated as delimiters.
     """
-    all_lines = valstr.split('\n')[:-1]
-    split_lines = [line.split() for line in all_lines]
 
-    if len(all_lines) > 1 and len(split_lines[0]) == 1:
-        # newline and space give the same result for a vector
-        split_lines = [[line[0] for line in split_lines]]
+    # split any braces or ':' symbols
+    split_line = re.split('(:)|(\[)|(\])|\n', valstr)
+    # remove instances of 'None'
+    try:
+        while True:
+            split_line.remove(None)
+    except ValueError:
+        pass
 
-    # we have the ability to recognize ranges, specified as either:
-    # 1-4 or 1 - 4 or 1:4 or 1 : 4, etc.
-    # first see if this is a range input. NOTE: we will not accept
-    # ranges split over multiple lines at this time. Also, we will
-    # only take the integers adjacent to the range symbol as being
-    # relevant. So: 1 2 - 4 5 is intepreted as 2-4
-    range_chk = []
-    for i in range(len(split_lines[0][:])):
-        range_chk.extend(re.split('(:)', split_lines[0][i]))
-    if ':' in range_chk:
-        # remove empty strings
+    # val_list is a list of the space/newline delimited input
+    val_list = []
+    for line in split_line:
+        val_list.extend(line.split())
+
+    # remove empty strings
+    try:
+        while True:
+            val_list.remove('')
+    except ValueError:
+        pass
+
+    # remove commas
+    try:
+        while True:
+           val_list.remove(',')
+    except ValueError:
+        pass
+
+    # step through and replace all X:Y with range(X,Y+1)
+    while ':' in val_list:
+        indx = val_list.index(':')
         try:
-            while True:
-                range_chk.remove('')
-        except ValueError:
-            pass
+            start = int(val_list[indx-1])
+            end   = int(val_list[indx+1])+1
+        except:
+            sys.exit('cannot convert range values: '+str(valstr))
+        num_list = list(range(start, end))
+        str_list = [str(num) for num in num_list]
+        new_list = val_list[:indx-1] + str_list + val_list[indx+2:]
+        val_list = new_list
 
-        # process an array of ranges
-        chk_start   = 0
-        split_lines = []
-        indices = [i for i, j in enumerate(range_chk) if j == ':']
+    # if this is a scalar: just convert the number
+    if len(val_list) == 1:
+        return convert_value(val_list[0])
 
-        for indx in indices:
+    # if this is vector, need to determine if 1D or 2D
+    # we will accept the following syntax for 1D arrays:
+    #  1. kword = [X Y Z]
+    #  2. kword = [X, Y, Z]
+    #
+    # However, we will be more strict re: 2D arrays. Need
+    # to see those square braces to denote change in dim
+    #  1. kword = [X Y Z] [X Y Z]
+    #  2. kword = [X, Y, Z], [X, Y, Z]
+    
+    vec_str = []
+    # scan for opening brace
+    while '[' in val_list:
+        start = val_list.index('[')+1
+        # try to close this brace, else just take to the end
+        try:
+            end = val_list.index(']')
+        except:
+            sys.exit('missing a closing brace: '+str(valstr))
+        # append the entries between the braces a new vector 
+        vec_str.append(list(val_list[start:end]))
+        if end == len(val_list)-1:
+            break
+        val_list = val_list[end+1:]
 
-            if indx==0 or indx==len(range_chk[:])-1:
-                sys.exit(' unknown range specified: '+str(valstr))
-
-            try:
-                rstart = int(range_chk[indx-1])
-                rend   = int(range_chk[indx+1])+1
-            except:
-                sys.exit('cannot convert range values: '+str(valstr))
-
-            split_lines.append(list(range(rstart,rend)))
-
-    if len(split_lines) == 1:
-        if len(split_lines[0]) == 1:
-            # handle single values
-            return convert_value(split_lines[0][0])
-        else:
-            # handle vectors
-            return convert_array(split_lines[0])
+    # if just a single element of this 2D list, convert to vector
+    if len(vec_str) == 1:
+        return convert_array(vec_str[0])
     else:
-        # handle 2D arrays
-        return convert_array(split_lines)
+        return convert_array(vec_str)
 
 #
 def check_input(run_list):
@@ -267,21 +294,33 @@ def check_input(run_list):
                     
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
-        if (type(obj).__name__ == 'Transition' or 
-             type(obj).__name__ == 'Spinorbit' or
-               type(obj).__name__ == 'Overlap'):
-            if obj.ket_states is not None:
-                if not isinstance(obj.ket_states, (list, np.ndarray)):
-                    obj.ket_states = [obj.ket_states]
-                # shift state index to range 1 -> 0
-                obj.ket_states = [obj.ket_states[i] - 1 
-                                for i in range(len(obj.ket_states))]
+        if type(obj).__name__ == 'Transition':
+            if obj.init_states is not None:
+                if not isinstance(obj.init_states, (list, np.ndarray)):
+                    obj.init_states = np.array([obj.init_states])
+            if obj.final_states is not None:
+                if not isinstance(obj.final_states, (list, np.ndarray)):
+                    obj.final_states = np.array([obj.final_states])
+            # shift statesby 1 to internal/C ordering
+            obj.init_states  -= 1
+            obj.final_states -= 1
 
+        # Spinorbit _has_ to enter states as a vector, just shift state
+        # indices
+        if type(obj).__name__ == 'Spinorbit': 
+            # shift statesby 1 to internal/C ordering
+            obj.couple_states -= 1
+
+        if type(obj).__name__ == 'Overlap':
             if obj.bra_states is not None:
                 if not isinstance(obj.bra_states, (list, np.ndarray)):
-                    obj.bra_states = [obj.bra_states]
-                obj.bra_states = [obj.bra_states[i] - 1 
-                               for i in range(len(obj.bra_states))]
+                    obj.bra_states = np.array([obj.bra_states])
+            if obj.ket_states is not None:
+                if not isinstance(obj.ket_states, (list, np.ndarray)):
+                    obj.ket_states = np.array([obj.ket_states])
+            # shift statesby 1 to internal/C ordering
+            obj.bra_states -= 1
+            obj.ket_states -= 1
 
     return
     

@@ -465,11 +465,11 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
 
             if np.abs(soc_cm) > thrsh:
                 print(fstr.format(stlbl[i][0],
-                                  stlbl[i][1] + 1,
-                                  stlbl[i][2],
+                                  stlbl[i][2] + 1,
+                                  stlbl[i][3],
                                   stlbl[j][0],
-                                  stlbl[j][1] + 1,
-                                  stlbl[j][2],
+                                  stlbl[j][2] + 1,
+                                  stlbl[j][3],
                                   np.real(soc_cm),
                                   np.imag(soc_cm),
                                   'cm-1'))
@@ -518,8 +518,8 @@ def print_hsoc_eig(eig, vec, hdim, stlbl):
                     np.real(vec[indx[j], i]),
                     np.imag(vec[indx[j], i]),
                     stlbl[indx[j]][0],
-                    stlbl[indx[j]][1] + 1,
-                    stlbl[indx[j]][2],))
+                    stlbl[indx[j]][2] + 1,
+                    stlbl[indx[j]][3],))
 
         print(delim)
                 

@@ -60,17 +60,16 @@ class Interaction:
         """append a list of states and corresponding object"""
 
         # add object and state list
-        self.objs[lbl]   = obj
-        self.states[lbl] = state_list
+        self.objs[lbl]       = obj
+
+        # store states as list of adiabatic labels
+        self.states[lbl]     = state_list
 
         # also store state symmetries
-        self.symmetries[lbl] = []
-        for state in state_list:
-            # state_sym returns an [irrep, st_indx] pair
-            self.symmetries[lbl].append(obj.state_sym(state)[0])
+        self.symmetries[lbl] = [obj.state_sym(i)[0] for i in state_list]
  
         # and store spin information
-        self.spins[lbl] = self.SpinInfo(obj)
+        self.spins[lbl]      = self.SpinInfo(obj)
         
         return
 
@@ -90,7 +89,7 @@ class Interaction:
         return state_list
 
     #
-    def get_syms(self, lbl)
+    def get_syms(self, lbl):
         """return the symmetries of the states in group 'lbl'"""
         state_sym = None
 
@@ -151,7 +150,7 @@ class Interaction:
             return None
 
         # if bra and ket objects are same,
-        braket_same = self.same_braket(self.objs[bra], self.objs[ket])
+        braket_same = self.same_obj(self.objs[bra], self.objs[ket])
 
         # initialize the pair list. If symblk, pair_list is an nirr x nirr
         # state pairs. Else, just a list of state pairs

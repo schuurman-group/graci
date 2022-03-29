@@ -165,7 +165,7 @@ class Driver:
         return
 
     # 
-    def extract_si_obj_list(si_obj, postscf_objs):
+    def extract_si_obj_list(self, si_obj, postscf_objs):
         """extract the list of required objects for an state 
            iteraction object based on user input"""
 
@@ -173,7 +173,7 @@ class Driver:
         if type(si_obj).__name__ == 'Transition':
             lbls = [si_obj.final_label, si_obj.init_label]
         elif type(si_obj).__name__ == 'Spinorbit':
-            lbls = si_obj.couple_groups
+            lbls = list(si_obj.couple_groups)
         elif type(si_obj).__name__ == 'Overlap':
             lbls = [si_obj.bra_label, si_obj.ket_label]
 
@@ -181,14 +181,15 @@ class Driver:
 
         # objects stored as bra/ket
         for postscf in postscf_objs:
-            if postscf.label in lbls:
-                obj_list[lbl.index(postscf.label)] = postscf
+            indices = [i for i, x in enumerate(lbls) if x == postscf.label]
+            for indx in indices:
+                obj_list[indx] = postscf
 
         # if user labels are  not set (i.e. None) and there's 
         # only one postscf object, set label to that object
         indices = [i for i, j in enumerate(lbls) if j == None]
         if len(postscf_objs) == 1:
             for indx in indices:
-                lbls[indx] = postscf_objs[0]
+                obj_list[indx] = postscf_objs[0]
                 
         return obj_list

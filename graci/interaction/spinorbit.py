@@ -72,13 +72,13 @@ class Spinorbit(interaction.Interaction):
         self.check_list(obj_list)
 
         # add each of the groups of states
-        obj_lbls = [grp.label for grp in obj_list]
+        obj_lbls = [obj.label for obj in obj_list]
         self.grp_lbls = ['grp'+str(i) for i in 
                                      range(len(self.couple_groups))]
 
         for igrp in range(len(self.couple_groups)):
             # this allows the same group label to appear more than once
-            indx     = obj_list.index(self.copule_groups[igrp])
+            indx     = obj_lbls.index(self.couple_groups[igrp])
             self.add_group(self.grp_lbls[igrp], obj_list[indx], 
                                            self.couple_states[igrp])
 
@@ -93,7 +93,7 @@ class Spinorbit(interaction.Interaction):
         
         # initialise the H_soc array
         hdim = 0
-        for grp in self.grp_lbls
+        for grp in self.grp_lbls:
             hdim += len(self.get_states(grp)) * self.get_spins(grp).mult
         hsoc = np.zeros((hdim, hdim), dtype=np.cdouble)
 
@@ -165,22 +165,22 @@ class Spinorbit(interaction.Interaction):
         return
    
     #
-    def check_list(self, obj_lst)
+    def check_list(self, obj_lst):
         """
         Perform some sanity checks on all objs in list
         """
-        for i in range(len(obj_list)):
+        for i in range(len(obj_lst)):
             for j in range(i):
-                if not self.same_braket(obj_list[i], obj_list[j]):
+                if not self.same_obj(obj_lst[i], obj_lst[j]):
                     # sanity check that orbitals and geometry are the same
-                    if np.any(obj_list[i].orbs != obj_list[j].orbs):
+                    if np.any(obj_lst[i].scf.orbs != obj_lst[j].scf.orbs):
                         sys.exit('spin-orbit coupling requires same'+
                                  'bra/ket orbs')
 
-                    if (obj_list[i].scf.mol.pymol().atom !=
-                                     obj_list[j].scf.mol.pymol().atom):
-                        sys.exit('spin-orbit coupling requires same geometry'+
-                                 ' and basis set')
+                    if (obj_lst[i].scf.mol.pymol().atom !=
+                                     obj_lst[j].scf.mol.pymol().atom):
+                        sys.exit('spin-orbit coupling requires same '+
+                                 'geometry and basis set')
         return
 
     #
@@ -193,7 +193,7 @@ class Spinorbit(interaction.Interaction):
         ket_spin = self.get_spins(ket_lbl)
 
         # Delta S = -1, 0 or +1 must hold
-        if bra_spin.S - ket_lspin.S not in [-1., 0., 1.]:
+        if bra_spin.S - ket_spin.S not in [-1., 0., 1.]:
             sys.exit('\n ERROR: S_bra, S_ket spin combination not ' \
                      +'currently supported in spinorbit')
 
@@ -212,9 +212,10 @@ class Spinorbit(interaction.Interaction):
         stlbl = []
         
         for igrp in self.grp_lbls:
+            obj_lbl = self.get_obj(igrp).label
             for i in self.get_states(igrp):
-                for m in self.get_spins(igrp):
-                    stlbl.append([igrp, i, m])
+                for m in self.get_spins(igrp).M:
+                    stlbl.append([obj_lbl, igrp, i, m])
 
         return stlbl
     
@@ -386,8 +387,8 @@ class Spinorbit(interaction.Interaction):
 
         for pair in pair_list:
             indx  = pair_list.index(pair)
-            I_bra = bra_states.index(pair[0])
-            I_ket = ket_states.index(pair[1])
+            I_bra = np.where(bra_states == pair[0])[0]
+            I_ket = np.where(ket_states == pair[1])[0]
 
             for M_ket in Mk:
                 for M_bra in Mb:
@@ -413,8 +414,8 @@ class Spinorbit(interaction.Interaction):
         hdiag = np.zeros(dim, dtype=np.cdouble)
 
         for i in range(dim):
-            grp = self.stlbl[i][0]
-            st  = self.stlbl[i][1]
+            grp = self.stlbl[i][1]
+            st  = self.stlbl[i][2]
             hdiag[i] = self.get_obj(grp).energy(st)
 
         return hdiag
@@ -431,7 +432,7 @@ class Spinorbit(interaction.Interaction):
         """
         
         # Sum of the scaled one-electron SOC matrices
-        nmo    = self.bra_obj.scf.nmo
+        nmo    = self.get_obj(self.grp_lbls[0]).scf.nmo
         hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
         kval   = [-1, 0, 1]
         coe    = [1., np.sqrt(2.), -1.]
@@ -460,15 +461,15 @@ class Spinorbit(interaction.Interaction):
 
         # now determine the offset for bra/ket indices
         bra_off = 0
-        for i in range(self.grp_lbls.index(bra_lbl))
-            nstates  = len(self.get_states(grp_lbls[i]))
-            mult     = self.get_spins(grp_lbls[i]).mult
+        for i in range(self.grp_lbls.index(bra_lbl)):
+            nstates  = len(self.get_states(self.grp_lbls[i]))
+            mult     = self.get_spins(self.grp_lbls[i]).mult
             bra_off += nstates*mult
    
         ket_off = 0
-        for i in range(self.grp_lbls.index(ket_lbl))
-            nstates  = len(self.get_states(grp_lbls[i]))
-            mult     = self.get_spins(grp_lbls[i]).mult
+        for i in range(self.grp_lbls.index(ket_lbl)):
+            nstates  = len(self.get_states(self.grp_lbls[i]))
+            mult     = self.get_spins(self.grp_lbls[i]).mult
             ket_off += nstates*mult
 
         return int(indx_bra + bra_off), int(indx_ket + ket_off)

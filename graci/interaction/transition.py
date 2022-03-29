@@ -64,14 +64,13 @@ class Transition(interaction.Interaction):
 
     #
     @timing.timed
-    def run(self, [bra_obj, ket_obj]):
+    def run(self, obj_list):
         """return the transition dipole moments between the bra and
            ket states. If b_state and k_state are None, assume 
            transitions from all states in method object should be 
            used."""
 
-        self.bra_obj = bra_obj
-        self.ket_obj = ket_obj
+        [self.bra_obj, self.ket_obj] = obj_list
 
         mol_bra = self.bra_obj.scf.mol
         mol_ket = self.ket_obj.scf.mol
@@ -81,7 +80,7 @@ class Transition(interaction.Interaction):
 
         # if bra and ket are same object, just need lower triangle
         # minus the diagonal elements
-        if self.same_braket(self.bra_obj, self.ket_obj):
+        if self.same_obj(self.bra_obj, self.ket_obj):
             list_type = 'nodiag'
         else:
             # sanity check that orbitals and geometry are the same
@@ -104,8 +103,8 @@ class Transition(interaction.Interaction):
         if self.all_final_states:
             self.bra_states = range(self.bra_obj.n_states())
 
-        self.add_states('ket_states', self.ket_obj, self.ket_states)
-        self.add_states('bra_states', self.bra_obj, self.bra_states)
+        self.add_group('ket_states', self.ket_obj, self.init_states)
+        self.add_group('bra_states', self.bra_obj, self.final_states)
 
         # this is main transition_list: stored by adiabatic label
         self.trans_list = self.build_pair_list('bra_states',
@@ -718,7 +717,8 @@ class Transition(interaction.Interaction):
         output.print_transition_header(self.label)
 
         # get the list of ket states
-        ket_states, ket_syms = self.get_states('ket_states')
+        ket_states = self.get_states('ket_states')
+        ket_syms   = self.get_syms('ket_states')
 
         # print a 'transition table' for each initial state
         for iket in range(len(ket_states)):

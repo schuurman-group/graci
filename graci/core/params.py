@@ -84,20 +84,18 @@ dftmrenpt2_kword  = {'mult'           : int,
 #---------------------------------------------------
 
 # transition moments input keywords and data types
-transition_kword = {'ket_states'      : int, 
-                    'ket_label'       : str,
-                    'bra_states'     : int,
-                    'bra_label'      : str,
+transition_kword = {'init_states'      : int, 
+                    'init_label'       : str,
+                    'final_states'     : int,
+                    'final_label'      : str,
                     'all_final_states' : bool,
                     'print_orbitals'   : bool,
                     'label'            : str
                    }
 
 # spinorbit section input keywords and data typess
-spinorbit_kword = {'bra_states'        : int, 
-                   'bra_label'         : str,
-                   'ket_states'        : int,
-                   'ket_label'         : str,
+spinorbit_kword = {'couple_groups'     : str, 
+                   'couple_states'     : int,
                    'print_thresh'      : float,
                    'mf2e'              : str,
                    'label'             : str
