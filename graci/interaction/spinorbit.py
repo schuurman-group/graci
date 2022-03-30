@@ -93,10 +93,18 @@ class Spinorbit(interaction.Interaction):
         # pair blocks of H_SOC
         # loop over the blocks of H_SOC
         for iblk in range(self.n_groups()):
-            for jblk in range(iblk):
+            # loop over range(iblk+1) to include iblk==jblk blk
+            for jblk in range(iblk+1):
 
                 bra_lbl  = self.grp_lbls[iblk]
                 ket_lbl  = self.grp_lbls[jblk]
+
+                bra = self.get_obj(bra_lbl)
+                ket = self.get_obj(ket_lbl)
+
+                # skip if both manifolds of states are singlets
+                if bra.mult == 1 and ket.mult == 1:
+                    continue
 
                 # do some sanity checking on the bra/ket pair
                 self.check_pair(bra_lbl, ket_lbl)
@@ -112,13 +120,6 @@ class Spinorbit(interaction.Interaction):
                                                   pairs=blk_fill, 
                                                   sym_blk=True)
 
-                bra = self.get_obj(bra_lbl)
-                ket = self.get_obj(ket_lbl)
-
-                # skip if both manifolds of states are singlets
-                if bra.mult == 1 and ket.mult == 1:
-                    continue
-            
                 # initialize the bitsi library for the calculation of
                 # spin-orbit matrix elements
                 bitsi_init.init(bra, ket, 'soc')
@@ -134,12 +135,9 @@ class Spinorbit(interaction.Interaction):
                 cg_coef = mrci_soc.clebsch_gordan(bra, ket)
 
                 # build this block of H_SOC
-                hblk = self.build_hsoc(hdim, h1e, bra_lbl, ket_lbl, 
+                hsoc += self.build_hsoc(hdim, h1e, bra_lbl, ket_lbl, 
                                        blk_list, redmat, cg_coef)
             
-                # add the current block of Hsoc to the total
-                hsoc += hblk
-
                 # finalize the bitsi library
                 bitsi_init.finalize()
 
