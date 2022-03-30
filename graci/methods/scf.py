@@ -49,9 +49,16 @@ class Scf:
 
 # Required functions #######################################################
 
-    def set_mol(self, mol):
-        """set the mol object for the scf object"""
+    @timing.timed
+    def run(self, mol):
+        """compute the DFT energy and KS orbitals"""
+
+        # set the GRaCI mol object
         self.mol = mol
+
+        # the charge and multiplity of the scf sections
+        # overwrites the mult/charge of the mol object
+        #----------------------------------------------------
 
         # set the charge and multiplicity to the appropriate
         # values for this object
@@ -59,29 +66,15 @@ class Scf:
 
         # pyscf spin = 2*S
         self.mol.mult   = self.mult
-       
+
         # build the PySCF molecule object 
         self.mol.run()
 
         # save the number of electrons
         self.nel = self.mol.pymol().nelectron
 
-    def mol_exists(self):
-        """return True is self.mol is not None"""
-        try:
-            return type(self.mol).__name__ is 'Molecule'
-        except:
-            return False
-
-    @timing.timed
-    def run(self):
-        """compute the DFT energy and KS orbitals"""
-
         # returns the PySCF molecule object needed to run SCF
-        if self.mol_exists():
-            pymol = self.mol.pymol()
-        else:
-            sys.exit('ERROR: mol object not set in scf')        
+        pymol = self.mol.pymol()
 
         # set the verbosity of the output
         pymol.verbose = self.verbose

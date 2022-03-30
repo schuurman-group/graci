@@ -82,8 +82,11 @@ class Dftmrci(method.Method):
 # Required functions #############################################################
 
     @timing.timed
-    def run(self):
+    def run(self, scf):
         """ compute the DFT/MRCI eigenpairs for all irreps """
+        
+        # set the scf object 
+        self.set_scf(scf)
 
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
@@ -225,5 +228,4 @@ class Dftmrci(method.Method):
     def bitci_mrci(self):
         """returns the bitci mrci wfn"""
         return self.mrci_wfn
-
 

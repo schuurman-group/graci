@@ -70,8 +70,11 @@ class Dftmrenpt2(method.Method):
 # Required functions #############################################################
 
     @timing.timed
-    def run(self):
+    def run(self, scf):
         """ compute the DFT/MR-ENPT2 eigenpairs for all irreps """
+
+        # set the scf object
+        self.set_scf(scf)
 
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')

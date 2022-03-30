@@ -36,8 +36,6 @@ class Driver:
                 postscf_objs.append(obj)
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
-            elif type(obj).__name__ in params.overlap_objs:
-                overlap_objs.append(obj)
                 
         # Load required libraries
         #-----------------------------------------------------
@@ -47,10 +45,8 @@ class Driver:
 
         if len(si_objs) > 0:
             libs.lib_load('bitsi')
-
-        if len(overlap_objs) > 0:
             libs.lib_load('bitwf')
-            
+
         # Molecule sections 
         # ----------------------------------------------------
 
@@ -93,27 +89,24 @@ class Driver:
 
             # else assign molecule object and call run() routine
             else:
-                for mol_obj in mol_objs:
-                    # if labels match -- set the geometry
-                    # to the molecule object
-                    if scf_obj.label == mol_obj.label:
-                        scf_obj.set_mol(mol_obj)
-                        break
 
-                # if we didn't match labels, but there is a single
-                # molecule object, 
-                if scf_obj.mol_exists() is False and len(mol_objs)==1:
-                    scf_obj.set_mol(mol_obj)
+                mol_lbls = [obj.label for obj in mol_objs]
+                if scf_obj.label in mol_lbls:
+                    mol_obj = mol_objs[mol_objs.index(scf_obj.label)]
+                elif len(mol_objs) == 1:
+                    mol_obj = mol_objs[0]
+                else:
+                    mol_obj = None
 
                 # if we have a label problem, then we should exit
                 # with an error
-                if scf_obj.mol_exists() is False:
+                if mol_obj is None:
                     output.print_message('scf section, label='+
                             str(scf_obj.label)+
                             ' has no molecule section. Please check input')
                     sys.exit(1)
-        
-                scf_obj.run()
+
+                scf_obj.run(mol_obj)
                 chkpt.write(scf_obj)
 
             # initialize the MO integrals following the SCF run, but
@@ -138,9 +131,9 @@ class Driver:
                 # if labels match -- set the geometry
                 # to the molecule object
                 if postscf.label == scf_obj.label or len(scf_objs)==1:
-                    postscf.set_scf(scf_obj)
+                    #postscf.set_scf(scf_obj)
 
-                    postscf.run()
+                    postscf.run(scf_obj)
                     chkpt.write(postscf)
 
         # All SCF + POST-SCF objects are run first before state interaction

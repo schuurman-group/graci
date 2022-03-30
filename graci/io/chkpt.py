@@ -74,7 +74,7 @@ def write(graci_obj, file_name=None):
 
     # first write the datasets
     for name, dset in dsets.items():
-
+        
         # if dataset exists, delete it
         if name in obj_grp.keys():
             del obj_grp[name]
