@@ -20,7 +20,6 @@ class Interaction:
         # list of object labels. Set from input, used to so driver
         # knows which objects to pass
         self.obj_lbls     = []
-
         # list of objects from which to pull states
         self.objs         = {} 
         # state list -- list of groups of states
@@ -65,12 +64,14 @@ class Interaction:
         # store states as list of adiabatic labels
         self.states[lbl]     = state_list
 
-        # also store state symmetries
-        self.symmetries[lbl] = [obj.state_sym(i)[0] for i in state_list]
+        # also store state symmetries and spins, if this object
+        # extends method.Method
+        if issubclass(obj, 'Method'):
+            self.symmetries[lbl] = [obj.state_sym(i)[0] 
+                                    for i in state_list]
  
-        # and store spin information
-        self.spins[lbl]      = self.SpinInfo(obj)
-        
+            self.spins[lbl]      = self.SpinInfo(obj)
+       
         return
 
     #
@@ -111,7 +112,6 @@ class Interaction:
     #
     def get_obj(self, lbl):
         """return the method object corresponding to lbl"""
-
         obj = None
 
         if lbl in list(self.objs.keys()):
@@ -163,11 +163,9 @@ class Interaction:
 
         for k in range(len(self.states[ket])):
             kst = self.states[ket][k]
-            ksm = self.objs[ket].state_sym(kst)
     
             for b in range(len(self.states[bra])):
                 bst = self.states[bra][b]
-                bsm = self.objs[bra].state_sym(bst)
    
                 # exclude bra == ket pairs: 'lower_i>j'
                 if braket_same and bst == kst and pairs == 'nodiag':
@@ -179,6 +177,8 @@ class Interaction:
     
                 # add the state pair
                 if sym_blk:
+                    ksm = self.objs[ket].state_sym(kst)
+                    bsm = self.objs[bra].state_sym(bst)
                     pair_list[bsm[0]][ksm[0]].append([bsm[1], ksm[1]])
                 else:
                     pair_list.append([bst, kst])

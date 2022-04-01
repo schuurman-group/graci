@@ -53,7 +53,7 @@ class Overlap(interaction.Interaction):
         self.add_group('ket', self.ket_obj, self.ket_states)
 
         # if bra/ket are the same, only consider unique pairs
-        if self.same_braket():
+        if self.same_obj(self.bra_obj, self.ket_obj):
             pair_blks = 'nodiag'
         else:
             pair_blks = 'full'

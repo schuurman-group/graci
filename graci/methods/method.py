@@ -154,7 +154,7 @@ class Method:
             return self.dmats[istate, :, :]
         else:
             print("rdm called but density does not exist")
-            return self.dmats
+            return None
 
     #
     def rdm_sym(self, irrep, state):
@@ -175,12 +175,14 @@ class Method:
         """print the natural orbitals for irrep irr and state state"""
 
         # if the 1RDMs don't exist, then we have a problem
-        if self.dmats is None:
+        if self.n_states() > 0 and self.rdm(0) is None:
             print("can't return natural orbitals: 1RDMs don't exist")
             return None
             
         # check that istate is less than the total number of states:
-        (n_tot, nmo1, nmo2) = self.dmats.shape
+        n_tot           = self.n_states()
+        (nmo1, nmo2)    = self.rdm(0).shape
+
         self.natocc     = np.zeros((n_tot, nmo2), dtype=float)
         self.natorb_mo  = np.zeros((n_tot, nmo1, nmo2), dtype=float)
         self.natorb_ao  = np.zeros((n_tot, nmo1, nmo2), dtype=float)

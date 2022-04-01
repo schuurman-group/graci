@@ -7,6 +7,7 @@ import sys as sys
 import numpy as np
 import copy as copy
 import graci.interaction.interaction as interaction
+import graci.methods.method as method
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
@@ -24,13 +25,14 @@ class Spinorbit(interaction.Interaction):
         super().__init__()
         
         # user defined quanties 
-        self.label        = 'spinorbit'
-        self.print_thresh = 1.
-        self.mf2e         = 'atomic'
+        #-----------------------------------------------------------
+        self.label         = 'spinorbit'
+        self.print_thresh  = 1.
+        self.mf2e          = 'atomic'
         # group of objects to couple
-        couple_groups     = [None]
+        self.couple_groups = [None]
         # states from each object to couple
-        couple_states     = [None]
+        self.couple_states = [None]
 
         #
         # Private variables -- should not be directly referenced
@@ -42,7 +44,11 @@ class Spinorbit(interaction.Interaction):
         self.grp_lbls     = None
         # allowed MF 2e integral schemes
         self.allowed_mf2e = ['off', 'atomic', 'full']
-     
+        # matrix to hold spin-orbit vectors
+        self.so_vec       = None
+        # vector to hold spin-orbit energies
+        self.so_ener      = None
+
     #
     @timing.timed
     def run(self, obj_list):
@@ -130,13 +136,9 @@ class Spinorbit(interaction.Interaction):
                 redmat = self.build_redmat(bra, ket, blk_list, 
                                                      blk_list_sym)
 
-                # get the Clebsh-Gordan coefficients needed to
-                # compute the SOC matrix elements for the current block
-                cg_coef = mrci_soc.clebsch_gordan(bra, ket)
-
                 # build this block of H_SOC
-                hsoc += self.build_hsoc(hdim, h1e, bra_lbl, ket_lbl, 
-                                       blk_list, redmat, cg_coef)
+                hsoc += self.build_hsoc(hdim, bra_lbl, ket_lbl, 
+                                       blk_list, h1e, redmat)
             
                 # finalize the bitsi library
                 bitsi_init.finalize()
@@ -145,15 +147,73 @@ class Spinorbit(interaction.Interaction):
         hsoc += np.diag(self.hsoc_ondiag(hdim))
         
         # diagonalise H_soc
-        h_eig, h_vec = np.linalg.eigh(hsoc)
+        self.so_ener, self.so_vec = np.linalg.eigh(hsoc)
         
         # print the H_SOC elements
-        self.print_hsoc(hsoc, h_eig, h_vec)
-
-        del(cg_coef, redmat)
+        if self.print_thresh >= 1:
+            self.print_hsoc(hsoc)
 
         return
    
+    #
+    def state_vec(self, state):
+        """
+        Return the spin orbit state vector in terms of spin free states
+        """
+
+        if state < self.so_vec.shape[1]:
+            return self.so_vec[:, state]
+        else:
+            return None
+
+    #
+    def soc_state(self, indx)
+        """for a given index of the state vector, return the label of 
+           of group, the state label, and value of Ms
+        """
+ 
+        if indx < 0 or indx >= self.so_vec.shape[0]:
+            return None
+
+        msval = [-1, 0, 1]
+        ind   = 0
+        igrp  = 0
+        while ind < indx
+            nstates = len(self.get_states(self.grp_lbls[igrp]))
+            mult    = self.get_spins(self.grp_lbls[i]).mult
+            ind    += nstates*mult
+            igrp   += 1
+
+        # decrement igrp to current grp
+        igrp -= 1
+        lbl   = self.grp_lbls[igrp]
+
+        # decrement indx to start of the grp
+        ind  -= nstates*mult
+
+        # find the state index
+        st    = np.floor((indx - ind) / self.get_spins(lbl).mult)
+
+        # get Ms value (-1, 0, 1)
+        ms    = indx - (ind + st*self.get_spins(lbl).mult)
+
+        return lbl, self.get_states(lbl)[st], msval[ms]
+
+    #
+    def energy(self, state):
+        """
+        Return the spin-orbit state energy
+        """
+
+        if state < self.so_ener.shape[0]:
+            return self.so_ener[state]
+        else:
+            return None
+
+    #-----------------------------------------------------------------
+    # 
+    # methods not meant to be called from outside the class
+
     #
     def check_list(self, obj_lst):
         """
@@ -312,7 +372,6 @@ class Spinorbit(interaction.Interaction):
 
         return h2e_ao
 
-
     #
     @timing.timed
     def build_redmat(self, bra, ket, pair_list, pair_list_sym):
@@ -340,12 +399,18 @@ class Spinorbit(interaction.Interaction):
 
     #
     @timing.timed
-    def build_hsoc(self, dim, h1e, bra_lbl, ket_lbl, pair_list, 
-                   redmat, cg_coef):
+    def build_hsoc(self, dim, bra_lbl, ket_lbl, pair_list, h1e, redmat):
         """
         Builds the iblock'th block of the SOC Hamiltonian matrix
         """
-        
+
+        # fill in the appropriate elements of hsoc
+        hsoc = np.zeros((dim, dim), dtype=np.cdouble)
+
+        # get the bra/ket method objects
+        bra      = self.get_obj(bra_lbl)
+        ket      = self.get_obj(ket_lbl)
+
         # get the corresponding bra/ket spin objects
         bra_spin = self.get_spins(bra_lbl)
         ket_spin = self.get_spins(ket_lbl)
@@ -353,15 +418,14 @@ class Spinorbit(interaction.Interaction):
         # Number of bra and ket multiplets in this block
         bra_states = self.get_states(bra_lbl)
         ket_states = self.get_states(ket_lbl)
-        nm_bra = len(bra_states)
-        nm_ket = len(ket_states)
+
+        # get the Clebsh-Gordan coefficients needed to
+        # compute the SOC matrix elements for the current block
+        cg_coef = mrci_soc.clebsch_gordan(bra, ket)
 
         # Loop over pairs of spin-orbit coupled states in this block
         Mb = bra_spin.M
         Mk = ket_spin.M
-
-        # fill in the appropriate elements of hsoc
-        hsoc = np.zeros((dim, dim), dtype=np.cdouble)
 
         for pair in pair_list:
             indx  = pair_list.index(pair)
@@ -370,7 +434,6 @@ class Spinorbit(interaction.Interaction):
 
             for M_ket in Mk:
                 for M_bra in Mb:
-
                     i,j  = self.hsoc_indx(bra_lbl, ket_lbl, 
                                           I_bra, I_ket,
                                           M_bra, M_ket)
@@ -380,6 +443,8 @@ class Spinorbit(interaction.Interaction):
                                           M_bra, M_ket,
                                           cg_coef, redmat[:,:,indx])
                     hsoc[j,i] = np.conj(hsoc[i,j])
+                    self.symlbli[i] = bra.state_sym(pair[0])[0]
+                    self.symlblj[j] = ket.state_sym(pair[1])[0]
 
         return hsoc
 
@@ -491,7 +556,7 @@ class Spinorbit(interaction.Interaction):
         return stlbl
 
     #
-    def print_hsoc(self, hsoc, heig, hvec):
+    def print_hsoc(self, hsoc):
         """
         prints the SOC values to the log file
         """
@@ -503,6 +568,7 @@ class Spinorbit(interaction.Interaction):
                                      self.print_thresh)
 
         # output the eigenvectors of H_SOC
-        output.print_hsoc_eig(heig, hvec, hsoc.shape[0], stlbl)
+        output.print_hsoc_eig(self.so_ener, self.so_vec, hsoc.shape[0], 
+                                     stlbl)
         
         return
