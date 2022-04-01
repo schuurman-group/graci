@@ -67,7 +67,6 @@ class Transition(interaction.Interaction):
         self.scf        = None
         self.mol        = None
 
-
     #
     @timing.timed
     def run(self, obj_list):
@@ -100,7 +99,8 @@ class Transition(interaction.Interaction):
                                                 pairs=list_type)
 
         # tdms is a vector of nmo x nmo transition densities
-        self.tdms = self.build_tdms(trans_list_sym)
+        self.tdms = self.build_tdms(self.bra_obj, self.ket_obj, 
+                                    self.trans_list, trans_list_sym)
 
         # build the multipole moments  -- easier to just do this once
         # for all transitions
@@ -190,30 +190,28 @@ class Transition(interaction.Interaction):
 #--------------------------------------------------------------------------
 # "Private" class methods
 #
-    # 
     @timing.timed
-    def build_tdms(self, trans_list_sym):
+    def build_tdms(self, bra, ket, trans_list, trans_list_sym):
         """grab the TDMs from bitsi and then reshape the list of
            TDMs into a more usable format"""
 
         # grab the tdms
-        tdm_list = mrci_1tdm.tdm(self.bra_obj, self.ket_obj, 
-                                  trans_list_sym)
+        tdm_list = mrci_1tdm.tdm(bra, ket, trans_list, trans_list_sym)
 
         # make the tdm list
-        nmo    = self.scf.nmo
-        npairs = len(self.trans_list)
+        nmo    = bra.scf.nmo
+        npairs = len(trans_list)
         tdms   = np.zeros((nmo, nmo, npairs), dtype=float)
 
         for indx in range(len(self.trans_list)):
-            bk_st          = self.trans_list[indx]
-            [birr, bst]    = self.bra_obj.state_sym(bk_st[0])
-            [kirr, kst]    = self.ket_obj.state_sym(bk_st[1])
+            bk_st          = trans_list[indx]
+            [birr, bst]    = bra.state_sym(bk_st[0])
+            [kirr, kst]    = ket.state_sym(bk_st[1])
             sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
             tdms[:,:,indx] = tdm_list[birr][kirr][:, :, sym_indx]
 
         return tdms
-    
+
     #
     def extract_multipole(self, b_st, k_st, name, gauge='velocity'):
         """extract the transition dipole vector in the appropriate

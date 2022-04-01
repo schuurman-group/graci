@@ -138,7 +138,7 @@ class Spinorbit(interaction.Interaction):
 
                 # build this block of H_SOC
                 hsoc += self.build_hsoc(hdim, bra_lbl, ket_lbl, 
-                                       blk_list, h1e, redmat)
+                                        blk_list, h1e, redmat)
             
                 # finalize the bitsi library
                 bitsi_init.finalize()
@@ -156,7 +156,7 @@ class Spinorbit(interaction.Interaction):
         return
    
     #
-    def state_vec(self, state):
+    def soc_state(self, state):
         """
         Return the spin orbit state vector in terms of spin free states
         """
@@ -167,9 +167,10 @@ class Spinorbit(interaction.Interaction):
             return None
 
     #
-    def soc_state(self, indx)
+    def soc_state_lbl(self, indx):
         """for a given index of the state vector, return the label of 
-           of group, the state label, and value of Ms
+           of group, the state label, and value of Ms of the basis
+           state
         """
  
         if indx < 0 or indx >= self.so_vec.shape[0]:
@@ -198,6 +199,26 @@ class Spinorbit(interaction.Interaction):
         ms    = indx - (ind + st*self.get_spins(lbl).mult)
 
         return lbl, self.get_states(lbl)[st], msval[ms]
+
+    #
+    def soc_index(self, lbl, state, m_s):
+        """return the indx in the Hsoc for a given state group, state,
+           and value of Ms
+        """
+
+        spin = self.get_spins(lbl)
+        ist  = self.get_states(lbl).index(state)
+
+        indx = spin.mult * ist + m_s + spin.S
+
+        # now determine the offset for bra/ket indices
+        off = 0
+        for i in range(self.grp_lbls.index(lbl)):
+            nstates  = len(self.get_states(self.grp_lbls[i]))
+            mult     = self.get_spins(self.grp_lbls[i]).mult
+            off += nstates*mult
+
+        return int(indx + off)
 
     #
     def energy(self, state):
@@ -434,9 +455,8 @@ class Spinorbit(interaction.Interaction):
 
             for M_ket in Mk:
                 for M_bra in Mb:
-                    i,j  = self.hsoc_indx(bra_lbl, ket_lbl, 
-                                          I_bra, I_ket,
-                                          M_bra, M_ket)
+                    i         = self.soc_index(bra_lbl, I_bra, M_bra)
+                    j         = self.soc_index(ket_lbl, I_ket, M_ket)
                     hsoc[i,j] = self.contract_redmat(
                                           h1e,
                                           bra_spin, ket_spin,
@@ -493,35 +513,6 @@ class Spinorbit(interaction.Interaction):
 
         return hij
 
-    #
-    def hsoc_indx(self, bra_lbl, ket_lbl, I_bra, I_ket, M_bra, M_ket):
-        """
-        Given bra and ket multiplet indices, I_bra and I_ket,
-        and projected spins, M_bra and M_ket, returns the
-        corresponding element of the SOC Hamiltonian matrix
-        """
-        bra_spin = self.get_spins(bra_lbl)
-        ket_spin = self.get_spins(ket_lbl)
-
-        indx_bra = bra_spin.mult * I_bra + M_bra + bra_spin.S
-        indx_ket = ket_spin.mult * I_ket + M_ket + ket_spin.S
-
-        # now determine the offset for bra/ket indices
-        bra_off = 0
-        for i in range(self.grp_lbls.index(bra_lbl)):
-            nstates  = len(self.get_states(self.grp_lbls[i]))
-            mult     = self.get_spins(self.grp_lbls[i]).mult
-            bra_off += nstates*mult
-   
-        ket_off = 0
-        for i in range(self.grp_lbls.index(ket_lbl)):
-            nstates  = len(self.get_states(self.grp_lbls[i]))
-            mult     = self.get_spins(self.grp_lbls[i]).mult
-            ket_off += nstates*mult
-
-        return int(indx_bra + bra_off), int(indx_ket + ket_off)
-
-    
     #
     def cgcoe_indx(self, S, M, s1, m1, k):
         """
