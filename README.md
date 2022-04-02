@@ -6,8 +6,10 @@ In the following, $TOPDIR will refer to the path to the top graci directory
 
 ## Dependencies
 CMake v3.2 or higher
+
 PySCF
-HDF5 build *including the Fortran libraries*
+
+HDF5 build **including the Fortran libraries**
 
 ## Recomendations
 Compile using Intel ifort and MKL for optimal performance
