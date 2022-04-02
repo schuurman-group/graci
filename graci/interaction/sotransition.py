@@ -64,7 +64,7 @@ class Sotransition(transition.Transition):
         # initialize the (spin-orbit coupled) transition density
         # matrices
         self.tdms = np.zeros((self.scf.nmo, self.scf.nmo, 
-                              len(self.trans_list)), dtype=float)
+                              len(self.trans_list)), dtype=np.cdouble)
 
         # loop over all pairs of spin free states in both the bra
         # and ket objects. In the future, may be prudent to check
@@ -99,23 +99,29 @@ class Sotransition(transition.Transition):
                 bitsi_init.init(bra_ci, ket_ci, 'tdm')
         
                 # this is main transition_list: stored by adiabatic label
-                blk_list = self.build_pair_list(bra_so,
-                                                ket_so, 
-                                                pairs=pair_type)
+                blk_lst = self.build_pair_list(bra_so,
+                                               ket_so, 
+                                               pairs=pair_type)
                 # the transitions, ordered by interacting irreps, is how
                 # we call bitsi
-                blk_list_sym  = self.build_pair_list(bra_so, 
-                                                     ket_so, 
-                                                     pairs=pair_type, 
-                                                     sym_blk=True)
+                blk_lst_sym  = self.build_pair_list(bra_so, 
+                                                    ket_so, 
+                                                    pairs=pair_type, 
+                                                    sym_blk=True)
 
                 # tdms is a vector of nmo x nmo transition densities
                 tdms = self.build_tdms(bra_ci, ket_ci, 
-                                       blk_list, 
-                                       blk_list_sym)
+                                       blk_lst, 
+                                       blk_lst_sym)
 
                 # rotate tdms into spin states
-                self.rotate_tdms(bra_so, ket_so, blk_list, tdms)
+                self.rotate_tdms(b_lbl, k_lbl, blk_lst, tdms)
+
+                # finalize the bitsi library
+                bitsi_init.finalize()
+
+        print('tdm[1]='+str(self.tdms[:,:,0]))
+
 
         # build the multipole moments  -- easier to just do this once
         # for all transitions
@@ -133,9 +139,6 @@ class Sotransition(transition.Transition):
 
         # print the summary output
         self.print_log()
-
-        # finalize the bitsi library
-        bitsi_init.finalize()
 
         del(tdms)
         return
@@ -178,17 +181,21 @@ class Sotransition(transition.Transition):
 
     #
     @timing.timed
-    def rotate_tdms(self, bra_lbl, ket_lbl, blk_list, tdms):
+    def rotate_tdms(self, bra_lbl, ket_lbl, blk_lst, tdms):
         """
         Rotate the spin-free tdms to the spin-orbit states
         """
+        print('bra_lbl='+str(bra_lbl))
+        print('ket_lbl='+str(ket_lbl))
+        print('blk_lst='+str(blk_lst))
+        print('shape tdms='+str(tdms.shape))
 
-        bra_spin = self.get_spins(bra_lbl)
-        ket_spin = self.get_spins(ket_lbl)
+        bra_spin = self.bra_obj.get_spins(bra_lbl)
+        ket_spin = self.ket_obj.get_spins(ket_lbl)
 
         # run through trans_list and contribute each #
-        for pair in blk_list:
-            ind = blk_list.index(pair)
+        for pair in blk_lst:
+            ind = blk_lst.index(pair)
             tdm = tdms[:, :, ind] 
 
             for sopair in self.trans_list:
@@ -196,11 +203,11 @@ class Sotransition(transition.Transition):
 
                 for ms_b in bra_spin.M:
                     b_ind = self.bra_obj.soc_index(bra_lbl, pair[0], ms_b)
-                    b_cf = np.conj(self.bra_obj.state_vec(sopair[0])[b_ind])
+                    b_cf = np.conj(self.bra_obj.soc_state(sopair[0])[b_ind])
 
                     for ms_k in ket_spin.M:
-                        k_ind = self.ket_obj.soc_idnex(ket_lbl, pair[1], ms_k)
-                        k_cf = self.ket_obj.state_vec(sopair[1])[k_ind]
+                        k_ind = self.ket_obj.soc_index(ket_lbl, pair[1], ms_k)
+                        k_cf = self.ket_obj.soc_state(sopair[1])[k_ind]
                         self.tdms[:, :, so_ind] += tdm * b_cf * k_cf
 
         return

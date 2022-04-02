@@ -98,6 +98,12 @@ class Transition(interaction.Interaction):
                                                'ket_states', 
                                                 pairs=list_type)
 
+        # this is main transition_list: stored by adiabatic label
+        trans_list_sym = self.build_pair_list('bra_states',
+                                              'ket_states',
+                                               pairs=list_type,
+                                               sym_blk=True)
+
         # tdms is a vector of nmo x nmo transition densities
         self.tdms = self.build_tdms(self.bra_obj, self.ket_obj, 
                                     self.trans_list, trans_list_sym)
@@ -127,7 +133,7 @@ class Transition(interaction.Interaction):
         return
 
     #
-    def check_obj_list(obj_list):
+    def check_obj_list(self, obj_list):
         """
         do some sanity checks on the objects passed to run()
         """
@@ -737,15 +743,28 @@ class Transition(interaction.Interaction):
         """print summary output to log file"""
         # for each initial state, write out a table of 
         # oscillator strenghts and transition dipole moments
-        bsym_lbl = self.mol.irreplbl
-        ksym_lbl = self.mol.irreplbl
-
         # print the header
         output.print_transition_header(self.label)
 
         # get the list of ket states
         ket_states = self.get_states('ket_states')
-        ket_syms   = self.get_syms('ket_states')
+        bra_states = self.get_states('bra_states')
+
+        # get state symmetries. If not defined, use C1 sym labels
+        ket_syms = self.get_syms('ket_states')
+        if ket_syms is None:
+            ket_syms = [0]*len(ket_states)
+            ksym_lbl = ['A']*len(ket_states)
+        else:
+            ksym_lbl = self.scf.mol.irreplbl
+
+        bra_syms = self.get_syms('bra_states')
+        if bra_syms is None:
+            bra_syms = [0]*len(bra_states)
+            bsym_lbl = ['A']*len(bra_states)
+        else:
+            bsym_lbl = self.scf.mol.irreplbl
+
 
         # print a 'transition table' for each initial state
         for iket in range(len(ket_states)):
@@ -758,20 +777,21 @@ class Transition(interaction.Interaction):
             exc_ener  = []
             osc_str   = [[] for i in range(5)]     
 
-            for tpair in self.trans_list:
-          
-                b_st = tpair[0]
-                k_st = tpair[1]
-                indx = self.trans_list.index(tpair)
+            for ibra in range(len(bra_states)):
 
-                if k_st != ket_states[iket]:
-                    continue    
+                # if [iket,ibra] not in trans_list, continue to
+                # next pair
+                try:
+                    indx = self.trans_list.index([bra_states[ibra], 
+                                                  ket_states[iket]])
+                except:
+                    continue
 
                 # shift state indices from 0..n-1 to 1..n
-                final_st.append(b_st+1)
-                final_sym.append(bsym_lbl[self.bra_obj.state_sym(b_st)[0]]) 
-                exc_ener.append(self.bra_obj.energy(b_st) - 
-                                self.ket_obj.energy(k_st)) 
+                final_st.append(bra_states[ibra]+1)
+                final_sym.append(bsym_lbl[bra_syms[ibra]])
+                exc_ener.append(self.bra_obj.energy(bra_states[ibra]) - 
+                                self.ket_obj.energy(ket_states[iket])) 
                 osc_str[0].append(self.oscstr['f0iso_l'][indx])
                 osc_str[1].append(self.oscstr['f2iso_l'][indx])
                 osc_str[2].append(self.oscstr['f0iso_v'][indx])
