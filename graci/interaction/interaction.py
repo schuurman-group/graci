@@ -2,6 +2,7 @@
 Parent state interaction class
 """
 import numpy as np
+import graci.methods.cimethod as cimethod
 import graci.utils.timing as timing
 
 class Interaction:
@@ -66,7 +67,7 @@ class Interaction:
 
         # also store state symmetries and spins, if this object
         # extends method.Method
-        if issubclass(obj, 'Method'):
+        if issubclass(obj.__class__, cimethod.Cimethod):
             self.symmetries[lbl] = [obj.state_sym(i)[0] 
                                     for i in state_list]
  

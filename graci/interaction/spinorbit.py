@@ -7,7 +7,7 @@ import sys as sys
 import numpy as np
 import copy as copy
 import graci.interaction.interaction as interaction
-import graci.methods.method as method
+import graci.methods.cimethod as cimethod
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
@@ -83,8 +83,8 @@ class Spinorbit(interaction.Interaction):
         for igrp in range(len(self.couple_groups)):
             # this allows the same group label to appear more than once
             indx     = obj_lbls.index(self.couple_groups[igrp])
-            self.add_group(self.grp_lbls[igrp], obj_list[indx], 
-                                           self.couple_states[igrp])
+            states   = self.couple_states[igrp].tolist()
+            self.add_group(self.grp_lbls[igrp], obj_list[indx], states)
 
         # get the one-electron SOC matrices
         h1e = self.build_h1e()
@@ -179,7 +179,7 @@ class Spinorbit(interaction.Interaction):
         msval = [-1, 0, 1]
         ind   = 0
         igrp  = 0
-        while ind < indx
+        while ind < indx:
             nstates = len(self.get_states(self.grp_lbls[igrp]))
             mult    = self.get_spins(self.grp_lbls[i]).mult
             ind    += nstates*mult
@@ -449,22 +449,20 @@ class Spinorbit(interaction.Interaction):
         Mk = ket_spin.M
 
         for pair in pair_list:
-            indx  = pair_list.index(pair)
-            I_bra = np.where(bra_states == pair[0])[0]
-            I_ket = np.where(ket_states == pair[1])[0]
+            indx   = pair_list.index(pair)
+            bra_st = pair[0]
+            ket_st = pair[1]
 
             for M_ket in Mk:
                 for M_bra in Mb:
-                    i         = self.soc_index(bra_lbl, I_bra, M_bra)
-                    j         = self.soc_index(ket_lbl, I_ket, M_ket)
+                    i         = self.soc_index(bra_lbl, bra_st, M_bra)
+                    j         = self.soc_index(ket_lbl, ket_st, M_ket)
                     hsoc[i,j] = self.contract_redmat(
                                           h1e,
                                           bra_spin, ket_spin,
                                           M_bra, M_ket,
                                           cg_coef, redmat[:,:,indx])
                     hsoc[j,i] = np.conj(hsoc[i,j])
-                    self.symlbli[i] = bra.state_sym(pair[0])[0]
-                    self.symlblj[j] = ket.state_sym(pair[1])[0]
 
         return hsoc
 

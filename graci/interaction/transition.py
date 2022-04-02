@@ -196,14 +196,14 @@ class Transition(interaction.Interaction):
            TDMs into a more usable format"""
 
         # grab the tdms
-        tdm_list = mrci_1tdm.tdm(bra, ket, trans_list, trans_list_sym)
+        tdm_list = mrci_1tdm.tdm(bra, ket, trans_list_sym)
 
         # make the tdm list
         nmo    = bra.scf.nmo
         npairs = len(trans_list)
         tdms   = np.zeros((nmo, nmo, npairs), dtype=float)
 
-        for indx in range(len(self.trans_list)):
+        for indx in range(len(trans_list)):
             bk_st          = trans_list[indx]
             [birr, bst]    = bra.state_sym(bk_st[0])
             [kirr, kst]    = ket.state_sym(bk_st[1])

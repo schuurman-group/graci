@@ -13,7 +13,7 @@ import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
 import graci.io.output as output
 
-class Method:
+class Cimethod:
     """Class constructor for DFT/MRCI object"""
     def __init__(self):
         # user defined quanties

@@ -93,6 +93,16 @@ transition_kword = {'init_states'      : int,
                     'label'            : str
                    }
 
+# transition moments input keywords and data types
+sotransition_kword = {'init_states'      : int,
+                    'init_label'       : str,
+                    'final_states'     : int,
+                    'final_label'      : str,
+                    'all_final_states' : bool,
+                    'print_orbitals'   : bool,
+                    'label'            : str
+                   }
+
 # spinorbit section input keywords and data typess
 spinorbit_kword = {'couple_groups'     : str, 
                    'couple_states'     : int,
@@ -121,12 +131,9 @@ parameterize_kword = {'algorithm' : str,
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-valid_objs   = ['Molecule', 'Parameterize','Scf', 'Dftmrci',
-                'Dftmrenpt2', 
-                'Transition', 'Spinorbit',
-                'Overlap']
 method_objs  = ['Scf', 'Dftmrci', 'Dftmrenpt2']
-si_objs      = ['Transition', 'Spinorbit', 'Overlap']
+si_objs      = ['Transition', 'Spinorbit', 'Overlap', 'Sotransition']
+valid_objs   = ['Molecule', 'Parameterize'] + method_objs + si_objs
 
 ##############################################
 kwords = {'Molecule'     : molecule_kword,
@@ -136,6 +143,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Dftmrenpt2'   : dftmrenpt2_kword,
           'Transition'   : transition_kword,
           'Spinorbit'    : spinorbit_kword,
-          'Overlap'      : overlap_kword
+          'Overlap'      : overlap_kword,
+          'Sotransition' : sotransition_kword
          }
 

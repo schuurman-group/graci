@@ -8,7 +8,7 @@ import graci.io.convert as convert
 import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
-import graci.methods.method as method
+import graci.methods.cimethod as cimethod
 import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
 import graci.bitcitools.bitci_init as bitci_init
@@ -34,7 +34,7 @@ hamiltonians   = ['canonical',
                   'heil18_standard',
                   'heil18_short']
 
-class Dftmrenpt2(method.Method):
+class Dftmrenpt2(cimethod.Cimethod):
     """Class constructor for DFT/MR-ENPT2 objects"""
     def __init__(self):        
          # parent attributes

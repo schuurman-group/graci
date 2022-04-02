@@ -9,8 +9,7 @@ import operator
 import importlib
 from sympy import LeviCivita
 import graci.core.params as params
-import graci.interaction.interaction as interaction
-import graci.interaction.spinorbit as spinorbit
+import graci.interaction.transition as transition
 import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
@@ -116,7 +115,7 @@ class Sotransition(transition.Transition):
                                        blk_list_sym)
 
                 # rotate tdms into spin states
-                self.rotate_tdms(bra_so, ket_so, trans_list, tdms)
+                self.rotate_tdms(bra_so, ket_so, blk_list, tdms)
 
         # build the multipole moments  -- easier to just do this once
         # for all transitions
@@ -170,14 +169,16 @@ class Sotransition(transition.Transition):
                         sys.exit('transition moments require same '+
                                  ' geometry and basis set')
 
-            # bra and ket not identical objects, require all bra-ket
-            # pairs of states
-            list_type = 'full'
+        else:
+            # this is hacky and should be fixed
+            grp0 = obj_list[0].grp_lbls[0]
+            scf_b = obj_list[0].get_obj(grp0).scf
 
         return obj_list[0], obj_list[1], scf_b, scf_b.mol.pymol()
 
     #
-    def rotate_tdms(self, bra_lbl, ket_lbl, blk_list, tdms)
+    @timing.timed
+    def rotate_tdms(self, bra_lbl, ket_lbl, blk_list, tdms):
         """
         Rotate the spin-free tdms to the spin-orbit states
         """
@@ -188,19 +189,19 @@ class Sotransition(transition.Transition):
         # run through trans_list and contribute each #
         for pair in blk_list:
             ind = blk_list.index(pair)
-            itdm = tdms[:, :, ind] 
+            tdm = tdms[:, :, ind] 
 
             for sopair in self.trans_list:
-                so_ind = self.trans_list.index(so_pair)
+                so_ind = self.trans_list.index(sopair)
 
                 for ms_b in bra_spin.M:
-                    b_ind = self.soc_index(bra_lbl, pair[0], ms_b)
-                    b_cf = np.conj(self.state_vec(sopair[0])[b_ind])
+                    b_ind = self.bra_obj.soc_index(bra_lbl, pair[0], ms_b)
+                    b_cf = np.conj(self.bra_obj.state_vec(sopair[0])[b_ind])
 
                     for ms_k in ket_spin.M:
-                        k_ind = self.soc_idnex(ket_lbl, pair[1], ms_k)
-                        k_cf = self.state_vec(sopair[1])[k_ind]
-                        self.tdms[:, :, so_ind] += itdm * b_cf * k_cf
+                        k_ind = self.ket_obj.soc_idnex(ket_lbl, pair[1], ms_k)
+                        k_cf = self.ket_obj.state_vec(sopair[1])[k_ind]
+                        self.tdms[:, :, so_ind] += tdm * b_cf * k_cf
 
         return
 

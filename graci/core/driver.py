@@ -144,7 +144,7 @@ class Driver:
 
         for si_obj in si_objs:
 
-            obj_list = self.extract_si_obj_list(si_obj, postscf_objs)
+            obj_list = self.extract_si_obj_list(si_obj, postscf_objs+si_objs)
             if None in obj_list:
                 output.print_message(type(si_obj).__name__+' section, '+
                         'label='+str(si_obj.label)+
@@ -158,7 +158,7 @@ class Driver:
         return
 
     # 
-    def extract_si_obj_list(self, si_obj, postscf_objs):
+    def extract_si_obj_list(self, si_obj, chk_objs):
         """extract the list of required objects for an state 
            iteraction object based on user input"""
 
@@ -169,11 +169,13 @@ class Driver:
             lbls = list(si_obj.couple_groups)
         elif type(si_obj).__name__ == 'Overlap':
             lbls = [si_obj.bra_label, si_obj.ket_label]
+        elif type(si_obj).__name__ == 'Sotransition':
+            lbls = [si_obj.final_label, si_obj.init_label]
 
         obj_list = [None]*len(lbls)
 
         # objects stored as bra/ket
-        for postscf in postscf_objs:
+        for postscf in chk_objs:
             indices = [i for i, x in enumerate(lbls) if x == postscf.label]
             for indx in indices:
                 obj_list[indx] = postscf
@@ -181,8 +183,8 @@ class Driver:
         # if user labels are  not set (i.e. None) and there's 
         # only one postscf object, set label to that object
         indices = [i for i, j in enumerate(lbls) if j == None]
-        if len(postscf_objs) == 1:
+        if len(chk_objs) == 1:
             for indx in indices:
-                obj_list[indx] = postscf_objs[0]
+                obj_list[indx] = chk_objs[0]
                 
         return obj_list

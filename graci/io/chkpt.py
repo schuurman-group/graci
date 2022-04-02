@@ -17,6 +17,7 @@ import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
+import graci.interaction.sotransition as sotransition
 import graci.utils.timing as timing
 import graci.io.output as output
 
