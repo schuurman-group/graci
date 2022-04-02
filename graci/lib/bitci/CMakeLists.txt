@@ -12,7 +12,7 @@ enable_language(Fortran)
 #
 # Conditional compilation flags
 #
-option(CBINDING "Optional C binding for public routines" OFF)
+option(CBINDING "Optional C binding for public routines" ON)
 if (CBINDING)
   add_definitions(-DCBINDING)
 endif()
