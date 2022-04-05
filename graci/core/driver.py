@@ -21,29 +21,31 @@ class Driver:
            of postscf objects in the array argument"""
 
         # the first step is to match geometries to molecule sections
-        mol_objs     = []
-        scf_objs     = []
-        postscf_objs = []
-        si_objs      = []
-        overlap_objs = []
+        mol_objs    = []
+        scf_objs    = []
+        ci_objs     = []
+        postci_objs = []
+        si_objs     = []
         for obj in calc_array:
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
                 mol_objs.append(obj)
             elif type(obj).__name__ == 'Scf':
                 scf_objs.append(obj)
-            elif type(obj).__name__ in params.method_objs:
-                postscf_objs.append(obj)
+            elif type(obj).__name__ in params.ci_objs:
+                ci_objs.append(obj)
+            elif type(obj).__name__ in params.postci_objs:
+                postci_objs.append(obj)
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
                 
         # Load required libraries
         #-----------------------------------------------------
         # for now, assume postscf will require bitci
-        if len(postscf_objs) > 0:
+        if len(ci_objs) > 0:
             libs.lib_load('bitci')
 
-        if len(si_objs) > 0:
+        if len(si_objs) or len(postci_objs) > 0:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')
 
@@ -112,42 +114,59 @@ class Driver:
             # initialize the MO integrals following the SCF run, but
             # finalise previous integrals if they exist. Not sure if this
             # should ultimately go here (probably not), but fine for now
-            if len(postscf_objs) > 0:
+            if len(ci_objs) > 0:
                 libs.lib_func('bitci_int_finalize', [])
-                type_str = 'exact'
                 if scf_obj.mol.use_df:
                     type_str = 'df'
+                else:
+                    type_str = 'exact'
                 libs.lib_func('bitci_int_initialize', 
                               ['pyscf', type_str, scf_obj.moint_1e, 
                                 scf_obj.moint_2e_eri])
 
-            # Post-SCF Sections 
+            # CI Sections 
             #-----------------------------------------------------
             # run all the post-scf routines that map to the current
             # scf object.
 
-            for postscf in postscf_objs:
+            for ci_obj in ci_objs:
 
                 # if labels match -- set the geometry
                 # to the molecule object
-                if postscf.label == scf_obj.label or len(scf_objs)==1:
-                    #postscf.set_scf(scf_obj)
+                if ci_obj.label == scf_obj.label or len(scf_objs)==1:
+                    ci_obj.run(scf_obj)
+                    chkpt.write(ci_obj)
 
-                    postscf.run(scf_obj)
-                    chkpt.write(postscf)
+        # All SCF + CI objects are created and run() called before 
+        # PostCI and subsequently SI objects are run()
 
-        # All SCF + POST-SCF objects are run first before state interaction
-        # objects are evaluated
-
-        # State interaction Sections 
+        # PostCI Sections 
+        # -- these can take ci_objects as arguments
         # ----------------------------------------------------
+        for postci_obj in postci_objs:
+            obj_list = self.extract_ci_obj_list(postci_obj, 
+                                                ci_objs)
 
+            if None in obj_list:
+                output.print_message(type(postci_obj).__name__+
+                        ' section, label='+str(postci_obj.label) +
+                        ' is missing an interaction object. '+
+                        ' Please check input')
+                sys.exit(1)
+
+            postci_obj.run(obj_list)
+            chkpt.write(postci_obj)
+
+        # State Interaction sections
+        # -- these can take ci_objects or postci_objects as arguments
+        #------------------------------------------------------------
         for si_obj in si_objs:
 
-            obj_list = self.extract_si_obj_list(si_obj, postscf_objs+si_objs)
+            obj_list = self.extract_si_obj_list(si_obj, 
+                                                ci_objs + postci_objs)
             if None in obj_list:
-                output.print_message(type(si_obj).__name__+' section, '+
-                        'label='+str(si_obj.label)+
+                output.print_message(type(si_obj).__name__+
+                        ' section, label='+str(si_obj.label)+
                         ' is missing an interaction object. '+
                         ' Please check input')
                 sys.exit(1)
@@ -156,6 +175,34 @@ class Driver:
             chkpt.write(si_obj)
 
         return
+  
+    #
+    def extract_ci_obj_list(self, postci_obj, ci_objs):
+        """scan postci_obj and extract the list of ci_objs that
+           need to be passed to the run function
+        """
+
+        # currently only 'Spinorbit' in ths group
+        if type(postci_obj).__name__ == 'Spinorbit':
+            lbls = list(postci_obj.couple_groups)
+
+        obj_list = [None]*len(lbls)
+
+        # objects stored as bra/ket
+        for ci_obj in ci_objs:
+            indices = [i for i, x in enumerate(lbls) if x==ci_obj.label]
+            for indx in indices:
+                obj_list[indx] = ci_obj
+
+        # if user labels are  not set (i.e. None) and there's 
+        # only one postscf object, set label to that object
+        indices = [i for i, j in enumerate(lbls) if j == None]
+        if len(ci_objs) == 1:
+            for indx in indices:
+                obj_list[indx] = ci_objs[0]
+
+        return obj_list
+
 
     # 
     def extract_si_obj_list(self, si_obj, chk_objs):
@@ -165,8 +212,6 @@ class Driver:
         # list of objects to be passed to interaction class
         if type(si_obj).__name__ == 'Transition':
             lbls = [si_obj.final_label, si_obj.init_label]
-        elif type(si_obj).__name__ == 'Spinorbit':
-            lbls = list(si_obj.couple_groups)
         elif type(si_obj).__name__ == 'Overlap':
             lbls = [si_obj.bra_label, si_obj.ket_label]
         elif type(si_obj).__name__ == 'Sotransition':
@@ -175,10 +220,10 @@ class Driver:
         obj_list = [None]*len(lbls)
 
         # objects stored as bra/ket
-        for postscf in chk_objs:
-            indices = [i for i, x in enumerate(lbls) if x == postscf.label]
+        for chk_obj in chk_objs:
+            indices = [i for i, x in enumerate(lbls) if x==chk_obj.label]
             for indx in indices:
-                obj_list[indx] = postscf
+                obj_list[indx] = chk_obj
 
         # if user labels are  not set (i.e. None) and there's 
         # only one postscf object, set label to that object

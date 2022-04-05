@@ -167,7 +167,7 @@ class Spinorbit(interaction.Interaction):
             return None
 
     #
-    def soc_state_lbl(self, indx):
+    def soc_basis_lbl(self, indx):
         """for a given index of the state vector, return the label of 
            of group, the state label, and value of Ms of the basis
            state
@@ -220,16 +220,25 @@ class Spinorbit(interaction.Interaction):
 
         return int(indx + off)
 
+    # 
+    def n_states(self):
+        """return the number of spin-orbit coupled states"""
+ 
+        if self.so_ener is None:
+            return 0
+        else:
+            return self.so_ener.shape[0]
+
     #
     def energy(self, state):
         """
         Return the spin-orbit state energy
         """
 
-        if state < self.so_ener.shape[0]:
-            return self.so_ener[state]
-        else:
+        if self.so_ener is None or state > self.n_states():
             return None
+        else:
+            return self.so_ener[state]
 
     #-----------------------------------------------------------------
     # 
@@ -502,7 +511,8 @@ class Spinorbit(interaction.Interaction):
         kval   = [-1, 0, 1]
         coe    = [1., np.sqrt(2.), -1.]
         for n in range(3):
-            i, i12  = self.cgcoe_indx(bra_spin.S, M_bra, 
+            i, i12  = mrci_soc.clebsch_gordan_index(
+                                      bra_spin.S, M_bra, 
                                       ket_spin.S, M_ket, kval[n])
             hscale += h1e[2-n, :, :] * cg_coef[i12, i] * coe[n]
         
@@ -510,23 +520,6 @@ class Spinorbit(interaction.Interaction):
         hij = 0.5 * np.einsum('ij,ij', redmat, hscale)
 
         return hij
-
-    #
-    def cgcoe_indx(self, S, M, s1, m1, k):
-        """
-        returns the indices for the Clebsch-Gordan coefficient
-        < s1 m1; 1 k | S M >
-        """
-
-        i = int(M + S)
-        
-        i1  = int(m1 + s1) + 1
-
-        i2  = k + 2
-
-        i12 = (i1 - 1) * 3 + i2 - 1
-        
-        return i, i12
 
     #
     def create_stlbl(self):

@@ -8,13 +8,12 @@ import graci.core.params as params
 import graci.io.output as output
 
 import graci.core.molecule as molecule
-import graci.methods.scf as scf
+import graci.core.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
-import graci.interaction.sotransition as sotransition
 
 from pyscf import gto
 

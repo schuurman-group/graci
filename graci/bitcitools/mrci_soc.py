@@ -94,3 +94,19 @@ def clebsch_gordan(bra, ket):
     cgcoe = np.reshape(cgcoe, (3*mult_ket, mult_bra), order='F')
     
     return cgcoe
+
+#
+def clebsch_gordan_index(S, M, s1, m1, k):
+    """
+    returns the indices for the Clebsch-Gordan coefficient
+    < s1 m1; 1 k | S M > given the array of values returned
+    from clebsch_gordan
+    """
+
+    i = int(M + S)
+    i1  = int(m1 + s1) + 1
+    i2  = k + 2
+    i12 = (i1 - 1) * 3 + i2 - 1
+
+    return i, i12
+

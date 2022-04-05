@@ -1,14 +1,5 @@
 """Module for storing global parameters"""
 
-#import graci.core.molecule as molecule
-#import graci.core.parameterize as parameterize
-#import graci.methods.scf as scf
-#import graci.methods.dftmrci as dftmrci
-#import graci.methods.dftmrenpt2 as dftmrenpt2
-#import graci.properties.moments as moments
-#import graci.interaction.transition as transition
-#import graci.interaction.spinorbit as spinorbit
-
 # molecule section input keywords and data types
 molecule_kword =     {'xyz_file' : str,
                       'units'    : str,
@@ -83,6 +74,14 @@ dftmrenpt2_kword  = {'mult'           : int,
 
 #---------------------------------------------------
 
+# spinorbit section input keywords and data typess
+spinorbit_kword = {'couple_groups'     : str,
+                   'couple_states'     : int,
+                   'print_thresh'      : float,
+                   'mf2e'              : str,
+                   'label'             : str
+                   }
+
 # transition moments input keywords and data types
 transition_kword = {'init_states'      : int, 
                     'init_label'       : str,
@@ -91,24 +90,6 @@ transition_kword = {'init_states'      : int,
                     'all_final_states' : bool,
                     'print_orbitals'   : bool,
                     'label'            : str
-                   }
-
-# transition moments input keywords and data types
-sotransition_kword = {'init_states'      : int,
-                    'init_label'       : str,
-                    'final_states'     : int,
-                    'final_label'      : str,
-                    'all_final_states' : bool,
-                    'print_orbitals'   : bool,
-                    'label'            : str
-                   }
-
-# spinorbit section input keywords and data typess
-spinorbit_kword = {'couple_groups'     : str, 
-                   'couple_states'     : int,
-                   'print_thresh'      : float,
-                   'mf2e'              : str,
-                   'label'             : str
                    }
 
 # overlap section input keywords and data types
@@ -131,9 +112,11 @@ parameterize_kword = {'algorithm' : str,
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-method_objs  = ['Scf', 'Dftmrci', 'Dftmrenpt2']
-si_objs      = ['Transition', 'Spinorbit', 'Overlap', 'Sotransition']
-valid_objs   = ['Molecule', 'Parameterize'] + method_objs + si_objs
+ci_objs      = ['Dftmrci', 'Dftmrenpt2']
+postci_objs  = ['Spinorbit']
+si_objs      = ['Transition', 'Overlap']
+valid_objs   = ['Molecule', 'Scf', 'Parameterize'] + \
+               ci_objs + postci_objs + si_objs
 
 ##############################################
 kwords = {'Molecule'     : molecule_kword,
@@ -141,9 +124,8 @@ kwords = {'Molecule'     : molecule_kword,
           'Scf'          : scf_kword,
           'Dftmrci'      : dftmrci_kword,
           'Dftmrenpt2'   : dftmrenpt2_kword,
-          'Transition'   : transition_kword,
           'Spinorbit'    : spinorbit_kword,
-          'Overlap'      : overlap_kword,
-          'Sotransition' : sotransition_kword
+          'Transition'   : transition_kword,
+          'Overlap'      : overlap_kword
          }
 

@@ -18,9 +18,6 @@ class Interaction:
 
         # Internal class variables (should not be accessed directly)
         #-----------------------------------------------------------
-        # list of object labels. Set from input, used to so driver
-        # knows which objects to pass
-        self.obj_lbls     = []
         # list of objects from which to pull states
         self.objs         = {} 
         # state list -- list of groups of states
