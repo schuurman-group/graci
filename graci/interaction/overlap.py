@@ -17,14 +17,14 @@ class Overlap(interaction.Interaction):
         super().__init__()
 
         # user defined quantities
-        self.calc       = None
-        self.label      = 'Overlap'
+        self.calc         = None
+        self.label        = 'Overlap'
 
-        self.bra_label  = None
-        self.ket_label  = None
+        self.init_label   = None
+        self.final_label  = None
 
-        self.bra_states = None
-        sekf.ket_states = None
+        self.init_states  = None
+        sekf.final_states = None
 
     #
     @timing.timed

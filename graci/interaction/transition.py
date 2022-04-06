@@ -10,7 +10,6 @@ from sympy import LeviCivita
 import graci.core.params as params
 import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
-import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
 import graci.bitcitools.mrci_1tdm as mrci_1tdm
 import graci.io.output as output
@@ -55,6 +54,8 @@ class Transition(interaction.Interaction):
         self.bra_obj    = None
         self.ket_obj    = None
 
+        # list of state group sassociated with the ket object
+        self.state_grps = {}
         # list of transitions corresponding to the tdms
         self.trans_list = []
         # the tdms
@@ -73,16 +74,20 @@ class Transition(interaction.Interaction):
 
     #
     @timing.timed
-    def run(self, obj_list):
+    def run(self, arg_list):
         """return the transition dipole moments between the bra and
            ket states. If b_state and k_state are None, assume 
            transitions from all states in method object should be 
            used.
         """
+ 
+        # set the bra/ket objects and add the state groups associated
+        # with each 
+        self.bra_obj, self.ket_obj = self.add_state_grps(arg_list)
 
-        self.bra_obj, self.ket_obj, self.scf, self.mol = \
-                                         self.add_braket_grps(obj_list)
-
+        # do some sanity checks on the bra/ket objects
+        self.scf, self.mol = self.check_bra_ket()
+      
         # if bra and ket are the same object, only compute the unique
         # transition densities
         list_type = 'full'
@@ -111,49 +116,44 @@ class Transition(interaction.Interaction):
         # loop over all pairs of spin free states in both the bra
         # and ket objects. In the future, may be prudent to check
         # init and final states and just which states are necessary
-        bra_lbls = [lbl for lbl in self.get_lbls() if 'bra_' in lbl]
-        ket_lbls = [lbl for lbl in self.get_lbls() if 'ket_' in lbl]
+        for k_lbl in self.state_grps['ket']:
+            ket_spin = self.get_spins(k_lbl)
+            ket_ci   = self.get_obj(k_lbl) 
 
-        for k_lbl in ket_lbls:
-            ket_spin   = self.get_spins(k_lbl)
-            ket_ci_obj = self.get_obj(k_lbl) 
-
-            for b_lbl in bra_lbls:
-                bra_spin   = self.get_spins(b_lbl)
-                bra_ci_obj = self.get_obj(b_lbl)
+            for b_lbl in self.state_grps['bra']:
+                bra_spin = self.get_spins(b_lbl)
+                bra_ci   = self.get_obj(b_lbl)
 
                 # if different spin manifold, tdm contribution is zero
                 if ket_spin.mult != bra_spin.mult:
                     continue
 
                 # if the same object, only build lower diagonal
-                if self.same_obj(ket_ci_obj, bra_ci_obj): 
+                if self.same_obj(ket_ci, bra_ci): 
                     pair_type = 'nodiag'
                 else:
                     pair_type = 'full'
                 
                 # initialize the bitsi library for the calculation of 1-TDMs
-                bitsi_init.init(bra_ci_obj, ket_ci_obj, 'tdm')
+                bitsi_init.init(bra_ci, ket_ci, 'tdm')
         
                 # this is main transition_list: stored by adiabatic label
-                blk_lst = self.build_pair_list(b_lbl,
-                                               k_lbl, 
-                                               pairs=pair_type)
+                blks      = self.build_pair_list(b_lbl,
+                                                 k_lbl, 
+                                                 pairs=pair_type)
 
                 # the transitions, ordered by interacting irreps, is how
                 # we call bitsi
-                blk_lst_sym  = self.build_pair_list(b_lbl, 
-                                                    k_lbl, 
-                                                    pairs=pair_type, 
-                                                    sym_blk=True)
+                blks_sym  = self.build_pair_list(b_lbl, 
+                                                 k_lbl, 
+                                                 pairs=pair_type, 
+                                                 sym_blk=True)
 
                 # tdms is a vector of nmo x nmo transition densities
-                tdms = self.build_tdms(bra_ci_obj, ket_ci_obj, 
-                                       blk_lst, 
-                                       blk_lst_sym)
+                tdms = self.build_tdms(bra_ci, ket_ci, blks, blks_sym)
 
                 # rotate tdms into spin states, if need be
-                self.rotate_tdms(b_lbl, k_lbl, blk_lst, tdms)
+                self.rotate_tdms(b_lbl, k_lbl, blks, tdms)
 
                 # finalize the bitsi library
                 bitsi_init.finalize()
@@ -229,35 +229,39 @@ class Transition(interaction.Interaction):
 # "Private" class methods
 #
     #
-    def add_braket_grps(self, obj_list):
+    def add_state_grps(self, arg_list):
         """
-        do some sanity checks on the objects passed to run()
+        add the bra and ket state groups
         """
-        if len(obj_list) > 2:
-            sys.exit('transition.run() passed ' + str(len(obj_list)) +
+        if len(arg_list) != 2:
+            sys.exit('transition.run() passed ' + str(len(arg_list)) +
                      ' objects. Expecting 2')
 
         # add both the bra and ket state groups
         lbls = ['bra', 'ket']
-        for indx in range(len(obj_list)):
-            bra_ket = obj_list[indx]
+        for indx in range(len(arg_list)):
+            arg_obj                     = arg_list[indx]
+            self.state_grps[lbls[indx]] = []
 
             # if this is a ci method, create a new group associated
             # with the CI states
-            if type(bra_ket).__name__ in params.ci_objs:
-                bk_lbl = lbls[indx]+'_grp0'
-                self.add_group(bk_lbl, bra_ket, range(bra_ket.n_states()))
+            if type(arg_obj).__name__ in params.ci_objs:
+                lbl = lbls[indx]+'_grp0'
+                self.state_grps[lbls[indx]].append(lbl)
+                self.add_group(lbl, arg_obj, range(arg_obj.n_states()))
 
             # if this is a postci object, should already extend
             # interaction and have groups set up. Add all of them
             # here
             elif type(bra_ket).__name__ in params.postci_objs:
-                grp_lbls = bra_ket.get_lbls()
+                grp_lbls = arg_obj.get_lbls()
+
                 for ibk in range(len(grp_lbls)):
-                    bk_lbl  = lbls[indx]+'_'+grp_lbls[ibk]
-                    self.add_group(bk_lbl,
-                                   bra_ket.get_obj(grp_lbls[ibk]),
-                                   bra_ket.get_states(grp_lbls[ibk]))
+                    lbl  = lbls[indx]+'_'+grp_lbls[ibk]
+                    self.state_grps[lbls[indx]].append(lbl)
+                    self.add_group(lbl,
+                                   arg_obj.get_obj(grp_lbls[ibk]),
+                                   arg_obj.get_states(grp_lbls[ibk]))
 
             # if not a ci_obj and postci_obj, we don't know what to do 
             # with this
@@ -265,18 +269,23 @@ class Transition(interaction.Interaction):
                 sys.exit(' object passed to transition neither' +
                          ' ci_obj or postci_obj. Exiting...')
 
-        bra_lbls = [lbl for lbl in self.get_lbls() if 'bra_' in lbl]
-        ket_lbls = [lbl for lbl in self.get_lbls() if 'ket_' in lbl]
+        return arg_list[0], arg_list[1]
 
-        # now that we have bra and ket groups set up, do some 
+    #
+    def check_bra_ket(self):
+        """
+        do some sanity checks on the arguments passed to run
+        """
+
+        # now that we have bra and ket groups set up, do some
         # sanity checking on the orbitals/geometries involved
-        if not self.same_obj(obj_list[0], obj_list[1]):
-            for bra_lbl in bra_lbls:
+        if not self.same_obj(self.bra_obj, self.ket_obj):
+            for bra_lbl in self.state_grps['bra']:
                 scf_b = self.get_obj(bra_lbl).scf
-                for ket_lbl in ket_lbls:
+                for ket_lbl in self.state_grps['ket']:
                     scf_k = self.get_obj(ket_lbl).scf
 
-                    # sanity check that orbitals and geometry are 
+                    # sanity check that orbitals and geometry are
                     # the same
                     if np.any(scf_b.orbs != scf_k.orbs):
                         sys.exit('transition moments require same '+
@@ -288,10 +297,9 @@ class Transition(interaction.Interaction):
                                  ' geometry and basis set')
 
         else:
-            scf_b = self.get_obj(bra_lbls[0]).scf
+            scf_b = self.get_obj(self.state_grps['bra'][0])
 
-        return obj_list[0], obj_list[1], scf_b, scf_b.mol.pymol()
-
+        return scf_b, scf_b.mol.pymol()
 
 
     @timing.timed
@@ -327,15 +335,15 @@ class Transition(interaction.Interaction):
         # this will work for now, but feels inelegant
         if type(self.bra_obj).__name__ == 'Spinorbit':
             bra_spin = self.get_spins(b_lbl)
-            # to get group label in bra object, remove 'bra_'
-            # this is not safe and needs to be revisited
-            bra_lbl  = b_lbl.replace('bra_','')
+            grp_indx = self.state_grps['bra'].index(b_lbl)
+            bra_lbl  = self.bra_obj.get_lbls()[grp_indx]
         else:
             bra_spin = None
 
         if type(self.ket_obj).__name__ == 'Spinorbit':
             ket_spin = self.get_spins(k_lbl)
-            ket_lbl  = k_lbl.replace('ket_','')
+            grp_indx = self.state_grps['ket'].index(k_lbl)
+            ket_lbl  = self.ket_obj.get_lbls()[grp_indx] 
         else:
             ket_spin = None
 
@@ -350,10 +358,14 @@ class Transition(interaction.Interaction):
                 # if the bra state doesn't contribute, skip
                 if bra_spin is None and blk_pair[0] != pair[0]:
                     continue
+                else:
+                    b_cf = [1.+0.j]
 
                 # if the ket state doesn't contribute, skip
                 if ket_spin is None and blk_pair[1] != pair[1]:
                     continue
+                else:
+                    k_cf = [1.+0.j]
 
                 # pull the coefficients from the state vectors
                 # we need to calculate contribution of this spin-free
@@ -364,10 +376,6 @@ class Transition(interaction.Interaction):
                                                 for ms in bra_spin.M]
                     b_cf   = [self.bra_obj.soc_state(pair[0])[b_indx]
                                                 for b_indx in b_indxs]
-                # if this is spin-free object, only contributes if 
-                # states are the same
-                else:
-                    b_cf = [1.+0.j]
 
                 if ket_spin is not None:
                     k_indxs = [self.ket_obj.soc_index(ket_lbl,
@@ -375,8 +383,6 @@ class Transition(interaction.Interaction):
                                                 for ms in ket_spin.M]
                     k_cf   = [self.bra_obj.soc_state(pair[1])[k_indx]
                                                 for k_indx in k_indxs]
-                else:
-                    k_cf = [1.+0.j]
 
                 cf = sum( [sum(b_cf)*kcf for kcf in k_cf] )
                 if abs(cf) > 1.e-16:
@@ -781,6 +787,8 @@ class Transition(interaction.Interaction):
 
         return nto
 
+    #
+    @timing.timed
     def build_ndos(self):
         """ build natural difference orbitals"""
 

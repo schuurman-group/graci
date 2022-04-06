@@ -7,9 +7,7 @@ import sys as sys
 import numpy as np
 import copy as copy
 import graci.interaction.interaction as interaction
-import graci.methods.cimethod as cimethod
 import graci.utils.timing as timing
-import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
 import graci.bitcitools.mrci_soc as mrci_soc
 import graci.io.output as output
@@ -153,6 +151,7 @@ class Spinorbit(interaction.Interaction):
         if self.print_thresh >= 1:
             self.print_hsoc(hsoc)
 
+        del(redmat)
         return
    
     #
@@ -284,6 +283,7 @@ class Spinorbit(interaction.Interaction):
         return
 
     #
+    @timing.timed
     def build_h1e(self):
         """
         Sets up the one-electron SOC matrices h^(k), k=-1,0,+1
@@ -335,6 +335,7 @@ class Spinorbit(interaction.Interaction):
         return h1e
 
     #
+    @timing.timed
     def build_rho(self):
         """
         sets up the mean-field density matrix
@@ -358,6 +359,7 @@ class Spinorbit(interaction.Interaction):
         return rho_ao
 
     #
+    @timing.timed
     def build_mf_atomic(self, mol, rho_ao):
         """
         builds the atomic one-centre approximation to the
@@ -423,7 +425,10 @@ class Spinorbit(interaction.Interaction):
             [kirr, kst] = ket.state_sym(bkst[1])
             indx        = pair_list.index(bkst)
             indx_sym    = pair_list_sym[birr][kirr].index([bst, kst])
-            redmat_blk[:,:,indx] = redmat_list[birr][kirr][:,:,indx_sym]
+            redmat_blk[:,:,indx] = \
+                        redmat_list[birr][kirr][:,:,indx_sym].copy()
+
+        del(redmat_list)
 
         return redmat_blk
 
@@ -495,6 +500,7 @@ class Spinorbit(interaction.Interaction):
         return hdiag
         
     #
+    @timing.timed
     def contract_redmat(self, h1e, bra_spin, ket_spin, M_bra, M_ket, 
                         cg_coef, redmat):
         """

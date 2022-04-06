@@ -8,7 +8,6 @@ import graci.core.params as params
 import graci.core.libs as libs
 import graci.io.output as output
 import graci.io.chkpt as chkpt
-import graci.core.molecule as molecule
 
 class Driver:
     def __init__(self):
@@ -144,92 +143,61 @@ class Driver:
         # -- these can take ci_objects as arguments
         # ----------------------------------------------------
         for postci_obj in postci_objs:
-            obj_list = self.extract_ci_obj_list(postci_obj, 
-                                                ci_objs)
+            arg_list = self.get_postscf_objs(postci_obj, ci_objs)
 
-            if None in obj_list:
-                output.print_message(type(postci_obj).__name__+
-                        ' section, label='+str(postci_obj.label) +
-                        ' is missing an interaction object. '+
-                        ' Please check input')
-                sys.exit(1)
-
-            postci_obj.run(obj_list)
+            postci_obj.run(arg_list)
             chkpt.write(postci_obj)
 
         # State Interaction sections
         # -- these can take ci_objects or postci_objects as arguments
         #------------------------------------------------------------
         for si_obj in si_objs:
-
-            obj_list = self.extract_si_obj_list(si_obj, 
-                                                ci_objs + postci_objs)
-            if None in obj_list:
-                output.print_message(type(si_obj).__name__+
-                        ' section, label='+str(si_obj.label)+
-                        ' is missing an interaction object. '+
-                        ' Please check input')
-                sys.exit(1)
-
-            si_obj.run(obj_list)
+            arg_list = self.get_postscf_objs(si_obj, 
+                                             ci_objs + postci_objs)
+            si_obj.run(arg_list)
             chkpt.write(si_obj)
 
         return
-  
+
     #
-    def extract_ci_obj_list(self, postci_obj, ci_objs):
-        """scan postci_obj and extract the list of ci_objs that
-           need to be passed to the run function
+    def get_postscf_objs(self, run_obj, avail_objs):
+        """scan the run_obj to determine which postscf objects
+           it requires in order to execute, and return them
+           as a list
         """
 
-        # currently only 'Spinorbit' in ths group
-        if type(postci_obj).__name__ == 'Spinorbit':
-            lbls = list(postci_obj.couple_groups)
+        if type(run_obj).__name__ in params.postci_objs:
+            lbls = list(run_obj.couple_groups)
+        elif type(run_obj).__name__ in params.si_objs:
+            lbls = [run_obj.final_label, run_obj.init_label]
+        else:
+            print('Cannot construct argument list for run() '+
+                  ' method for object: '+str(run_obj.label))
+            sys.exit(1)
 
-        obj_list = [None]*len(lbls)
+        arg_list = [None]*len(lbls)
 
         # objects stored as bra/ket
-        for ci_obj in ci_objs:
-            indices = [i for i, x in enumerate(lbls) if x==ci_obj.label]
-            for indx in indices:
-                obj_list[indx] = ci_obj
+        for chk_obj in avail_objs:
+            indxs = [i for i, x in enumerate(lbls) if x==chk_obj.label]
+            for indx in indxs:
+                arg_list[indx] = chk_obj
 
         # if user labels are  not set (i.e. None) and there's 
         # only one postscf object, set label to that object
-        indices = [i for i, j in enumerate(lbls) if j == None]
-        if len(ci_objs) == 1:
-            for indx in indices:
-                obj_list[indx] = ci_objs[0]
+        indxs = [i for i, j in enumerate(lbls) if j == None]
+        if len(avail_objs) == 1:
+            for indx in indxs:
+                arg_list[indx] = avail_objs[0]
 
-        return obj_list
+        # we are agressive with exit calls. If there is a problem
+        # with the requested coupling of sections, exit here
+        if None in arg_list:
+            output.print_message(type(run_obj).__name__+
+                    ' section, label='+str(run_obj.label)+
+                    ' is missing an interaction object. '+
+                    ' Please check input')
+            sys.exit(1)
 
+        return arg_list
 
-    # 
-    def extract_si_obj_list(self, si_obj, chk_objs):
-        """extract the list of required objects for an state 
-           iteraction object based on user input"""
-
-        # list of objects to be passed to interaction class
-        if type(si_obj).__name__ == 'Transition':
-            lbls = [si_obj.final_label, si_obj.init_label]
-        elif type(si_obj).__name__ == 'Overlap':
-            lbls = [si_obj.bra_label, si_obj.ket_label]
-        elif type(si_obj).__name__ == 'Sotransition':
-            lbls = [si_obj.final_label, si_obj.init_label]
-
-        obj_list = [None]*len(lbls)
-
-        # objects stored as bra/ket
-        for chk_obj in chk_objs:
-            indices = [i for i, x in enumerate(lbls) if x==chk_obj.label]
-            for indx in indices:
-                obj_list[indx] = chk_obj
-
-        # if user labels are  not set (i.e. None) and there's 
-        # only one postscf object, set label to that object
-        indices = [i for i, j in enumerate(lbls) if j == None]
-        if len(chk_objs) == 1:
-            for indx in indices:
-                obj_list[indx] = chk_objs[0]
-                
-        return obj_list

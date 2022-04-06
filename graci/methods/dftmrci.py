@@ -3,14 +3,9 @@ Module for computing DFT/MRCI energies
 """
 import os as os
 import sys as sys
-import importlib
-import graci.io.convert as convert
-import ctypes as ctypes
 import numpy as np
-import copy as copy
 import graci.utils.timing as timing
 import graci.methods.cimethod as cimethod
-import graci.core.libs as libs
 import graci.core.bitciwfn as bitciwfn
 import graci.bitcitools.bitci_init as bitci_init
 import graci.bitcitools.ref_space as ref_space
