@@ -3,6 +3,9 @@
 ! entering into an MRCI calculation from the 1-hole and 2-hole
 ! configurations previously generated
 !**********************************************************************
+! For now, the DDCI2 configuration reduction procedure is hard-wired
+! on. In the future this should become optional
+!**********************************************************************
 module confbuilder
 
   implicit none
@@ -18,9 +21,10 @@ contains
     use constants
     use bitglobal
     use conftype
+    use confinfo
     use mrciutils
     use iomod
-
+    
     implicit none
 
     ! Energy of the highest-lying reference space state of interest
@@ -39,12 +43,37 @@ contains
     ! Configuration scratch files
     integer(is)                :: nrec2I,nrec1I1E
     character(len=60)          :: file2I,file1I1E
-    
+
+    ! DDCI2 configuration reduction: doubly-occupied space information
+    integer(is)                :: ndoccR(0:nirrep-1)
+    integer(is)                :: doccR(nmo,0:nirrep-1)
+    integer(is)                :: idoccR(nmo,0:nirrep-1)
+
+    ! Everything else
+    integer(is)                :: irrep,i
+
+!----------------------------------------------------------------------
+! Get the list of MOs doubly-occupied in all reference configurations
+! (this will be used for DDCI2 configuration reduction)
+!----------------------------------------------------------------------
+    ! Get the lists of docc space MOs: one for each irrep
+    do irrep=0,nirrep-1
+       call get_ref_docc_mos(cfgM(irrep),ndoccR(irrep),doccR(:,irrep))
+    enddo
+
+    ! Put the docc lists into a more useful form
+    idoccR=0
+    do irrep=0,nirrep-1
+       do i=1,ndoccR(irrep)
+          idoccR(doccR(i,irrep),irrep)=1
+       enddo
+    enddo
+
 !----------------------------------------------------------------------
 ! (1) Generate the 2I and 1I1E configurations for all irreps
 !----------------------------------------------------------------------
-    call builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM(0),icvs,E0max,file2I,&
-         file1I1E,nrec2I,nrec1I1E)
+    call builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM(0),icvs,idoccR,E0max,&
+         file2I,file1I1E,nrec2I,nrec1I1E)
 
 !----------------------------------------------------------------------
 ! (2) Sort the 2I and 1I1E configurations by irrep
@@ -60,8 +89,8 @@ contains
 !                  generation of the 2I and 1I1E configurations
 !                  across all irreps
 !######################################################################
-  subroutine builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM,icvs,E0max,file2I,&
-       file1I1E,nrec2I,nrec1I1E)
+  subroutine builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM,icvs,idoccR,E0max,&
+       file2I,file1I1E,nrec2I,nrec1I1E)
 
     use constants
     use bitglobal
@@ -86,6 +115,9 @@ contains
     ! Energy of the highest-lying reference space state of interest
     real(dp), intent(in)           :: E0max
 
+    ! DDCI2 docc space info
+    integer(is), intent(in)        :: idoccR(nmo,0:nirrep-1)
+    
     ! Configuration bit string buffers
     integer(is), intent(out)       :: nrec2I,nrec1I1E
     character(len=60), intent(out) :: file2I,file1I1E
@@ -210,7 +242,7 @@ contains
     nbuf1I1E=0
     nrec2I=0
     nrec1I1E=0
-
+    
 !----------------------------------------------------------------------
 ! Generate the 2-hole SOPs
 !----------------------------------------------------------------------    
@@ -542,6 +574,12 @@ contains
                 ib1=irrep1H1I
                 ib2=ieor(ib1,mosym(cfgM%m2c(iext)))
                 irrep1I1E=ib2
+
+                ! DDCI2 configuration reduction: skip this
+                ! configuration if both annihilation operators
+                ! correspond to the docc space
+                if (idoccR(ia2h,irrep1I1E) == 1 &
+                     .and. idoccR(ja2h,irrep1I1E) == 1) cycle
                 
                 ! Update the number of 1I1E confs
                 n1I1E=n1I1E+1
@@ -3411,6 +3449,7 @@ contains
     use constants
     use bitglobal
     use conftype
+    use confinfo
     
     implicit none
 
@@ -3419,16 +3458,38 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
+
+    ! DDCI2 configuration reduction: doubly-occupied space information
+    integer(is)                :: ndoccR(0:nirrep-1)
+    integer(is)                :: doccR(nmo,0:nirrep-1)
+    integer(is)                :: idoccR(nmo,0:nirrep-1)
     
     ! Everything else
-    integer(is)                :: modus,irrep
+    integer(is)                :: modus,irrep,i
 
+!----------------------------------------------------------------------
+! Get the list of MOs doubly-occupied in all reference configurations
+! (this will be used for DDCI2 configuration reduction)
+!----------------------------------------------------------------------
+    ! Get the lists of docc space MOs: one for each irrep
+    do irrep=0,nirrep-1
+       call get_ref_docc_mos(cfgM(irrep),ndoccR(irrep),doccR(:,irrep))
+    enddo
+
+    ! Put the docc lists into a more useful form
+    idoccR=0
+    do irrep=0,nirrep-1
+       do i=1,ndoccR(irrep)
+          idoccR(doccR(i,irrep),irrep)=1
+       enddo
+    enddo
+    
 !----------------------------------------------------------------------
 ! First, determine the number of allowable configurations of the
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_2E(modus,E0max,cfgM)
+    call builder_2E(modus,E0max,cfgM,idoccR)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -3456,7 +3517,7 @@ contains
 ! 2-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_2E(modus,E0max,cfgM)
+    call builder_2E(modus,E0max,cfgM,idoccR)
     
     return
     
@@ -3467,12 +3528,11 @@ contains
 !             generation of the configurations with two internal holes
 !             and two external electrons
 !######################################################################
-  subroutine builder_2E(modus,E0max,cfgM)
+  subroutine builder_2E(modus,E0max,cfgM,idoccR)
 
     use constants
     use bitglobal
     use conftype
-    use confinfo
     use mrciutils
     use hparam
     
@@ -3489,6 +3549,9 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
+
+    ! DDCI2 configuration reduction: doubly-occupied space information
+    integer(is), intent(in)    :: idoccR(nmo,0:nirrep-1)
     
     ! Full SOP
     integer(ib)                :: sop(n_int,2)
@@ -3506,11 +3569,6 @@ contains
     ! Irreps generated the various different configurations
     integer(is)                :: irrepR,irrep2H,irrep1H1E,irrep2E
     integer(ib)                :: ib1,ib2
-
-    ! DDCI configuration reduction: doubly-occupied space information
-    integer(is)                :: ndocc(0:nirrep-1)
-    integer(is)                :: docc(nmo,0:nirrep-1)
-    integer(is)                :: idocc(nmo,0:nirrep-1)
     
     ! Everything else
     integer(is)                :: n_int_I,nmoI,nR,n2h
@@ -3545,23 +3603,6 @@ contains
     counter=0
 
     baseconf=conf0(1:n_int_I,:)
-
-!----------------------------------------------------------------------
-! Get the list of MOs doubly-occupied in all reference configurations
-! (this will be used for DDCI configuration reduction)
-!----------------------------------------------------------------------
-    ! Get the lists of docc space MOs: one for each irrep
-    do irrep=0,nirrep-1
-       call get_ref_docc_mos(cfgM(irrep),ndocc(irrep),docc(:,irrep))
-    enddo
-
-    ! Put the docc lists into a more useful form
-    idocc=0
-    do irrep=0,nirrep-1
-       do i=1,ndocc(irrep)
-          idocc(docc(i,irrep),irrep)=1
-       enddo
-    enddo
 
 !----------------------------------------------------------------------    
 ! Generate the 2E configurations
@@ -3697,12 +3738,12 @@ contains
                 ib2=ieor(ib1,mosym(cfgM(0)%m2c(iext2)))
                 irrep2E=ib2
 
-                ! DDCI configuration reduction: skip this 2E conf if
-                ! both annihilation operators correspond to the docc
-                ! space
-                if (idocc(ia2h,irrep2E) == 1 &
-                     .and. idocc(ja2h,irrep2E) == 1) cycle
-
+                ! DDCI2 configuration reduction: skip this 2E conf if
+                ! one of the annihilation operators correspond to the
+                ! docc space
+                if (idoccR(ia2h,irrep2E) == 1 &
+                     .or. idoccR(ja2h,irrep2E) == 1) cycle
+                
                 ! Update the no. 2E confs
                 if (modus == 0) cfgM(irrep2E)%n2E=cfgM(irrep2E)%n2E+1
 
