@@ -8,11 +8,12 @@ import graci.core.params as params
 import graci.io.output as output
 
 import graci.core.molecule as molecule
-import graci.methods.scf as scf
+import graci.core.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
+import graci.interaction.overlap as overlap
 
 from pyscf import gto
 
@@ -121,8 +122,12 @@ def correct_type(value, keyword_type):
        and all elements are of 'keyword_type'"""
 
     correct = False
-    if isinstance(value, np.ndarray):
-        val_list = value.tolist()
+    if isinstance(value, (np.ndarray, list)):
+        if isinstance(value, np.ndarray):
+            val_list = value.flatten().tolist()
+        else:
+            val_list = value 
+
         if all([isinstance(elem, keyword_type) for elem in val_list]):
             correct = True
     else:
@@ -135,64 +140,89 @@ def correct_type(value, keyword_type):
 def parse_value(valstr):
     """Returns a value converted to the appropriate type and shape.
 
-    By default, spaces and newlines will be treated as delimiters. The
-    combination of both will be treated as a 2D array.
+    By default, spaces and newlines will be treated as delimiters.
     """
-    all_lines = valstr.split('\n')[:-1]
-    split_lines = [line.split() for line in all_lines]
 
-    if len(all_lines) > 1 and len(split_lines[0]) == 1:
-        # newline and space give the same result for a vector
-        split_lines = [[line[0] for line in split_lines]]
+    # split any braces or ':' symbols
+    split_line = re.split('(:)|(\[)|(\])|\n', valstr)
+    # remove instances of 'None'
+    try:
+        while True:
+            split_line.remove(None)
+    except ValueError:
+        pass
 
-    # we have the ability to recognize ranges, specified as either:
-    # 1-4 or 1 - 4 or 1:4 or 1 : 4, etc.
-    # first see if this is a range input. NOTE: we will not accept
-    # ranges split over multiple lines at this time. Also, we will
-    # only take the integers adjacent to the range symbol as being
-    # relevant. So: 1 2 - 4 5 is intepreted as 2-4
-    range_chk = []
-    for i in range(len(split_lines[0][:])):
-        range_chk.extend(re.split('(:)', split_lines[0][i]))
-    if ':' in range_chk:
-        # remove empty strings
+    # val_list is a list of the space/newline delimited input
+    val_list = []
+    for line in split_line:
+        val_list.extend(line.split())
+
+    # remove empty strings
+    try:
+        while True:
+            val_list.remove('')
+    except ValueError:
+        pass
+
+    # remove commas
+    try:
+        while True:
+           val_list.remove(',')
+    except ValueError:
+        pass
+
+    # step through and replace all X:Y with range(X,Y+1)
+    while ':' in val_list:
+        indx = val_list.index(':')
         try:
-            while True:
-                range_chk.remove('')
-        except ValueError:
-            pass
-        range_index = range_chk[:].index(':')
-
-        if range_index == 0 or range_index == len(range_chk[:])-1:
-            sys.exit(' unknown range specified: '+str(valstr))
-
-        try:
-            rstart = int(range_chk[range_index-1])
-            rend   = int(range_chk[range_index+1])+1
+            start = int(val_list[indx-1])
+            end   = int(val_list[indx+1])+1
         except:
             sys.exit('cannot convert range values: '+str(valstr))
+        num_list = list(range(start, end))
+        str_list = [str(num) for num in num_list]
+        new_list = val_list[:indx-1] + str_list + val_list[indx+2:]
+        val_list = new_list
 
-        split_lines[0] = list(range(rstart,rend))
+    # if this is a scalar: just convert the number
+    if len(val_list) == 1:
+        return convert_value(val_list[0])
 
-    if len(split_lines) == 1:
-        if len(split_lines[0]) == 1:
-            # handle single values
-            return convert_value(split_lines[0][0])
-        else:
-            # handle vectors
-            return convert_array(split_lines[0])
+    # if this is vector, need to determine if 1D or 2D
+    # we will accept the following syntax for 1D arrays:
+    #  1. kword = [X Y Z]
+    #  2. kword = [X, Y, Z]
+    #
+    # However, we will be more strict re: 2D arrays. Need
+    # to see those square braces to denote change in dim
+    #  1. kword = [X Y Z] [X Y Z]
+    #  2. kword = [X, Y, Z], [X, Y, Z]
+    
+    vec_str = []
+    # scan for opening brace
+    while '[' in val_list:
+        start = val_list.index('[')+1
+        # try to close this brace, else just take to the end
+        try:
+            end = val_list.index(']')
+        except:
+            sys.exit('missing a closing brace: '+str(valstr))
+        # append the entries between the braces a new vector 
+        vec_str.append(list(val_list[start:end]))
+        if end == len(val_list)-1:
+            break
+        val_list = val_list[end+1:]
+
+    # if just a single element of this 2D list, convert to vector
+    if len(vec_str) == 1:
+        return convert_array(vec_str[0])
     else:
-        # handle 2D arrays
-        return convert_array(split_lines)
+        return convert_array(vec_str)
 
 #
 def check_input(run_list):
     """Checks on the user-supplied input"""
    
-    # if any section label names are repeated, append a number to 
-    # ensure that each section label is unique
-    section_lbls = []
-
     for obj in run_list:
     
         # the class name for this run object
@@ -264,49 +294,34 @@ def check_input(run_list):
                     
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
-        if type(obj).__name__ == 'Transition' or type(obj).__name__ == 'Spinorbit':
+        if (type(obj).__name__ == 'Transition' or 
+            type(obj).__name__ == 'Sotransition'):
             if obj.init_states is not None:
                 if not isinstance(obj.init_states, (list, np.ndarray)):
-                    obj.init_states = [obj.init_states]
-                # shift state index to range 1 -> 0
-                obj.init_states = [obj.init_states[i] - 1 
-                                for i in range(len(obj.init_states))]
-
+                    obj.init_states = np.array([obj.init_states])
             if obj.final_states is not None:
                 if not isinstance(obj.final_states, (list, np.ndarray)):
-                    obj.final_states = [obj.final_states]
-                obj.final_states = [obj.final_states[i] - 1 
-                               for i in range(len(obj.final_states))]
+                    obj.final_states = np.array([obj.final_states])
+            # shift statesby 1 to internal/C ordering
+            obj.init_states  -= 1
+            obj.final_states -= 1
 
-            if obj.init_states_sym is not None:
-                if not isinstance(obj.init_states_sym, (list, np.ndarray)):
-                    obj.init_states_sym = [obj.init_states_sym]
-                # shift irrep and state to range 1.1 -> 0.0
-                obj.init_states_sym = [obj.init_states_sym[i] - 1.1
-                               for i in range(len(obj.init_states_sym))]
+        # Spinorbit _has_ to enter states as a vector, just shift state
+        # indices
+        if type(obj).__name__ == 'Spinorbit': 
+            # shift statesby 1 to internal/C ordering
+            obj.couple_states -= 1
 
-            if obj.final_states_sym is not None:
-                if not isinstance(obj.final_states_sym, (list, np.ndarray)):
-                    obj.final_states_sym = [obj.final_states_sym]
-                obj.final_states_sym = [obj.final_states_sym[i] - 1.1
-                               for i in range(len(obj.final_states_sym))]
-
-        # save section labels -- make sure all our unique
-        section_lbls.append(obj.label)
-
-    # we don't actually want to do this -- if labels are wrong/inconsistent
-    # we should not guess at how to rename them. Will likely delete
-    # this eventually, then add a check in the driver to give a warning
-    # for ambiguously labeled sections
-    #for obj_indx in range(len(section_lbls)):
-    #    # save section labels -- make sure all our unique
-    #    lbl_tst = run_list[obj_indx].label
-    #    indices = [index for index,lbl in enumerate(section_lbls) 
-    #                                              if lbl == lbl_tst]
-        # if multiple identical sections -- rename
-    #    if len(indices) > 1:
-    #        for suffix in range(len(indices)):
-    #            run_list[indices[suffix]].label += str(suffix+1)
+        if type(obj).__name__ == 'Overlap':
+            if obj.bra_states is not None:
+                if not isinstance(obj.bra_states, (list, np.ndarray)):
+                    obj.bra_states = np.array([obj.bra_states])
+            if obj.ket_states is not None:
+                if not isinstance(obj.ket_states, (list, np.ndarray)):
+                    obj.ket_states = np.array([obj.ket_states])
+            # shift statesby 1 to internal/C ordering
+            obj.bra_states -= 1
+            obj.ket_states -= 1
 
     return
     

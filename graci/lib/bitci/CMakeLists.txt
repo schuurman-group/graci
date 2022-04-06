@@ -70,11 +70,18 @@ add_library(bitci SHARED ${CIsources})
 file(GLOB_RECURSE SIsources src/si/* src/common/* src/integrals/*)
 add_library(bitsi SHARED ${SIsources})
 
+#
+# Add bitWF library target
+#
+file(GLOB_RECURSE SIsources src/wf/* src/common/* src/integrals/*)
+add_library(bitwf SHARED ${SIsources})
+
 # Link the targets to the HDF5 Fortran library
 target_link_libraries(bitci -lhdf5_fortran)
 target_link_libraries(bitsi -lhdf5_fortran)
+target_link_libraries(bitwf -lhdf5_fortran)
 
 #
 # Install
 #
-install(TARGETS bitci bitsi DESTINATION lib)
+install(TARGETS bitci bitsi bitwf DESTINATION lib)

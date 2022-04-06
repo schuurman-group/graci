@@ -4,116 +4,186 @@ module to compute functions of the 1-TDM
 
 import os as os
 import numpy as np
-import functools
-import operator
+import sys as sys
 import importlib
 from sympy import LeviCivita
+import graci.core.params as params
 import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
-import graci.core.libs as libs
 import graci.bitcitools.bitsi_init as bitsi_init
 import graci.bitcitools.mrci_1tdm as mrci_1tdm
 import graci.io.output as output
 import graci.utils.constants as constants
-import sys as sys
 
 class Transition(interaction.Interaction):
-    """Transition class for determing transition moments, right now
-       it will only accept calculations for which the 'Molecule' and 'Scf' 
-       objects are the same"""
+    """Sotransition class for determing transition moments between spin-orbit
+       copuled states. This class extends transition and will accpet either
+       spinorbit objects, or, simply method objects. If the latter, will convert
+       them into trivial spin orbit objects (i.e. with a single set of states and
+       a single multiplicity)
+    """
     def __init__(self):
         # parent attributes
         super().__init__()
-        
-        # user defined quanties
-        self.print_orbitals = False
+    
+        # input syntax should be identical to transition
+        # name for this object
         self.label          = 'Transition'
 
-        # global variables
-        # Class name
-        self.class_name = 'transition'
+        # user defined quanties
+        self.print_orbitals = False
+        # for transition it's convenient to call these variables
+        # init/final instead of ket/bra. Here we just say they
+        # point to the same reference as the variables in the parent
+        # class
+        # list of initial states
+        self.init_states      = None
+        # label of section to get initial states
+        self.init_label       = None
+        # list of final states
+        self.final_states     = None
+        # label of section to get final states 
+        self.final_label      = None
+        # often will want to include all states in bra object
+        # if so convenient to have simple boolean to select that
+        self.all_final_states = False
+
+        # ----------------------------------------------------------
+        # internal class variables -- should not be accessed
+        # directly
+        self.bra_obj    = None
+        self.ket_obj    = None
+
+        # list of state group sassociated with the ket object
+        self.state_grps = {}
+        # list of transitions corresponding to the tdms
+        self.trans_list = []
         # the tdms
         self.tdms       = None
         # various orbital quantities (NDOs, NTOs, wts, etc.)
-        self.nos        = {} 
+        self.nos        = {}
         # electric/magnetic multipole tensors -- all guages
         self.multipole  = {}
         # oscillator strengths -- all gauges
         self.oscstr     = {}
 
+        # we currently require the same scf and mol objects
+        # for the bra and ket -- this is them
+        self.scf        = None
+        self.mol        = None
+
     #
     @timing.timed
-    def run(self):
+    def run(self, arg_list):
         """return the transition dipole moments between the bra and
            ket states. If b_state and k_state are None, assume 
            transitions from all states in method object should be 
-           used."""
+           used.
+        """
+ 
+        # set the bra/ket objects and add the state groups associated
+        # with each 
+        self.bra_obj, self.ket_obj = self.add_state_grps(arg_list)
 
-        # first check to see if bra and ket are identical
-        if (type(self.bra_obj).__name__ == type(self.ket_obj).__name__ 
-            and self.bra_obj.label == self.ket_obj.label):
-            self.braket_iden = True
+        # do some sanity checks on the bra/ket objects
+        self.scf, self.mol = self.check_bra_ket()
+      
+        # if bra and ket are the same object, only compute the unique
+        # transition densities
+        list_type = 'full'
+        if self.same_obj(self.bra_obj, self.ket_obj):
+            list_type = 'nodiag'
 
-        mol_bra = self.bra_obj.scf.mol
-        mol_ket = self.ket_obj.scf.mol
+        # if all_final_states is true, over-ride current contents of
+        # self.final_states
+        if self.all_final_states:
+            self.final_states = range(self.bra_obj.n_states())
 
-        scf_bra = self.bra_obj.scf
-        scf_ket = self.ket_obj.scf
+        # these are the initial and final states -- in whatever form
+        # the bra and ket objects take (ci or postci objects)
+        self.add_group('ket', self.ket_obj, self.init_states)
+        self.add_group('bra', self.bra_obj, self.final_states)
 
-        if not self.braket_iden:
-            # sanity check that orbitals and geometry are the same
-            if np.any(scf_bra.orbs != scf_ket.orbs):
-                sys.exit('transition moments require same bra/ket orbs')
+        self.trans_list = self.build_pair_list('bra',
+                                               'ket',
+                                                pairs=list_type)
 
-            if mol_bra.pymol().atom != mol_ket.pymol().atom:
-                sys.exit('transition moments require same geometry'+
-                         ' and basis set')
+        # initialize the transition density matrices
+        # These will be complex for spin-orbit coupled states
+        self.tdms = np.zeros((self.scf.nmo, self.scf.nmo, 
+                              len(self.trans_list)), dtype=np.cdouble)
 
-        # initialize the bitsi library for the calculation of 1-TDMs
-        bitsi_init.init(self.bra_obj, self.ket_obj, 'tdm')
+        # loop over all pairs of spin free states in both the bra
+        # and ket objects. In the future, may be prudent to check
+        # init and final states and just which states are necessary
+        for k_lbl in self.state_grps['ket']:
+            ket_spin = self.get_spins(k_lbl)
+            ket_ci   = self.get_obj(k_lbl) 
 
-        # construct the trans_list array
-        # currently store them as [initial state, final state]
-        if self.braket_iden:
-            list_type = 'lower_i>j'
-        else:
-            list_type = 'full'
-        kets, trans, trans_sym = self.build_trans_list_new(list_type=list_type)
-        self.ket_list.append(kets)
-        self.trans_list.append(trans)
-        self.trans_list_sym.append(trans_sym)
+            for b_lbl in self.state_grps['bra']:
+                bra_spin = self.get_spins(b_lbl)
+                bra_ci   = self.get_obj(b_lbl)
+
+                # if different spin manifold, tdm contribution is zero
+                if ket_spin.mult != bra_spin.mult:
+                    continue
+
+                # if the same object, only build lower diagonal
+                if self.same_obj(ket_ci, bra_ci): 
+                    pair_type = 'nodiag'
+                else:
+                    pair_type = 'full'
+                
+                # initialize the bitsi library for the calculation of 1-TDMs
+                bitsi_init.init(bra_ci, ket_ci, 'tdm')
         
-        # grab the transition density matrices
-        self.build_tdms()
+                # this is main transition_list: stored by adiabatic label
+                blks      = self.build_pair_list(b_lbl,
+                                                 k_lbl, 
+                                                 pairs=pair_type)
+
+                # the transitions, ordered by interacting irreps, is how
+                # we call bitsi
+                blks_sym  = self.build_pair_list(b_lbl, 
+                                                 k_lbl, 
+                                                 pairs=pair_type, 
+                                                 sym_blk=True)
+
+                # tdms is a vector of nmo x nmo transition densities
+                tdms = self.build_tdms(bra_ci, ket_ci, blks, blks_sym)
+
+                # rotate tdms into spin states, if need be
+                self.rotate_tdms(b_lbl, k_lbl, blks, tdms)
+
+                # finalize the bitsi library
+                bitsi_init.finalize()
 
         # build the multipole moments  -- easier to just do this once
         # for all transitions
-        self.build_multipole(mol_ket.pymol(), scf_ket)
+        self.multipole = self.build_multipole()
 
         # compute oscillator strengths
-        self.build_osc_str()
-
-        # build natural differnence and natural transition orbitals 
-        # for each pair
-        self.build_natural_orbs()
+        self.oscstr = self.build_osc_str()
 
         # print orbitals if requested
         if self.print_orbitals:
-            self.export_orbitals()
+            # first construct the orbitals
+            self.nos = self.build_ntos() + self.build_ndos()
+            if 'nto' in self.nos.keys():
+                self.export_orbitals(orb_type='nto')
+            if 'ndo' in self.nos.keys():
+                self.export_orbitals(orb_type='ndo')
 
         # print the summary output
         self.print_log()
 
-        # finalize the bitsi library
-        bitsi_init.finalize()
- 
         return
 
     #
-    def tdm1(self, b_st, k_st):
+    def tdm(self, b_st, k_st):
         """return the tdm for the bra and ket state indicated"""
 
-        indx = self.trans_index(b_st, k_st, 0)
+        indx = self.trans_list.index([b_st, k_st])
 
         if indx is not None:
             return self.tdms[:, :, indx]
@@ -124,101 +194,218 @@ class Transition(interaction.Interaction):
     def transition_multipole(self, b_st, k_st, name, gauge='velocity'):
         """return the transition mulitpole tensor for pairs of
            states ordered by energy"""
-       
-        return self.extract_multipole(b_st, k_st, name, gauge) 
-
-    #
-    def osc_strength(self, b_st, k_st, order=0, gauge='velocity'):
-        """return the transition dipole for pairs of 
-           states ordered by energy"""
-
-        return self.extract_osc(b_st, k_st, order, gauge, False)
-    
-    # 
-    def osc_strength_isotropic(self, b_st, k_st, 
-                                            order=0, gauge='velocity'):
-        """return the isotropically averaged oscillator strength in
-           the specified gauge and through the specified order"""
-
-        return self.extract_osc(b_st, k_st, order, gauge, True)
-
-#--------------------------------------------------------------------------
-
-    # 
-    @timing.timed
-    def build_tdms(self):
-        """grab the TDMs from bitsi and then reshape the list of
-           TDMs into a more usable format"""
-
-        # grab the tdms
-        tdm_list = mrci_1tdm.tdm(self.bra_obj, self.ket_obj, 
-                                          self.trans_list_sym[0])
-
-        # make the tdm list
-        nmo         = self.bra_obj.scf.nmo
-        npairs      = len(self.trans_list[0])
-        self.tdms   = np.zeros((nmo, nmo, npairs), dtype=float)
-
-   
-        for bk_st in self.trans_list[0]:
-            [birr, bst_sym] = self.bra_obj.state_sym(bk_st[0])
-            [kirr, kst_sym] = self.ket_obj.state_sym(bk_st[1])
-            indx            = self.trans_index(bk_st[0], bk_st[1], 0)
-            sym_indx        = self.trans_sym_index( birr, kirr, 
-                                                    bst_sym, kst_sym, 0)
-
-            self.tdms[:, :, indx] = tdm_list[birr][kirr][:, :, sym_indx]
-
-        del(tdm_list)
-        return
-    
-    #
-    def extract_multipole(self, b_st, k_st, name, gauge='velocity'):
-        """extract the transition dipole vector in the appropriate
-           gauge"""
 
         # append a '_l' or '_v' to indicate length or velocity gauge
         keyname = name+'_'+str(gauge)[0]
-        indx = self.trans_index(b_st, k_st, 0)
+        indx = self.trans_list.index([b_st, k_st])
 
         if keyname in self.multipole.keys() and indx is not None:
             return self.multipole[keyname][..., indx]
         else:
-            return None 
+            return None
 
     #
-    def extract_osc(self, b_st, k_st, gauge, order, iso):
-        """extract the transition dipole vector in the appropriate
-           gauge, complete through order 'order'. If iso is True,
-           return isotropically averaged value"""
-    
+    def osc_strength(self, b_st, k_st, order=0, gauge='velocity', iso=True):
+        """return the transition dipole for pairs of 
+           states ordered by energy in the requested gauge. If iso is
+           True, return a scalar that is the isotropically averaged 
+           oscillator strenth, else, return a cartesian vector for
+           (x,y,z) components
+        """
+
         istr = ''
         if iso:
             istr = 'iso'
 
         keyname = 'f'+str(order)+istr+'_'+str(gauge)[0]
-        indx = self.trans_index(b_st, k_st, 0)
+        indx = self.trans_list.index([b_st, k_st])
 
         if keyname in self.oscstr.keys() and indx is not None:
             return self.oscstr[keyname][..., indx]
         else:
             return None
 
+#--------------------------------------------------------------------------
+# "Private" class methods
+#
+    #
+    def add_state_grps(self, arg_list):
+        """
+        add the bra and ket state groups
+        """
+        if len(arg_list) != 2:
+            sys.exit('transition.run() passed ' + str(len(arg_list)) +
+                     ' objects. Expecting 2')
+
+        # add both the bra and ket state groups
+        lbls = ['bra', 'ket']
+        for indx in range(len(arg_list)):
+            arg_obj                     = arg_list[indx]
+            self.state_grps[lbls[indx]] = []
+
+            # if this is a ci method, create a new group associated
+            # with the CI states
+            if type(arg_obj).__name__ in params.ci_objs:
+                lbl = lbls[indx]+'_grp0'
+                self.state_grps[lbls[indx]].append(lbl)
+                self.add_group(lbl, arg_obj, range(arg_obj.n_states()))
+
+            # if this is a postci object, should already extend
+            # interaction and have groups set up. Add all of them
+            # here
+            elif type(bra_ket).__name__ in params.postci_objs:
+                grp_lbls = arg_obj.get_lbls()
+
+                for ibk in range(len(grp_lbls)):
+                    lbl  = lbls[indx]+'_'+grp_lbls[ibk]
+                    self.state_grps[lbls[indx]].append(lbl)
+                    self.add_group(lbl,
+                                   arg_obj.get_obj(grp_lbls[ibk]),
+                                   arg_obj.get_states(grp_lbls[ibk]))
+
+            # if not a ci_obj and postci_obj, we don't know what to do 
+            # with this
+            else:
+                sys.exit(' object passed to transition neither' +
+                         ' ci_obj or postci_obj. Exiting...')
+
+        return arg_list[0], arg_list[1]
+
+    #
+    def check_bra_ket(self):
+        """
+        do some sanity checks on the arguments passed to run
+        """
+
+        # now that we have bra and ket groups set up, do some
+        # sanity checking on the orbitals/geometries involved
+        if not self.same_obj(self.bra_obj, self.ket_obj):
+            for bra_lbl in self.state_grps['bra']:
+                scf_b = self.get_obj(bra_lbl).scf
+                for ket_lbl in self.state_grps['ket']:
+                    scf_k = self.get_obj(ket_lbl).scf
+
+                    # sanity check that orbitals and geometry are
+                    # the same
+                    if np.any(scf_b.orbs != scf_k.orbs):
+                        sys.exit('transition moments require same '+
+                                 ' bra/ket orbitalss')
+
+                    if (scf_b.mol.pymol().atom !=
+                              scf_k.mol.pymol().atom):
+                        sys.exit('transition moments require same '+
+                                 ' geometry and basis set')
+
+        else:
+            scf_b = self.get_obj(self.state_grps['bra'][0])
+
+        return scf_b, scf_b.mol.pymol()
+
+
+    @timing.timed
+    def build_tdms(self, bra, ket, trans_list, trans_list_sym):
+        """grab the TDMs from bitsi and then reshape the list of
+           TDMs into a more usable format"""
+
+        # grab the tdms
+        tdm_list = mrci_1tdm.tdm(bra, ket, trans_list_sym)
+
+        # make the tdm list
+        nmo    = bra.scf.nmo
+        npairs = len(trans_list)
+        tdms   = np.zeros((nmo, nmo, npairs), dtype=float)
+
+        for indx in range(len(trans_list)):
+            bk_st          = trans_list[indx]
+            [birr, bst]    = bra.state_sym(bk_st[0])
+            [kirr, kst]    = ket.state_sym(bk_st[1])
+            sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
+            tdms[:,:,indx] = tdm_list[birr][kirr][:, :, sym_indx]
+
+        return tdms
+
+    @timing.timed
+    def rotate_tdms(self, b_lbl, k_lbl, blk_lst, tdm_blk):
+        """
+        Rotate the spin-free tdms to the spin-orbit states. The 
+        bra and/or ket object may be spin-free or spin-orbit
+        coupled objects
+        """
+
+        # this will work for now, but feels inelegant
+        if type(self.bra_obj).__name__ == 'Spinorbit':
+            bra_spin = self.get_spins(b_lbl)
+            grp_indx = self.state_grps['bra'].index(b_lbl)
+            bra_lbl  = self.bra_obj.get_lbls()[grp_indx]
+        else:
+            bra_spin = None
+
+        if type(self.ket_obj).__name__ == 'Spinorbit':
+            ket_spin = self.get_spins(k_lbl)
+            grp_indx = self.state_grps['ket'].index(k_lbl)
+            ket_lbl  = self.ket_obj.get_lbls()[grp_indx] 
+        else:
+            ket_spin = None
+
+        # run through trans_list and contribute each #
+        for blk_pair in blk_lst:
+            blk_ind = blk_lst.index(blk_pair)
+            tdm     = tdm_blk[:, :, blk_ind]
+
+            for pair in self.trans_list:
+                ind = self.trans_list.index(pair)
+
+                # if the bra state doesn't contribute, skip
+                if bra_spin is None and blk_pair[0] != pair[0]:
+                    continue
+                else:
+                    b_cf = [1.+0.j]
+
+                # if the ket state doesn't contribute, skip
+                if ket_spin is None and blk_pair[1] != pair[1]:
+                    continue
+                else:
+                    k_cf = [1.+0.j]
+
+                # pull the coefficients from the state vectors
+                # we need to calculate contribution of this spin-free
+                # pair to the transition density
+                if bra_spin is not None:
+                    b_indxs = [self.bra_obj.soc_index(bra_lbl,
+                                                blk_pair[0], ms)
+                                                for ms in bra_spin.M]
+                    b_cf   = [self.bra_obj.soc_state(pair[0])[b_indx]
+                                                for b_indx in b_indxs]
+
+                if ket_spin is not None:
+                    k_indxs = [self.ket_obj.soc_index(ket_lbl,
+                                                blk_pair[1], ms)
+                                                for ms in ket_spin.M]
+                    k_cf   = [self.bra_obj.soc_state(pair[1])[k_indx]
+                                                for k_indx in k_indxs]
+
+                cf = sum( [sum(b_cf)*kcf for kcf in k_cf] )
+                if abs(cf) > 1.e-16:
+                    self.tdms[:, :, ind] += cf * tdm
+
+        return
+
+
     #
     @timing.timed
-    def build_multipole(self, mol, scf):
+    def build_multipole(self):
         """builds the multipole moment transitions tensors"""
 
         # build the electronic tensors: dipole, quadrupole, octupole
-        self.build_dip(mol, scf)
-        self.build_quad(mol, scf)
-        self.build_oct(mol, scf)
+        dipole   = self.build_dip()
+        quadpole = self.build_quad()
+        octpole  = self.build_oct()
 
         # build the magnetic moment tensors: dipole, quadrupole
-        self.build_mdip(mol, scf)
-        self.build_mquad(mol, scf)
+        mdipole   = self.build_mdip()
+        mquadpole = self.build_mquad()
 
-        return
+        return {**dipole, **quadpole, **octpole, **mdipole, **mquadpole}
 
     # 
     @timing.timed
@@ -226,104 +413,113 @@ class Transition(interaction.Interaction):
         """build the oscillator strengths in the length and velocity
            gauges"""
 
-        self.build_osc_str_l()
-        self.build_osc_str_v()
+        oscstr_l = self.build_osc_str_l()
+        oscstr_v = self.build_osc_str_v()
 
-        return
+        return {**oscstr_l, **oscstr_v}
 
+
+    #-----------------------------------------------------------------
+    # construction of multipole moments
+    #
+    #
 
     #
     @timing.timed
-    def build_dip(self, mol, scf):
+    def build_dip(self):
         """build the electric transition dipole moments in length
            and velocity gauges"""
 
-        nao = mol.nao
+        nao = self.mol.nao
            
         # dipole moment integrals (length gauge)
-        mu_ao = mol.intor('int1e_r')
-        mu_mo = self.ints_ao2mo(mol, scf, mu_ao)
+        mu_ao = self.mol.intor('int1e_r')
+        mu_mo = self.ints_ao2mo(mu_ao)
         # dipole moment integrals (velocity gauge) -- imaginary
         # contribution only
-        p_ao  = mol.intor('int1e_ipovlp')
-        p_mo  = self.ints_ao2mo(mol, scf, p_ao)
+        p_ao  = self.mol.intor('int1e_ipovlp')
+        p_mo  = self.ints_ao2mo(p_ao)
 
-        self.multipole['e_dipole_l'] = self.contract_transitions(mu_mo)
-        self.multipole['e_dipole_v'] = self.contract_transitions(p_mo)
+        dipole = {}
+        dipole['e_dipole_l'] = self.contract_transitions(mu_mo)
+        dipole['e_dipole_v'] = self.contract_transitions(p_mo)
     
-        return
+        return dipole
 
     # 
     @timing.timed
-    def build_quad(self, mol, scf):
+    def build_quad(self):
         """builds the electric quadrupole moments in length and velocity
            gauges"""
 
-        nao = mol.nao
+        nao = self.mol.nao
 
         # electronic quadrupole moment tensor (length gauge)
-        Q_ao  = mol.intor('int1e_rr').reshape(3, 3, nao, nao)
-        Q_mo  = self.ints_ao2mo(mol, scf, Q_ao)
+        Q_ao  = self.mol.intor('int1e_rr').reshape(3, 3, nao, nao)
+        Q_mo  = self.ints_ao2mo(Q_ao)
 
         # electronic quadrupole moment tensor (velocity gauge)
         # returns imaginary part only, see Eq. 28
-        Qp_ao  = mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3, nao, nao)
+        Qp_ao  = self.mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3, nao, nao)
         Qp_ao += Qp_ao.transpose(1,0,3,2)
-        Qp_mo  = self.ints_ao2mo(mol, scf, Qp_ao)
+        Qp_mo  = self.ints_ao2mo(Qp_ao)
 
-        self.multipole['e_quadrupole_l'] = self.contract_transitions(Q_mo)
-        self.multipole['e_quadrupole_v'] = self.contract_transitions(Qp_mo)
+        quad = {}
+        quad['e_quadrupole_l'] = self.contract_transitions(Q_mo)
+        quad['e_quadrupole_v'] = self.contract_transitions(Qp_mo)
     
-        return
+        return quad
 
     #
     @timing.timed
-    def build_oct(self, mol, scf):
+    def build_oct(self):
         """bulids the electric octupole moments in length and velocity
            gauges"""
 
-        nao = mol.nao
+        nao = self.mol.nao
 
         # electronic octupole moment tensor (length gauge)
-        O_ao  = mol.intor('int1e_rrr').reshape(3, 3, 3, nao, nao)
-        O_mo  = self.ints_ao2mo(mol, scf, O_ao)
+        O_ao  = self.mol.intor('int1e_rrr').reshape(3, 3, 3, nao, nao)
+        O_mo  = self.ints_ao2mo(O_ao)
 
         # electronic octupole moment tensor (velocity gauge)
         # returns imaginary part only, see Eq. 42
-        Op_ao  = mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3, nao, nao)
+        Op_ao  = self.mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3, nao, nao)
         Op_ao += Op_ao.transpose(2,1,0,4,3)
-        Op_ao += mol.intor('int1e_irpr', comp=27,hermi=0).reshape(3,3,3, nao, nao)
-        Op_mo  = self.ints_ao2mo(mol, scf, Op_ao)
+        Op_ao += self.mol.intor('int1e_irpr', comp=27,hermi=0).reshape(3,3,3, nao, nao)
+        Op_mo  = self.ints_ao2mo(Op_ao)
 
-        self.multipole['e_octupole_l'] = self.contract_transitions(O_mo)
-        self.multipole['e_octupole_v'] = self.contract_transitions(Op_mo)
+        octo = {}
+        octo['e_octupole_l'] = self.contract_transitions(O_mo)
+        octo['e_octupole_v'] = self.contract_transitions(Op_mo)
 
-        return
+        return octo
 
     #
     @timing.timed
-    def build_mdip(self, mol, scf):
+    def build_mdip(self):
         """build the magnetic transition dipole moments in the
            velocity gauge"""
 
         # loop over the state pairs and construct transition
         # dipole moments
-        nao = mol.nao
+        nao = self.mol.nao
 
         # Magnetic quantities
         # ------------------------------------
         # magnetic first moment -- see Eq. 37 (negletcing spin for now)
         # returns imaginary part only
-        mdp_ao = mol.intor('int1e_cg_irxp', comp=3, hermi=2)
-        mdp_mo = self.ints_ao2mo(mol, scf, mdp_ao)
+        mdp_ao = self.mol.intor('int1e_cg_irxp', comp=3, hermi=2)
+        mdp_mo = self.ints_ao2mo(mdp_ao)
 
-        self.multipole['m_dipole_v'] = self.contract_transitions(mdp_mo)
+        mdip = {}
+        mdip['m_dipole_v'] = self.contract_transitions(mdp_mo)
 
-        return
+        return mdip
 
     # 
     @timing.timed
-    def build_mquad(self, mol, scf):
+    def build_mquad(self):
         """builds the magnetic quadrupole moments the velocity gauge"""
 
         # see PySCF/Libcint documentation for d-shell ordering
@@ -332,19 +528,20 @@ class Transition(interaction.Interaction):
 
         # loop over the state pairs and construct transition
         # dipole moments
-        nao = mol.nao
+        nao = self.mol.nao
 
         # magnetic quadrupole tensor -- see Eq. 46
         # returns imaginary part only
-        ints     = mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,9,nao,nao)
+        ints     = self.mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,9,nao,nao)
         mquad_ao = (ints[:,[YZ,ZX,XY]] - ints[:,[ZY,XZ,YX]]).transpose(1,0,2,3)
-        ints     = mol.intor('int1e_irpr', comp=27, hermi=0).reshape(9,3,nao,nao)
+        ints     = self.mol.intor('int1e_irpr', comp=27, hermi=0).reshape(9,3,nao,nao)
         mquad_ao+= ints[[YZ,ZX,XY]] - ints[[ZY,XZ,YX]]
-        mquad_mo = self.ints_ao2mo(mol, scf, mquad_ao)
+        mquad_mo = self.ints_ao2mo(mquad_ao)
 
-        self.multipole['m_quadrupole_v'] = self.contract_transitions(mquad_mo)
+        mquad = {}
+        mquad['m_quadrupole_v'] = self.contract_transitions(mquad_mo)
 
-        return
+        return mquad
 
     #
     @timing.timed
@@ -356,18 +553,24 @@ class Transition(interaction.Interaction):
            the velocity gauge. I think this is actually standard,
            but need to confirm"""
 
-        ntrans = len(self.trans_list[0])
+        ntrans = len(self.trans_list)
 
         f0_l   = np.zeros((3, ntrans), dtype=float)
         f0_iso = np.zeros((ntrans), dtype=float)
         f2_l   = np.zeros((3, ntrans), dtype=float)
         f2_iso = np.zeros((ntrans), dtype=float)
 
-        for tpair in self.trans_list[0]:        
+        # Levi-Civita 3x3x3 tensor
+        LC     = np.asarray([[[LeviCivita(a,b,c) for a in range(3)] 
+                                                 for b in range(3)] 
+                                                 for c in range(3)], 
+                                                 dtype=float)
 
-            b_st    = tpair[0]
-            k_st    = tpair[1]
-            bk_indx = self.trans_index(b_st, k_st, 0)
+        for tpair in self.trans_list:        
+
+            b_st = tpair[0]
+            k_st = tpair[1]
+            indx = self.trans_list.index([b_st, k_st])
 
             # set up state and energy info
             b_ener = self.bra_obj.energy(b_st)
@@ -378,25 +581,26 @@ class Transition(interaction.Interaction):
             de3    = de**3
 
             # electric tensors
-            mu     = self.multipole['e_dipole_l'][:, bk_indx]
-            Qab    = self.multipole['e_quadrupole_l'][:, :, bk_indx]
-            Oabc   = self.multipole['e_octupole_l'][:, :, :, bk_indx]
+            mu     = self.multipole['e_dipole_l'][:, indx]
+            Qab    = self.multipole['e_quadrupole_l'][:, :, indx]
+            Oabc   = self.multipole['e_octupole_l'][:, :, :, indx]
             # magnetic tensors
-            mdp    = self.multipole['m_dipole_v'][:, bk_indx]
-            Mqp    = self.multipole['m_quadrupole_v'][:, :, bk_indx]
+            mdp    = self.multipole['m_dipole_v'][:, indx]
+            Mqp    = self.multipole['m_quadrupole_v'][:, :, indx]
 
             # dipole oscillator strength - length gauge
-            f0_l[:, bk_indx] = (2.*de)*mu**2
+            f0_l[:, indx] = (2.*de) * (np.conj(mu)*mu).real
             # isotropically averaged value
-            f0_iso[bk_indx]  = np.sum(f0_l[:, bk_indx])/3.
+            f0_iso[indx]  = np.sum(f0_l[:, indx])/3.
 
             # compute second-order contributions
             # electric quadrupole contribution
-            fQ_iso  = np.sum(Qab**2) - (1./3.)*np.trace(Qab)**2
+            fQ_iso  = np.sum(np.conj(Qab)*Qab) - \
+                      (1./3.)*np.conj(np.trace(Qab))*np.trace(Qab)
             fQ_iso *= (de3 * alpha**2 / 20.)
 
             # magnetic dipole term
-            fm_iso  = (2.*de/3.) * np.sum(mdp**2) 
+            fm_iso  = (2.*de/3.) * np.sum(np.conj(mdp)*mdp) 
 
             # electric dipole - electric octupole term
             fuO_iso = np.sum(np.array([[mu[b]*Oabc[a,a,b]
@@ -406,7 +610,7 @@ class Transition(interaction.Interaction):
 
             # electric dipole - magnetic quadrupole term
             fuM_iso  = np.sum(np.array([[[
-                                 LeviCivita(a,b,c)*mu[b]*Mqp[c,a]
+                               LC[a,b,c] * mu[b] * Mqp[c,a]
                                for a in range(3)]
                                for b in range(3)]
                                for c in range(3)]))
@@ -414,19 +618,23 @@ class Transition(interaction.Interaction):
 
             # polarization dependent Osc strengths to come
             # later
-            f2_l[:, bk_indx] = np.zeros((3,), dtype=float)
+            f2_l[:, indx] = np.zeros((3,), dtype=float)
             # isotropically averaged value
-            f2_av = f0_iso[bk_indx] + \
+            f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
-            f2_iso[bk_indx] = f2_av
-                    
-        self.oscstr['f0_l']    = f0_l
-        self.oscstr['f0iso_l'] = f0_iso
+            if abs(f2_av.imag) > 0.1 * abs(f2_av):
+                print('discarding imaginary component of elec. dip'+
+                      ' - elec. oct term for transition '+str(tpair))
+            f2_iso[indx] = f2_av.real
+             
+        oscstr_l = {}
+        oscstr_l['f0_l']    = f0_l
+        oscstr_l['f0iso_l'] = f0_iso
 
-        self.oscstr['f2_l']    = f2_l
-        self.oscstr['f2iso_l'] = f2_iso
+        oscstr_l['f2_l']    = f2_l
+        oscstr_l['f2iso_l'] = f2_iso
 
-        return
+        return oscstr_l
 
     #
     @timing.timed
@@ -434,18 +642,24 @@ class Transition(interaction.Interaction):
         """builds the oscillator strength in the velocity gauge
            see J. Chem. Phys. 143, 234103 (2015) for details."""
 
-        ntrans = len(self.trans_list[0])
+        ntrans = len(self.trans_list)
 
         f0_v   = np.zeros((3, ntrans), dtype=float)
         f0_iso = np.zeros((ntrans), dtype=float)
         f2_v   = np.zeros((3, ntrans), dtype=float)
         f2_iso = np.zeros((ntrans), dtype=float)
 
-        for tpair in self.trans_list[0]:
+        # Levi-Civita 3x3x3 tensor
+        LC     = np.asarray([[[LeviCivita(a,b,c) for a in range(3)]
+                                                 for b in range(3)]
+                                                 for c in range(3)],
+                                                 dtype=float)
+
+        for tpair in self.trans_list:
     
-            b_st    = tpair[0]
-            k_st    = tpair[1]
-            bk_indx = self.trans_index(b_st, k_st, 0)
+            b_st = tpair[0]
+            k_st = tpair[1]
+            indx = self.trans_list.index([b_st, k_st])
  
             # set up state and energy info
             b_ener = self.bra_obj.energy(b_st)
@@ -456,25 +670,26 @@ class Transition(interaction.Interaction):
             de3    = de**3
 
             # electric tensors
-            mu     = self.multipole['e_dipole_v'][:, bk_indx]
-            Qab    = self.multipole['e_quadrupole_v'][:, :, bk_indx]
-            Oabc   = self.multipole['e_octupole_v'][:, :, :, bk_indx]
+            mu     = self.multipole['e_dipole_v'][:, indx]
+            Qab    = self.multipole['e_quadrupole_v'][:, :, indx]
+            Oabc   = self.multipole['e_octupole_v'][:, :, :, indx]
             # magnetic tensors
-            mdp    = self.multipole['m_dipole_v'][:, bk_indx]
-            Mqp    = self.multipole['m_quadrupole_v'][:, :, bk_indx]
+            mdp    = self.multipole['m_dipole_v'][:, indx]
+            Mqp    = self.multipole['m_quadrupole_v'][:, :, indx]
 
             # dipole oscillator strength - length gauge
-            f0_v[:, bk_indx] = (2./de)*mu**2
+            f0_v[:, indx] = (2./de) * (np.conj(mu)*mu).real
             # isotropically averaged value
-            f0_iso[bk_indx]  = np.sum(f0_v[:, bk_indx])/3.
+            f0_iso[indx]  = np.sum(f0_v[:, indx])/3.
 
             # compute second-order contributions
             # electric quadrupole contribution
-            fQ_iso  = np.sum(Qab**2) - (1./3.)*np.trace(Qab)**2
+            fQ_iso  = np.sum(np.conj(Qab)*Qab) - \
+                      (1./3.)*np.conj(np.trace(Qab))*np.trace(Qab)
             fQ_iso *= (de * alpha**2) / 20.
 
             # magnetic dipole term
-            fm_iso  = (de * alpha**2 / 6.) * np.sum(mdp**2)
+            fm_iso  = (de * alpha**2 / 6.) * np.sum(np.conj(mdp)*mdp)
 
             # electric dipole - electric octupole term
             fuO_iso = np.sum(np.array([[mu[b]*Oabc[a,a,b]
@@ -484,7 +699,7 @@ class Transition(interaction.Interaction):
 
             # electric dipole - magnetic quadrupole term
             fuM_iso  = np.sum(np.array([[[
-                             LeviCivita(a,b,c)*mu[b]*Mqp[c,a]
+                               LC[a,b,c] * mu[b] * Mqp[c,a]
                                for a in range(3)]
                                for b in range(3)]
                                for c in range(3)]))
@@ -492,48 +707,46 @@ class Transition(interaction.Interaction):
 
             # polarization dependent Osc strengths to come
             # later
-            f2_v[:, bk_indx] = np.zeros(3, dtype=float)
+            f2_v[:, indx] = np.zeros(3, dtype=float)
             # isotropically averaged value
-            f2_av = f0_iso[bk_indx] + \
+            f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
-            f2_iso[bk_indx] = f2_av
+            if abs(f2_av.imag) > 0.1 * abs(f2_av):
+                print('discarding imaginary component of elec. dip'+
+                      ' - elec. oct term for transition '+str(tpair))
+            f2_iso[indx] = f2_av.real
 
-        self.oscstr['f0_v']    = f0_v
-        self.oscstr['f0iso_v'] = f0_iso
+        oscstr_v = {}
+        oscstr_v['f0_v']    = f0_v
+        oscstr_v['f0iso_v'] = f0_iso
 
-        self.oscstr['f2_v']    = f2_v
-        self.oscstr['f2iso_v'] = f2_iso
+        oscstr_v['f2_v']    = f2_v
+        oscstr_v['f2iso_v'] = f2_iso
 
-        return
+        return oscstr_v
 
     #
     @timing.timed
-    def build_natural_orbs(self):
-        """build the natural difference orbitals and natural transition
-           orbitals"""
+    def build_ntos(self):
+        """build the natural transition orbitals"""
 
-        ntrans = len(self.trans_list[0])
-        nmo    = self.bra_obj.scf.nmo
-        nao    = self.bra_obj.scf.mol.nao
-        mos    = self.bra_obj.scf.orbs
+        ntrans = len(self.trans_list)
+        nmo    = self.scf.nmo
+        nao    = self.mol.nao
+        mos    = self.scf.orbs
 
         nto    = np.zeros((nao, nmo, ntrans), dtype=float)
-        ndo    = np.zeros((nao, nmo, ntrans), dtype=float)
         nto_wt = np.zeros((nmo, ntrans), dtype=float)
-        ndo_wt = np.zeros((nmo, ntrans), dtype=float)
 
-        for tpair in self.trans_list[0]:
+        for tpair in self.trans_list:
 
-            b_st    = tpair[0]
-            k_st    = tpair[1]
-            bk_indx = self.trans_index(b_st, k_st, 0)
+            b_st = tpair[0]
+            k_st = tpair[1]
+            indx = self.trans_list.index([b_st, k_st])
 
-            tdm = self.tdm1(b_st, k_st)
+            tdm = self.tdm(b_st, k_st)
             if tdm is None:
                 continue
-
-            rdm_bra = self.bra_obj.rdm1(b_st)
-            rdm_ket = self.ket_obj.rdm1(k_st)
 
             # first perform SVD of 1TDMs to get hole and
             # particle orbitals and weights and convert
@@ -565,8 +778,54 @@ class Transition(interaction.Interaction):
             wt_pairs[0::2]    = -s_srt[:npairs] 
             wt_pairs[1::2]    =  s_srt[:npairs]
 
-            nto[:, :2*npairs, bk_indx] = nto_pairs
-            nto_wt[:2*npairs, bk_indx] = wt_pairs
+            nto[:, :2*npairs, indx] = nto_pairs
+            nto_wt[:2*npairs, indx] = wt_pairs
+
+        nto = {}
+        nto['nto']    = nto
+        nto['nto_wt'] = nto_wt
+
+        return nto
+
+    #
+    @timing.timed
+    def build_ndos(self):
+        """ build natural difference orbitals"""
+
+        # first check if bra and ket objects define an
+        # rdm method. If not, return an empty dictionary
+        
+        try:
+            if (hasattr(self.bra_obj.__class__, 'rdm') and 
+                 callable(getattr(self.bra_obj.__class__, 'rdm')) and
+                  hasattr(self.ket_obj.__class__, 'rdm') and
+                    callable(getattr(self.ket_obj.__class__, 'rdm'))):
+                rdm_exists = True
+            else:
+                rdm_exists = False
+        except:
+            rdm_exists = False
+
+        if not rdm_exists:
+            return {}
+
+
+        ntrans = len(self.trans_list)
+        nmo    = self.scf.nmo
+        nao    = self.mol.nao
+        mos    = self.scf.orbs
+
+        ndo    = np.zeros((nao, nmo, ntrans), dtype=float)
+        ndo_wt = np.zeros((nmo, ntrans), dtype=float)
+
+        for tpair in self.trans_list:
+
+            b_st = tpair[0]
+            k_st = tpair[1]
+            indx = self.trans_list.index([b_st, k_st])
+
+            rdm_bra = self.bra_obj.rdm(b_st)
+            rdm_ket = self.ket_obj.rdm(k_st)
 
             # next construct the natural difference densities
             delta      = rdm_bra - rdm_ket
@@ -579,7 +838,7 @@ class Transition(interaction.Interaction):
             # orbitals to start, then particle
             ordr    = np.argsort(wt)
             ndo_srt = ndo_ao[:,ordr]
-            wt_srt  = wt[ordr]         
+            wt_srt  = wt[ordr]
 
             npairs  = sum(chk > 0.01 for chk in wt_srt)
 
@@ -591,31 +850,30 @@ class Transition(interaction.Interaction):
             wt_pairs[0::2]    = wt_srt[:npairs]
             wt_pairs[1::2]    = wt_srt[-1:-npairs-1:-1]
 
-            ndo[:, :2*npairs, bk_indx] = ndo_pairs
-            ndo_wt[:2*npairs, bk_indx] = wt_pairs
+            ndo[:, :2*npairs, indx] = ndo_pairs
+            ndo_wt[:2*npairs, indx] = wt_pairs
 
-        self.nos['ndo']    = ndo
-        self.nos['ndo_wt'] = ndo_wt
-        self.nos['nto']    = nto
-        self.nos['nto_wt'] = nto_wt
+        ndo = {}
+        ndo_nto['ndo']    = ndo
+        ndo_nto['ndo_wt'] = ndo_wt
 
-        return
+        return ndo
 
     #
     #@timing.timed
-    def ints_ao2mo(self, mol, scf, ao_ints):
+    def ints_ao2mo(self, ao_ints):
         """contract ao_tensor with the mos to convert to mo basis"""
 
         # mos from scf objects
-        mos     = scf.orbs
+        mos     = self.scf.orbs
 
         # get dimension(s) 1-particle expansion
         nao     = ao_ints.shape[-1]
 
         # ensure this is consistent with mo length
-        if mol.nao != nao:
+        if self.mol.nao != nao:
             print('error in ints_ao2mo: mol.nao != ao_ints.shape[-1]: '
-                    +str(mol.nao)+' != '+str(nao))
+                    +str(self.mol.nao)+' != '+str(nao))
             sys.exit(1)
 
         return np.einsum('...pq,pi,qj->...ij', ao_ints, mos, mos, 
@@ -652,11 +910,11 @@ class Transition(interaction.Interaction):
 
         # get the dimsensions of each rank 
         rank_dim = mo_ints.shape[:-2]
-        ntrans   = len(self.trans_list[0])
-        tens     = np.zeros((rank_dim + (ntrans,)), dtype=float)
+        ntrans   = len(self.trans_list)
+        tens     = np.zeros((rank_dim + (ntrans,)), dtype=np.cdouble)
 
-        for tpair in self.trans_list[0]:
-            indx = self.trans_index(tpair[0], tpair[1], 0)
+        for tpair in self.trans_list:
+            indx = self.trans_list.index(tpair)
             tdm = self.tdms[:, :, indx]
             tens[..., indx] = self.contract_tdm(mo_ints, tdm)
 
@@ -667,37 +925,55 @@ class Transition(interaction.Interaction):
         """print summary output to log file"""
         # for each initial state, write out a table of 
         # oscillator strenghts and transition dipole moments
-        bsym_lbl = self.bra_obj.scf.mol.irreplbl
-        ksym_lbl = self.bra_obj.scf.mol.irreplbl
-
         # print the header
         output.print_transition_header(self.label)
 
+        # get the list of ket states
+        ket_states = self.get_states('ket')
+        bra_states = self.get_states('bra')
+
+        # get state symmetries. If not defined, use C1 sym labels
+        ket_syms = self.get_syms('ket_states')
+        if ket_syms is None:
+            ket_syms = [0]*len(ket_states)
+            ksym_lbl = ['A']*len(ket_states)
+        else:
+            ksym_lbl = self.scf.mol.irreplbl
+
+        bra_syms = self.get_syms('bra_states')
+        if bra_syms is None:
+            bra_syms = [0]*len(bra_states)
+            bsym_lbl = ['A']*len(bra_states)
+        else:
+            bsym_lbl = self.scf.mol.irreplbl
+
+
         # print a 'transition table' for each initial state
-        for iket in self.ket_list[0]:
+        for iket in range(len(ket_states)):
             
             # shift state indices from 0..n-1 to 1..n
-            init_st   = iket + 1
-            init_sym  = ksym_lbl[self.ket_obj.state_sym(iket)[0]]
+            init_st   = ket_states[iket]+1
+            init_sym  = ksym_lbl[ket_syms[iket]]
             final_st  = []
             final_sym = []
             exc_ener  = []
             osc_str   = [[] for i in range(5)]     
 
-            for tpair in self.trans_list[0]:
-          
-                b_st = tpair[0]
-                k_st = tpair[1]
-                indx = self.trans_index(b_st, k_st, 0)
+            for ibra in range(len(bra_states)):
 
-                if k_st != iket:
-                    continue    
+                # if [iket,ibra] not in trans_list, continue to
+                # next pair
+                try:
+                    indx = self.trans_list.index([bra_states[ibra], 
+                                                  ket_states[iket]])
+                except:
+                    continue
 
                 # shift state indices from 0..n-1 to 1..n
-                final_st.append(b_st+1)
-                final_sym.append(bsym_lbl[self.bra_obj.state_sym(b_st)[0]]) 
-                exc_ener.append(self.bra_obj.energy(b_st) - 
-                                self.ket_obj.energy(k_st)) 
+                final_st.append(bra_states[ibra]+1)
+                final_sym.append(bsym_lbl[bra_syms[ibra]])
+                exc_ener.append(self.bra_obj.energy(bra_states[ibra]) - 
+                                self.ket_obj.energy(ket_states[iket])) 
                 osc_str[0].append(self.oscstr['f0iso_l'][indx])
                 osc_str[1].append(self.oscstr['f2iso_l'][indx])
                 osc_str[2].append(self.oscstr['f0iso_v'][indx])
@@ -720,44 +996,44 @@ class Transition(interaction.Interaction):
         return
 
     #
-    def export_orbitals(self, orb_format='molden', orb_dir=True):
+    def export_orbitals(self, orb_type='nto', orb_format='molden', 
+                                              orb_dir=True):
         """export all transition/difference density orbitals that
            in the object"""
 
-        orb_types = ['nto', 'ndo']
-        for tpair in self.trans_list[0]:
-            for otype in orb_types:
-                self.export_orbitals_tran(tpair[0], tpair[1], 
-                                          orb_type=otype, 
-                                          file_format=orb_format, 
-                                          orb_dir=orb_dir)
+        # if orb_type not 
+        if orb_type not in list(self.nos.keys()):
+            print(' orb_type=' + str(orb_type) + ' not in ' + 
+                                      str(list(self.nos.keys())))
+            return False
 
-        return
+        for tpair in self.trans_list:
+            self.export_orbitals_tran(tpair[0], tpair[1], 
+                                      orb_type=orb_type, 
+                                      file_format=orb_format, 
+                                      orb_dir=orb_dir)
+
+        return True
 
     #
     def export_orbitals_tran(self, bra, ket, orb_type='nto', 
-                                    file_format='molden', orb_dir=True):
+                            file_format='molden', orb_dir=True):
         """print the natural transition orbitals and difference
            densities to file"""
         orb_types = ['nto', 'ndo']
-        otype     = str(orb_type).lower()
-        indx      = self.trans_index(bra, ket, 0)
 
+        indx      = self.trans_list.index([bra, ket])
         if indx is None:
             print("bra="+str(bra)+" ket="+str(ket)+
                     " not in list of transitions")
             return False
 
-        if otype not in orb_types:
+        if orb_type not in list(self.nos.keys()):
             print("orbital format: "+orb_type+" not recognized.")
             return False
 
-        b_sym = self.bra_obj.state_sym(bra)[0]
-        k_sym = self.ket_obj.state_sym(ket)[0] 
-
-        fname = otype.lower() + \
-                  '.'+ str(ket+1)+'_' +str(k_sym.lower()) + \
-                  '.'+ str(bra+1)+'_' +str(b_sym.lower()) + \
+        fname = orb_type.lower() + \
+                  '_'+ str(ket+1)+'-' +str(bra+1) + \
                   '_'+ str(file_format).lower() + str(self.label)
 
         if orb_dir:
@@ -769,7 +1045,7 @@ class Transition(interaction.Interaction):
         if os.path.isfile(fname):
             os.remove(fname)
 
-        wts = self.nos[otype+'_wt'][:, indx]
+        wts = self.nos[orb_type+'_wt'][:, indx]
         ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
 
         # import the appropriate library for the file_format
@@ -781,8 +1057,8 @@ class Transition(interaction.Interaction):
             sys.exit(1)
 
         orbtype.write_orbitals(fname, 
-                               self.bra_obj.scf.mol, 
-                               self.nos[otype][:,:ncols, indx],
+                               self.mol, 
+                               self.nos[orb_type][:,:ncols, indx],
                                occ=wts[:ncols])
 
         return

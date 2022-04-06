@@ -4,7 +4,6 @@ for a given electronic state
 """
 import numpy as np
 import graci.utils.timing as timing
-import graci.utils.constants as constants
 
 class Moments:
     """Moment class for determing permanent and transition moments, right now

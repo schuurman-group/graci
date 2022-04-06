@@ -11,11 +11,12 @@ import json as json
 import graci.core.params as params
 import graci.core.molecule as molecule
 import graci.core.parameterize as parameterize
-import graci.methods.scf as scf
+import graci.core.scf as scf
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrenpt2 as dftmrenpt2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
+import graci.interaction.overlap as overlap
 import graci.utils.timing as timing
 import graci.io.output as output
 
@@ -73,7 +74,7 @@ def write(graci_obj, file_name=None):
 
     # first write the datasets
     for name, dset in dsets.items():
-
+        
         # if dataset exists, delete it
         if name in obj_grp.keys():
             del obj_grp[name]

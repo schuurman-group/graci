@@ -46,8 +46,8 @@ def tdm(bra, ket, trans_list):
                 (2*npairs), order='F')
 
             # total number of bra and ket roots for this irrep
-            bra_tot = bra.n_state_sym(bra_irr)
-            ket_tot = ket.n_state_sym(ket_irr)
+            bra_tot = bra.n_states_sym(bra_irr)
+            ket_tot = ket.n_states_sym(ket_irr)
 
             # 1-TDM array
             rhoij = np.zeros((nmo*nmo*npairs), dtype=np.float64)

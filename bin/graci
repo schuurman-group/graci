@@ -20,12 +20,13 @@ def main():
     # read command line options
     read_cmdline()
 
-    # parse input
-    job_array = parse.parse_input()
+    # parse input, construct list of objects and 
+    # put them in obj_array
+    obj_array = parse.parse_input()
 
     # build and run computation
-    drive_obj = driver.Driver()    
-    drive_obj.run(job_array)
+    graci_driver = driver.Driver()    
+    graci_driver.run(obj_array)
 
     # cleanup
     output.print_cleanup()

@@ -46,8 +46,8 @@ def redmat(bra, ket, trans_list):
                 (2*npairs), order='F')
 
             # total number of bra and ket roots for this irrep
-            bra_tot = bra.n_state_sym(bra_irr)
-            ket_tot = ket.n_state_sym(ket_irr)
+            bra_tot = bra.n_states_sym(bra_irr)
+            ket_tot = ket.n_states_sym(ket_irr)
 
             # Triplet TDM array
             uij = np.zeros((nmo*nmo*npairs), dtype=np.float64)
@@ -94,3 +94,19 @@ def clebsch_gordan(bra, ket):
     cgcoe = np.reshape(cgcoe, (3*mult_ket, mult_bra), order='F')
     
     return cgcoe
+
+#
+def clebsch_gordan_index(S, M, s1, m1, k):
+    """
+    returns the indices for the Clebsch-Gordan coefficient
+    < s1 m1; 1 k | S M > given the array of values returned
+    from clebsch_gordan
+    """
+
+    i = int(M + S)
+    i1  = int(m1 + s1) + 1
+    i2  = k + 2
+    i12 = (i1 - 1) * 3 + i2 - 1
+
+    return i, i12
+

@@ -227,9 +227,9 @@ def print_refdiag_summary(ci_method):
     
         nirr = len(ci_method.nstates)
         for i in range(nirr):
-            if ci_method.n_state_sym(i) > 0:
+            if ci_method.n_states_sym(i) > 0:
                 outfile.write('\n')
-                for n in range(ci_method.n_state_sym(i)):
+                for n in range(ci_method.n_states_sym(i)):
                     outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
                         .format(n+1, ci_method.scf.mol.irreplbl[i],
                         ci_method.ref_ener[i,n],
@@ -465,11 +465,11 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
 
             if np.abs(soc_cm) > thrsh:
                 print(fstr.format(stlbl[i][0],
-                                  stlbl[i][1] + 1,
-                                  stlbl[i][2],
+                                  stlbl[i][2] + 1,
+                                  stlbl[i][3],
                                   stlbl[j][0],
-                                  stlbl[j][1] + 1,
-                                  stlbl[j][2],
+                                  stlbl[j][2] + 1,
+                                  stlbl[j][3],
                                   np.real(soc_cm),
                                   np.imag(soc_cm),
                                   'cm-1'))
@@ -518,9 +518,30 @@ def print_hsoc_eig(eig, vec, hdim, stlbl):
                     np.real(vec[indx[j], i]),
                     np.imag(vec[indx[j], i]),
                     stlbl[indx[j]][0],
-                    stlbl[indx[j]][1] + 1,
-                    stlbl[indx[j]][2],))
+                    stlbl[indx[j]][2] + 1,
+                    stlbl[indx[j]][3],))
 
         print(delim)
                 
+    return
+
+
+def print_overlap_header(label):
+    """print out Overlap section header"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'Overlap, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN)+'\n')
+        outfile.flush()
+
     return

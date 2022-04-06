@@ -22,7 +22,7 @@ def init(bra, ket, calctype):
     nelKet  = ket.nel
     nmo     = bra.scf.nmo
     
-    # not sure what this is about...
+    # catch instances of C1 symmetry
     if bra.scf.mol.sym_indx <= 0:
         pgrp = 1
     else:

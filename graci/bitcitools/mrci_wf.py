@@ -31,7 +31,7 @@ def extract_wf(ci_method):
         # States for which the WFs are required (note that bitCI
         # uses Fortran indexing here)
         states = np.array([n+1 for n in 
-               range(ci_method.n_state_sym(irr))], dtype=int)
+               range(ci_method.n_states_sym(irr))], dtype=int)
 
         # No. states
         nstates = states.size
