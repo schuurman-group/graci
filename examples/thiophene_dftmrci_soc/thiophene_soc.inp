@@ -24,26 +24,24 @@
  $dftmrci section
  label        = singlet
  mult         = 1
- nstates      = 4 3 3 3
+ nstates      = [4 3 3 3]
  hamiltonian  = grimme_standard
  $end
 
  $dftmrci section
  label        = triplet
  mult         = 3
- nstates      = 4 3 3 3
+ nstates      = [4 3 3 3]
  hamiltonian  = grimme_standard
- ras1         = 20:23
- ras3         = 24:27
+ ras1         = [20:23]
+ ras3         = [24:27]
  nhole1       = 2
  nelec3       = 2
  $end
 
  $spinorbit section
- init_label   = singlet
- final_label  = triplet
- init_states  = 1:4
- final_states = 1:4
+ couple_groups  = [singlet triplet]
+ couple_states  = [1:4] [1:4]
  $end
 
  

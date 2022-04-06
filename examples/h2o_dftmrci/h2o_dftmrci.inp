@@ -14,7 +14,7 @@
  $end
 
  $dftmrci section
- nstates      = 4 4 4 4
+ nstates      = [4 4 4 4]
  hamiltonian  = grimme_standard
  autoras      = True
  nhole1       = 2
