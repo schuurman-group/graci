@@ -328,5 +328,68 @@ contains
   end function ndocc_ref
   
 !######################################################################
+! get_ref_docc_mos: determines the subspace of MOs that are
+!                   doubly-occupied across all reference configurations  
+!######################################################################
+  subroutine get_ref_docc_mos(cfg,ndocc,docc)
+
+    use constants
+    use bitglobal
+    use bitutils
+    use conftype
+
+    implicit none
+
+    ! Configuration derived data type
+    type(mrcfg), intent(in)  :: cfg
+
+    ! Doubly-occupied MO information
+    integer(is), intent(out) :: ndocc
+    integer(is), intent(out) :: docc(nmo)
+
+    ! Bit string encoding of the doubly-occupied MOs
+    integer(ib)              :: Id(n_int)
+
+    ! Everything else
+    integer(is)              :: n,k
+
+!----------------------------------------------------------------------
+! Compute the bit string encoding of the MOs that are doubly-occupied
+! across all reference configurations
+!----------------------------------------------------------------------
+    ! Initialisation
+    Id=0_ib
+    Id(1:cfg%n_int_I)=cfg%sop0h(:,2,1)
+
+    ! Loop over reference configurations
+    do n=2,cfg%n0h
+
+       ! Loop over blocks
+       do k=1,cfg%n_int_I
+
+          Id(k)=iand(Id(k), cfg%sop0h(k,2,n))
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Size of the doubly-occupied space
+!----------------------------------------------------------------------
+    ndocc=0
+    do k=1,n_int
+       ndocc=ndocc+popcnt(Id(k))
+    enddo
+
+!----------------------------------------------------------------------
+! List of doubly-occupied MO indices
+!----------------------------------------------------------------------
+    call list_from_bitstring(Id,docc,nmo)
+    
+    return
+    
+  end subroutine get_ref_docc_mos
+    
+!######################################################################
   
 end module confinfo
