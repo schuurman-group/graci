@@ -58,6 +58,7 @@ class Dftmrci(cimethod.Cimethod):
         self.diag_blocksize = []
         self.diag_deflate   = False
         self.save_wf        = False
+        self.label          = 'Dftmrci'
 
         # No. extra ref space roots needed
         # for various tasks

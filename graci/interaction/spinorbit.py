@@ -24,13 +24,13 @@ class Spinorbit(interaction.Interaction):
         
         # user defined quanties 
         #-----------------------------------------------------------
-        self.label         = 'spinorbit'
         self.print_thresh  = 1.
         self.mf2e          = 'atomic'
         # group of objects to couple
         self.couple_groups = [None]
         # states from each object to couple
         self.couple_states = [None]
+        self.label         = 'Spinorbit'
 
         #
         # Private variables -- should not be directly referenced

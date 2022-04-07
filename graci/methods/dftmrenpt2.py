@@ -51,6 +51,7 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.refiter        = 3
         self.ref_prune      = True
         self.save_wf        = False
+        self.label          = 'Dftmrenpt2'
 
         # class variables
         # No. extra ref space roots needed
