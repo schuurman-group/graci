@@ -71,18 +71,6 @@ contains
     integer(is)              :: old,sumd,istart,iend
     integer(is)              :: rdim
     real(dp)                 :: rnorm
-
-    !! TEST
-    !real(dp) :: norm1(100),thrsh
-    !integer(is) :: iscratch
-    !norm1=0.0d0
-    !call freeunit(iscratch)
-    !open(iscratch,file='psi1_norm',form='unformatted',status='unknown')
-    !do i=1,nroots(0)
-    !   read(iscratch) norm1(i)
-    !enddo
-    !close(iscratch)
-    !! TEST
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -149,12 +137,6 @@ contains
           ! for this root
           call fill_above_threshold(id,nconf,cfg(irrep),&
                start,vecscr(irrep),i,cthrsh)
-
-          ! TEST
-          !thrsh=0.0612d0/(cosh(norm1(i)*3.3d0)**2)
-          !call fill_above_threshold(id,nconf,cfg(irrep),&
-          !     start,vecscr(irrep),i,thrsh)
-          ! TEST
           
        enddo
 
@@ -260,11 +242,11 @@ contains
 !######################################################################
 #ifdef CBINDING
   subroutine refine_ref_space_pt2(confscrM,confscrR,vecscr,Qscr,&
-       nroots,alpha,beta,minrnorm,ndconf) &
+       nroots,cmin,alpha,beta,minrnorm,ndconf) &
        bind(c,name="refine_ref_space_pt2")
 #else
   subroutine refine_ref_space_pt2(confscrM,confscrR,vecscr,Qscr,&
-       nroots,alpha,beta,minrnorm,ndconf)
+       nroots,cmin,alpha,beta,minrnorm,ndconf)
 #endif
 
     use constants
@@ -290,7 +272,7 @@ contains
     integer(is), intent(in)  :: nroots(0:nirrep-1)
   
     ! Configuration selection parameters
-    real(dp), intent(in)     :: alpha,beta
+    real(dp), intent(in)     :: cmin,alpha,beta
   
     ! Minimum reference space norm
     real(dp), intent(out)    :: minrnorm
@@ -418,9 +400,11 @@ contains
        ! Loop over roots for the current irrep
        do i=1,nroots(irrep)
 
+          ! Selection threshold for this root
+          thrsh=max(cmin, alpha/(cosh(beta*Qnorm(i,irrep))**2))
+          
           ! Fill in the indices of the above-threshold configurations
           ! for this root
-          thrsh=alpha/(cosh(beta*Qnorm(i,irrep))**2)
           call fill_above_threshold(id,nconf,cfg(irrep),start,&
                vecscr(irrep),i,thrsh)
                     

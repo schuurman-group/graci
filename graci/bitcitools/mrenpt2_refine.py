@@ -34,9 +34,10 @@ def refine_ref_space(ci_method):
     # No. roots per irrep
     nstates = ci_method.n_states_sym()
 
-    # Configuration selection parameters
-    alpha = 0.061
-    beta  = 3.3
+    # Dynamical configuration selection parameters
+    cmin  = 0.015
+    alpha = 0.055
+    beta  = 3.300
     
     # Minimum reference space norm
     min_norm = 0.
@@ -49,7 +50,7 @@ def refine_ref_space(ci_method):
     
     # Refine the reference space
     args = (ci_confunits, ref_confunits, ci_ciunits, ci_qunits,
-            nstates, alpha, beta, min_norm, ref_nconf)
+            nstates, cmin, alpha, beta, min_norm, ref_nconf)
     (confunits_ref, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space_pt2', args)
 
