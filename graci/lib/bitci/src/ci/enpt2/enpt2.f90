@@ -30,7 +30,7 @@ contains
     use bitglobal
     use conftype
     use iomod
-    
+
     implicit none
 
     ! MRCI configuration derived type
@@ -69,7 +69,7 @@ contains
 
     ! Everything else
     integer(is)                     :: i
-    
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -135,7 +135,7 @@ contains
     deallocate(iroots)
     deallocate(vec0)
     deallocate(harr2)
-    
+
     return
     
   end subroutine enpt2
@@ -1112,7 +1112,7 @@ contains
 
           ! Energy correction
           E2(j)=E2(j)+Avec(icsf,j)**2/(e0(j)-hdiag(icsf))
-
+          
           ! A-vector element
           Avec(icsf,j)=Avec(icsf,j)/(e0(j)-hdiag(icsf))
 

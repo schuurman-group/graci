@@ -32,11 +32,13 @@ def corrections(ci_method):
     # Bitci ref space eigenvector scratch file numbers
     ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
 
-    # Initialise the list to hold the eigenvector scratch file
-    # numbers
+    # Initialise the list to hold the eigenvector and Q-space
+    # scratch file numbers
     ciunit  = 0
     ciunits = []
-
+    qunit   = 0
+    qunits  = []
+    
     # Loop over irreps
     for irrep in range(nirr):
 
@@ -47,12 +49,13 @@ def corrections(ci_method):
         nextra = ci_method.nextra['enpt2'][irrep]
         
         args = (irrep, nroots, nextra, shift, multistate, ci_confunits,
-                ciunit, ref_ciunits)
+                ciunit, ref_ciunits, qunit)
 
-        ciunit = libs.lib_func('mrenpt2', args)
+        ciunit, qunit = libs.lib_func('mrenpt2', args)
 
-        # Bitci eigenvector scratch number
+        # Bitci eigenvector and Q-space scratch numbers
         ciunits.append(ciunit)
+        qunits.append(qunit)
 
     # Retrieve the MR-ENPT2 energies
     maxroots = max(ci_method.n_states_sym())
@@ -82,4 +85,4 @@ def corrections(ci_method):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)  
     
-    return ciunits, ciname, ener
+    return ciunits, ciname, ener, qunits
