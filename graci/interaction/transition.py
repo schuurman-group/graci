@@ -297,7 +297,7 @@ class Transition(interaction.Interaction):
                                  ' geometry and basis set')
 
         else:
-            scf_b = self.get_obj(self.state_grps['bra'][0])
+            scf_b = self.get_obj(self.state_grps['bra'][0]).scf
 
         return scf_b, scf_b.mol.pymol()
 

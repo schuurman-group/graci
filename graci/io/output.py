@@ -369,10 +369,10 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         outfile.write(    '\n ------------------------------------------')
 
         header  = '\n\n  Initial     Final    Exc Ener                  '
-        header += '              Oscillator Strength (V)\n'
+        header += '             Oscillator Strength (V)\n'
         undr_str = '-' * (len(header))
 
-        header += '  State       State      (eV)      f0(L)    f0(V)'
+        header += '  State       State      (eV)     f0(L)    f0(V)'
         header += '    f2(V)       x        y        z'
 
         #f2(L) is actually mixed gauge and often gives nonsensical results:
