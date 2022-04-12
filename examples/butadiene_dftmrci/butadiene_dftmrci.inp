@@ -21,7 +21,7 @@
  $end
 
  $dftmrci section
- nstates      = 11
+ nstates      = [11]
  hamiltonian  = grimme_standard
  $end
 

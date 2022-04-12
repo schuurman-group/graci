@@ -40,9 +40,12 @@ def generate(ci_method):
     emax = ci_method.ref_ener[ci_method.ref_ener != 0].max()
 
     # CVS core MO flags
-    cvsflag = np.zeros(nmo, dtype=int)
+    cvs_flag = np.zeros(nmo, dtype=int)
     for i in ci_method.icvs:
-        cvsflag[i-1] = 1
+        cvs_flag[i-1] = 1
+
+    # DDCI flag
+    ddci_flag = ci_method.ddci
     
     ref_ciunits = np.array(ref_wfn.ci_units, dtype=int)
     nroots      = ci_method.n_states_sym()
@@ -51,7 +54,8 @@ def generate(ci_method):
     eq_units = np.zeros(nirr, dtype=int)
 
     # Generate the MRCI configurations for all irreps
-    args = (nroots, ref_confunits, ci_confunits, nconf, emax, cvsflag)
+    args = (nroots, ref_confunits, ci_confunits, nconf, emax, cvs_flag,
+            ddci_flag)
     (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
     
     # Loop over irreps

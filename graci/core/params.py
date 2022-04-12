@@ -50,6 +50,7 @@ dftmrci_kword  = {'mult'           : int,
                   'diag_deflate'   : bool,
                   'print_orbitals' : bool,
                   'save_wf'        : bool,
+                  'ddci'           : bool,
                   'label'          : str
                  }
 
@@ -71,6 +72,7 @@ dftmrenpt2_kword  = {'mult'           : int,
                      'ref_prune'      : bool,
                      'print_orbitals' : bool,
                      'save_wf'        : bool,
+                     'ddci'           : bool,
                      'label'          : str
                      }
 

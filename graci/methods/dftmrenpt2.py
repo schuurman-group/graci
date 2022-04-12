@@ -14,7 +14,7 @@ import graci.bitcitools.ref_diag as ref_diag
 import graci.bitcitools.ref_prune as ref_prune
 import graci.bitcitools.mrci_space as mrci_space
 import graci.bitcitools.mrenpt2 as mrenpt2
-import graci.bitcitools.mrci_refine as mrci_refine
+import graci.bitcitools.mrenpt2_refine as mrenpt2_refine
 import graci.bitcitools.mrci_1rdm as mrci_1rdm
 import graci.bitcitools.mrci_wf as mrci_wf
 import graci.io.output as output
@@ -64,6 +64,8 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.mrci_wfn       = None
         # reference space energies
         self.ref_ener       = None
+        # Q-space norm file numbers
+        self.qunits         = None
         # dictionary of bitci wfns
         self.bitciwfns      = {}
 
@@ -137,19 +139,21 @@ class Dftmrenpt2(cimethod.Cimethod):
             self.mrci_wfn.set_confname(mrci_conf_files)
 
             # MR-ENPT2 calculation
-            mrci_ci_units, mrci_ci_files, mrci_ener_sym = \
+            mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units = \
                 mrenpt2.corrections(self)
-            # set the wfn unit numbers, file names and energies
+            # set the wfn unit numbers, file names, energies and
+            # Q-space info unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
             self.mrci_wfn.set_ciname(mrci_ci_files)
             self.energies_sym = mrci_ener_sym
+            self.qunits       = q_units
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
 
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
-                    mrci_refine.refine_ref_space(self)
+                    mrenpt2_refine.refine_ref_space(self)
             self.ref_wfn.set_nconf(n_ref_conf)
             self.ref_wfn.set_confunits(ref_conf_units)
 

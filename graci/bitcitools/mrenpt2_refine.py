@@ -1,5 +1,5 @@
 """
-Module for the refinement of the reference space in an MRCI calculation
+Module for the refinement of the reference space in an MRENPT2 calculation
 """
 
 import sys
@@ -28,13 +28,17 @@ def refine_ref_space(ci_method):
     # Bitci eigenvector scratch file numbers
     ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
 
+    # Bitci Q-space info scratch file numbers
+    ci_qunits = np.array(ci_method.qunits, dtype=int)
+
     # No. roots per irrep
     nstates = ci_method.n_states_sym()
 
-    # Configuration selection threshold. We will just hardcode this
-    # for now
-    cthrsh = 0.055
-        
+    # Dynamical configuration selection parameters
+    cmin  = 0.015
+    alpha = 0.055
+    beta  = 3.300
+    
     # Minimum reference space norm
     min_norm = 0.
 
@@ -45,10 +49,9 @@ def refine_ref_space(ci_method):
     ref_nconf = np.zeros(nirr, dtype=int)
     
     # Refine the reference space
-    args = (ci_confunits, ref_confunits, ci_ciunits, nstates, cthrsh, 
-            min_norm, ref_nconf)
+    args = (ci_confunits, ref_confunits, ci_ciunits, ci_qunits,
+            nstates, cmin, alpha, beta, min_norm, ref_nconf)
     (confunits_ref, min_norm, ref_nconf) = \
-            libs.lib_func('refine_ref_space', args)
+            libs.lib_func('refine_ref_space_pt2', args)
 
-    #return min_norm.value
     return min_norm, ref_nconf, ref_confunits

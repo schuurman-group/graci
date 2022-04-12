@@ -4,10 +4,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
-     vecscr,vec0scr) bind(c,name="mrenpt2")
+     vecscr,vec0scr,Qscr) bind(c,name="mrenpt2")
 #else
 subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
-       vecscr,vec0scr)
+       vecscr,vec0scr,Qscr)
 #endif
 
   use constants
@@ -43,6 +43,9 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
 
+  ! Q-space info scratch file number
+  integer(is), intent(out) :: Qscr
+  
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
 
@@ -70,7 +73,7 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=60)        :: vecfile
+  character(len=60)        :: vecfile,Qfile
   character(len=2)         :: amult,airrep
   
   ! Everything else
@@ -80,6 +83,7 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   real(dp)                 :: norm
   real(dp), allocatable    :: Smat(:,:),Sinvsq(:,:)
   real(dp), allocatable    :: Elow(:)
+  real(dp), allocatable    :: Qnorm(:),Qener(:)
   
   ! Timing variables
   real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
@@ -143,6 +147,12 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
 
   allocate(Elow(nroots))
   Elow=0.0d0
+
+  allocate(Qnorm(nroots))
+  Qnorm=0.0d0
+
+  allocate(Qener(nroots))
+  Qener=0.0d0
   
   allocate(indx(nvec))
   indx=0
@@ -180,6 +190,16 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
           vec0scr(irrep),Avec,E2,nvec,shift,multistate)
   endif
 
+  !! TEST
+  !call dsortindxa1('A',nvec,E0+E2,indx)
+  !call freeunit(iscratch)
+  !open(iscratch,file='psi1_norm',form='unformatted',status='unknown')
+  !do i=1,nroots
+  !   write(iscratch) sqrt(dot_product(Avec(:,indx(i)),Avec(:,indx(i))))
+  !enddo
+  !close(iscratch)
+  !! TEST
+  
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
 !----------------------------------------------------------------------
@@ -188,8 +208,8 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   enddo
   
 !----------------------------------------------------------------------
-! Mix the 1st-order corrected wave functions using the QDPT2
-! coefficients
+! If this a multi-state calculation, then mix the 1st-order corrected
+! wave functions using the QDPT2 coefficients
 !----------------------------------------------------------------------
   if (multistate) then
      work=Avec
@@ -215,6 +235,44 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   do i=1,nroots
      Elow(i)=EPT2(indx(i))
   enddo
+
+!----------------------------------------------------------------------
+! Write the Q-space information to disk
+!----------------------------------------------------------------------
+  ! Norms of the 1st-order wave corrections
+  do i=1,nroots
+     Qnorm(i)=sqrt(dot_product(Avec(refdim:cfg%csfdim,indx(i)),&
+          Avec(refdim:cfg%csfdim,indx(i))))
+  enddo
+
+  ! Energy corrections
+  do i=1,nroots
+     Qener(i)=E2(indx(i))
+  enddo
+  
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('Qinfo'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),Qfile)
+  call register_scratch_file(Qscr,Qfile)
+
+  ! Open the scratch file
+  iscratch=scrunit(Qscr)
+  open(iscratch,file=scrname(Qscr),form='unformatted',&
+       status='unknown')
+
+  ! Number of roots
+  write(iscratch) nroots
+  
+  ! Norms of the wave function corrections
+  write(iscratch) Qnorm
+
+  ! Energy corrections
+  write(iscratch) Qener
+  
+  ! Close the scratch file
+  close(iscratch)
   
 !----------------------------------------------------------------------
 ! 1st-order corrected wave functions for the nroots lowest energy
@@ -287,7 +345,7 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
    do i=1,nroots
       write(iscratch) Avec_ortho(:,i)
    enddo
-   
+
    ! Close the scratch file
    close(iscratch)
 
@@ -303,6 +361,8 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   deallocate(E2)
   deallocate(EPT2)
   deallocate(Elow)
+  deallocate(Qnorm)
+  deallocate(Qener)
   deallocate(indx)
   deallocate(Smat)
   deallocate(Sinvsq)

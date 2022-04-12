@@ -1,5 +1,5 @@
 """
-Module for computing DFT/MRCI energies
+Module for computing CI and CI+PT2 energies
 """
 import os as os
 import sys as sys
@@ -10,7 +10,7 @@ import graci.utils.timing as timing
 import graci.io.output as output
 
 class Cimethod:
-    """Class constructor for DFT/MRCI object"""
+    """Class constructor for CI objects"""
     def __init__(self):
         # user defined quanties
         self.charge         = 0
@@ -18,6 +18,7 @@ class Cimethod:
         self.nstates        = []
         self.print_orbitals = False
         self.save_wf        = False
+        self.ddci           = True
 
         # class variables
         # total number of electrons
