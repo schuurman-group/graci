@@ -291,11 +291,18 @@ def check_input(run_list):
                 if hasattr(obj, key):
                     if len(getattr(obj, key)) != 0:
                         obj.autoras = False
-                    
+
+        # Spinorbit _has_ to enter states as a vector, just shift state
+        # indices
+        if type(obj).__name__ == 'Spinorbit':
+            # shift statesby 1 to internal/C ordering
+            obj.couple_states -= 1
+
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
         if (type(obj).__name__ == 'Transition' or 
-            type(obj).__name__ == 'Sotransition'):
+            type(obj).__name__ == 'Sotransition') or
+            type(obj).__name__ == 'Overlap')):
             if obj.init_states is not None:
                 if not isinstance(obj.init_states, (list, np.ndarray)):
                     obj.init_states = np.array([obj.init_states])
@@ -305,23 +312,6 @@ def check_input(run_list):
             # shift statesby 1 to internal/C ordering
             obj.init_states  -= 1
             obj.final_states -= 1
-
-        # Spinorbit _has_ to enter states as a vector, just shift state
-        # indices
-        if type(obj).__name__ == 'Spinorbit': 
-            # shift statesby 1 to internal/C ordering
-            obj.couple_states -= 1
-
-        if type(obj).__name__ == 'Overlap':
-            if obj.bra_states is not None:
-                if not isinstance(obj.bra_states, (list, np.ndarray)):
-                    obj.bra_states = np.array([obj.bra_states])
-            if obj.ket_states is not None:
-                if not isinstance(obj.ket_states, (list, np.ndarray)):
-                    obj.ket_states = np.array([obj.ket_states])
-            # shift statesby 1 to internal/C ordering
-            obj.bra_states -= 1
-            obj.ket_states -= 1
 
     return
     
