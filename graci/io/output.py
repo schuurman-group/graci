@@ -293,48 +293,61 @@ def print_cleanup():
     return
 
 #
-def print_moments_header():
-    """prints out header for moments section"""
-
-    with output_file(file_names['out_file'], 'a+') as outfile:
-        ostr =    '\n\n\n --------------------------------------------'
-        ostr = ostr + '\n Dipole and Quadrupole Moments'
-        ostr = ostr + '\n --------------------------------------------'
-        outfile.write(ostr)
-
-    return
-
-#
-def print_moments(st, irr, mu, q2):
+def print_moments(states, irr, momts):
     """prints out the dipole moment vector"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        st_str = str(st+1)+' ('+str(irr)+')'
+        ostr =    '\n\n\n --------------------------------------------'
+        ostr = ostr + '\n Electronic Moments'
+        ostr = ostr + '\n --------------------------------------------'
+        outfile.write(ostr)
 
-        outfile.write('\n state: '+st_str)
-        outfile.write(  '\n ----------')
-        ostr = '\n dipole vector[au]: {:10.6f} {:10.6f} {:10.6f} '+\
-                'total: {:10.6f} D'
-        outfile.write(ostr.format(mu[0],mu[1],mu[2],
-                        np.linalg.norm(mu)*constants.au2debye))
+        ostr =      '\n\n Dipole Moments'
+        ostr = ostr + '\n --------------'
+        outfile.write(ostr)
+        ostr =      '\n\n Dipole moment components are given in a.u.,'+ \
+                         ' the total moment is in Debye'
+        outfile.write(ostr)
+        ostr = '\n\n {:8s} {:10s} {:10s} {:10s}    {:10s}'
+        outfile.write(ostr.format('state'.rjust(8), 'x   '.rjust(10),
+                                  'y   '.rjust(10), 'z   '.rjust(10),
+                                  'total (D)'.rjust(10)))
 
-        ostr = '\n <'+st_str+' | r^2 | '+st_str+'> (a.u.): {:10.6f}\n'
-        outfile.write(ostr.format(q2))
+        for ist in range(len(states)):
+            st_str = str(states[ist]+1)+' ('+str(irr[ist])+')'
+            mu_vec = momts.dipole(states[ist])
+            mu     = np.linalg.norm(mu_vec)*constants.au2debye
+
+            ostr = '\n {:8s} {:10.6f} {:10.6f} {:10.6f}    {:10.6f}'
+            outfile.write(ostr.format(st_str.rjust(8), mu_vec[0], 
+                                      mu_vec[1], mu_vec[2], mu))
+
+        ostr =      '\n\n Quadrupole Moments'
+        ostr = ostr + '\n ------------------'
+        outfile.write(ostr)
+        ostr =  '\n\n All quadrupole tensor elements are given in a.u.'
+        ostr += '\n Qij is traceless: Qij = 3rirj - r^2 * delta[i,j]'
+        outfile.write(ostr)
+        ostr = '\n\n {:8s} {:9s} {:9s} {:9s} {:9s} {:9s} {:9s} {:9s}' 
+        outfile.write(ostr.format('state'.rjust(8), 'xx  '.rjust(9), 
+                                  'xy  '.rjust(9),  'xz  '.rjust(9), 
+                                  'yy  '.rjust(9),  'yz  '.rjust(9), 
+                                  'zz  '.rjust(9),  'r^2 '.rjust(9)))
+
+        for ist in range(len(states)):
+            st_str = str(states[ist]+1)+' ('+str(irr[ist])+')'
+            q_tens = momts.quadrupole(states[ist])
+            q2     = momts.second_moment(states[ist])
+
+            ostr = '\n {:8s} {:9.4f} {:9.4f} {:9.4f} {:9.4f} {:9.4f} {:9.4f} {:9.4f}'
+            outfile.write(ostr.format(st_str.rjust(8), q_tens[0,0], 
+                                      q_tens[0,1], q_tens[0,2],
+                                      q_tens[1,1], q_tens[1,2],
+                                      q_tens[2,2], q2))
 
     return
 
 #
-def print_quad(st, irr, qtensor):
-    """prints out the quadrupole moment tensor"""
-
-    with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n\n quadrupole moment tensor -- \n')
-        ostr = '\n {:10.6f}   {:10.6f}   {:10.6f}'
-        for i in range(3):
-            outfile.write(ostr.format(qtensor[i,0],qtensor[i,1],qtensor[i,2]))
-        
-    return
-
 def print_transition_header(label):
     """ print out Transition section header"""
 

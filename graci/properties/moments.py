@@ -39,7 +39,7 @@ class Moments:
         q2_ao = self.mol.pymol().intor('int1e_r2')
 
         # load the dipole vector and quadrupole arrays
-        (nst, nmo1, nmo2) = self.natorb.shape
+        (nst, nao, nmo)  = self.natorb.shape
         self.dipole_vec  = np.zeros((nst, 3), dtype=float)
         self.quad_tensor = np.zeros((nst, 3, 3), dtype=float)
         self.second_momt = np.zeros((nst,), dtype=float)
@@ -48,12 +48,18 @@ class Moments:
             no_ao = self.natorb[ist, :, :]
             occ   = self.natocc[ist, :]
             rdm_ao = np.matmul(np.matmul(no_ao, np.diag(occ)), no_ao.T)
-            self.second_momt[ist]  = np.sum(rdm_ao*q2_ao)
+
             self.dipole_vec[ist,:] = np.einsum('xij,ij->x',mu_ao, rdm_ao)
-            
-            qtens = np.einsum('xij,ij->x',q_ao.reshape((9,nmo1,nmo2)), 
+
+            self.second_momt[ist]  = np.sum(rdm_ao*q2_ao)
+
+            qtens = np.einsum('xij,ij->x',q_ao.reshape((9,nao,nmo)), 
                                                                   rdm_ao)
-            self.quad_tensor[ist,:,:]  = qtens.reshape((3,3))
+
+            # traceless quad tensor defined as: 
+            # Q = 3*xi*xj - r^2 * delta_ij
+            self.quad_tensor[ist,:,:]  = 3*qtens.reshape((3,3)) - \
+                  self.second_momt[ist] * np.identity(3, dtype=float)
 
         return
 

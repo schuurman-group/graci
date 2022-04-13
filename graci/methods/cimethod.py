@@ -25,10 +25,6 @@ class Cimethod:
         self.nel            = 0
         # SCF object
         self.scf            = None 
-        # Max no. iterations of the ref space refinement 
-        self.niter          = 0
-        # print quadrupoles
-        self.print_quad     = False
         # reference occupation 
         self.ref_occ        = None
         # Energies, by adiabatic state

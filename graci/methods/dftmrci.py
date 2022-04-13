@@ -197,21 +197,10 @@ class Dftmrci(cimethod.Cimethod):
         # default.
         momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)
         momts.run()
- 
-        output.print_moments_header()
-        for ist in range(n_tot):
-            [irr, st_sym] = self.state_sym(ist)
-            output.print_moments(
-                        ist,
-                        self.scf.mol.irreplbl[irr],
-                        momts.dipole(ist),
-                        momts.second_moment(ist))
-  
-            if self.print_quad:
-                output.print_quad(
-                        ist,
-                        self.scf.mol.irreplbl[irr],
-                        momts.quadrupole(ist))
+        states = [i for i in range(n_tot)]
+        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]] 
+                  for i in range(n_tot)]
+        output.print_moments(states, syms, momts)
 
         return
     
