@@ -189,6 +189,12 @@ class Dftmrenpt2(cimethod.Cimethod):
         if self.print_orbitals:
             self.export_orbitals(orb_format='molden')
 
+        # also compute attachment and detachment numbers
+        # (relative to ground state)
+        ndo, ndo_wt = self.build_ndos(0, basis='mo')
+        pd, pa      = self.promotion_numbers(ndo, ndo_wt)
+        output.print_promotion(0, states, syms, pd, pa)
+
         # we'll also compute 1-electron properties by
         # default.
         momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)

@@ -199,7 +199,69 @@ class Cimethod:
             self.natorb_sym[ist, :]    = syms
 
         return
-  
+ 
+    #
+    @timing.timed
+    def build_ndos(self, ref_state, basis='mo'):
+        """ build natural difference orbitals"""
+
+        # first check if bra and ket objects define an
+        # rdm method. If not, return an empty dictionary
+
+        nmo    = self.scf.nmo
+        nao    = self.scf.mol.nao
+        mos    = self.scf.orbs
+
+        ndo    = np.zeros((nao, nmo, self.n_states()), dtype=float)
+        ndo_wt = np.zeros((nmo, self.n_states()), dtype=float)
+
+        for ist in range(self.n_states()):
+
+            if ist == ref_state:
+                continue
+
+            # delta is the different 1RDM between ist and
+            # reference state (likely the ground state)
+            delta = self.rdm(ist) - self.rdm(ref_state) 
+
+            # form different natural orbitals and transform
+            wt, ndo_mo = np.linalg.eigh(delta)
+
+            # sort NDO wts by increasing magnitude (hole 
+            # orbitals to start, then particle
+            ordr           = np.argsort(wt)
+            ndo_wt[:, ist] = wt[ordr].copy()
+            if basis == 'ao':
+                ndo_ao         = mos @ ndo_mo
+                ndo[:, :, ist] = ndo_ao[:,ordr].copy()
+            else:
+                ndo[:, :, ist] = ndo_mo[:,ordr].copy()            
+
+        return ndo, ndo_wt
+
+    # 
+    def promotion_numbers(self, ndos, ndo_wts):
+        """compute the detachment and attachment promotion numbers
+           for a given set of NDOs"""
+
+        (nao, nmo, nst) = ndos.shape
+        p_detach        = np.zeros(nst, dtype=float)
+        p_attach        = np.zeros(nst, dtype=float)        
+
+        for ist in range(nst):
+
+            wt_mat = np.diag([wt if wt < 0. else 0. for
+                                                wt in ndo_wts[:, ist]])
+            d_mat  = ndos[:,:,ist] @ wt_mat @ ndos[:,:,ist].transpose()
+            p_detach[ist] = np.trace(d_mat)
+
+            wt_mat = np.diag([wt if wt > 0. else 0. for
+                                                wt in ndo_wts[:, ist]])
+            d_mat  = ndos[:,:,ist] @ wt_mat @ ndos[:,:,ist].transpose()
+            p_attach[ist] = np.trace(d_mat)
+
+        return p_detach, p_attach
+
     # 
     def natural_orb(self, istate, basis='ao'):
         """return natural orbitals and occupations for state 'istate' """
@@ -358,4 +420,3 @@ class Cimethod:
                                occ=occ, sym_lbl=sym_lbl, cart=None)
 
         return
-

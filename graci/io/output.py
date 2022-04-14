@@ -293,6 +293,33 @@ def print_cleanup():
     return
 
 #
+def print_promotion(ref, states, irr, pd, pa):
+    """print attachment and detachment numbers for a set of states,
+       relative to state 'ref'"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        ostr =      '\n\n --------------------------------------------'
+        ostr = ostr + '\n Promotion Numbers'
+        ostr = ostr + '\n --------------------------------------------'
+        outfile.write(ostr)
+
+        ostr = '\n\n {:8s} -> {:8s}  {:10s}  {:10s}'
+        outfile.write(ostr.format('state'.rjust(8), 
+                                  'state'.rjust(8),
+                                  'P(detach)'.rjust(10), 
+                                  'P(attach)'.rjust(10)))
+
+        for ist in range(len(states)):
+            st_str1 = str(states[ref]+1)+' ('+str(irr[ref])+')'
+            st_str2 = str(states[ist]+1)+' ('+str(irr[ist])+')'
+            ostr = '\n {:8s} -> {:8s}  {:10.4f}  {:10.4f}'
+            outfile.write(ostr.format(st_str1.rjust(8),
+                                      st_str2.rjust(8),
+                                      pd[ist], pa[ist]))
+
+    return
+
+#
 def print_moments(states, irr, momts):
     """prints out the dipole moment vector"""
 
