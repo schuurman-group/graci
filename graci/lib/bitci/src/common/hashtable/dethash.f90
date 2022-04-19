@@ -1,6 +1,9 @@
 !######################################################################
 ! dethash: Routines for the creation of a hash table to store the
-!          unique determinants, configurations and SOPs.
+!          unique determinants, configurations and SOPs. Also allows
+!          for the optional storage of 4-byte integer values, which
+!          can be used for simple labeling of the stored det/conf/SOP
+!          keys.
 !----------------------------------------------------------------------
 !          Uses open addressing with linear probing and the 32-bit
 !          MurmurHash3 hash function.

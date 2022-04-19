@@ -313,7 +313,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   !do irrep=0,nirrep-1
   !   call check_confs(ntotal(irrep),n_int_I,nmoI,cfgM(irrep))
   !enddo
-  
+
 !----------------------------------------------------------------------
 ! Check on the number of 'active' MOs. That is, the number of variably
 ! occupied MOs across all configurations
@@ -486,7 +486,7 @@ subroutine check_confs(ntotal,n_int_I,nmoI,cfgM)
      enddo
 
   endif
-     
+
 !----------------------------------------------------------------------
 ! 1E configurations
 !----------------------------------------------------------------------
@@ -591,7 +591,7 @@ subroutine check_confs(ntotal,n_int_I,nmoI,cfgM)
      enddo
 
   endif
-     
+  
 !----------------------------------------------------------------------
 ! Did we generate any duplicate configurations?
 !----------------------------------------------------------------------
