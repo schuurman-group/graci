@@ -1420,7 +1420,7 @@ contains
 !----------------------------------------------------------------------
 ! Initialise the hash table
 !----------------------------------------------------------------------    
-    initial_size=nrec2I*bufsize+cfgM%n0h+cfgM%n1I
+    initial_size=(nrec2I*bufsize)/3+cfgM%n0h+cfgM%n1I
     call h%initialise_table(initial_size)
 
 !----------------------------------------------------------------------
@@ -1645,7 +1645,7 @@ contains
 !----------------------------------------------------------------------
 ! Initialise the hash table
 !----------------------------------------------------------------------    
-    initial_size=nrec1I1E*bufsize+cfgM%n1E
+    initial_size=(nrec1I1E*bufsize)/3+cfgM%n1E
     call h%initialise_table(initial_size)
 
 !----------------------------------------------------------------------

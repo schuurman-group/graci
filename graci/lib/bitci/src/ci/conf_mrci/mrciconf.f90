@@ -187,6 +187,9 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! (b) Two internal holes, one internal electron and one external
 !     electron
 !----------------------------------------------------------------------
+! Important: this routine must be called *after* the generation of
+!            the 1I and 1E confs have been generated
+!----------------------------------------------------------------------
   call generate_2I_1I1E_confs(E0max,cfgM,icvs,ddci)
   
 !----------------------------------------------------------------------
