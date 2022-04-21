@@ -72,12 +72,25 @@ def corrections(ci_method):
 
     # Retrieve the MR-ENPT2 eigenvector scratch file names
     ciname = []
-    name    = ''
+    name   = ''
     for irrep in range(nirr):
         args = (ciunits[irrep], name)
         name = libs.lib_func('retrieve_filename', args)
         ciname.append(name)
 
+    # Optional truncation of the MR-ENPT2 1st-order corrected
+    # wave functions
+    if ci_method.truncate:
+        
+        for irrep in range(nirr):
+            thresh = 0.95
+            nroots = ci_method.n_states_sym(irrep)
+            args   = (irrep, nroots, ci_confunits[irrep],
+                      ciunits[irrep], thresh)            
+            libs.lib_func('truncate_mrci_wf', args)
+
+        sys.exit('\n Remember that the new no. confs per irrep, etc needs saving')
+            
     # Print the report of the MR-ENPT2 states 
     output.print_dftmrenpt2_states_header()
     ciunits = np.array(ciunits, dtype=int)

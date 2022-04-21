@@ -190,16 +190,6 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
           vec0scr(irrep),Avec,E2,nvec,shift,multistate)
   endif
 
-  !! TEST
-  !call dsortindxa1('A',nvec,E0+E2,indx)
-  !call freeunit(iscratch)
-  !open(iscratch,file='psi1_norm',form='unformatted',status='unknown')
-  !do i=1,nroots
-  !   write(iscratch) sqrt(dot_product(Avec(:,indx(i)),Avec(:,indx(i))))
-  !enddo
-  !close(iscratch)
-  !! TEST
-  
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
 !----------------------------------------------------------------------
@@ -315,7 +305,7 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   ! Orthogonalise
   Avec(:,1:nroots)=Avec_ortho
   Avec_ortho=matmul(Avec(:,1:nroots),Sinvsq)
-  
+
 !----------------------------------------------------------------------
 ! Write the 2nd-order corrected energies and 1st-order corrected
 ! wave functions to disk

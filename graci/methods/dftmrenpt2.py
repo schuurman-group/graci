@@ -38,9 +38,10 @@ class Dftmrenpt2(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
+        self.truncate       = True
         self.shift          = 0.
         self.multistate     = False
-        self.hamiltonian    = 'canonical'
+        self.hamiltonian    = 'heil17_standard'
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
@@ -150,7 +151,7 @@ class Dftmrenpt2(cimethod.Cimethod):
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
-
+                
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
                     mrenpt2_refine.refine_ref_space(self)
@@ -189,6 +190,11 @@ class Dftmrenpt2(cimethod.Cimethod):
         if self.print_orbitals:
             self.export_orbitals(orb_format='molden')
 
+        # build the list and symmetries for subsequent printing
+        states = [i for i in range(n_tot)]
+        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
+                  for i in range(n_tot)]
+            
         # also compute attachment and detachment numbers
         # (relative to ground state)
         ndo, ndo_wt = self.build_ndos(0, basis='mo')

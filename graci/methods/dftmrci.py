@@ -37,7 +37,7 @@ class Dftmrci(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
-        self.hamiltonian    = 'canonical'
+        self.hamiltonian    = 'heil17_standard'
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
