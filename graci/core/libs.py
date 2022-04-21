@@ -68,7 +68,8 @@ bitci_registry = {
     'mrenpt2'                : ['int32','int32','int32','double',
                                 'logical','int32','int32','int32',
                                 'int32'],
-    'truncate_mrci_wf'       : ['int32','int32','int32','int32','double']
+    'truncate_mrci_wf'       : ['int32','int32','int32','int32',
+                                'double','int32']
 }
 
 bitci_intent = {
@@ -103,7 +104,7 @@ bitci_intent = {
                                 'in','out'],
     'mrenpt2'                : ['in','in','in','in','in','in','out',
                                 'in','out'],
-    'truncate_mrci_wf'       : ['in','in','in','in','in']
+    'truncate_mrci_wf'       : ['in','in','in','in','in','out']
 }
 
 
