@@ -41,12 +41,14 @@ contains
     ! Surviving configuration flags
     integer(is), intent(out) :: i1I(n1I),i2I(n2I),i1E(n1E),i2E(n2E),&
                                 i1I1E(n1I1E)
+
+    ! Working array
+    real(dp), allocatable    :: work(:)
     
     ! Everything else
-    integer(is)              :: n,n1,ioff,csf,root
-
-    integer(is)              :: i
+    integer(is)              :: i,n,n1,ioff,csf,root
     integer(is), allocatable :: indx(:),iok(:)
+    integer(is)              :: refdim
     real(dp)                 :: sumsq,goal
 
 !----------------------------------------------------------------------
@@ -54,30 +56,39 @@ contains
 !----------------------------------------------------------------------
     allocate(indx(csfdim), iok(csfdim))
 
+    allocate(work(csfdim))
+    
     i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
     
 !----------------------------------------------------------------------
 ! Determine the indices of the dominant CSFs
 !----------------------------------------------------------------------
+    ! Dimension of the ref space
+    refdim=cfg%csfs0h(cfg%n0h+1)-1
+
     iok=0
     
     ! Loop over roots
     do n1=1,nroots
        n=vecmap(n1)
+
+       ! Makesure that the first refdim elements are zeroed
+       work=0.0d0
+       work(refdim+1:csfdim)=Avec(refdim+1:csfdim,n)
        
        ! Sort the A-vector elements in order of decreasing absolute
        ! value
-       call dsortindxa1('D',csfdim,abs(Avec(:,n)),indx)
+       call dsortindxa1('D',csfdim,abs(work),indx)
 
        ! Truncation threshold
-       goal=Athrsh*dot_product(Avec(:,n),Avec(:,n))
+       goal=Athrsh*dot_product(work,work)
 
        ! Determine which CSFs need to be included to reach the
        ! desired squared A-vector norm
        sumsq=0.0d0
        do i=1,csfdim
           
-          sumsq=sumsq+Avec(indx(i),n)**2
+          sumsq=sumsq+work(indx(i))**2
           
           iok(indx(i))=1
           

@@ -38,6 +38,10 @@ def corrections(ci_method):
     ciunits = []
     qunit   = 0
     qunits  = []
+
+    # Number of configurations per irrep (this can change if wave
+    # function truncation is being used)
+    nconf = np.array(ci_method.mrci_wfn.nconf, dtype=int)
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -72,12 +76,24 @@ def corrections(ci_method):
 
     # Retrieve the MR-ENPT2 eigenvector scratch file names
     ciname = []
-    name    = ''
+    name   = ''
     for irrep in range(nirr):
         args = (ciunits[irrep], name)
         name = libs.lib_func('retrieve_filename', args)
         ciname.append(name)
 
+    # Optional truncation of the MR-ENPT2 1st-order corrected
+    # wave functions
+    if ci_method.truncate:
+        for irrep in range(nirr):
+            thresh       = ci_method.truncate_thresh
+            nroots       = ci_method.n_states_sym(irrep)
+            nconf_new    = 0
+            args         = (irrep, nroots, ci_confunits[irrep],
+                            ciunits[irrep], thresh, nconf_new)
+            (nconf_new)  = libs.lib_func('truncate_mrci_wf', args)
+            nconf[irrep] = nconf_new
+    
     # Print the report of the MR-ENPT2 states 
     output.print_dftmrenpt2_states_header()
     ciunits = np.array(ciunits, dtype=int)
@@ -85,4 +101,4 @@ def corrections(ci_method):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)  
     
-    return ciunits, ciname, ener, qunits
+    return ciunits, ciname, ener, qunits, nconf

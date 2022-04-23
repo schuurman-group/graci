@@ -38,20 +38,22 @@ class Dftmrenpt2(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
-        self.shift          = 0.
-        self.multistate     = False
-        self.hamiltonian    = 'canonical'
-        self.ras1           = []
-        self.ras2           = []
-        self.ras3           = []
-        self.nhole1         = 0
-        self.nelec3         = 0
-        self.autoras        = False
-        self.icvs           = []
-        self.refiter        = 3
-        self.ref_prune      = True
-        self.save_wf        = False
-        self.label          = 'Dftmrenpt2'
+        self.truncate        = True
+        self.truncate_thresh = 0.9
+        self.shift           = 0.
+        self.multistate      = False
+        self.hamiltonian     = 'heil17_standard'
+        self.ras1            = []
+        self.ras2            = []
+        self.ras3            = []
+        self.nhole1          = 0
+        self.nelec3          = 0
+        self.autoras         = False
+        self.icvs            = []
+        self.refiter         = 3
+        self.ref_prune       = True
+        self.save_wf         = False
+        self.label           = 'Dftmrenpt2'
 
         # class variables
         # No. extra ref space roots needed
@@ -139,8 +141,14 @@ class Dftmrenpt2(cimethod.Cimethod):
             self.mrci_wfn.set_confname(mrci_conf_files)
 
             # MR-ENPT2 calculation
-            mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units = \
+            mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units, n_conf_new = \
                 mrenpt2.corrections(self)
+
+            # set the new number of mrci confs if wave function
+            # truncation is being used
+            if self.truncate:
+                self.mrci_wfn.set_nconf(n_conf_new)            
+                        
             # set the wfn unit numbers, file names, energies and
             # Q-space info unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
@@ -150,7 +158,7 @@ class Dftmrenpt2(cimethod.Cimethod):
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
-
+                
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
                     mrenpt2_refine.refine_ref_space(self)
@@ -189,6 +197,11 @@ class Dftmrenpt2(cimethod.Cimethod):
         if self.print_orbitals:
             self.export_orbitals(orb_format='molden')
 
+        # build the list and symmetries for subsequent printing
+        states = [i for i in range(n_tot)]
+        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
+                  for i in range(n_tot)]
+            
         # also compute attachment and detachment numbers
         # (relative to ground state)
         ndo, ndo_wt = self.build_ndos(0, basis='mo')
