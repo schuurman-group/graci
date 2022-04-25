@@ -366,7 +366,7 @@ contains
     return
     
   end function det_hash
-  
+
 !######################################################################
 ! det_sym: given a determinant d, returns the integer label of the
 !          irrep that it generates

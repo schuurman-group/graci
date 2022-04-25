@@ -21,7 +21,14 @@
  $end
 
  $dftmrci section
+ label        = valence
  nstates      = [11]
  hamiltonian  = grimme_standard
  $end
 
+ $transition section
+ init_label   = valence
+ final_label  = valence
+ init_states  = [1]
+ final_states = [2:11]
+ $end

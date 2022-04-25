@@ -71,12 +71,19 @@ contains
        
 !----------------------------------------------------------------------
 ! (1) Generate the 2I and 1I1E configurations for all irreps
+!     *** including duplicates ***
 !----------------------------------------------------------------------
     call builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM(0),icvs,ddci,idoccR,&
          E0max,file2I,file1I1E,nrec2I,nrec1I1E)
 
 !----------------------------------------------------------------------
-! (2) Sort the 2I and 1I1E configurations by irrep
+! (2) Remove the duplicate 2I and 1I1E configurations
+!----------------------------------------------------------------------
+    call remove_duplicates_2I(n2I,cfgM,file2I,nrec2I)
+    call remove_duplicates_1I1E(n1I1E,cfgM,file1I1E,nrec1I1E)
+    
+!----------------------------------------------------------------------
+! (3) Sort the 2I and 1I1E configurations by irrep
 !----------------------------------------------------------------------
     call sort_2I_1I1E(cfgM,file2I,file1I1E,nrec2I,nrec1I1E,n2I,n1I1E)
     
@@ -440,8 +447,8 @@ contains
           ! Flag creation operators as forbidden if they will
           ! produce duplicate confs based on the excitations linking
           ! the current ref conf to all other ref confs
-          call remove_creators_1H1I(n,cfgM%nR,rhp,ia2h,ja2h,icreate1,&
-               ncreate1)
+          !call remove_creators_1H1I(n,cfgM%nR,rhp,ia2h,ja2h,icreate1,&
+          !     ncreate1)
 
           ! Creation of 1H1I confs by the addition of electrons to
           ! the current 2-hole conf
@@ -522,8 +529,8 @@ contains
              ! confs, we need to flag those creation operators that
              ! would lead to duplicate confs based on the excitations
              ! linking the ref confs
-             if (ncreate2 /= 0) call remove_creators_2I(n,cfgM%nR,rhp,&
-                  ia2h,ja2h,iint1,icreate2,ncreate2)
+             !if (ncreate2 /= 0) call remove_creators_2I(n,cfgM%nR,rhp,&
+             !     ia2h,ja2h,iint1,icreate2,ncreate2)
 
              !
              ! Generate all the 1I1E confs resulting from the addition
@@ -729,13 +736,13 @@ contains
        nrec2I=nrec2I+1
        write(iscratch2I) nbuf2I,ibuf2I
     endif
-
+    
 !----------------------------------------------------------------------
 ! Close the configuration scratch files
 !----------------------------------------------------------------------
     close(iscratch2I)
     close(iscratch1I1E)
-
+    
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -1345,7 +1352,462 @@ contains
   end subroutine remove_creators_2I
 
 !######################################################################
-! sort_2I_1I1E: sorts and saves the 2I and 1I1E confg=igurations by
+! remove_duplicates_2I: removes the duplicate 2I configurations using
+!                       a hash table-based approach
+!######################################################################
+  subroutine remove_duplicates_2I(n2I,cfgM,file2I,nrec2I)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    use dethash
+    use iomod    
+
+    implicit none
+
+    ! Number of 2I configurations
+    integer(is), intent(inout)     :: n2I
+
+    ! MRCI configurations
+    type(mrcfg), intent(inout)     :: cfgM(0:nirrep-1)
+
+    ! Original 2I configuration scratch file
+    integer(is), intent(inout)    :: nrec2I
+    character(len=60), intent(in) :: file2I
+    integer(is), allocatable      :: ibuf(:,:)
+    integer(is)                   :: iscratch
+
+    ! New 2I configuration scratch file
+    integer(is)                   :: nrec2I_new
+    integer(is), allocatable      :: ibuf_new(:,:)
+    integer(is)                   :: iscratch_new
+    character(len=60)             :: file2I_new
+    
+    ! Hash table
+    type(dhtbl)                   :: h
+    integer(is)                   :: initial_size
+    integer(is)                   :: nold
+    integer(ib), allocatable      :: key(:,:)
+
+    ! Configuration bit strings
+    integer(ib), allocatable      :: conf(:,:),confI(:,:)
+    
+    ! Everything else
+    integer(is)                   :: irrep,i,n,ioff,imo,ic,jc,i2h
+    integer(is)                   :: irec,nbuf,nbuf_new
+    integer(is)                   :: n_int_I,n2I_new
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    n_int_I=cfgM(0)%n_int_I
+
+    allocate(ibuf(4,bufsize))
+    ibuf=0
+
+    allocate(ibuf_new(4,bufsize))
+    ibuf_new=0
+    
+    allocate(key(n_int,2))
+    key=0_ib
+    
+    allocate(conf(n_int,2))
+    conf=0_ib
+
+    allocate(confI(n_int_I,2))
+    confI=0_ib
+    
+!----------------------------------------------------------------------
+! Initialise the hash table
+!----------------------------------------------------------------------    
+    initial_size=(nrec2I*bufsize)/3+sum(cfgM(0:nirrep-1)%n0h) &
+         +sum(cfgM(0:nirrep-1)%n1I)
+    call h%initialise_table(initial_size)
+
+!----------------------------------------------------------------------
+! Insert the reference and 1I configurations into the hash table
+!----------------------------------------------------------------------
+    !
+    ! Ref confs
+    !
+    do irrep=0,nirrep-1
+       do i=1,cfgM(irrep)%n0h
+          key=0_ib
+          key(1:n_int_I,:)=cfgM(irrep)%conf0h(:,:,i)
+          call h%insert_key(key)
+       enddo
+    enddo
+       
+    !
+    ! 1I confs
+    !
+    ! Loop over irreps
+    do irrep=0,nirrep-1
+
+       ! Loop over 1-hole confs
+       do n=1,cfgM(irrep)%n1h
+
+          ! Loop over the 1I confs generated by this 1-hole conf
+          do ioff=cfgM(irrep)%off1I(n),cfgM(irrep)%off1I(n+1)-1
+             
+             ! Construct the configuration
+             imo=cfgM(irrep)%a1I(ioff)
+             conf=0_ib
+             conf(1:n_int_I,:)=cfgM(irrep)%conf1h(:,:,n)
+             key=create_electron(conf,n_int,imo)
+             
+             ! Insert the configuration into the hash table
+             call h%insert_key(key)
+             
+          enddo
+          
+       enddo
+
+    enddo
+       
+    !
+    ! Number of keys stored
+    !
+    nold=h%n_keys_stored
+    
+!----------------------------------------------------------------------
+! Open the 2I configuration scratch files
+!----------------------------------------------------------------------
+    ! Old scratch file including duplicates
+    call freeunit(iscratch)
+    open(iscratch,file=file2I,form='unformatted',status='old')
+
+    ! New scratch file with duplicates removed
+    call freeunit(iscratch_new)
+    call scratch_name('2I_new',file2I_new)
+    open(iscratch_new,file=file2I_new,form='unformatted',&
+         status='unknown')
+    
+!----------------------------------------------------------------------    
+! Find the unique 2I configurations
+!----------------------------------------------------------------------
+    ! Number of unique 2I confs
+    n2I_new=0
+
+    ! Initialise the buffer for the unique confs
+    nbuf_new=0
+    nrec2I_new=0
+    
+    ! Loop over records
+    do irec=1,nrec2I
+
+       ! Read in the next batch of confs
+       read(iscratch) nbuf,ibuf
+
+       ! Loop over the confs in the current batch
+       do i=1,nbuf
+
+          ! irrep
+          irrep=ibuf(1,i)
+          
+          ! 2-hole conf index
+          i2h=ibuf(2,i)
+          
+          ! Creation operator indices
+          ic=ibuf(3,i)
+          jc=ibuf(4,i)
+
+          ! Full 2I conf
+          confI=create_electron(cfgM(irrep)%conf2h(:,:,i2h),n_int_I,ic)
+          conf=0_ib
+          conf(1:n_int_I,:)=confI
+          key=create_electron(conf,n_int,jc)
+
+          ! Attempt an insertion into the hash table
+          call h%insert_key(key)
+
+          ! Save the conf if it is unique
+          if (h%n_keys_stored > nold) then
+
+             nold=h%n_keys_stored
+
+             n2I_new=n2I_new+1
+
+             nbuf_new=nbuf_new+1
+
+             ibuf_new(:,nbuf_new)=ibuf(:,i)
+             
+          endif
+
+          ! Dump the buffer to disk
+          if (nbuf_new == bufsize) then
+             nrec2I_new=nrec2I_new+1
+             write(iscratch_new) bufsize,ibuf_new
+             nbuf_new=0
+          endif
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Write the remaining buffer to disk
+!----------------------------------------------------------------------
+    if (nbuf_new /= 0) then
+       nrec2I_new=nrec2I_new+1
+       write(iscratch_new) nbuf_new,ibuf_new
+    endif
+
+!----------------------------------------------------------------------
+! New number of 2I confs
+!----------------------------------------------------------------------
+    n2I=n2I_new
+    
+!----------------------------------------------------------------------
+! New number of records
+!----------------------------------------------------------------------
+    nrec2I=nrec2I_new
+    
+!----------------------------------------------------------------------
+! Close the 2I configuration scratch files
+!----------------------------------------------------------------------
+    close(iscratch)
+    close(iscratch_new)
+
+!----------------------------------------------------------------------
+! Rename the new 2I scratch file
+!----------------------------------------------------------------------
+    call system('mv '//trim(file2I_new)//' '//trim(file2I))
+    
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(ibuf)
+    deallocate(key)
+    deallocate(conf)
+    deallocate(confI)
+    
+    return
+    
+  end subroutine remove_duplicates_2I
+
+!######################################################################
+! remove_duplicates_1I1E: removes the duplicate 1I1E configurations
+!                         using a hash table-based approach
+!######################################################################
+  subroutine remove_duplicates_1I1E(n1I1E,cfgM,file1I1E,nrec1I1E)
+
+    use constants
+    use bitglobal
+    use conftype
+    use mrciutils
+    use dethash
+    use iomod    
+
+    implicit none
+
+    ! Number of 1I1E configurations
+    integer(is), intent(inout)    :: n1I1E
+
+    ! MRCI configurations
+    type(mrcfg), intent(inout)    :: cfgM(0:nirrep-1)
+
+    ! Original 1I1E configuration scratch file
+    integer(is), intent(inout)    :: nrec1I1E
+    character(len=60), intent(in) :: file1I1E
+    integer(is), allocatable      :: ibuf(:,:)
+    integer(is)                   :: iscratch
+
+    ! New 1I1E configuration scratch file
+    integer(is)                   :: nrec1I1E_new
+    integer(is), allocatable      :: ibuf_new(:,:)
+    integer(is)                   :: iscratch_new
+    character(len=60)             :: file1I1E_new
+    
+    ! Hash table
+    type(dhtbl)                   :: h
+    integer(is)                   :: initial_size
+    integer(is)                   :: nold
+    integer(ib), allocatable      :: key(:,:)
+
+    ! Configuration bit strings
+    integer(ib), allocatable      :: conf(:,:),conf1(:,:)
+    
+    ! Everything else
+    integer(is)                   :: irrep,i,n,ioff,imo,ic,jc,i2h
+    integer(is)                   :: irec,nbuf,nbuf_new
+    integer(is)                   :: n_int_I,n1I1E_new
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    n_int_I=cfgM(0)%n_int_I
+
+    allocate(ibuf(4,bufsize))
+    ibuf=0
+
+    allocate(ibuf_new(4,bufsize))
+    ibuf_new=0
+    
+    allocate(key(n_int,2))
+    key=0_ib
+    
+    allocate(conf(n_int,2))
+    conf=0_ib
+
+    allocate(conf1(n_int,2))
+    conf1=0_ib
+    
+!----------------------------------------------------------------------
+! Initialise the hash table
+!----------------------------------------------------------------------    
+    initial_size=(nrec1I1E*bufsize)/3+sum(cfgM(0:nirrep-1)%n1E)
+    call h%initialise_table(initial_size)
+
+!----------------------------------------------------------------------
+! Insert the 1E configurations into the hash table
+!----------------------------------------------------------------------
+    ! Loop over irreps
+    do irrep=0,nirrep-1
+
+       ! Loop over 1-hole confs
+       do n=1,cfgM(irrep)%n1h
+          
+          ! Loop over the 1E confs generated by this 1-hole conf
+          do ioff=cfgM(irrep)%off1E(n),cfgM(irrep)%off1E(n+1)-1
+             
+             ! Construct the configuration
+             imo=cfgM(irrep)%a1E(ioff)
+             conf=0_ib
+             conf(1:n_int_I,:)=cfgM(irrep)%conf1h(:,:,n)
+             key=create_electron(conf,n_int,imo)
+             
+             ! Insert the configuration into the hash table
+             call h%insert_key(key)
+             
+          enddo
+          
+       enddo
+
+    enddo
+       
+    ! Number of keys stored
+    nold=h%n_keys_stored
+
+!----------------------------------------------------------------------
+! Open the 1I1E configuration scratch files
+!----------------------------------------------------------------------
+    ! Old scratch file including duplicates
+    call freeunit(iscratch)
+    open(iscratch,file=file1I1E,form='unformatted',status='old')
+
+    ! New scratch file with duplicates removed
+    call freeunit(iscratch_new)
+    call scratch_name('1I1E_new',file1I1E_new)
+    open(iscratch_new,file=file1I1E_new,form='unformatted',&
+         status='unknown')
+
+!----------------------------------------------------------------------    
+! Find the unique 1I1E configurations
+!----------------------------------------------------------------------
+    ! Number of unique 1I1E confs
+    n1I1E_new=0
+
+    ! Initialise the buffer for the unique confs
+    nbuf_new=0
+    nrec1I1E_new=0
+    
+    ! Loop over records
+    do irec=1,nrec1I1E
+
+       ! Read in the next batch of confs
+       read(iscratch) nbuf,ibuf
+
+       ! Loop over the confs in the current batch
+       do i=1,nbuf
+
+          ! irrep
+          irrep=ibuf(1,i)
+          
+          ! 2-hole conf index
+          i2h=ibuf(2,i)
+          
+          ! Creation operator indices
+          ic=ibuf(3,i)
+          jc=ibuf(4,i)
+
+          ! Full 1I1E conf
+          conf=0_ib
+          conf(1:n_int_I,:)=cfgM(irrep)%conf2h(:,:,i2h)
+          conf1=create_electron(conf,n_int,ic)
+          key=create_electron(conf1,n_int,jc)
+
+          ! Attempt an insertion into the hash table
+          call h%insert_key(key)
+
+          ! Save the conf if it is unique
+          if (h%n_keys_stored > nold) then
+
+             nold=h%n_keys_stored
+
+             n1I1E_new=n1I1E_new+1
+
+             nbuf_new=nbuf_new+1
+
+             ibuf_new(:,nbuf_new)=ibuf(:,i)
+             
+          endif
+
+          ! Dump the buffer to disk
+          if (nbuf_new == bufsize) then
+             nrec1I1E_new=nrec1I1E_new+1
+             write(iscratch_new) bufsize,ibuf_new
+             nbuf_new=0
+          endif
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Write the remaining buffer to disk
+!----------------------------------------------------------------------
+    if (nbuf_new /= 0) then
+       nrec1I1E_new=nrec1I1E_new+1
+       write(iscratch_new) nbuf_new,ibuf_new
+    endif
+
+!----------------------------------------------------------------------
+! New number of 1I1E confs
+!----------------------------------------------------------------------
+    n1I1E=n1I1E_new
+    
+!----------------------------------------------------------------------
+! New number of records
+!----------------------------------------------------------------------
+    nrec1I1E=nrec1I1E_new
+    
+!----------------------------------------------------------------------
+! Close the 1I1E configuration scratch files
+!----------------------------------------------------------------------
+    close(iscratch)
+    close(iscratch_new)
+
+!----------------------------------------------------------------------
+! Rename the new 1I1E scratch file
+!----------------------------------------------------------------------
+    call system('mv '//trim(file1I1E_new)//' '//trim(file1I1E))
+
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(ibuf)
+    deallocate(key)
+    deallocate(conf)
+    deallocate(conf1)
+    
+    return
+
+  end subroutine remove_duplicates_1I1E
+    
+!######################################################################
+! sort_2I_1I1E: sorts and saves the 2I and 1I1E configurations by
 !               irrep
 !######################################################################
   subroutine sort_2I_1I1E(cfgM,file2I,file1I1E,nrec2I,nrec1I1E,&
@@ -1576,7 +2038,7 @@ contains
 !----------------------------------------------------------------------
     close(iscratch2I)
     close(iscratch1I1E)
-
+       
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -1587,1600 +2049,7 @@ contains
     return
     
   end subroutine sort_2I_1I1E
-  
-!######################################################################
-! generate_1E_old: for a given irrep, generates all the allowable
-!                  configurations with one internal hole and one
-!                  external electron
-!######################################################################
-  subroutine generate_1E_old(irrep,E0max,cfgM)
-
-    use constants
-    use bitglobal
-    use conftype
     
-    implicit none
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-    
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-    
-    ! Everything else
-    integer(is)                :: modus
-
-!----------------------------------------------------------------------
-! First, determine the number of allowable configurations of the
-! correct symmetry
-!----------------------------------------------------------------------
-    modus=0
-    call builder_1E_old(modus,irrep,E0max,cfgM)
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    ! Indices of the external creation operators
-    allocate(cfgM%a1E(cfgM%n1E))
-    cfgM%a1E=0
-
-    ! Offsets
-    allocate(cfgM%off1E(cfgM%n1h+1))
-    cfgM%off1E=0
-
-!----------------------------------------------------------------------
-! Fill in the external creation operator and offset arrays
-!----------------------------------------------------------------------
-! Note that the off1E array has the dimension (n1h+1), even though
-! not all 1-hole configurations may generate allowable
-! 1E configurations. However, this is OK due to how the offset array
-! is used when looping over the 1E configurations generated by each
-! 1-hole configuration.
-!----------------------------------------------------------------------
-    modus=1
-    call builder_1E_old(modus,irrep,E0max,cfgM)
-
-    return
-    
-  end subroutine generate_1E_old
-  
-!######################################################################
-! 1E_builder_old: performs all the heavy lifting involved in the
-!                 generation of the configurations with one internal
-!                 hole and one external electron
-!######################################################################
-  subroutine builder_1E_old(modus,irrep,E0max,cfgM)
-
-    use constants
-    use bitglobal
-    use conftype
-    use mrciutils
-    
-    implicit none
-
-    ! Mode of operation: modus=0 <-> determine the number of allowable
-    !                                configurations
-    !                    modus=1 <-> build all of the allowable
-    !                                configurations
-    integer(is), intent(in)    :: modus
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-    
-    ! Full configurations and SOPs
-    integer(ib)                :: conf_full(n_int,2)
-    integer(ib)                :: sop_full(n_int,2)
-
-    ! No. confs generated by each hole conf
-    integer(is), allocatable   :: ngen(:)
-    
-    ! Everything else
-    integer(is)                :: n_int_I,nmoI,n1h
-    integer(is)                :: n,iext,k,i,counter
-    logical                    :: ok,checksym
-
-!----------------------------------------------------------------------    
-! Allocate arrays
-!----------------------------------------------------------------------
-    n1h=cfgM%n1h
-    n_int_I=cfgM%n_int_I
-    nmoI=cfgM%nmoI
-
-    allocate(ngen(n1h))
-    ngen=0
-    
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n1E=0
-    checksym=.true.
-    counter=0
-
-!----------------------------------------------------------------------    
-! Generate the 1E configurations
-!----------------------------------------------------------------------
-    ! Loop over the 1-hole configurations
-    do n=1,n1h
-
-       ! Loop over external MOs
-       do iext=nmoI+1,lastvirt
-       
-          ! Block index
-          k=(iext-1)/64+1
-          
-          ! Postion of the external MO within the kth block
-          i=iext-(k-1)*64-1
-          
-          ! Full configuration
-          conf_full=0_ib
-          conf_full(1:n_int_I,:)=cfgM%conf1h(:,:,n)
-          conf_full(k,1)=ibset(conf_full(k,1),i)
-          
-          ! Full SOP
-          sop_full=conf_to_sop(conf_full,n_int)
-
-          ! Is this an allowable configuration?
-          ok=allowable_conf(conf_full,sop_full,irrep,cfgM%m2c,E0max,&
-               nomax,checksym)
-
-          if (ok) then
-             ! Update the total no. allowable configurations generated
-             counter=counter+1
-             ! Update the no. confs generated by the current hole conf
-             ngen(n)=ngen(n)+1
-          endif
-             
-          ! Cycle if we are just determining the no. allowable
-          ! configurations...
-          if (modus == 0) cycle
-
-          ! ...else fill in the creation operator array
-          if (ok) cfgM%a1E(counter)=iext
-
-       enddo
-       
-    enddo
-    
-!----------------------------------------------------------------------
-! If we are just determining the number of allowable configurations,
-! then save this number
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n1E=counter
-
-!----------------------------------------------------------------------
-! Fill in the offset array
-!----------------------------------------------------------------------
-    if (modus == 1) then
-       cfgM%off1E(1)=1
-       do n=2,n1h+1
-          cfgM%off1E(n)=cfgM%off1E(n-1)+ngen(n-1)
-       enddo
-    endif
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(ngen)
-    
-    return
-    
-  end subroutine builder_1E_old
-
-!######################################################################
-! generate_2E_confs_old: for a given irrep, generates all the
-!                        allowable configurations with two internal
-!                        holes and two external electrons
-!######################################################################
-  subroutine generate_2E_old(irrep,E0max,cfgM)
-
-    use constants
-    use bitglobal
-    use conftype
-    
-    implicit none
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-    
-    ! Everything else
-    integer(is)                :: modus
-
-!----------------------------------------------------------------------
-! First, determine the number of allowable configurations of the
-! correct symmetry
-!----------------------------------------------------------------------
-    modus=0
-    call builder_2E_old(modus,irrep,E0max,cfgM)
-    
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    ! Indices of the external creation operators
-    allocate(cfgM%a2E(2,cfgM%n2E))
-    cfgM%a2E=0
-    
-    ! Offsets
-    allocate(cfgM%off2E(cfgM%n2h+1))
-    cfgM%off2E=0
-
-!----------------------------------------------------------------------
-! Fill in the external creation operator and offset arrays
-!----------------------------------------------------------------------
-! Note that the off2E array has the dimension (n2h+1), even though
-! not all 2-hole configurations may generate allowable
-! ext configurations. However, this is OK due to how the offset array
-! is used when looping over the 2E configurations generated by each
-! 2-hole configuration.
-!----------------------------------------------------------------------
-    modus=1
-    call builder_2E_old(modus,irrep,E0max,cfgM)
-    
-    return
-    
-  end subroutine generate_2E_old
-
-!######################################################################
-! builder_2E_old: performs all the heavy lifting involved in the
-!                 generation of the configurations with two internal
-!                 holes and two external electrons
-!######################################################################
-  subroutine builder_2E_old(modus,irrep,E0max,cfgM)
-
-    use constants
-    use bitglobal
-    use conftype
-    use mrciutils
-    use hparam
-    
-    implicit none
-
-    ! Mode of operation: modus=0 <-> determine the number of allowable
-    !                                configurations
-    !                    modus=1 <-> build all of the allowable
-    !                                configurations
-    integer(is), intent(in)    :: modus
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-        
-    ! Configurations and SOPs
-    integer(ib)                :: conf_full1(n_int,2),&
-                                  conf_full2(n_int,2)
-    integer(ib)                :: sop_full(n_int,2)
-
-    ! Difference configuration information
-    integer(is)                :: Dw(nmo,2)
-    integer(is)                :: ndiff
-
-    ! DFT/MRCI energy selection criterion
-    real(dp), allocatable      :: sum2h(:)
-    real(dp)                   :: elim,sum,sum1E,sum2E
-
-    ! No. confs generated by each hole conf
-    integer(is), allocatable   :: ngen(:)
-    
-    ! Everything else
-    integer(is)                :: n_int_I,nmoI,n2h
-    integer(is)                :: n,i,iext1,iext2,k1,k2,i1,i2,Dwi,&
-                                  counter
-    logical                    :: ok,checksym
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    n_int_I=cfgM%n_int_I
-    nmoI=cfgM%nmoI
-    n2h=cfgM%n2h
-
-    allocate(sum2h(n2h))
-    sum2h=0.0d0
-
-    allocate(ngen(n2h))
-    ngen=0
-    
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n2E=0
-    counter=0
-
-!----------------------------------------------------------------------
-! If this is a DFT/MRCI calculation, then first determine the
-! contribution from the internal holes to the energy selection
-! sum
-!----------------------------------------------------------------------
-    if (ldftmrci) then
-
-       ! Loop over 2-hole configurations
-       do n=1,n2h
-
-          ! Compute the difference configuration
-          call diffconf(cfgM%conf2h(:,:,n),n_int_I,Dw,nmo,ndiff)
-
-          ! Sum_i (F_ii^KS) Dw_i
-          do i=1,ndiff
-
-             ! MO index
-             i1=cfgM%m2c(Dw(i,1))
-             
-             ! Delta w_i value
-             Dwi=Dw(i,2)
-
-             ! Sum the contribution
-             sum2h(n)=sum2h(n)+moen(i1)*Dwi
-          
-          enddo
-          
-       enddo
-
-    endif
-
-!----------------------------------------------------------------------    
-! Generate the 2E configurations
-!----------------------------------------------------------------------
-    ! DFT/MRCI energy selection limit
-    if (ldftmrci) elim=E0max+desel
-
-    ! Loop over the 2-hole configurations
-    do n=1,n2h
-
-       ! If this is a DFT/MRCI calculation, cycle if the current
-       ! 2-hole configuration cannot possibly generate a 2E
-       ! configuration satisfying the energy selection criterion
-       if (ldftmrci .and. sum2h(n) > elim) cycle
-       
-       ! Loop over the first creation operator
-       do iext1=nmoI+1,lastvirt
-          
-          ! If this is a DFT/MRCI calculation, cycle if the current
-          ! 1H1E configuration doesn't satisfy the energy selection
-          ! criterion
-          sum1E=sum2h(n)+moen(cfgM%m2c(iext1))
-          if (ldftmrci .and. sum1E > elim) cycle
-          
-          ! First block index
-          k1=(iext1-1)/64+1
-
-          ! Postion of the first external MO within the k1th block
-          i1=iext1-(k1-1)*64-1
-
-          ! Add the first electron
-          conf_full1=0_ib
-          conf_full1(1:n_int_I,:)=cfgM%conf2h(:,:,n)
-          conf_full1(k1,1)=ibset(conf_full1(k1,1),i1)
-          sop_full=conf_to_sop(conf_full1,n_int)
-          
-          ! Check to see if the partial configuration can
-          ! generate an allowable 2E configuration
-          checksym=.false.
-          ok=allowable_conf(conf_full1,sop_full,irrep,cfgM%m2c,E0max,&
-               nomax+1,checksym)
-          if (.not. ok) cycle
-
-          ! Loop over the second creation operator
-          do iext2=iext1,lastvirt
-          
-             ! If this is a DFT/MRCI calculation, cycle if the current
-             ! 2E configuration satisfying the energy selection
-             ! criterion
-             sum2E=sum1E+moen(cfgM%m2c(iext2))
-             if (ldftmrci .and. sum2E > elim) cycle
-             
-             ! Second block index
-             k2=(iext2-1)/64+1
-
-             ! Postion of the seconf external MO within the k2th block
-             i2=iext2-(k2-1)*64-1
-
-             ! Add the second electron
-             conf_full2=conf_full1
-             if (k1 /= k2) then
-                ! Two singly-occupied external MOs
-                conf_full2(k2,1)=ibset(conf_full2(k2,1),i2)   
-             else
-                ! One doubly-occupied external MO
-                conf_full2(k2,2)=ibset(conf_full2(k2,2),i2)   
-             endif
-
-             ! Full SOP
-             sop_full=conf_to_sop(conf_full2,n_int)
-
-             ! Is this an allowable configuration?
-             checksym=.true.
-             ok=allowable_conf(conf_full2,sop_full,irrep,cfgM%m2c,&
-                  E0max,nomax,checksym)
-
-             if (ok) then
-                ! Update the total no. allowable configurations
-                ! generated
-                counter=counter+1
-                ! Update the no. confs generated by the current hole
-                ! conf
-                ngen(n)=ngen(n)+1
-             endif
-             
-             ! Fill in the creation operator array
-             if (ok .and. modus == 1) then
-                cfgM%a2E(1,counter)=iext1
-                cfgM%a2E(2,counter)=iext2
-             endif
-                
-          enddo
-
-       enddo
-
-    enddo
-
-!----------------------------------------------------------------------
-! If we are just determining the number of allowable configurations,
-! then save this number
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n2E=counter
-
-!----------------------------------------------------------------------
-! Fill in the offset array
-!----------------------------------------------------------------------
-    if (modus == 1) then
-       cfgM%off2E(1)=1
-       do n=2,n2h+1
-          cfgM%off2E(n)=cfgM%off2E(n-1)+ngen(n-1)
-       enddo
-    endif
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(sum2h)
-    deallocate(ngen)
-    
-    return
-    
-  end subroutine builder_2E_old
-
-!######################################################################
-! generate_1I_old: for a given irrep, generates all the allowable
-!                  configurations with one internal hole and one
-!                  internal electron
-!######################################################################
-  subroutine generate_1I_old(irrep,E0max,cfgM,icvs)
-
-    use constants
-    use bitglobal
-    use conftype
-    
-    implicit none
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
-    
-    ! Everything else
-    integer(is)                :: modus
-
-!----------------------------------------------------------------------
-! Is this a CVS-MRCI calculation
-!----------------------------------------------------------------------
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
-    
-!----------------------------------------------------------------------
-! First, determine the number of allowable configurations of the
-! correct symmetry
-!----------------------------------------------------------------------
-    modus=0
-    call builder_1I_old(modus,irrep,E0max,cfgM,icvs,lcvs)
-    
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    ! Indices of the internal creation operators
-    allocate(cfgM%a1I(cfgM%n1I))
-    cfgM%a1I=0
-
-    ! Offsets
-    allocate(cfgM%off1I(cfgM%n1h+1))
-    cfgM%off1I=0
-
-!----------------------------------------------------------------------
-! Fill in the internal creation operator and offset arrays
-!----------------------------------------------------------------------
-! Note that the off1I array has the dimension (n1h+1), even though
-! not all 1-hole configurations may generate allowable
-! int configurations. However, this is OK due to how the offset array
-! is used when looping over the 1I configurations generated by each
-! 1-hole configuration.
-!----------------------------------------------------------------------
-    modus=1
-    call builder_1I_old(modus,irrep,E0max,cfgM,icvs,lcvs)
-    
-    return
-    
-  end subroutine generate_1I_old
-
-!######################################################################
-! builder_1I_old: performs all the heavy lifting involved in the
-!                 generation of the configurations with one internal
-!                 hole and one internal electron
-!######################################################################
-  subroutine builder_1I_old(modus,irrep,E0max,cfgM,icvs,lcvs)
-
-    use constants
-    use bitglobal
-    use conftype
-    use mrciutils
-    use dethash
-    
-    implicit none
-
-    ! Mode of operation: modus=0 <-> determine the number of allowable
-    !                                configurations
-    !                    modus=1 <-> build all of the allowable
-    !                                configurations
-    integer(is), intent(in)    :: modus
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical, intent(in)        :: lcvs
-    
-    ! Full configurations and SOPs
-    integer(ib)                :: conf_full(n_int,2)
-    integer(ib)                :: sop_full(n_int,2)
-
-    ! Hash table
-    type(dhtbl)                :: h
-    integer(is)                :: initial_size
-    integer(is)                :: nold
-    integer(ib)                :: key(n_int,2)
-
-    ! No. confs generated by each hole conf
-    integer(is), allocatable   :: ngen(:)
-    
-    ! Everything else
-    integer(is)                :: n_int_I,nmoI,n1h
-    integer(is)                :: n,iint,k,i,counter,iref
-    logical                    :: ok,unique,checksym
-
-!----------------------------------------------------------------------    
-! Allocate arrays
-!----------------------------------------------------------------------
-    n_int_I=cfgM%n_int_I
-    nmoI=cfgM%nmoI
-    n1h=cfgM%n1h
-
-    allocate(ngen(n1h))
-    ngen=0
-    
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n1I=0
-    counter=0
-    checksym=.true.
-
-!----------------------------------------------------------------------
-! Initialise the hash table and insert the reference configurations
-!----------------------------------------------------------------------
-    ! Initialisation
-    initial_size=2**15
-    call h%initialise_table(initial_size)
-
-    ! Insertion of the ref confs
-    do iref=1,cfgM%n0h
-       key=0_ib
-       key(1:n_int_I,:)=cfgM%conf0h(:,:,iref)
-       call h%insert_key(key)
-    enddo
-
-!----------------------------------------------------------------------
-! Generate the 1I configurations
-!----------------------------------------------------------------------
-    ! Number of confs currently stored in the hash table
-    nold=h%n_keys_stored
-    
-    ! Loop over the 1-hole configurations
-    do n=1,n1h
-
-       ! Loop over internal MOs
-       do iint=1,nmoI
-          
-          ! Cycle if this is a CVS-MRCI calculation and we are creating
-          ! an electron in a flagged core MO
-          if (lcvs .and. icvs(cfgM%m2c(iint)) == 1) cycle
-
-          ! Block index
-          k=(iint-1)/64+1
-
-          ! Postion of the internal MO within the kth block
-          i=iint-(k-1)*64-1
-          
-          ! Cycle if this MO is doubly-occupied in the
-          ! 1-hole configuration
-          if (btest(cfgM%conf1h(k,2,n),i)) cycle
-
-          ! Full configuration
-          conf_full=0_ib
-          conf_full(1:n_int_I,:)=cfgM%conf1h(:,:,n)
-          if (btest(conf_full(k,1),i)) then
-             ! Creation of a doubly-occupied internal MO
-             conf_full(k,2)=ibset(conf_full(k,2),i)
-          else
-             ! Creation of a singly-occupied internal MO
-             conf_full(k,1)=ibset(conf_full(k,1),i)
-          endif
-             
-          ! Full SOP
-          sop_full=conf_to_sop(conf_full,n_int)
-          
-          ! Is this an allowable configuration?
-          ok=allowable_conf(conf_full,sop_full,irrep,cfgM%m2c,E0max,&
-               nomax,checksym)
-
-          ! Is this a unique configuration?
-          if (ok) then
-
-             ! Attempt an insertion into the hash table
-             call h%insert_key(conf_full)
-
-             ! If the number of stored keys has increased, then
-             ! this is a new configuration
-             if (h%n_keys_stored > nold) then
-                unique=.true.
-                nold=h%n_keys_stored
-             else
-                unique=.false.
-             endif
-             
-          endif
-
-          if (ok .and. unique) then
-             ! Update the total no. allowable configurations generated
-             counter=counter+1
-             ! Update the no. confs generated by the current hole conf
-             ngen(n)=ngen(n)+1
-          endif
-             
-          ! Cycle if we are just determining the no. allowable
-          ! configurations...
-          if (modus == 0) cycle
-
-          ! ...else fill in the creation operator array
-          if (ok .and. unique) cfgM%a1I(counter)=iint
-          
-       enddo
-       
-    enddo
-
-!----------------------------------------------------------------------
-! Delete the hash table
-!----------------------------------------------------------------------
-    call h%delete_table
-
-!----------------------------------------------------------------------
-! If we are just determining the number of allowable configurations,
-! then save this number
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n1I=counter
-
-!----------------------------------------------------------------------
-! Fill in the offset array
-!----------------------------------------------------------------------
-    if (modus == 1) then
-       cfgM%off1I(1)=1
-       do n=2,n1h+1
-          cfgM%off1I(n)=cfgM%off1I(n-1)+ngen(n-1)
-       enddo
-    endif
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(ngen)
-    
-    return
-    
-  end subroutine builder_1I_old
-
-!######################################################################
-! generate_1I1E_old: for a given irrep, generates all the allowable
-!                    configurations with two internal holes, one
-!                    internal electron and one external electron
-!######################################################################
-  subroutine generate_1I1E_old(irrep,E0max,conf1h1I,indx1h1I,&
-       n_int_I,n1h1I,cfgM)
-
-    use constants
-    use bitglobal
-    use conftype
-    
-    implicit none
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-    
-    ! 1-hole and 2-hole configurations
-    integer(is), intent(in)    :: n_int_I,n1h1I
-    integer(ib), intent(in)    :: conf1h1I(n_int_I,2,n1h1I)
-    integer(is), intent(in)    :: indx1h1I(2,n1h1I)
-    
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-    
-    ! Everything else
-    integer(is)                :: modus
-    
-!----------------------------------------------------------------------
-! Determine the number of allowable configurations of the correct
-! symmetry
-!----------------------------------------------------------------------
-    modus=0
-    call builder_1I1E_old(modus,irrep,E0max,conf1h1I,indx1h1I,&
-         n_int_I,n1h1I,cfgM)
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    ! Indices of the internal and external creation operators
-    allocate(cfgM%a1I1E(2,cfgM%n1I1E))
-    cfgM%a1I1E=0
-
-    ! Offsets
-    allocate(cfgM%off1I1E(cfgM%n2h+1))
-    cfgM%off1I1E=0
-
-!----------------------------------------------------------------------
-! Fill in the internal and external creation operator and offset arrays
-!----------------------------------------------------------------------
-! Note that the off1I1E array has the dimension (n2h+1), even though
-! not all 2-hole configurations may generate allowable
-! 1I1E configurations. However, this is OK due to how the
-! offset arrayis used when looping over the 1I1E configurations
-! generated by each 2-hole configuration.
-!----------------------------------------------------------------------
-    modus=1
-    call builder_1I1E_old(modus,irrep,E0max,conf1h1I,indx1h1I,&
-         n_int_I,n1h1I,cfgM)
-    
-    return
-    
-  end subroutine generate_1I1E_old
-
-!######################################################################
-! builder_1I1E_old: performs all the heavy lifting involved in the
-!                   generation of the configurations with with two
-!                   internal holes, one internal electron and one
-!                   external electron
-!######################################################################  
-  subroutine builder_1I1E_old(modus,irrep,E0max,conf1h1I,indx1h1I,&
-       n_int_I,n1h1I,cfgM)
-
-    use constants
-    use bitglobal
-    use conftype
-    use mrciutils
-    use hparam
-    
-    implicit none
-
-    ! Mode of operation: modus=0 <-> determine the number of allowable
-    !                                configurations
-    !                    modus=1 <-> build all of the allowable
-    !                                configurations
-    integer(is), intent(in)    :: modus
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-    
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-
-    ! 1-hole and 2-hole configurations
-    integer(is), intent(in)    :: n_int_I,n1h1I
-    integer(ib), intent(in)    :: conf1h1I(n_int_I,2,n1h1I)
-    integer(is), intent(in)    :: indx1h1I(2,n1h1I)
-    
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-        
-    ! Configurations and SOPs
-    integer(ib)                :: conf_full(n_int,2)
-    integer(ib)                :: sop_full(n_int,2)
-
-    ! Difference configuration information
-    integer(is)                :: Dw(nmo,2)
-    integer(is)                :: ndiff
-
-    ! DFT/MRCI energy selection criterion
-    real(dp), allocatable      :: sum1h1I(:)
-    real(dp)                   :: elim,sum
-
-    ! No. confs generated by each hole conf
-    integer(is), allocatable   :: ngen(:)
-    
-    ! Everything else
-    integer(is)                :: nmoI,n2h
-    integer(is)                :: n,i,i1,k,iext,counter,Dwi,i2h
-    logical                    :: ok,checksym
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    nmoI=cfgM%nmoI
-    n2h=cfgM%n2h
-
-    allocate(sum1h1I(n1h1I))
-    sum1h1I=0.0d0
-
-    allocate(ngen(n2h))
-    ngen=0
-    
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n1I1E=0
-    counter=0
-    checksym=.true.
-    
-!----------------------------------------------------------------------
-! If this is a DFT/MRCI calculation, then first determine the
-! contribution from the 1H1I parts of the configurations to the
-! energy selection sum
-!----------------------------------------------------------------------
-    if (ldftmrci) then
-
-       ! Loop over the 1H1I configurations
-       do n=1,n1h1I
-
-          ! Compute the difference configuration
-          call diffconf(conf1h1I(:,:,n),n_int_I,Dw,nmo,ndiff)
-
-          ! Sum_i (F_ii^KS) Dw_i
-          do i=1,ndiff
-
-             ! MO index
-             i1=cfgM%m2c(Dw(i,1))
-             
-             ! Delta w_i value
-             Dwi=Dw(i,2)
-
-             ! Sum the contribution
-             sum1h1I(n)=sum1h1I(n)+moen(i1)*Dwi
-          
-          enddo
-          
-       enddo
-       
-    endif
-
-!----------------------------------------------------------------------
-! Generate the 1H1E configurations
-!----------------------------------------------------------------------
-    ! DFT/MRCI energy selection limit
-    if (ldftmrci) elim=E0max+desel
-
-    ! Loop over the 1H1I configurations
-    do n=1,n1h1I
-
-       ! Index of the 2-hole configuration from which the
-       ! 1H1I configuration was derived
-       i2h=indx1h1I(1,n)
-       
-       ! If this is a DFT/MRCI calculation, cycle if the current
-       ! 1H1I configuration cannot possibly generate a 1I1E
-       ! configuration satisfying the energy selection criterion
-       if (ldftmrci .and. sum1h1I(n) > elim) cycle
-
-       ! Loop over external MOs
-       do iext=nmoI+1,lastvirt
-       
-          ! Block index
-          k=(iext-1)/64+1
-
-          ! Postion of the external MO within the kth block
-          i=iext-(k-1)*64-1
-          
-          ! Full configuration
-          conf_full=0_ib
-          conf_full(1:n_int_I,:)=conf1h1I(:,:,n)
-          conf_full(k,1)=ibset(conf_full(k,1),i)
-
-          ! Full SOP
-          sop_full=conf_to_sop(conf_full,n_int)
-
-          ! Is this an allowable configuration?
-          ok=allowable_conf(conf_full,sop_full,irrep,cfgM%m2c,E0max,&
-               nomax,checksym)
-
-          if (ok) then
-             ! Update the total no. allowable configurations generated
-             counter=counter+1
-             ! Update the no. confs generated by the current hole conf
-             ngen(i2h)=ngen(i2h)+1
-          endif
-          
-          ! Fill in the creation operator array
-          if (ok .and. modus == 1) then
-             cfgM%a1I1E(1,counter)=indx1h1I(2,n)
-             cfgM%a1I1E(2,counter)=iext
-          endif
-          
-       enddo
-       
-    enddo
-
-!----------------------------------------------------------------------
-! If we are just determining the number of allowable configurations,
-! then save this number
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n1I1E=counter
-
-!----------------------------------------------------------------------
-! Fill in the offset array
-!----------------------------------------------------------------------
-    if (modus == 1) then
-       cfgM%off1I1E(1)=1
-       do n=2,n2h+1
-          cfgM%off1I1E(n)=cfgM%off1I1E(n-1)+ngen(n-1)
-       enddo
-    endif
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(sum1h1I)
-    deallocate(ngen)
-    
-    return
-    
-  end subroutine builder_1I1E_old
-
-!######################################################################
-! generate_2I_old: for a given irrep, generates all the allowable
-!                  configurations with two internal holes, two
-!                  internal electrons
-!######################################################################
-  subroutine generate_2I_old(irrep,E0max,conf1h1I,indx1h1I,&
-       n_int_I,n1h1I,cfgM,icvs)
-
-    use constants
-    use bitglobal
-    use conftype
-    
-    implicit none
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-    
-    ! 1H1I configurations
-    integer(is), intent(in)    :: n_int_I,n1h1I
-    integer(ib), intent(in)    :: conf1h1I(n_int_I,2,n1h1I)
-    integer(is), intent(in)    :: indx1h1I(2,n1h1I)
-    
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
-    
-    ! Everything else
-    integer(is)                :: modus
-
-!----------------------------------------------------------------------
-! Is this a CVS-MRCI calculation
-!----------------------------------------------------------------------
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
-    
-!----------------------------------------------------------------------
-! Determine the number of allowable configurations of the correct
-! symmetry
-!----------------------------------------------------------------------
-    modus=0
-    call builder_2I_old(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
-         n1h1I,cfgM,icvs,lcvs)
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    ! Indices of the internal creation operators
-    allocate(cfgM%a2I(2,cfgM%n2I))
-    cfgM%a2I=0
-
-    ! Offsets
-    allocate(cfgM%off2I(cfgM%n2h+1))
-    cfgM%off2I=0
-
-!----------------------------------------------------------------------
-! Fill in the internal creation operator and offset arrays
-!----------------------------------------------------------------------
-! Note that the off2I array has the dimension (n2h+1), even though
-! not all 2-hole configurations may generate allowable
-! 2I configurations. However, this is OK due to how the offset array
-! is used when looping over the 2I configurations generated by each
-! 2-hole configuration.
-!----------------------------------------------------------------------
-    modus=1
-    call builder_2I_old(modus,irrep,E0max,conf1h1I,indx1h1I,n_int_I,&
-         n1h1I,cfgM,icvs,lcvs)
-    
-    return
-    
-  end subroutine generate_2I_old
-
-!######################################################################
-! builder_2I_old: performs all the heavy lifting involved in the
-!                 generation of the configurations with with two
-!                 internal holes, two internal electrons
-!######################################################################  
-  subroutine builder_2I_old(modus,irrep,E0max,conf1h1I,indx1h1I,&
-       n_int_I,n1h1I,cfgM,icvs,lcvs)
-    
-    use constants
-    use bitglobal
-    use conftype
-    use mrciutils
-    use hparam
-    use dethash
-
-    ! Mode of operation: modus=0 <-> determine the number of allowable
-    !                                configurations
-    !                    modus=1 <-> build all of the allowable
-    !                                configurations
-    integer(is), intent(in)    :: modus
-
-    ! Symmetry of the subspace
-    integer(is), intent(in)    :: irrep
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)       :: E0max
-        
-    ! 1H1I configurations
-    integer(is), intent(in)    :: n_int_I,n1h1I
-    integer(ib), intent(in)    :: conf1h1I(n_int_I,2,n1h1I)
-    integer(is), intent(in)    :: indx1h1I(2,n1h1I)
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical, intent(in)        :: lcvs
-    
-    ! Configurations and SOPs
-    integer(ib)                :: conf_full(n_int,2)
-    integer(ib)                :: sop_full(n_int,2)
-    integer(ib)                :: conftmp(n_int,2)
-    
-    ! Difference configuration information
-    integer(is)                :: Dw(nmo,2)
-    integer(is)                :: ndiff
-
-    ! DFT/MRCI energy selection criterion
-    real(dp), allocatable      :: sum1h1I(:)
-    real(dp)                   :: elim,sum
-    
-    ! Hash table
-    type(dhtbl)                :: h
-    integer(is)                :: initial_size
-    integer(is)                :: nold
-    integer(ib)                :: key(n_int,2)
-
-    ! No. confs generated by each hole conf
-    integer(is), allocatable   :: ngen(:)
-    
-    ! Everything else
-    integer(is)                :: nmoI,n1h,n2h
-    integer(is)                :: n,i,i1,k,iint,counter,Dwi,i2h,iref
-    integer(is)                :: ioff,i1I,old2h,imo,ilow
-    logical                    :: ok,unique,checksym
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    nmoI=cfgM%nmoI
-    n1h=cfgM%n1h
-    n2h=cfgM%n2h
-
-    allocate(sum1h1I(n1h1I))
-    sum1h1I=0.0d0
-
-    allocate(ngen(n2h))
-    ngen=0
-    
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n2I=0
-    counter=0
-    checksym=.true.
-
-!----------------------------------------------------------------------
-! Initialise the hash table and insert the reference and 1I
-! configurations
-!----------------------------------------------------------------------
-    ! Initialisation
-    initial_size=2**15
-    call h%initialise_table(initial_size)
-
-    ! Insertion of the ref confs
-    do iref=1,cfgM%n0h
-       key=0_ib
-       key(1:n_int_I,:)=cfgM%conf0h(:,:,iref)
-       call h%insert_key(key)
-    enddo
-
-    ! Insertion of the 1I confs
-    i1I=0
-    ! Loop over 1-hole configurations
-    do n=1,n1h
-       
-       ! Loop over the 1I configurations generated by the current
-       ! 1-hole configuration
-       do ioff=cfgM%off1I(n),cfgM%off1I(n+1)-1
-
-          ! Increment the configuration counter
-          i1I=i1I+1
-
-          ! Construct the configuration
-          imo=cfgM%a1I(i1I)
-          conftmp=0_ib
-          conftmp(1:n_int_I,:)=cfgM%conf1h(:,:,n)
-          key=create_electron(conftmp,n_int,imo)
-
-          ! Insert the configuration into the hash table
-          call h%insert_key(key)
-        
-       enddo
-       
-    enddo
-    
-!----------------------------------------------------------------------
-! If this is a DFT/MRCI calculation, then first determine the
-! contribution from the 1H1I parts of the configurations to the
-! energy selection sum
-!----------------------------------------------------------------------
-    if (ldftmrci) then
-
-       ! Loop over the 1H1I configurations
-       do n=1,n1h1I
-
-          ! Compute the difference configuration
-          call diffconf(conf1h1I(:,:,n),n_int_I,Dw,nmo,ndiff)
-
-          ! Sum_i (F_ii^KS) Dw_i
-          do i=1,ndiff
-
-             ! MO index
-             i1=cfgM%m2c(Dw(i,1))
-             
-             ! Delta w_i value
-             Dwi=Dw(i,2)
-
-             ! Sum the contribution
-             sum1h1I(n)=sum1h1I(n)+moen(i1)*Dwi
-          
-          enddo
-          
-       enddo
-       
-    endif
-
-!----------------------------------------------------------------------
-! Generate the 2I configurations
-!----------------------------------------------------------------------
-    ! Number of confs currently stored in the hash table
-    nold=h%n_keys_stored
-
-    ! DFT/MRCI energy selection limit
-    if (ldftmrci) elim=E0max+desel
-
-    ! Loop over the 1H1I configurations
-    do n=1,n1h1I
-       
-       ! Index of the 2-hole configuration from which the
-       ! 1H1I configuration was derived
-       i2h=indx1h1I(1,n)
-
-       ! Index of the lowest-lying unoccupied or singly-occupied MO
-       ilow=lowest_particle_index(conf1h1I(:,:,n),n_int_I)
-
-       ! If this is a DFT/MRCI calculation, cycle if the current
-       ! 1H1I configuration cannot possibly generate an
-       ! a 2I configuration satisfying the energy selection criterion
-       if (ldftmrci) then
-          sum=sum1h1I(n)+moen(cfgM%m2c(ilow))
-          if (sum > elim) cycle
-       endif
-       
-       ! Loop over internal MOs
-       do iint=1,nmoI
-
-          ! Cycle if this is a CVS-MRCI calculation and we are creating
-          ! an electron in a flagged core MO
-          if (lcvs .and. icvs(cfgM%m2c(iint)) == 1) cycle
-          
-          ! Block index
-          k=(iint-1)/64+1
-
-          ! Postion of the external MO within the kth block
-          i=iint-(k-1)*64-1
-
-          ! Cycle if the internal MO is doubly-occupied in the
-          ! 1H1I configuration
-          if (btest(conf1h1I(k,2,n),i)) cycle
-          
-          ! Full configuration
-          conf_full=0_ib
-          conf_full(1:n_int_I,:)=conf1h1I(:,:,n)
-          if (btest(conf_full(k,1),i)) then
-             ! Creation of a doubly-occupied internal MO
-             conf_full(k,2)=ibset(conf_full(k,2),i)
-          else
-             ! Creation of a singly-occupied internal MO
-             conf_full(k,1)=ibset(conf_full(k,1),i)
-          endif
-          
-          ! Full SOP
-          sop_full=conf_to_sop(conf_full,n_int)
-
-          ! Is this an allowable configuration?
-          ok=allowable_conf(conf_full,sop_full,irrep,cfgM%m2c,E0max,&
-               nomax,checksym)
-
-          ! Is this a unique configuration?
-          if (ok) then
-
-             ! Attempt an insertion into the hash table
-             call h%insert_key(conf_full)
-
-             ! If the number of stored keys has increased, then
-             ! this is a new configuration
-             if (h%n_keys_stored > nold) then
-                unique=.true.
-                nold=h%n_keys_stored
-             else
-                unique=.false.
-             endif
-             
-          endif
-
-          if (ok .and. unique) then
-             ! Update the total no. allowable configurations generated
-             counter=counter+1
-             ! Update the no. confs generated by the current hole conf
-             ngen(i2h)=ngen(i2h)+1
-          endif
-             
-          ! Cycle if we are just determining the no. allowable
-          ! configurations...
-          if (modus == 0) cycle
-
-          ! ...else fill in the creation operator array
-          if (ok .and. unique) then
-             cfgM%a2I(1,counter)=indx1h1I(2,n)
-             cfgM%a2I(2,counter)=iint
-          endif
-          
-       enddo
-       
-    enddo
-
-!----------------------------------------------------------------------
-! Delete the hash table
-!----------------------------------------------------------------------
-    call h%delete_table
-    
-!----------------------------------------------------------------------
-! If we are just determining the number of allowable configurations,
-! then save this number
-!----------------------------------------------------------------------
-    if (modus == 0) cfgM%n2I=counter
-
-!----------------------------------------------------------------------
-! Fill in the offset array
-!----------------------------------------------------------------------
-    if (modus == 1) then
-       cfgM%off2I(1)=1
-       do n=2,n2h+1
-          cfgM%off2I(n)=cfgM%off2I(n-1)+ngen(n-1)
-       enddo
-    endif
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(sum1h1I)
-    deallocate(ngen)
-    
-    return
-    
-  end subroutine builder_2I_old
-    
-!######################################################################
-! allowable_conf: Determines whether a given configuration is
-!                 is allowable. That is, if it satisfies the following
-!                 criteria:
-!
-!                 (1) Generates the correct irrep
-!
-!                 (2) Has an excitation degree less than the maximum
-!                     allowable value relative to the base
-!                     configuration
-!
-!                 (3) Doesn't have more than the maximum allowed
-!                     number of open shells
-!
-!                 (4) For a DFT/MRCI run, satisfies the energy
-!                     selection criterion
-!######################################################################
-  function allowable_conf(conf,sop,irrep,m2c,E0max,nolim,checksym) &
-       result(allowable)
-
-    use constants
-    use bitglobal
-    use mrciutils
-    use hparam
-    
-    implicit none
-
-    ! Function result
-    logical                 :: allowable
-
-    ! Configuration and SOP bitstrings
-    integer(ib), intent(in) :: conf(n_int,2),sop(n_int,2)
-
-    ! Symmetry of the subspace
-    integer(is), intent(in) :: irrep
-
-    ! MO mapping array
-    integer(is), intent(in) :: m2c(nmo)
-
-    ! Energy of the highest-lying reference space state of interest
-    real(dp), intent(in)    :: E0max
-
-    ! Maximum number of open shells
-    integer(is), intent(in) :: nolim
-
-    ! Perform the symmetry check?
-    logical, intent(in)     :: checksym
-    
-    ! Difference configuration information
-    integer(is)             :: ndiff
-    integer(is)             :: Dw(nmo,2)
-    
-    ! Everything else
-    integer(is)             :: isym,nopen,nexci,i,i1,Dwi
-    real(dp)                :: sum
-    
-!----------------------------------------------------------------------
-! Initialisation
-!----------------------------------------------------------------------
-    allowable=.true.
-
-!----------------------------------------------------------------------
-! Symmetry
-!----------------------------------------------------------------------
-    if (checksym) then
-       
-       isym=sop_sym_mrci(sop,m2c)
-       
-       if (isym /= irrep) then
-          allowable=.false.
-          return
-       endif
-
-    endif
-    
-!----------------------------------------------------------------------
-! Number of open shells
-!----------------------------------------------------------------------
-    nopen=sop_nopen(sop,n_int)
-
-    if (nopen > nolim) then
-       allowable=.false.
-       return
-    endif
-
-!----------------------------------------------------------------------
-! Excitation degree relative to the base configuration
-!----------------------------------------------------------------------
-    nexci=exc_degree_conf(conf,conf0,n_int)
-            
-    if (nexci > nexmax) then
-       allowable=.false.
-       return
-    endif
-    
-!----------------------------------------------------------------------
-! DFT/MRCI energy selection criterion
-!----------------------------------------------------------------------
-    if (ldftmrci) then
-
-       ! Generate the difference configuration information relative
-       ! to the base configuration
-       call diffconf(conf,n_int,Dw,nmo,ndiff)
-
-       ! Sum_i (F_ii^KS) Dw_i
-       sum=0.0d0
-       do i=1,ndiff
-
-          ! MO index
-          i1=m2c(Dw(i,1))
-    
-          ! Delta w_i value
-          Dwi=Dw(i,2)
-
-          ! Sum the contribution
-          sum=sum+moen(i1)*Dwi
-          
-       enddo
-       
-       ! Does this configuration satisfy the energy selection
-       ! criterion?
-       if (sum > E0max + desel) then
-          allowable=.false.
-          return
-       endif
-       
-    endif
-    
-    return
-    
-  end function allowable_conf
-
-!######################################################################
-! lowest_particle_index: for a given configuration, returns the index
-!                        of the lowest-lying unoccupied or singly-
-!                        occupied MO
-!######################################################################
-  function lowest_particle_index(conf,ldc) result(indx)
-
-    use constants
-    use bitglobal
-    
-    implicit none
-
-    ! Function result
-    integer(is)             :: indx
-
-    ! Input configuration
-    integer(is), intent(in) :: ldc
-    integer(ib), intent(in) :: conf(ldc,2)
-
-    ! Everything else
-    integer(is)             :: k,i
-
-    ! Initialisation
-    indx=0
-    
-    ! Loop over blocks
-    do k=1,ldc
-
-       ! Cycle if this block doesn't contain a singly-occupied
-       ! or unoccupied MO
-       if (popcnt(conf(k,2)) == 64) then
-          indx=indx+64
-          cycle
-       endif
-          
-       ! Index of the lowest lying singly-occupied
-       ! or unoccupied MO
-       indx=indx+trailz(not(conf(k,2)))+1
-       exit
-       
-    enddo
-    
-    return
-    
-  end function lowest_particle_index
-  
-!######################################################################
-! esum: given a configuration conf, returns Sum_p F_pp^(KS) Delta w_p
-!       relative to the base configuration
-!######################################################################
-  function esum(conf,ldc,m2c)
-
-    use constants
-    use bitglobal
-    use mrciutils
-    
-    implicit none
-
-    ! Function result
-    real(dp) :: esum
-
-    ! Configuration
-    integer(is), intent(in) :: ldc
-    integer(ib), intent(in) :: conf(ldc,2)
-
-    ! Difference configuration information
-    integer(is)             :: Dw(nmo,2)
-    integer(is)             :: ndiff
-
-    ! MO mapping array
-    integer(is), intent(in) :: m2c(nmo)
-    
-    ! Everything else
-    integer(is)             :: i,i1,Dwi
-    
-    !
-    ! Compute the difference configuration relative to the base
-    ! configuration
-    !
-    call diffconf(conf,ldc,Dw,nmo,ndiff)
-
-    !
-    ! Sum_i (F_ii^KS) Dw_i
-    !
-    esum=0.0d0
-    do i=1,ndiff
-
-       ! MO index
-       i1=m2c(Dw(i,1))
-       
-       ! Delta w_i value
-       Dwi=Dw(i,2)
-       
-       ! Sum the contribution
-       esum=esum+moen(i1)*Dwi
-       
-    enddo
-    
-    return
-    
-  end function esum
-  
 !######################################################################
 ! generate_1E_confs: for all irreps, generates all the allowable
 !                    configurations with one internal hole and one
@@ -4341,7 +3210,63 @@ contains
     return
     
   end subroutine builder_1I
+
+!######################################################################
+! esum: given a configuration conf, returns Sum_p F_pp^(KS) Delta w_p
+!       relative to the base configuration
+!######################################################################
+  function esum(conf,ldc,m2c)
+
+    use constants
+    use bitglobal
+    use mrciutils
     
+    implicit none
+
+    ! Function result
+    real(dp) :: esum
+
+    ! Configuration
+    integer(is), intent(in) :: ldc
+    integer(ib), intent(in) :: conf(ldc,2)
+
+    ! Difference configuration information
+    integer(is)             :: Dw(nmo,2)
+    integer(is)             :: ndiff
+
+    ! MO mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! Everything else
+    integer(is)             :: i,i1,Dwi
+    
+    !
+    ! Compute the difference configuration relative to the base
+    ! configuration
+    !
+    call diffconf(conf,ldc,Dw,nmo,ndiff)
+
+    !
+    ! Sum_i (F_ii^KS) Dw_i
+    !
+    esum=0.0d0
+    do i=1,ndiff
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+       
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+       
+       ! Sum the contribution
+       esum=esum+moen(i1)*Dwi
+       
+    enddo
+    
+    return
+    
+  end function esum
+
 !######################################################################
   
 end module confbuilder
