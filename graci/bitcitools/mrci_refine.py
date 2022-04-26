@@ -12,7 +12,7 @@ import graci.io.convert as convert
 @timing.timed
 def refine_ref_space(ci_method):
     """Refinement of the reference space"""
-
+    
     # number of irreps given by length of ci.nstates vector
     nirr = ci_method.n_irrep()
 
@@ -31,6 +31,9 @@ def refine_ref_space(ci_method):
     # No. roots per irrep
     nstates = ci_method.n_states_sym()
 
+    # No. extra roots per irrep
+    nextra = np.array(ci_method.nextra['max'])
+    
     # Configuration selection threshold. We will just hardcode this
     # for now
     cthrsh = 0.055
@@ -45,8 +48,8 @@ def refine_ref_space(ci_method):
     ref_nconf = np.zeros(nirr, dtype=int)
     
     # Refine the reference space
-    args = (ci_confunits, ref_confunits, ci_ciunits, nstates, cthrsh, 
-            min_norm, ref_nconf)
+    args = (ci_confunits, ref_confunits, ci_ciunits, nstates, nextra,
+            cthrsh, min_norm, ref_nconf)
     (confunits_ref, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space', args)
 
