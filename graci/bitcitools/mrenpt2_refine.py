@@ -34,6 +34,9 @@ def refine_ref_space(ci_method):
     # No. roots per irrep
     nstates = ci_method.n_states_sym()
 
+    # No. extra roots per irrep
+    nextra = np.array(ci_method.nextra['max'])
+
     # Dynamical configuration selection parameters
     cmin  = 0.015
     alpha = 0.055
@@ -50,7 +53,7 @@ def refine_ref_space(ci_method):
     
     # Refine the reference space
     args = (ci_confunits, ref_confunits, ci_ciunits, ci_qunits,
-            nstates, cmin, alpha, beta, min_norm, ref_nconf)
+            nstates, nextra, cmin, alpha, beta, min_norm, ref_nconf)
     (confunits_ref, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space_pt2', args)
 

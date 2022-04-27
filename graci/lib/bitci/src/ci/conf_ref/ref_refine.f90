@@ -12,11 +12,11 @@ contains
 !                   dominant configurations of the MRCI eigenvectors
 !######################################################################
 #ifdef CBINDING
-  subroutine refine_ref_space(confscrM,confscrR,vecscr,nroots,cthrsh,&
-       minrnorm,ndconf) bind(c,name="refine_ref_space")
+  subroutine refine_ref_space(confscrM,confscrR,vecscr,nroots,nextra,&
+       cthrsh,minrnorm,ndconf) bind(c,name="refine_ref_space")
 #else
-  subroutine refine_ref_space(confscrM,confscrR,vecscr,nroots,cthrsh,&
-       minrnorm,ndconf)
+  subroutine refine_ref_space(confscrM,confscrR,vecscr,nroots,nextra,&
+       cthrsh,minrnorm,ndconf)
 #endif
     
     use constants
@@ -39,6 +39,9 @@ contains
     ! Number of roots per irrep
     integer(is), intent(in)  :: nroots(0:nirrep-1)
 
+    ! Number of extra states per irrep
+    integer(is), intent(in)  :: nextra(0:nirrep-1)
+    
     ! Configuration selection threshold
     real(dp), intent(in)     :: cthrsh
 
@@ -65,13 +68,18 @@ contains
     
     ! Updated canonical-to-MRCI MO mapping
     integer(is)              :: m2c_new(nmo),c2m_new(nmo)
+
+    ! Selection threshold damping
+    integer(is)              :: nsurvive
+    real(dp)                 :: scale,thrsh
+    real(dp), parameter      :: damp=0.95d0
     
     ! Everything else
     integer(is)              :: irrep,nconf,ndconf_tot,i,start
     integer(is)              :: old,sumd,istart,iend
     integer(is)              :: rdim
     real(dp)                 :: rnorm
-    
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -130,16 +138,33 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
-       ! Loop over roots for the current irrep
-       do i=1,nroots(irrep)
+       ! Initialise the no. surviving CSFs
+       nsurvive=0
 
-          ! Fill in the indices of the above-threshold configurations
-          ! for this root
-          call fill_above_threshold(id,nconf,cfg(irrep),&
-               start,vecscr(irrep),i,cthrsh)
-          
+       ! Adjust the selection threshold until enough CSFs
+       ! have been retained
+       scale=1.0d0
+       thrsh=cthrsh
+       do while(nsurvive < nroots(irrep)+nextra(irrep))
+              
+          ! Loop over roots for the current irrep
+          do i=1,nroots(irrep)
+
+             ! Selection threshold
+             thrsh=thrsh*scale
+             
+             ! Fill in the indices of the above-threshold configurations
+             ! for this root
+             call fill_above_threshold(id,nconf,cfg(irrep),&
+                  start,vecscr(irrep),i,thrsh,nsurvive)
+
+             ! Update the scaling factor
+             scale=scale*damp
+             
+          enddo
+
        enddo
-
+          
        ! Update the no. above-threshold configurations
        sumd=sum(id)
        ndconf(irrep)=sumd-old       
@@ -242,11 +267,11 @@ contains
 !######################################################################
 #ifdef CBINDING
   subroutine refine_ref_space_pt2(confscrM,confscrR,vecscr,Qscr,&
-       nroots,cmin,alpha,beta,minrnorm,ndconf) &
+       nroots,nextra,cmin,alpha,beta,minrnorm,ndconf) &
        bind(c,name="refine_ref_space_pt2")
 #else
   subroutine refine_ref_space_pt2(confscrM,confscrR,vecscr,Qscr,&
-       nroots,cmin,alpha,beta,minrnorm,ndconf)
+       nroots,nextra,cmin,alpha,beta,minrnorm,ndconf)
 #endif
 
     use constants
@@ -270,7 +295,10 @@ contains
     
     ! Number of roots per irrep
     integer(is), intent(in)  :: nroots(0:nirrep-1)
-  
+
+    ! Number of extra states per irrep
+    integer(is), intent(in)  :: nextra(0:nirrep-1)
+    
     ! Configuration selection parameters
     real(dp), intent(in)     :: cmin,alpha,beta
   
@@ -298,6 +326,11 @@ contains
     ! Updated canonical-to-MRCI MO mapping
     integer(is)              :: m2c_new(nmo),c2m_new(nmo)
 
+    ! Selection threshold damping
+    integer(is)              :: nsurvive
+    real(dp)                 :: scale
+    real(dp), parameter      :: damp=0.950
+    
     ! Everything else
     integer(is)              :: iscratch,maxroots
     integer(is)              :: irrep,nconf,ndconf_tot,i,n,start
@@ -305,7 +338,7 @@ contains
     integer(is)              :: rdim
     real(dp)                 :: rnorm,thrsh
     real(dp), allocatable    :: Qnorm(:,:)
-
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -397,19 +430,33 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
-       ! Loop over roots for the current irrep
-       do i=1,nroots(irrep)
+       ! Initialise the no. surviving CSFs
+       nsurvive=0
 
-          ! Selection threshold for this root
-          thrsh=max(cmin, alpha/(cosh(beta*Qnorm(i,irrep))**2))
-          
-          ! Fill in the indices of the above-threshold configurations
-          ! for this root
-          call fill_above_threshold(id,nconf,cfg(irrep),start,&
-               vecscr(irrep),i,thrsh)
-                    
+       ! Adjust the selection threshold until enough CSFs
+       ! have been retained
+       scale=1.0d0
+       do while(nsurvive < nroots(irrep)+nextra(irrep))
+       
+          ! Loop over roots for the current irrep
+          do i=1,nroots(irrep)
+
+             ! Selection threshold for this root
+             thrsh=max(cmin, alpha/(cosh(beta*Qnorm(i,irrep))**2))
+             thrsh=thrsh*scale
+             
+             ! Fill in the indices of the above-threshold configurations
+             ! for this root
+             call fill_above_threshold(id,nconf,cfg(irrep),start,&
+                  vecscr(irrep),i,thrsh,nsurvive)
+
+             ! Update the scaling factor
+             scale=scale*damp
+             
+          enddo
+
        enddo
-
+          
        ! Update the no. above-threshold configurations
        sumd=sum(id)
        ndconf(irrep)=sumd-old       
@@ -567,7 +614,7 @@ contains
 !                       coefficient values above the threshold cthrsh
 !######################################################################
   subroutine fill_above_threshold(id,nconf,cfg,start,vecscr,sindx,&
-       cthrsh)
+       cthrsh,nsurvive)
 
     use constants
     use bitglobal
@@ -597,6 +644,9 @@ contains
 
     ! Configuration threshold
     real(dp), intent(in)       :: cthrsh
+
+    ! Number of surviving CSFs
+    integer(is), intent(out)   :: nsurvive
     
     ! Eigenvector
     real(dp), allocatable      :: vec(:)
@@ -623,6 +673,9 @@ contains
     ! Configuration counter
     iconf=start-1
 
+    ! No. surviving CSFs
+    nsurvive=0
+    
 !----------------------------------------------------------------------
 ! Reference space configurations
 !----------------------------------------------------------------------
@@ -644,6 +697,10 @@ contains
           id(iconf)=1
           
        enddo
+
+       ! Update the no. surviving CSFs
+       if (id(iconf) == 1) nsurvive=nsurvive+ &
+            cfg%csfs0h(n+1)-cfg%csfs0h(n)
        
     enddo
 
@@ -673,6 +730,10 @@ contains
 
              enddo
 
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs1I(ioff+1)-cfg%csfs1I(ioff)
+             
           enddo
           
        enddo
@@ -704,6 +765,10 @@ contains
                 id(iconf)=1
 
              enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs2I(ioff+1)-cfg%csfs2I(ioff)
              
           enddo
 
@@ -736,6 +801,10 @@ contains
                 id(iconf)=1
                 
              enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs1E(ioff+1)-cfg%csfs1E(ioff)
              
           enddo
 
@@ -768,6 +837,10 @@ contains
                 id(iconf)=1
                 
              enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs2E(ioff+1)-cfg%csfs2E(ioff)
              
           enddo
 
@@ -800,6 +873,10 @@ contains
                 id(iconf)=1
                 
              enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs1I1E(ioff+1)-cfg%csfs1I1E(ioff)
              
           enddo
 

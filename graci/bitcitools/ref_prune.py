@@ -23,6 +23,9 @@ def prune(ci_method):
     # Number of roots per irrep
     nroots = ci_method.nstates
 
+    # Number of extra roots per irrep
+    nextra = np.array(ci_method.nextra['max'])
+
     # Bitci ref conf scratch file numbers
     confunit = ci_method.ref_wfn.conf_units
     
@@ -33,7 +36,7 @@ def prune(ci_method):
     nconf    = ci_method.ref_wfn.nconf
 
     # Call to the bitci ref space pruning routine
-    args = (nroots, confunit, nconf, ciunit)
+    args = (nroots, nextra, confunit, nconf, ciunit)
     (nconf_new) = libs.lib_func('prune_ref_space',args)
 
     return nconf_new
