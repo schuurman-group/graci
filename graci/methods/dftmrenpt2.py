@@ -68,6 +68,8 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.ref_ener       = None
         # Q-space norm file numbers
         self.qunits         = None
+        # Damped strong perturbers file numbers
+        self.dspunits       = None
         # dictionary of bitci wfns
         self.bitciwfns      = {}
 
@@ -141,7 +143,7 @@ class Dftmrenpt2(cimethod.Cimethod):
             self.mrci_wfn.set_confname(mrci_conf_files)
 
             # MR-ENPT2 calculation
-            mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units, n_conf_new = \
+            mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units, dsp_units, n_conf_new = \
                 mrenpt2.corrections(self)
 
             # set the new number of mrci confs if wave function
@@ -149,12 +151,13 @@ class Dftmrenpt2(cimethod.Cimethod):
             if self.truncate:
                 self.mrci_wfn.set_nconf(n_conf_new)            
                         
-            # set the wfn unit numbers, file names, energies and
-            # Q-space info unit numbers
+            # set the wfn unit numbers, file names, energies,
+            # Q-space info, and damped strong perturber unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
             self.mrci_wfn.set_ciname(mrci_ci_files)
             self.energies_sym = mrci_ener_sym
             self.qunits       = q_units
+            self.dspunits     = dsp_units
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()

@@ -31,6 +31,9 @@ def refine_ref_space(ci_method):
     # Bitci Q-space info scratch file numbers
     ci_qunits = np.array(ci_method.qunits, dtype=int)
 
+    # Bitci damped strong perturber scratch file numbers
+    ci_dspunits = np.array(ci_method.dspunits, dtype=int)
+
     # No. roots per irrep
     nstates = ci_method.n_states_sym()
 
@@ -53,7 +56,8 @@ def refine_ref_space(ci_method):
     
     # Refine the reference space
     args = (ci_confunits, ref_confunits, ci_ciunits, ci_qunits,
-            nstates, nextra, cmin, alpha, beta, min_norm, ref_nconf)
+            ci_dspunits, nstates, nextra, cmin, alpha, beta, min_norm,
+            ref_nconf)
     (confunits_ref, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space_pt2', args)
 

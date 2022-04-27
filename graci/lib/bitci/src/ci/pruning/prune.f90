@@ -83,7 +83,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   integer(is)                :: active(nmo)
   
   ! Everything else
-  integer(is)                :: i,nvec
+  integer(is)                :: i,idum,nvec
   integer(is), allocatable   :: indx(:)
   integer(is)                :: iscratch
   character(len=60)          :: eqfile
@@ -171,8 +171,8 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 !
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !----------------------------------------------------------------------
-  call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec,0.0d0,.false.)
+  call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+       vec0scr(irrep),Avec,E2,nvec,0.0d0,idum,.false.)
 
 !----------------------------------------------------------------------
 ! Sort the 2nd-order corrected energies

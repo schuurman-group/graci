@@ -267,11 +267,11 @@ contains
 !######################################################################
 #ifdef CBINDING
   subroutine refine_ref_space_pt2(confscrM,confscrR,vecscr,Qscr,&
-       nroots,nextra,cmin,alpha,beta,minrnorm,ndconf) &
+       dspscr,nroots,nextra,cmin,alpha,beta,minrnorm,ndconf) &
        bind(c,name="refine_ref_space_pt2")
 #else
   subroutine refine_ref_space_pt2(confscrM,confscrR,vecscr,Qscr,&
-       nroots,nextra,cmin,alpha,beta,minrnorm,ndconf)
+       dspscr,nroots,nextra,cmin,alpha,beta,minrnorm,ndconf)
 #endif
 
     use constants
@@ -292,6 +292,9 @@ contains
 
     ! Q-space info scratch file numbers
     integer(is), intent(in)  :: Qscr(0:nirrep-1)
+
+    ! Damped strong perturbers scratch file numbers
+    integer(is), intent(in)  :: dspscr(0:nirrep-1)
     
     ! Number of roots per irrep
     integer(is), intent(in)  :: nroots(0:nirrep-1)
@@ -445,10 +448,10 @@ contains
              thrsh=max(cmin, alpha/(cosh(beta*Qnorm(i,irrep))**2))
              thrsh=thrsh*scale
              
-             ! Fill in the indices of the above-threshold configurations
-             ! for this root
-             call fill_above_threshold(id,nconf,cfg(irrep),start,&
-                  vecscr(irrep),i,thrsh,nsurvive)
+             ! Fill in the indices of the above-threshold
+             ! configurations for this root
+             call fill_above_threshold_pt2(id,nconf,cfg(irrep),start,&
+                  vecscr(irrep),dspscr(irrep),i,thrsh,nsurvive)
 
              ! Update the scaling factor
              scale=scale*damp
@@ -650,7 +653,7 @@ contains
     
     ! Eigenvector
     real(dp), allocatable      :: vec(:)
-    
+
     ! Everything else
     integer(is)                :: csfdim,iconf,n,csf,ioff
     integer(is)                :: counter
@@ -661,12 +664,12 @@ contains
 !----------------------------------------------------------------------
     csfdim=cfg%csfdim
     allocate(vec(csfdim))
-    
+
 !----------------------------------------------------------------------
 ! Read in the eigenvector
 !----------------------------------------------------------------------
     call read_single_vector(vecscr,vec,csfdim,sindx)
-    
+
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
@@ -892,6 +895,313 @@ contains
     return
     
   end subroutine fill_above_threshold
+
+!######################################################################
+! fill_above_threshold_pt2: determines the configurations with
+!                           absolute coefficient values above the
+!                           threshold cthrsh as well as any strong
+!                           perturbers that were damped out of the
+!                           ENPT2 calculation
+!######################################################################
+  subroutine fill_above_threshold_pt2(id,nconf,cfg,start,vecscr,&
+       dspscr,sindx,cthrsh,nsurvive)
+
+    use constants
+    use bitglobal
+    use conftype
+    use utils
+    use iomod
+    
+    implicit none
+
+    ! Total number of configurations
+    integer(is), intent(in)    :: nconf
+
+    ! Above-threshold configuration flags
+    integer(is), intent(inout) :: id(nconf)
+    
+    ! MRCI configuration derived type
+    type(mrcfg), intent(in)    :: cfg
+
+    ! Starting point in the id array
+    integer(is), intent(in)    :: start
+
+    ! MRCI eigenvector scratch file number
+    integer(is), intent(in)    :: vecscr
+
+    ! Damped strong perturber scratch file number
+    integer(is), intent(in)    :: dspscr
+    
+    ! State index
+    integer(is), intent(in)    :: sindx
+
+    ! Configuration threshold
+    real(dp), intent(in)       :: cthrsh
+
+    ! Number of surviving CSFs
+    integer(is), intent(out)   :: nsurvive
+    
+    ! Eigenvector
+    real(dp), allocatable      :: vec(:)
+
+    ! Damped strong perturber info
+    integer(is)                :: iscratch
+    integer(is)                :: ndsp
+    integer(is), allocatable   :: idsp(:)
+    
+    ! Everything else
+    integer(is)                :: csfdim,iconf,n,csf,ioff
+    integer(is)                :: counter
+    integer(is)                :: n_int_I
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    csfdim=cfg%csfdim
+    allocate(vec(csfdim))
+
+    allocate(idsp(csfdim))
+    
+!----------------------------------------------------------------------
+! Read in the eigenvector
+!----------------------------------------------------------------------
+    call read_single_vector(vecscr,vec,csfdim,sindx)
+
+!----------------------------------------------------------------------
+! Read in the damped strong perturber info
+!----------------------------------------------------------------------
+    iscratch=scrunit(dspscr)
+    open(iscratch,file=scrname(dspscr),form='unformatted',status='old')
+    read(iscratch) ndsp
+    read(iscratch) idsp
+    close(iscratch)
+    
+!----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    ! Configuration counter
+    iconf=start-1
+
+    ! No. surviving CSFs
+    nsurvive=0
+    
+!----------------------------------------------------------------------
+! Reference space configurations
+!----------------------------------------------------------------------
+    n_int_I=cfg%n_int_I
+
+    ! Loop over ref space configurations
+    do n=1,cfg%n0h
+
+       ! Increment the configuration counter
+       iconf=iconf+1
+       
+       ! Loop over the CSFs generated by this configuration
+       do csf=cfg%csfs0h(n),cfg%csfs0h(n+1)-1
+          
+          ! Cycle if this is not a dominant CSF
+          if (abs(vec(csf)) < cthrsh) cycle
+          
+          ! Flag the configuration as being dominant
+          id(iconf)=1
+          
+       enddo
+
+       ! Update the no. surviving CSFs
+       if (id(iconf) == 1) nsurvive=nsurvive+ &
+            cfg%csfs0h(n+1)-cfg%csfs0h(n)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! 1I configurations
+!----------------------------------------------------------------------
+    if (cfg%n1I > 0) then
+
+       ! Loop over 1-hole configurations
+       do n=1,cfg%n1h
+          
+          ! Loop over the 1I configurations generated by the 1-hole
+          ! configuration
+          do ioff=cfg%off1I(n),cfg%off1I(n+1)-1
+
+             ! Increment the configuration counter
+             iconf=iconf+1
+             
+             ! Loop over the CSFs generated by this configuration
+             do csf=cfg%csfs1I(ioff),cfg%csfs1I(ioff+1)-1
+
+                ! Cycle if this is not a dominant CSF
+                if (abs(vec(csf)) < cthrsh .and. idsp(csf) == 0) cycle
+                
+                ! Flag the configuration as being dominant
+                id(iconf)=1
+
+             enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs1I(ioff+1)-cfg%csfs1I(ioff)
+             
+          enddo
+          
+       enddo
+
+    endif
+
+!----------------------------------------------------------------------
+! 2I configurations
+!----------------------------------------------------------------------
+    if (cfg%n2I > 0) then
+
+       ! Loop over 2-hole configurations
+       do n=1,cfg%n2h
+          
+          ! Loop over the 2I configurations generated by the 2-hole
+          ! configuration
+          do ioff=cfg%off2I(n),cfg%off2I(n+1)-1
+
+             ! Increment the configuration counter
+             iconf=iconf+1
+
+             ! Loop over the CSFs generated by this configuration
+             do csf=cfg%csfs2I(ioff),cfg%csfs2I(ioff+1)-1
+
+                ! Cycle if this is not a dominant CSF
+                if (abs(vec(csf)) < cthrsh .and. idsp(csf) == 0) cycle
+                
+                ! Flag the configuration as being dominant
+                id(iconf)=1
+
+             enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs2I(ioff+1)-cfg%csfs2I(ioff)
+             
+          enddo
+
+       enddo
+
+    endif
+
+!----------------------------------------------------------------------
+! 1E configurations
+!----------------------------------------------------------------------
+    if (cfg%n1E > 0) then
+
+       ! Loop over 1-hole configurations
+       do n=1,cfg%n1h
+          
+          ! Loop over the 1E configurations generated by the 1-hole
+          ! configuration
+          do ioff=cfg%off1E(n),cfg%off1E(n+1)-1
+
+             ! Increment the configuration counter
+             iconf=iconf+1
+
+             ! Loop over the CSFs generated by this configuration
+             do csf=cfg%csfs1E(ioff),cfg%csfs1E(ioff+1)-1
+
+                ! Cycle if this is not a dominant CSF
+                if (abs(vec(csf)) < cthrsh .and. idsp(csf) == 0) cycle
+                
+                ! Flag the configuration as being dominant
+                id(iconf)=1
+                
+             enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs1E(ioff+1)-cfg%csfs1E(ioff)
+             
+          enddo
+
+       enddo
+
+    endif
+
+!----------------------------------------------------------------------
+! 2E configurations
+!----------------------------------------------------------------------
+    if (cfg%n2E > 0) then
+
+       ! Loop over 2-hole configurations
+       do n=1,cfg%n2h
+          
+          ! Loop over the 2E configurations generated by the 2-hole
+          ! configuration
+          do ioff=cfg%off2E(n),cfg%off2E(n+1)-1
+
+             ! Increment the configuration counter
+             iconf=iconf+1
+
+             ! Loop over the CSFs generated by this configuration
+             do csf=cfg%csfs2E(ioff),cfg%csfs2E(ioff+1)-1
+
+                ! Cycle if this is not a dominant CSF
+                if (abs(vec(csf)) < cthrsh .and. idsp(csf) == 0) cycle
+                
+                ! Flag the configuration as being dominant
+                id(iconf)=1
+                
+             enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs2E(ioff+1)-cfg%csfs2E(ioff)
+             
+          enddo
+
+       enddo
+
+    endif
+
+!----------------------------------------------------------------------
+! 1I1E configurations
+!----------------------------------------------------------------------
+    if (cfg%n1I1E > 0) then
+
+       ! Loop over 2-hole configurations
+       do n=1,cfg%n2h
+          
+          ! Loop over the 1I1E configurations generated by the 2-hole
+          ! configuration
+          do ioff=cfg%off1I1E(n),cfg%off1I1E(n+1)-1
+
+             ! Increment the configuration counter
+             iconf=iconf+1
+
+             ! Loop over the CSFs generated by this configuration
+             do csf=cfg%csfs1I1E(ioff),cfg%csfs1I1E(ioff+1)-1
+
+                ! Cycle if this is not a dominant CSF
+                if (abs(vec(csf)) < cthrsh .and. idsp(csf) == 0) cycle
+                
+                ! Flag the configuration as being dominant
+                id(iconf)=1
+                
+             enddo
+
+             ! Update the no. surviving CSFs
+             if (id(iconf) == 1) nsurvive=nsurvive+ &
+                  cfg%csfs1I1E(ioff+1)-cfg%csfs1I1E(ioff)
+             
+          enddo
+
+       enddo
+
+    endif
+    
+!----------------------------------------------------------------------
+! Deallocate arrays
+!----------------------------------------------------------------------
+    deallocate(vec)
+    deallocate(idsp)
+    
+    return
+    
+  end subroutine fill_above_threshold_pt2
   
 !######################################################################
 ! get_dominant_confs: returns the configurations with above-threshold

@@ -23,8 +23,8 @@ contains
 !######################################################################
 ! enpt2: Computes a batch of ENPT2 energy and wave function corrections
 !######################################################################
-  subroutine enpt2(cfg,hdiag,averageii,csfdim,confdim,vec0scr,Avec,&
-       E2,nroots,shift,multistate,EQD,mix)
+  subroutine enpt2(irrep,cfg,hdiag,averageii,csfdim,confdim,vec0scr,&
+       Avec,E2,nroots,shift,dspscr,multistate,EQD,mix)
 
     use constants
     use bitglobal
@@ -33,6 +33,9 @@ contains
 
     implicit none
 
+    ! Irrep
+    integer(is)                     :: irrep
+    
     ! MRCI configuration derived type
     type(mrcfg), intent(in)         :: cfg
 
@@ -59,6 +62,9 @@ contains
     ! Multistate flag
     logical, intent(in)             :: multistate
 
+    ! Damped strong perturber scratch file number
+    integer, intent(out)            :: dspscr
+    
     ! Multistate energies and mixing coefficients
     real(dp), optional, intent(out) :: EQD(nroots),mix(nroots,nroots)
     
@@ -67,6 +73,15 @@ contains
     integer(is), allocatable        :: iroots(:)
     real(dp), allocatable           :: e0(:),vec0(:,:)
 
+    ! Damped strong perturbers
+    integer(is)                     :: ndsp
+    integer(is), allocatable        :: idsp(:)
+
+    ! I/O
+    integer(is)                     :: iscratch
+    character(len=60)               :: dspfile
+    character(len=2)                :: amult,airrep
+        
     ! Everything else
     integer(is)                     :: i
 
@@ -89,6 +104,10 @@ contains
     ! Hij working array
     harr2dim=maxval(ncsfs(0:nomax))**2    
     allocate(harr2(harr2dim))
+
+    ! Indices of the damped strong perturbers
+    allocate(idsp(csfdim))
+    idsp=0
     
 !----------------------------------------------------------------------
 ! Reference space eigenpairs
@@ -126,7 +145,33 @@ contains
 !----------------------------------------------------------------------
 ! Divide by (H_nn - E^0_I)
 !----------------------------------------------------------------------
-    call apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim)
+    call apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim,&
+         shift,idsp)
+
+!----------------------------------------------------------------------
+! Write the damped strong perturber array to disk
+!----------------------------------------------------------------------
+    ! Register the scratch file
+    write(amult,'(i0)') imult
+    write(airrep,'(i0)') irrep
+    call scratch_name('dsp'//'.mult'//trim(amult)//&
+         '.sym'//trim(airrep),dspfile)
+    call register_scratch_file(dspscr,dspfile)
+
+    ! Open scratch file
+    iscratch=scrunit(dspscr)
+    open(iscratch,file=scrname(dspscr),form='unformatted',&
+         status='unknown')
+
+    ! Number of damped strong perturbers
+    ndsp=sum(idsp)
+    write(iscratch) ndsp
+
+    ! Damped strong perturber flags
+    write(iscratch) idsp
+    
+    ! Close scratch file
+    close(iscratch)
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -1071,7 +1116,7 @@ contains
 !                    the A-vector element values
 !######################################################################
   subroutine apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,&
-       refdim)
+       refdim,shift,idsp)
 
     use constants
     use bitglobal
@@ -1080,42 +1125,64 @@ contains
     implicit none
 
     ! MRCI configuration derived type
-    type(mrcfg), intent(in) :: cfg
+    type(mrcfg), intent(in)  :: cfg
 
     ! Dimensions
-    integer(is), intent(in) :: csfdim,nroots,refdim
+    integer(is), intent(in)  :: csfdim,nroots,refdim
 
     ! On-diagonal Hamiltonian matrix elements
-    real(dp), intent(in)    :: hdiag(csfdim)
+    real(dp), intent(in)     :: hdiag(csfdim)
 
     ! ENPT2 wave function and energy corrections
-    real(dp), intent(inout) :: Avec(csfdim,nroots)
-    real(dp), intent(out)   :: E2(nroots)
+    real(dp), intent(inout)  :: Avec(csfdim,nroots)
+    real(dp), intent(out)    :: E2(nroots)
     
     ! Reference space eigenvalues
-    real(dp), intent(in)    :: e0(nroots)
+    real(dp), intent(in)     :: e0(nroots)
 
+    ! ISA shift
+    real(dp), intent(in)     :: shift
+
+    ! Damped strong perturbers
+    integer(is), intent(out) :: idsp(csfdim)    
+    real(dp), parameter      :: cthrsh=0.055d0
+    
     ! Everything else
-    integer(is)             :: j,icsf
-
+    integer(is)              :: j,icsf
+    real(dp)                 :: dj,Aold,ediff
+    
 !----------------------------------------------------------------------
 ! ENPT2 energy and wave function corrections
 !----------------------------------------------------------------------
     ! Initialisation
     E2=0.0d0
-
+    idsp=0
+    
     ! Loop over roots
     do j=1,nroots
 
        ! Loop over CSFs (excluding the reference space ones)
        do icsf=refdim+1,csfdim
 
+          ! E^(0) - H_ii
+          ediff=e0(j)-hdiag(icsf)
+          
+          ! ISA factor
+          dj=shift/ediff
+
+          ! Unshifted A-vector element
+          Aold=Avec(icsf,j)/ediff
+          
           ! Energy correction
-          E2(j)=E2(j)+Avec(icsf,j)**2/(e0(j)-hdiag(icsf))
+          E2(j)=E2(j)+Avec(icsf,j)**2/(ediff+dj)
           
           ! A-vector element
-          Avec(icsf,j)=Avec(icsf,j)/(e0(j)-hdiag(icsf))
+          Avec(icsf,j)=Avec(icsf,j)/(ediff+dj)
 
+          ! Make sure that all strong perturbers are captured
+          if (abs(Aold) >= cthrsh &
+               .and. abs(Avec(icsf,j)) < cthrsh) idsp(icsf)=1
+          
        enddo
        
     enddo

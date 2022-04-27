@@ -4,10 +4,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
-     vecscr,vec0scr,Qscr) bind(c,name="mrenpt2")
+     vecscr,vec0scr,Qscr,dspscr) bind(c,name="mrenpt2")
 #else
 subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
-       vecscr,vec0scr,Qscr)
+       vecscr,vec0scr,Qscr,dspscr)
 #endif
 
   use constants
@@ -45,6 +45,9 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
 
   ! Q-space info scratch file number
   integer(is), intent(out) :: Qscr
+
+  ! Damped strong perturber scratch file number
+  integer(is), intent(out) :: dspscr
   
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
@@ -183,11 +186,11 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
 ! Compute the ENPT2 energy and wave function corrections
 !----------------------------------------------------------------------
   if (multistate) then
-     call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-          vec0scr(irrep),Avec,E2,nvec,shift,multistate,EQD,mix)
+     call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+          vec0scr(irrep),Avec,E2,nvec,shift,dspscr,multistate,EQD,mix)
   else
-     call enpt2(cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-          vec0scr(irrep),Avec,E2,nvec,shift,multistate)
+     call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+          vec0scr(irrep),Avec,E2,nvec,shift,dspscr,multistate)
   endif
 
 !----------------------------------------------------------------------

@@ -891,7 +891,7 @@ contains
 ! mrci_guess_enpt2: Generation of guess vectors from the ENPT2
 !                   1st-order corrected wave functions
 !######################################################################
-  subroutine mrci_guess_enpt2(guessscr,nguess,cfg,dim,hdiag,&
+  subroutine mrci_guess_enpt2(irrep,guessscr,nguess,cfg,dim,hdiag,&
        averageii,confdim,vec0scr)
 
     use constants
@@ -902,6 +902,9 @@ contains
     
     implicit none
 
+    ! Irrep
+    integer(is)              :: irrep
+    
     ! Guess vector scratch file number
     integer(is), intent(out) :: guessscr
 
@@ -939,7 +942,7 @@ contains
     character(len=60)        :: guessfile
     
     ! Everything else
-    integer(is)              :: i,j,info
+    integer(is)              :: i,j,idum,info
     real(dp)                 :: inner_prod
     real(dp), allocatable    :: work(:),tau(:)
 
@@ -973,8 +976,8 @@ contains
 !----------------------------------------------------------------------
 ! Compute the ENPT2 wave function corrections
 !----------------------------------------------------------------------
-    call enpt2(cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,nguess,&
-         0.0d0,.false.)
+    call enpt2(irrep,cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,&
+         nguess,0.0d0,idum,.false.)
 
 !----------------------------------------------------------------------
 ! Read in the reference space eigenpairs

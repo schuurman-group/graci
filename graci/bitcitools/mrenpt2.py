@@ -38,6 +38,8 @@ def corrections(ci_method):
     ciunits = []
     qunit   = 0
     qunits  = []
+    dspunit  = 0
+    dspunits = []
 
     # Number of configurations per irrep (this can change if wave
     # function truncation is being used)
@@ -53,13 +55,15 @@ def corrections(ci_method):
         nextra = ci_method.nextra['enpt2'][irrep]
         
         args = (irrep, nroots, nextra, shift, multistate, ci_confunits,
-                ciunit, ref_ciunits, qunit)
+                ciunit, ref_ciunits, qunit, dspunit)
 
-        ciunit, qunit = libs.lib_func('mrenpt2', args)
+        ciunit, qunit, dspunit = libs.lib_func('mrenpt2', args)
 
-        # Bitci eigenvector and Q-space scratch numbers
+        # Bitci eigenvector, Q-space, and intruder state
+        # scratch numbers
         ciunits.append(ciunit)
         qunits.append(qunit)
+        dspunits.append(dspunit)
 
     # Retrieve the MR-ENPT2 energies
     maxroots = max(ci_method.n_states_sym())
@@ -101,4 +105,4 @@ def corrections(ci_method):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)  
     
-    return ciunits, ciname, ener, qunits, nconf
+    return ciunits, ciname, ener, qunits, dspunits, nconf

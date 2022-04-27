@@ -58,7 +58,7 @@ bitci_registry = {
     'refine_ref_space'       : ['int32','int32','int32','int32','int32',
                                 'double','double','int32'],
     'refine_ref_space_pt2'   : ['int32','int32','int32','int32','int32',
-                                'int32','double','double','double',
+                                'int32','int32','double','double','double',
                                 'double','int32'],
     'density_mrci'           : ['int32','int32','int32','double',
                                 'int32','int32'],
@@ -67,7 +67,7 @@ bitci_registry = {
                                 'int32'],
     'mrenpt2'                : ['int32','int32','int32','double',
                                 'logical','int32','int32','int32',
-                                'int32'],
+                                'int32','int32'],
     'truncate_mrci_wf'       : ['int32','int32','int32','int32',
                                 'double','int32']
 }
@@ -99,12 +99,12 @@ bitci_intent = {
     'refine_ref_space'       : ['in','out','in','in','in','in','out',
                                 'out'],
     'refine_ref_space_pt2'   : ['in','out','in','in','in','in','in',
-                                'in','in','out','out'],
+                                'in','in','in','out','out'],
     'density_mrci'           : ['in','in','in','out','in','in'],
     'wf_mrci'                : ['in','in','in','in','in','in','in',
                                 'in','out'],
     'mrenpt2'                : ['in','in','in','in','in','in','out',
-                                'in','out'],
+                                'in','out','out'],
     'truncate_mrci_wf'       : ['in','in','in','in','in','out']
 }
 

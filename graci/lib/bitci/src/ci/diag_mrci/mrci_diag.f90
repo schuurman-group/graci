@@ -180,7 +180,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
         call mrci_guess_subspace(guessscr,blocksize,cfg,cfg%csfdim,&
              guessdim,hdiag,averageii,cfg%confdim)
      case(2) ! ENPT2 1st-order corrected wave functions
-        call mrci_guess_enpt2(guessscr,blocksize,cfg,cfg%csfdim,&
+        call mrci_guess_enpt2(irrep,guessscr,blocksize,cfg,cfg%csfdim,&
              hdiag,averageii,cfg%confdim,vec0scr(irrep))
      case default
         errmsg='Error in diag_mrci: unrecognised value of iguess'
