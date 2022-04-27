@@ -40,7 +40,7 @@ class Dftmrenpt2(cimethod.Cimethod):
         # user defined quanties
         self.truncate        = True
         self.truncate_thresh = 0.9
-        self.shift           = 0.
+        self.shift           = 0.005
         self.multistate      = False
         self.hamiltonian     = 'heil17_standard'
         self.ras1            = []
