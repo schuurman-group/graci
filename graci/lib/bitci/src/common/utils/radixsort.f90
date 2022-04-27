@@ -1,6 +1,5 @@
 module radixsort
    use constants
-   use detutils
 
    implicit none
 
@@ -15,13 +14,14 @@ module radixsort
                                                                                   ! as it needs to be, but simplest for now
 
       ! local variables
-      integer(ib), pointer                 ::  ptra(:,:,:)        ! The pointer to the data (or scratch)
-      integer(ib), pointer                 ::  ptrb(:,:,:)        ! The pointer to the scratch (or data)           
+      integer(ib), pointer                 ::  ptra(:,:,:)       ! The pointer to the data (or scratch)
+      integer(ib), pointer                 ::  ptrb(:,:,:)       ! The pointer to the scratch (or data)           
       integer(ib)                          ::  a, b              ! ib integer bit string
-      integer(is)                          ::  id, ii, ib, ibi, i, m, n    ! counter variables 
       integer(is), allocatable             ::  indx_table(:,:)   ! hold the array indices for each bit
-      logical                              ::  det_sorted         ! alternate data/scratch pointer target
-      integer(is)                          ::  n_b                ! how many bytes per ib integer
+      integer(is)                          ::  id, ii, ibt, ibi  ! counter variables
+      integer(is)                          ::  m, n              ! index variables 
+      integer(is)                          ::  n_b               ! how many bytes per ib integer
+      logical                              ::  det_sorted        ! alternate data/scratch pointer target
 
       !
       det_sorted = .true.                                     
@@ -29,7 +29,7 @@ module radixsort
 
       ! we will treat the tuple of integers as a single n_int*nb quantity.
       ! NOTE: future optimization would discard the the unused bits in the 'last' ib integer
-      ! in the n_int tuple (i.e. n_int*nb % nmo)
+      ! in the n_int tuple
       allocate(indx_table(0:255, 0:n_int*n_b-1))           ! table for mapping radix indices
 
       ptra => det_list
@@ -43,7 +43,7 @@ module radixsort
          ibi = 0
          do ii = 0, n_int-1
              a = ptra(ii, srt_indx-1, id)
-             do ib = 0, n_b-1
+             do ibt = 0, n_b-1
                 b = iand(a , z'FF')
                 indx_table(b, ibi) = indx_table(b, ibi) + 1
                 a = shiftr(a , 8_ib)
@@ -53,14 +53,15 @@ module radixsort
       enddo
 
       ! Now step through the each bucket in the histogram to assign a starting index
+      ! for the byte/radix value
       ibi = 0
       do ii = 0, n_int-1
-         do ib = 0, n_b-1                                         
+         do ibt = 0, n_b-1                                         
              m = 0
              do b = 0, 255
                 n = indx_table(b, ibi)
                 indx_table(b, ibi) = m
-                m = m + n   ! this defines the stride through the index array for a single iteration of the radix value
+                m = m + n
              enddo
              ibi = ibi + 1
          enddo
@@ -69,11 +70,11 @@ module radixsort
       ! This is the entirety of the radix sort (by LSB)
       ibi = 0
       do ii = 0,n_int-1
-         do ib = 0, n_b-1       
+         do ibt = 0, n_b-1       
 
             do id = 0, ndet-1
                a = ptra(ii, srt_indx-1, id)
-               b = iand(shiftr(a, 8*ib), z'FF')
+               b = iand(shiftr(a, 8_is*ibt), z'FF')
                ptrb(:, :, indx_table(b, ibi)) = ptra(:, :, id)
                indx_table(b, ibi)             = indx_table(b, ibi) + 1
             enddo
