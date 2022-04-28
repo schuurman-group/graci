@@ -39,10 +39,7 @@ def convert_ctypes(py_val, dtype=None):
         return (ctype_sym * len(py_val))(py_val)
 
     if isinstance(py_val, np.ndarray):
-        if py_val.size == 1:
-            return (ctype_sym * py_val.size)(py_val) 
-        else:
-            return (ctype_sym * py_val.size)(*py_val)
+        return (ctype_sym * py_val.size)(*py_val)
 
     return 
 
