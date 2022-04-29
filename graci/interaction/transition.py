@@ -150,10 +150,10 @@ class Transition(interaction.Interaction):
                                                  sym_blk=True)
 
                 # tdms is a vector of nmo x nmo transition densities
-                tdms = self.build_tdms(bra_ci, ket_ci, blks, blks_sym)
+                tdm_blk = self.build_tdms(bra_ci, ket_ci, blks, blks_sym)
 
                 # rotate tdms into spin states, if need be
-                self.rotate_tdms(b_lbl, k_lbl, blks, tdms)
+                self.rotate_tdms(b_lbl, k_lbl, blks, tdm_blk)
 
                 # finalize the bitsi library
                 bitsi_init.finalize()
@@ -168,11 +168,9 @@ class Transition(interaction.Interaction):
         # print orbitals if requested
         if self.print_orbitals:
             # first construct the orbitals
-            self.nos = self.build_ntos() + self.build_ndos()
-            if 'nto' in self.nos.keys():
-                self.export_orbitals(orb_type='nto')
-            if 'ndo' in self.nos.keys():
-                self.export_orbitals(orb_type='ndo')
+            self.nos = {**self.build_ntos(), **self.build_ndos()}
+            self.export_orbitals(orb_type='nto')
+            self.export_orbitals(orb_type='ndo')
 
         # print the summary output
         self.print_log()
@@ -384,7 +382,7 @@ class Transition(interaction.Interaction):
                     k_cf   = [self.bra_obj.soc_state(pair[1])[k_indx]
                                                 for k_indx in k_indxs]
 
-                cf = sum( [sum(b_cf)*kcf for kcf in k_cf] )
+                cf = sum( [bcf*kcf for kcf in k_cf for bcf in b_cf] )
                 if abs(cf) > 1.e-16:
                     self.tdms[:, :, ind] += cf * tdm
 
@@ -730,13 +728,12 @@ class Transition(interaction.Interaction):
     def build_ntos(self):
         """build the natural transition orbitals"""
 
-        ntrans = len(self.trans_list)
         nmo    = self.scf.nmo
         nao    = self.mol.nao
         mos    = self.scf.orbs
 
-        nto    = np.zeros((nao, nmo, ntrans), dtype=float)
-        nto_wt = np.zeros((nmo, ntrans), dtype=float)
+        nto    = []
+        nto_wt = []
 
         for tpair in self.trans_list:
 
@@ -752,6 +749,7 @@ class Transition(interaction.Interaction):
             # particle orbitals and weights and convert
             # orbitals to AO basis
             part, s, hole = np.linalg.svd(tdm)
+
             part_ao       = np.matmul(mos, part)
             hole_ao       = np.matmul(mos, hole.T)
 
@@ -773,19 +771,19 @@ class Transition(interaction.Interaction):
             wt_pairs  = np.zeros((2*npairs), dtype=float)
 
             # save NTOs and weights (define hole wts as neg.)
-            nto_pairs[:,0::2] =  hole_srt[:,:npairs]
-            nto_pairs[:,1::2] =  part_srt[:,:npairs]
-            wt_pairs[0::2]    = -s_srt[:npairs] 
-            wt_pairs[1::2]    =  s_srt[:npairs]
+            nto_pairs[:,0::2] =  hole_srt[:,:npairs].real
+            nto_pairs[:,1::2] =  part_srt[:,:npairs].real
+            wt_pairs[0::2]    = -s_srt[:npairs].real 
+            wt_pairs[1::2]    =  s_srt[:npairs].real
 
-            nto[:, :2*npairs, indx] = nto_pairs
-            nto_wt[:2*npairs, indx] = wt_pairs
+            nto.append(nto_pairs)
+            nto_wt.append(wt_pairs)
 
-        nto = {}
-        nto['nto']    = nto
-        nto['nto_wt'] = nto_wt
+        ntos           = {}
+        ntos['nto']    = nto
+        ntos['nto_wt'] = nto_wt
 
-        return nto
+        return ntos
 
     #
     @timing.timed
@@ -809,14 +807,12 @@ class Transition(interaction.Interaction):
         if not rdm_exists:
             return {}
 
-
-        ntrans = len(self.trans_list)
         nmo    = self.scf.nmo
         nao    = self.mol.nao
         mos    = self.scf.orbs
 
-        ndo    = np.zeros((nao, nmo, ntrans), dtype=float)
-        ndo_wt = np.zeros((nmo, ntrans), dtype=float)
+        ndo    = []
+        ndo_wt = []
 
         for tpair in self.trans_list:
 
@@ -850,14 +846,14 @@ class Transition(interaction.Interaction):
             wt_pairs[0::2]    = wt_srt[:npairs]
             wt_pairs[1::2]    = wt_srt[-1:-npairs-1:-1]
 
-            ndo[:, :2*npairs, indx] = ndo_pairs
-            ndo_wt[:2*npairs, indx] = wt_pairs
+            ndo.append(ndo_pairs)
+            ndo_wt.append(wt_pairs)
 
-        ndo = {}
-        ndo_nto['ndo']    = ndo
-        ndo_nto['ndo_wt'] = ndo_wt
+        ndos = {}
+        ndos['ndo']    = ndo
+        ndos['ndo_wt'] = ndo_wt
 
-        return ndo
+        return ndos
 
     #
     #@timing.timed
@@ -1001,7 +997,6 @@ class Transition(interaction.Interaction):
         """export all transition/difference density orbitals that
            in the object"""
 
-        # if orb_type not 
         if orb_type not in list(self.nos.keys()):
             print(' orb_type=' + str(orb_type) + ' not in ' + 
                                       str(list(self.nos.keys())))
@@ -1034,7 +1029,7 @@ class Transition(interaction.Interaction):
 
         fname = orb_type.lower() + \
                   '_'+ str(ket+1)+'-' +str(bra+1) + \
-                  '_'+ str(file_format).lower() + str(self.label)
+                  '_'+ str(file_format).lower()
 
         if orb_dir:
             fname = 'orbs/'+str(fname)
@@ -1045,20 +1040,17 @@ class Transition(interaction.Interaction):
         if os.path.isfile(fname):
             os.remove(fname)
 
-        wts = self.nos[orb_type+'_wt'][:, indx]
-        ncols = sum(chk > 1.e-16 for chk in np.absolute(wts))
-
         # import the appropriate library for the file_format
         if file_format in output.orb_formats:
             orbtype = importlib.import_module('graci.io.'+file_format)
         else:
             print('orbital format type=' + file_format +
-                                        ' not found. exiting...')
+                  ' not found. exiting...')
             sys.exit(1)
 
         orbtype.write_orbitals(fname, 
-                               self.mol, 
-                               self.nos[orb_type][:,:ncols, indx],
-                               occ=wts[:ncols])
+                               self.scf.mol, 
+                               self.nos[orb_type][indx],
+                               occ=self.nos[orb_type+'_wt'][indx])
 
         return
