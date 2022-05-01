@@ -51,8 +51,9 @@ dftmrci_kword  = {'mult'           : int,
                   'print_orbitals' : bool,
                   'save_wf'        : bool,
                   'ddci'           : bool,
+                  'ref_state'      : int,
                   'label'          : str
-                 }
+                  }
 
 # DFT/MR-ENPT2 section input keywords and data types
 dftmrenpt2_kword  = {'mult'           : int,
@@ -74,6 +75,7 @@ dftmrenpt2_kword  = {'mult'           : int,
                      'print_orbitals' : bool,
                      'save_wf'        : bool,
                      'ddci'           : bool,
+                     'ref_state'      : int,
                      'label'          : str
                      }
 

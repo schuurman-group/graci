@@ -7,7 +7,7 @@ import os
 import sys
 import h5py
 import numpy as np
-import importlib
+import graci.core.orbitals as orbitals
 import graci.io.output as output
 import graci.utils.timing as timing
 from pyscf import gto, scf, dft, symm, ao2mo, df
@@ -142,7 +142,11 @@ class Scf:
 
         # write the Molden file if requested
         if self.print_orbitals:
-            self.export_orbitals()
+            orbitals.export_orbitals('mos_molden', self.mol, self.orbs,
+                                     orb_sym=self.orb_irrep,
+                                     orb_occ=self.orb_occ,
+                                     orb_ener=self.orb_ener,
+                                     orb_dir=True, cart=True)
 
         return
 
@@ -168,8 +172,10 @@ class Scf:
 
         # write the Molden file if requested
         if self.print_orbitals:
-            self.export_orbitals()
-
+            orbitals.export_orbitals('mos_molden', self.mol, self.orbs, 
+                                     orb_sym=self.orb_irrep, 
+                                     orb_ener=self.orb_ener, 
+                                     orb_dir=True, cart=True)
         return
 
     #
@@ -295,36 +301,3 @@ class Scf:
 
         return
 
-    # 
-    def export_orbitals(self, file_format='molden', 
-                                   orb_dir=True, cart=True):
-        """export orbitals to molden format"""
-
-        # append the file_format label to file name
-        fname = 'mos_' + str(file_format).lower() + '_' + str(self.label)
-
-        if orb_dir:
-            fname = 'orbs/'+str(fname)
-            if not os.path.exists('orbs'):
-                os.mkdir('orbs')
-
-        # if a file called fname exists, delete it
-        if os.path.isfile(fname):
-            os.remove(fname)
-
-        # import the appropriate library for the file_format
-        if file_format in output.orb_formats:
-            orbtype = importlib.import_module('graci.io.'+file_format)
-        else:
-            print('orbital format type=' + file_format +
-                                        ' not found. exiting...')
-            sys.exit(1)
-
-        orbtype.write_orbitals(fname, 
-                               self.mol, 
-                               self.orbs, 
-                               sym_lbl = self.orb_irrep, 
-                               ener = self.orb_ener, 
-                               cart = cart)
-
-        return

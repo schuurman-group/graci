@@ -3,11 +3,12 @@ Module for computing CI and CI+PT2 energies
 """
 import os as os
 import sys as sys
-import importlib
 import numpy as np
 import copy as copy
+import graci.core.orbitals as orbitals
 import graci.utils.timing as timing
 import graci.io.output as output
+import graci.properties.moments as moments
 
 class Cimethod:
     """Class constructor for CI objects"""
@@ -18,6 +19,7 @@ class Cimethod:
         self.nstates        = []
         self.print_orbitals = False
         self.save_wf        = False
+        self.ref_state      = -1
         self.ddci           = True
 
         # class variables
@@ -161,107 +163,6 @@ class Cimethod:
             print("rdm_sym called but density does not exist")
             return self.dmats
 
-    #
-    @timing.timed
-    def build_nos(self):
-        """print the natural orbitals for irrep irr and state state"""
-
-        # if the 1RDMs don't exist, then we have a problem
-        if self.n_states() > 0 and self.rdm(0) is None:
-            print("can't return natural orbitals: 1RDMs don't exist")
-            return None
-            
-        # check that istate is less than the total number of states:
-        n_tot           = self.n_states()
-        (nmo1, nmo2)    = self.rdm(0).shape
-
-        self.natocc     = np.zeros((n_tot, nmo2), dtype=float)
-        self.natorb_mo  = np.zeros((n_tot, nmo1, nmo2), dtype=float)
-        self.natorb_ao  = np.zeros((n_tot, nmo1, nmo2), dtype=float)
-        self.natorb_sym = np.zeros((n_tot, nmo2), dtype=int)
-
-        # by default, compute the natural orbitals for all states
-        # requested
-        for ist in range(n_tot):
-            rdmi       = self.rdm(ist)
-            occ,nos_mo = np.linalg.eigh(rdmi)
-            nos_ao     = np.matmul(self.scf.orbs, nos_mo)
-
-            sort_ordr = self.order_orbs(occ)
-            occ       = occ[sort_ordr]
-            nos_mo    = nos_mo[:,sort_ordr]
-            nos_ao    = nos_ao[:,sort_ordr]
-            syms      = self.get_orb_sym(nos_ao)
-
-            self.natocc[ist, :]        = occ
-            self.natorb_mo[ist, :, :]  = nos_mo
-            self.natorb_ao[ist, :, :]  = nos_ao
-            self.natorb_sym[ist, :]    = syms
-
-        return
- 
-    #
-    @timing.timed
-    def build_ndos(self, ref_state, basis='mo'):
-        """ build natural difference orbitals"""
-
-        # first check if bra and ket objects define an
-        # rdm method. If not, return an empty dictionary
-
-        nmo    = self.scf.nmo
-        nao    = self.scf.mol.nao
-        mos    = self.scf.orbs
-
-        ndo    = np.zeros((nao, nmo, self.n_states()), dtype=float)
-        ndo_wt = np.zeros((nmo, self.n_states()), dtype=float)
-
-        for ist in range(self.n_states()):
-
-            if ist == ref_state:
-                continue
-
-            # delta is the different 1RDM between ist and
-            # reference state (likely the ground state)
-            delta = self.rdm(ist) - self.rdm(ref_state) 
-
-            # form different natural orbitals and transform
-            wt, ndo_mo = np.linalg.eigh(delta)
-
-            # sort NDO wts by increasing magnitude (hole 
-            # orbitals to start, then particle
-            ordr           = np.argsort(wt)
-            ndo_wt[:, ist] = wt[ordr].copy()
-            if basis == 'ao':
-                ndo_ao         = mos @ ndo_mo
-                ndo[:, :, ist] = ndo_ao[:,ordr].copy()
-            else:
-                ndo[:, :, ist] = ndo_mo[:,ordr].copy()            
-
-        return ndo, ndo_wt
-
-    # 
-    def promotion_numbers(self, ndos, ndo_wts):
-        """compute the detachment and attachment promotion numbers
-           for a given set of NDOs"""
-
-        (nao, nmo, nst) = ndos.shape
-        p_detach        = np.zeros(nst, dtype=float)
-        p_attach        = np.zeros(nst, dtype=float)        
-
-        for ist in range(nst):
-
-            wt_mat = np.diag([wt if wt < 0. else 0. for
-                                                wt in ndo_wts[:, ist]])
-            d_mat  = ndos[:,:,ist] @ wt_mat @ ndos[:,:,ist].transpose()
-            p_detach[ist] = np.trace(d_mat)
-
-            wt_mat = np.diag([wt if wt > 0. else 0. for
-                                                wt in ndo_wts[:, ist]])
-            d_mat  = ndos[:,:,ist] @ wt_mat @ ndos[:,:,ist].transpose()
-            p_attach[ist] = np.trace(d_mat)
-
-        return p_detach, p_attach
-
     # 
     def natural_orb(self, istate, basis='ao'):
         """return natural orbitals and occupations for state 'istate' """
@@ -297,6 +198,119 @@ class Cimethod:
 
 #########################################################################
     #
+    def build_nos(self):
+        """calls routines in orbitals module to construct natural
+           orbitals and occupation vectors for each state.
+
+           Arguments:
+            None
+
+           Returns:
+            None
+        """
+        n_tot = self.n_states()
+        if n_tot > 0:
+            (dim1, nmo) = self.rdm(0).shape
+            nao         = self.scf.mol.nao
+        else:
+            return
+
+        self.natorb_ao = np.zeros((n_tot, nao, nmo), dtype=float)
+        self.natocc    = np.zeros((n_tot, nmo), dtype=float)
+        for i in range(n_tot):
+            occ, nos = orbitals.build_nos(self.rdm(i), basis='ao',
+                                                 mos=self.scf.orbs)
+            self.natorb_ao[i,:,:] = nos
+            self.natocc[i,:]      = occ
+
+        return
+
+    # 
+    def print_nos(self):
+        """Calls routines in orbitals module to print natural orbitals
+           to file. Default file format is molden
+
+           Arugments:
+               None
+
+           Returns:
+               None
+        """
+
+        n_tot  = self.n_states()
+        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
+                  for i in range(n_tot)]
+
+        for i in range(n_tot):
+            fname = 'nos_'+str(i+1)+'_'+syms[i]+'_molden'
+            orbitals.export_orbitals(fname, self.scf.mol, 
+                    self.natorb_ao[i,:,:],orb_occ=self.natocc[i,:], 
+                    fmt='molden')
+
+        return
+
+    #
+    def print_promotion(self, refstate):
+        """Print the promotion numbers relative to state 'refstate'
+
+           Arguments:
+              refstate: integer adiabatic state index
+
+           Returns:
+              None
+        """
+
+        # build the list and symmetries for subsequent printing
+        n_tot  = self.n_states()
+        states = [i for i in range(n_tot)]
+        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
+                  for i in range(n_tot)]
+        pd     = np.zeros(n_tot, dtype=float)
+        pa     = np.zeros(n_tot, dtype=float)
+
+        rdm_ref = self.rdm(refstate)
+        for i in range(n_tot):
+
+            if i == refstate:
+                continue
+
+            rdm_i = self.rdm(i)
+            # also compute attachment and detachment numbers
+            # (relative to ground state)
+            wt, ndo  = orbitals.build_ndos(rdm_i, rdm_ref, 
+                                           thresh=0.01, basis='mo')
+            pd[i], pa[i] = orbitals.promotion_numbers(wt, ndo)
+
+        output.print_promotion(refstate, states, syms, pd, pa)
+        
+        return
+
+    #
+    def print_moments(self):
+        """ print the moments using the natural orbitals and occupation
+            vector
+
+            Arguments:
+               None
+
+            Returns:
+               None
+        """
+
+        # we'll also compute 1-electron properties by
+        # default.
+        momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)
+        momts.run()
+
+        n_tot  = self.n_states()
+        states = [i for i in range(n_tot)]
+        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
+                  for i in range(n_tot)]
+        output.print_moments(states, syms, momts)
+
+        return
+
+    #
     def order_energies(self):
         """orders the self.energies_sym array to create self.energies, a 1D array
            of energies in ascending order, and a corresponding sym_sorted
@@ -329,94 +343,5 @@ class Cimethod:
             # and the irrep state index of irrep just chosen
             n_srt        += 1
             istate[iirr] += 1
-
-        return
-
-    #
-    def order_orbs(self, occ):
-        """sort the occupation vector 'occ'. This is a dedicated 
-           function for orbitals because I can envision more elaborate 
-           sorting criteria than just occupation number (i.e. core orbitals 
-           first, etc.)"""
-
-        # this sorts ascending
-        ordr = np.argsort(occ)
-
-        # flip so largest occupations come first
-        return np.flip(ordr)
-
-    #
-    def get_orb_sym(self, orbs):
-        """determine the symmetry of each orb in orbs. Right now we just use
-           the symmetry of the scf/ks orbitals to determine that. We can 
-           get more elaborate later if need be"""
-
-        nmo      = len(orbs[0,:])
-        sym_indx = np.zeros((nmo), dtype=int)
-
-        # take the overlap of the orb with each KS orbital. We will
-        # assign the symmetry of this orbital to be the same as the 
-        # symmetry of the KS orbital with maximum overlap
-        for orb in range(nmo):
-            olap = [abs(np.dot(orbs[:,orb], self.scf.orbs[:,i])) 
-                    for i in range(nmo)]
-            maxo = olap.index(max(olap))
-            sym_indx[orb] = self.scf.orb_sym[maxo]
- 
-        # make sure the symmetry orbital counts match up
-        oval, ocnts = np.unique(sym_indx, return_counts=True)
-        val,  cnts  = np.unique(self.scf.orb_sym, return_counts=True)
-
-        #if not (ocnts==cnts).all():
-        #    sys.exit('ERROR: cannot assign symmetry of natural orbs')
-
-        return sym_indx
-
-    # 
-    def export_orbitals(self, orb_format='molden', orb_dir=True):
-        """export natural orbitals for all states to file"""
-
-        for ist in range(self.n_states()):
-            self.export_orbitals_state(ist, orb_format=orb_format, 
-                                                   orb_dir=orb_dir)
-        return
-
-    #
-    def export_orbitals_state(self, state, orb_format='molden', 
-                                         orb_dir=True, cart=None):
-        """export orbitals of a single state to various file formats"""
-
-        if state >= self.n_states():
-            return
-
-        [irr, st_sym] = self.state_sym(state)
-        occ, orb      = self.natural_orb(state)
-        syms          = self.natural_sym(state)
-        sym_lbl       = [self.scf.mol.irreplbl[syms[i]]
-                        for i in range(len(syms))]
-        fname = 'nos.'+str(state+1)+ \
-                '_'+str(self.scf.mol.irreplbl[irr].lower())+ \
-                '_'+str(orb_format).lower()+"_"+str(self.label)
-
-        if orb_dir:
-            fname = 'orbs/'+fname
-            # if dir_name directory doesn't exist, create it
-            if not os.path.exists('orbs'):
-                os.mkdir('orbs')
-
-        # if a file called fname exists, delete it
-        if os.path.isfile(fname):
-            os.remove(fname)
-
-        # import the appropriate library for the file_format
-        if orb_format in output.orb_formats:
-            orbtype = importlib.import_module('graci.io.'+orb_format)
-        else:
-            print('orbital format type=' + orb_format +
-                                        ' not found. exiting...')
-            sys.exit(1)
-
-        orbtype.write_orbitals(fname, self.scf.mol, orb, 
-                               occ=occ, sym_lbl=sym_lbl, cart=None)
 
         return

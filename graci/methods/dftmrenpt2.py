@@ -1,13 +1,13 @@
 """
 Module for computing DFT/MR-ENPT2 energies
 """
-import os as os
 import sys as sys
 import numpy as np
 import copy as copy
 import graci.utils.timing as timing
 import graci.methods.cimethod as cimethod
 import graci.core.bitciwfn as bitciwfn
+import graci.io.output as output
 import graci.bitcitools.bitci_init as bitci_init
 import graci.bitcitools.ref_space as ref_space
 import graci.bitcitools.ref_diag as ref_diag
@@ -17,8 +17,6 @@ import graci.bitcitools.mrenpt2 as mrenpt2
 import graci.bitcitools.mrenpt2_refine as mrenpt2_refine
 import graci.bitcitools.mrci_1rdm as mrci_1rdm
 import graci.bitcitools.mrci_wf as mrci_wf
-import graci.io.output as output
-import graci.properties.moments as moments
 
 # MRCI and DFT/MRCI Hamiltonian labels
 hamiltonians   = ['canonical',
@@ -52,7 +50,6 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.icvs            = []
         self.refiter         = 3
         self.ref_prune       = True
-        self.save_wf         = False
         self.label           = 'Dftmrenpt2'
 
         # class variables
@@ -190,35 +187,25 @@ class Dftmrenpt2(cimethod.Cimethod):
             irr, st = self.state_sym(istate)
             self.dmats[istate, :, :] = dmat_sym[irr][:, :, st]
 
-        # build the natural orbitals
-        self.build_nos()
-
         # Finalise the bitCI library
         bitci_init.finalize()
 
-        # print orbitals if requested
+        # Finalize the bitCI library
+        bitci_init.finalize()
+
+        # build the natural orbitals in AO basis by default
+        self.build_nos()
+
+        # only print if user-requested
         if self.print_orbitals:
-            self.export_orbitals(orb_format='molden')
+            self.print_nos()
 
-        # build the list and symmetries for subsequent printing
-        states = [i for i in range(n_tot)]
-        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
-                  for i in range(n_tot)]
-            
-        # also compute attachment and detachment numbers
-        # (relative to ground state)
-        ndo, ndo_wt = self.build_ndos(0, basis='mo')
-        pd, pa      = self.promotion_numbers(ndo, ndo_wt)
-        output.print_promotion(0, states, syms, pd, pa)
+        # determine promotion numbers if ref_state != -1
+        if self.ref_state != -1:
+            self.print_promotion(self.ref_state)
 
-        # we'll also compute 1-electron properties by
-        # default.
-        momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)
-        momts.run()
-        states = [i for i in range(n_tot)]
-        syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
-                  for i in range(n_tot)]
-        output.print_moments(states, syms, momts)
+        # print the moments
+        self.print_moments()
 
         return 
         

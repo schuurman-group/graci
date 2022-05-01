@@ -2,12 +2,11 @@
 module to compute functions of the 1-TDM
 """
 
-import os as os
 import numpy as np
 import sys as sys
-import importlib
 from sympy import LeviCivita
 import graci.core.params as params
+import graci.core.orbitals as orbitals
 import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
 import graci.bitcitools.bitsi_init as bitsi_init
@@ -165,12 +164,8 @@ class Transition(interaction.Interaction):
         # compute oscillator strengths
         self.oscstr = self.build_osc_str()
 
-        # print orbitals if requested
-        if self.print_orbitals:
-            # first construct the orbitals
-            self.nos = {**self.build_ntos(), **self.build_ndos()}
-            self.export_orbitals(orb_type='nto')
-            self.export_orbitals(orb_type='ndo')
+        # build the NDOs and NTOS, print to file if print_orbitals=True
+        self.nos = self.build_orbitals(self.print_orbitals)
 
         # print the summary output
         self.print_log()
@@ -416,6 +411,75 @@ class Transition(interaction.Interaction):
 
         return {**oscstr_l, **oscstr_v}
 
+
+    #
+    def build_orbitals(self, print_orbs):
+        """ contruct the NDOs and NTOs for the transitions in the 
+            trans_list list
+
+            Arguments:
+              print_orbs: if true, print orbitals to file
+
+            Returns:
+              None
+        """
+        #dimensions of the orbital quantities
+        nao = self.scf.mol.nao
+        nmo = self.scf.nmo
+        npr = len(self.trans_list)
+
+        # check to see if rdm function exists in bra/ket objects.
+        # If so, also construct NDOs
+        b_rdm = getattr(self.bra_obj, "rdm", None)
+        k_rdm = getattr(self.ket_obj, "rdm", None)
+        make_ndos = b_rdm is not None and k_rdm is not None
+
+        # NTOs are always constructed
+        ntos       = []
+        nto_wts    = []
+        ndos_ao    = []
+        ndo_wts_ao = []
+        ndos_mo    = []
+        ndo_wts_mo = []
+
+        for it in range(len(self.trans_list)):
+            bst = self.trans_list[it][0]
+            kst = self.trans_list[it][1]
+
+            nto_wt, nto = orbitals.build_ntos(self.tdm(bst, kst), 
+                            thresh=0.01, basis='ao', mos=self.scf.orbs)
+            ntos.append(nto)
+            nto_wts.append(nto_wt)
+
+            if print_orbs:
+                fname = 'nto_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
+                orbitals.export_orbitals(fname, self.scf.mol, nto,
+                                        orb_occ=nto_wt, fmt='molden')
+
+            if make_ndos:
+                wt_ao, ndo_ao = orbitals.build_ndos(b_rdm(bst),k_rdm(kst), 
+                                thresh=0.01, basis='ao',mos=self.scf.orbs)
+                wt_mo, ndo_mo = orbitals.build_ndos(b_rdm(bst),k_rdm(kst),
+                                thresh=0.01, basis='mo',mos=self.scf.orbs)
+                ndos_ao.append(ndo_ao)
+                ndo_wts_ao.append(wt_ao)
+                ndos_mo.append(ndo_mo)
+                ndo_wts_mo.append(wt_mo)
+                
+                if print_orbs:
+                    fname ='ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
+                    orbitals.export_orbitals(fname, self.scf.mol,ndo_ao,
+                                        orb_occ=wt_ao, fmt='molden')
+
+        ndo_nto           = {}
+        ndo_nto['nto']       = ntos
+        ndo_nto['nto_wt']    = nto_wts
+        ndo_nto['ndo_mo']    = ndos_mo
+        ndo_nto['ndo_wt_mo'] = ndo_wts_mo
+        ndo_nto['ndo_ao']    = ndos_ao
+        ndo_nto['ndo_wt_ao'] = ndo_wts_ao
+
+        return ndo_nto
 
     #-----------------------------------------------------------------
     # construction of multipole moments
@@ -725,138 +789,6 @@ class Transition(interaction.Interaction):
 
     #
     @timing.timed
-    def build_ntos(self):
-        """build the natural transition orbitals"""
-
-        nmo    = self.scf.nmo
-        nao    = self.mol.nao
-        mos    = self.scf.orbs
-
-        nto    = []
-        nto_wt = []
-
-        for tpair in self.trans_list:
-
-            b_st = tpair[0]
-            k_st = tpair[1]
-            indx = self.trans_list.index([b_st, k_st])
-
-            tdm = self.tdm(b_st, k_st)
-            if tdm is None:
-                continue
-
-            # first perform SVD of 1TDMs to get hole and
-            # particle orbitals and weights and convert
-            # orbitals to AO basis
-            part, s, hole = np.linalg.svd(tdm)
-
-            part_ao       = np.matmul(mos, part)
-            hole_ao       = np.matmul(mos, hole.T)
-
-            # normalize singular values
-            s  = 0.5 * np.square(s)
-
-            # sort the NTO amplitudes by decreasing magnitude
-            ordr     = np.flip(np.argsort(s))
-            hole_srt = hole_ao[:,ordr]
-            part_srt = part_ao[:,ordr]
-            s_srt    = s[ordr] 
-
-            # find the number of particle/hole pairs with weight
-            # greater than 0.01 (this should be a parameter), 
-            # and only write these to file
-            npairs = sum(chk > 0.01 for chk in s_srt)
-
-            nto_pairs = np.zeros((nao, 2*npairs), dtype=float)
-            wt_pairs  = np.zeros((2*npairs), dtype=float)
-
-            # save NTOs and weights (define hole wts as neg.)
-            nto_pairs[:,0::2] =  hole_srt[:,:npairs].real
-            nto_pairs[:,1::2] =  part_srt[:,:npairs].real
-            wt_pairs[0::2]    = -s_srt[:npairs].real 
-            wt_pairs[1::2]    =  s_srt[:npairs].real
-
-            nto.append(nto_pairs)
-            nto_wt.append(wt_pairs)
-
-        ntos           = {}
-        ntos['nto']    = nto
-        ntos['nto_wt'] = nto_wt
-
-        return ntos
-
-    #
-    @timing.timed
-    def build_ndos(self):
-        """ build natural difference orbitals"""
-
-        # first check if bra and ket objects define an
-        # rdm method. If not, return an empty dictionary
-        
-        try:
-            if (hasattr(self.bra_obj.__class__, 'rdm') and 
-                 callable(getattr(self.bra_obj.__class__, 'rdm')) and
-                  hasattr(self.ket_obj.__class__, 'rdm') and
-                    callable(getattr(self.ket_obj.__class__, 'rdm'))):
-                rdm_exists = True
-            else:
-                rdm_exists = False
-        except:
-            rdm_exists = False
-
-        if not rdm_exists:
-            return {}
-
-        nmo    = self.scf.nmo
-        nao    = self.mol.nao
-        mos    = self.scf.orbs
-
-        ndo    = []
-        ndo_wt = []
-
-        for tpair in self.trans_list:
-
-            b_st = tpair[0]
-            k_st = tpair[1]
-            indx = self.trans_list.index([b_st, k_st])
-
-            rdm_bra = self.bra_obj.rdm(b_st)
-            rdm_ket = self.ket_obj.rdm(k_st)
-
-            # next construct the natural difference densities
-            delta      = rdm_bra - rdm_ket
-            wt, ndo_mo = np.linalg.eigh(delta)
-
-            # transform ndo to AO basis
-            ndo_ao     = np.matmul(mos, ndo_mo)
-
-            # sort NDO wts by increasing magnitude (hole 
-            # orbitals to start, then particle
-            ordr    = np.argsort(wt)
-            ndo_srt = ndo_ao[:,ordr]
-            wt_srt  = wt[ordr]
-
-            npairs  = sum(chk > 0.01 for chk in wt_srt)
-
-            ndo_pairs = np.zeros((nao, 2*npairs), dtype=float)
-            wt_pairs  = np.zeros((2*npairs), dtype=float)
-
-            ndo_pairs[:,0::2] = ndo_srt[:,:npairs]
-            ndo_pairs[:,1::2] = ndo_srt[:,-1:-npairs-1:-1]
-            wt_pairs[0::2]    = wt_srt[:npairs]
-            wt_pairs[1::2]    = wt_srt[-1:-npairs-1:-1]
-
-            ndo.append(ndo_pairs)
-            ndo_wt.append(wt_pairs)
-
-        ndos = {}
-        ndos['ndo']    = ndo
-        ndos['ndo_wt'] = ndo_wt
-
-        return ndos
-
-    #
-    #@timing.timed
     def ints_ao2mo(self, ao_ints):
         """contract ao_tensor with the mos to convert to mo basis"""
 
@@ -943,7 +875,6 @@ class Transition(interaction.Interaction):
         else:
             bsym_lbl = self.scf.mol.irreplbl
 
-
         # print a 'transition table' for each initial state
         for iket in range(len(ket_states)):
             
@@ -954,6 +885,7 @@ class Transition(interaction.Interaction):
             final_sym = []
             exc_ener  = []
             osc_str   = [[] for i in range(5)]     
+            promo_num = []
 
             for ibra in range(len(bra_states)):
 
@@ -975,7 +907,13 @@ class Transition(interaction.Interaction):
                 osc_str[2].append(self.oscstr['f0iso_v'][indx])
                 osc_str[3].append(self.oscstr['f2iso_v'][indx])
                 osc_str[4].append(self.oscstr['f0_v'][:,indx])
- 
+
+                # this check on the NDOs could be made stronger..
+                pa, pd = orbitals.promotion_numbers(
+                                        self.nos['ndo_wt_mo'][indx], 
+                                        self.nos['ndo_mo'][indx])
+                promo_num.append([pa,pd])
+
             # print a 'transition table' for each initial state
             output.print_transition_table(init_st,
                                           init_sym,
@@ -986,71 +924,9 @@ class Transition(interaction.Interaction):
                                           osc_str[1],
                                           osc_str[2],
                                           osc_str[3],
-                                          osc_str[4])
+                                          osc_str[4],
+                                          promo_num)
 
 
         return
 
-    #
-    def export_orbitals(self, orb_type='nto', orb_format='molden', 
-                                              orb_dir=True):
-        """export all transition/difference density orbitals that
-           in the object"""
-
-        if orb_type not in list(self.nos.keys()):
-            print(' orb_type=' + str(orb_type) + ' not in ' + 
-                                      str(list(self.nos.keys())))
-            return False
-
-        for tpair in self.trans_list:
-            self.export_orbitals_tran(tpair[0], tpair[1], 
-                                      orb_type=orb_type, 
-                                      file_format=orb_format, 
-                                      orb_dir=orb_dir)
-
-        return True
-
-    #
-    def export_orbitals_tran(self, bra, ket, orb_type='nto', 
-                            file_format='molden', orb_dir=True):
-        """print the natural transition orbitals and difference
-           densities to file"""
-        orb_types = ['nto', 'ndo']
-
-        indx      = self.trans_list.index([bra, ket])
-        if indx is None:
-            print("bra="+str(bra)+" ket="+str(ket)+
-                    " not in list of transitions")
-            return False
-
-        if orb_type not in list(self.nos.keys()):
-            print("orbital format: "+orb_type+" not recognized.")
-            return False
-
-        fname = orb_type.lower() + \
-                  '_'+ str(ket+1)+'-' +str(bra+1) + \
-                  '_'+ str(file_format).lower()
-
-        if orb_dir:
-            fname = 'orbs/'+str(fname)
-            if not os.path.exists('orbs'):
-                os.mkdir('orbs')
-
-        # if a file called fname exists, delete it
-        if os.path.isfile(fname):
-            os.remove(fname)
-
-        # import the appropriate library for the file_format
-        if file_format in output.orb_formats:
-            orbtype = importlib.import_module('graci.io.'+file_format)
-        else:
-            print('orbital format type=' + file_format +
-                  ' not found. exiting...')
-            sys.exit(1)
-
-        orbtype.write_orbitals(fname, 
-                               self.scf.mol, 
-                               self.nos[orb_type][indx],
-                               occ=self.nos[orb_type+'_wt'][indx])
-
-        return

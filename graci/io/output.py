@@ -397,7 +397,7 @@ def print_transition_header(label):
 
 #
 def print_transition_table(init_st, init_sym, final_st, final_sym, 
-                                   exc_ener, f0l, f2l, f0v, f2v, f0xyz): 
+                            exc_ener, f0l, f2l, f0v, f2v, f0xyz, promo): 
     """print out the summary files for the transition moments"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
@@ -409,11 +409,16 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         outfile.write(    '\n ------------------------------------------')
 
         header  = '\n\n  Initial     Final    Exc Ener                  '
-        header += '             Oscillator Strength (V)\n'
+        header += '             Oscillator Strength (V)'
+        if len(promo) == len(final_st):
+            header+= '    Promotion Numbers\n'
+
         undr_str = '-' * (len(header))
 
         header += '  State       State      (eV)     f0(L)    f0(V)'
         header += '    f2(V)       x        y        z'
+        if len(promo) == len(final_st):
+            header += '      attach     detach'
 
         #f2(L) is actually mixed gauge and often gives nonsensical results:
         # removing it for now
@@ -421,7 +426,7 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         #header += '    f0(V)    f2(V)       x        y        z'
 
         fstr   = '\n {:3d}({:>3}) -> {:3d}({:>3}) {:7.2f}'+ \
-                    ' {:9.4f}{:9.4f}{:9.4f}  {:9.4f}{:9.4f}{:9.4f}'
+                ' {:9.4f}{:9.4f}{:9.4f}  {:9.4f}{:9.4f}{:9.4f} {:8.4f}   {:8.4f}'
 
         outfile.write(header)
         outfile.write('\n '+undr_str)
@@ -435,10 +440,10 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
                              final_sym[i],
                              exc_ener[i]*constants.au2ev, 
                              f0l[i], 
-                             #f2l[i], 
                              f0v[i], 
                              f2v[i],
-                             *f0xyz[i][:]))
+                             *f0xyz[i][:],
+                             *promo[i]))
 
     return
 
