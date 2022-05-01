@@ -9,6 +9,20 @@ import copy as copy
 import graci.utils.timing as timing
 import graci.io.output as output
 
+# Allowed MRCI and DFT/MRCI Hamiltonian labels
+# (not sure if this is the correct home for this, but we
+#  will put it here for now)
+hamiltonians   = ['canonical',
+                  'grimme_standard',
+                  'grimme_short',
+                  'lyskov_standard',
+                  'lyskov_short',
+                  'heil17_standard',
+                  'heil17_short',
+                  'heil18_standard',
+                  'heil18_short',
+                  'cvs_standard']
+
 class Cimethod:
     """Class constructor for CI objects"""
     def __init__(self):

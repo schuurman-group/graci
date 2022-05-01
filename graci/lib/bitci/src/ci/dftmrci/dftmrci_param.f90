@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=9
+  integer(is), parameter :: nham=10
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -22,7 +22,8 @@ module hparam
         'heil17_standard     ', &
         'heil17_short        ', &
         'heil18_standard     ', &
-        'heil18_short        ']
+        'heil18_short        ', &
+        'cvs_standard']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -124,7 +125,20 @@ module hparam
        0.359626d0, &  ! pF
        0.577732d0, &  ! p1
        11.499113d0]   ! p2
-  
+
+!----------------------------------------------------------------------
+! Experimental CVS-DFT/MRCI Hamiltonian for K-edge core-excited
+! states
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(6) :: cvs_standard= &
+       [0.503001d0, & ! pJ^(v)
+       0.358727d0, &  ! pF^(v)
+       0.563893d0, &  ! p1
+       1.8571d0, &    ! p2
+       0.75d0, &      ! pJ^(c)
+       0.90d0]        ! pF^(c)
+       
 contains
 
 !######################################################################
@@ -238,6 +252,14 @@ contains
        allocate(hpar(nhpar))
        hpar=heil18_short
        desel=0.8d0
+
+    case(10)
+       ! CVS, standard
+       ldftmrci=.true.
+       nhpar=6
+       allocate(hpar(nhpar))
+       hpar=cvs_standard
+       desel=1.0d0
        
     case default
        ! Unrecognised Hamiltonian
