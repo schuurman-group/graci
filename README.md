@@ -45,7 +45,7 @@ export PATH=$PATH:$GRACI/bin
 
 export PYTHONPATH=$GRACI
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH=$GRACI/graci/lib/bitci/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GRACI/graci/lib/bitci/lib
 
 ## Running graci
 After setting the above environment variables, simply use the command
