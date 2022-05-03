@@ -102,9 +102,15 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
 !----------------------------------------------------------------------
   ! Section header
   write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'MR-ENPT2 corrections for the',&
-       trim(irreplbl(irrep,ipg)),&
-       'subspace'
+  if (multistate) then
+     write(6,'(3(x,a))') 'MS-MR-ENPT2 corrections for the',&
+          trim(irreplbl(irrep,ipg)),&
+          'subspace'
+  else
+     write(6,'(3(x,a))') 'MR-ENPT2 corrections for the',&
+          trim(irreplbl(irrep,ipg)),&
+          'subspace'
+  endif
   write(6,'(52a)') ('-',i=1,52)
 
 !----------------------------------------------------------------------

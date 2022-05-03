@@ -19,17 +19,6 @@ import graci.bitcitools.mrci_wf as mrci_wf
 import graci.io.output as output
 import graci.properties.moments as moments
 
-# MRCI and DFT/MRCI Hamiltonian labels
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil17_short',
-                  'heil18_standard',
-                  'heil18_short']
-
 class Dftmrci(cimethod.Cimethod):
     """Class constructor for DFT/MRCI object"""
     def __init__(self):

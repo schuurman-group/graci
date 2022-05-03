@@ -917,7 +917,8 @@ contains
 !----------------------------------------------------------------------
 ! DFT/MRCI corrections
 !----------------------------------------------------------------------
-    if (ldftmrci) call hij_same_dftmrci(harr,nsp)
+    if (ldftmrci) call hij_same_dftmrci(harr,nsp,sop,socc,nsocc,&
+         nbefore,m2c)
        
     return
     

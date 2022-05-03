@@ -23,7 +23,7 @@ Note that both are now freely available through the Intel OneAPI suite
 
 (3) cd build
 
-(4) export FC=**fname** (**fname* \in {ifort, gfortran})
+(4) export FC=**fname** (**fname** \in {ifort, gfortran})
 
 (5) cmake ../ -DCMAKE_INSTALL_PREFIX=.. -DHDF5_INC_DIR=**include_path** -DHDF5_LIB_DIR=**lib_path**
 
@@ -45,7 +45,7 @@ export PATH=$PATH:$GRACI/bin
 
 export PYTHONPATH=$GRACI
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH=$GRACI/graci/lib/bitci/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GRACI/graci/lib/bitci/lib
 
 ## Running graci
 After setting the above environment variables, simply use the command
