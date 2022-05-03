@@ -21,7 +21,8 @@ hamiltonians   = ['canonical',
                   'heil17_short',
                   'heil18_standard',
                   'heil18_short',
-                  'cvs_standard']
+                  'cvs_standard',
+                  'cvs_short']
 
 class Cimethod:
     """Class constructor for CI objects"""

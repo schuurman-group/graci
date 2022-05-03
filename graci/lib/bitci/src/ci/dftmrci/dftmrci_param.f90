@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=10
+  integer(is), parameter :: nham=11
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -23,7 +23,8 @@ module hparam
         'heil17_short        ', &
         'heil18_standard     ', &
         'heil18_short        ', &
-        'cvs_standard']
+        'cvs_standard        ', &
+        'cvs_short           ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -132,13 +133,22 @@ module hparam
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
   real(dp), parameter, dimension(6) :: cvs_standard= &
-       [0.503001d0, & ! pJ^(v)
-       0.358727d0, &  ! pF^(v)
+       [0.503001d0, & ! pJ^(vv)
+       0.358727d0, &  ! pF^(vv)
        0.563893d0, &  ! p1
        1.8571d0, &    ! p2
-       0.75d0, &      ! pJ^(c)
-       0.90d0]        ! pF^(c)
-       
+       0.70d0, &      ! pJ^(cv)
+       0.95d0]        ! pF^(cv)
+
+  ! delta E_sel = 0.8
+  real(dp), parameter, dimension(6) :: cvs_short= &
+       [0.500779d0, & ! pJ
+       0.356986d0, &  ! pF
+       0.573523d0, &  ! p1
+       1.9266d0, &    ! p2
+       0.70d0, &      ! pJ^(cv)
+       0.95d0]        ! pF^(cv)
+  
 contains
 
 !######################################################################
@@ -259,6 +269,14 @@ contains
        nhpar=6
        allocate(hpar(nhpar))
        hpar=cvs_standard
+       desel=1.0d0
+
+    case(11)
+       ! CVS, short
+       ldftmrci=.true.
+       nhpar=6
+       allocate(hpar(nhpar))
+       hpar=cvs_short
        desel=1.0d0
        
     case default
