@@ -108,7 +108,7 @@ contains
     case(4:7, 10:11)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's 2017 Hamiltonian
-       ! as well as the CVS Hamiltonian
+       ! as well as the Ottawa CVS Hamiltonian
        damp=damping_lyskov(bav,kav)
 
     case(8:9)
@@ -223,6 +223,9 @@ contains
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
 
+    ! Temporary K-edge MO energy threshold
+    real(dp), parameter     :: ethrsh=-10.0d0
+    
     ! Everything else
     integer(is)             :: insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
@@ -231,9 +234,6 @@ contains
     integer(is)             :: count,n
     real(dp)                :: Vijji,product
     real(dp)                :: pF,pFvv,pFcv
-
-    ! TEST: C 1s MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
 
 !----------------------------------------------------------------------
 ! Parameter values
@@ -1058,6 +1058,9 @@ contains
 
     ! Numbers of open shells preceding each MO
     integer(is), intent(in) :: nbefore(nmo)
+
+    ! Temporary K-edge MO energy threshold
+    real(dp), parameter     :: ethrsh=-10.0d0
     
     ! Everything else
     integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,insp
@@ -1067,9 +1070,6 @@ contains
     real(dp)                :: product
     real(dp)                :: pJ,pF,pJvv,pFvv,pJcv,pFcv
 
-    ! TEST: C 1s MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
-    
 !----------------------------------------------------------------------
 ! Diagonal shift: 1/4 Sum_i V_iiii, i singly occupied in the base
 ! configuration    

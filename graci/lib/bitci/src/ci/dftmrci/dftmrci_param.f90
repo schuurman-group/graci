@@ -277,7 +277,7 @@ contains
        nhpar=6
        allocate(hpar(nhpar))
        hpar=cvs_short
-       desel=1.0d0
+       desel=0.8d0
        
     case default
        ! Unrecognised Hamiltonian
