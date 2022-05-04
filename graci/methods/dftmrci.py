@@ -17,17 +17,6 @@ import graci.bitcitools.mrci_refine as mrci_refine
 import graci.bitcitools.mrci_1rdm as mrci_1rdm
 import graci.bitcitools.mrci_wf as mrci_wf
 
-# MRCI and DFT/MRCI Hamiltonian labels
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil17_short',
-                  'heil18_standard',
-                  'heil18_short']
-
 class Dftmrci(cimethod.Cimethod):
     """Class constructor for DFT/MRCI object"""
     def __init__(self):

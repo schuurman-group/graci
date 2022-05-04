@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,iham,label1) bind(c,name="bitci_initialise")
+     escf1,ham1,label1) bind(c,name="bitci_initialise")
 #else
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,iham,label1)
+     escf1,ham1,label1)
 #endif
 
   use constants
@@ -27,32 +27,34 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 
   integer(is), intent(in)            :: imult1,nel1,nmo1,ipg1
   integer(ib), intent(in)            :: mosym1(nmo1)
-  integer(is), intent(in)            :: iham
   real(dp), intent(in)               :: moen1(nmo1)
   real(dp), intent(in)               :: escf1
   real(dp)                           :: s,smax
   logical                            :: verbose
 
 #ifdef CBINDING
-  character(kind=C_CHAR), intent(in) :: label1(*)
-  character(len=255)                 :: label
+  character(kind=C_CHAR), intent(in) :: label1(*),ham1(*)
+  character(len=255)                 :: label,ham
   integer(is)                        :: length
 #else
-  character(len=*), intent(in)       :: label1
+  character(len=*), intent(in)       :: label1,ham1
   character(len=255)                 :: label
 #endif
 
-  integer(is)                        :: i
+  integer(is)                        :: i,iham(1)
   
 !----------------------------------------------------------------------
-! If C bindings are on, then convert the calculation label from the
-! C char type to the Fortran character type
+! If C bindings are on, then convert the Hamiltonian and calculation
+! labels from the C char type to the Fortran character type
 !----------------------------------------------------------------------
 #ifdef CBINDING
   length=cstrlen(label1)
   call c2fstr(label1,label,length)
+  length=cstrlen(ham1)
+  call c2fstr(ham1,ham,length)
 #else
   label=adjustl(trim(label1))
+  ham=adjustl(trim(ham1))
 #endif
 
 !----------------------------------------------------------------------
@@ -67,7 +69,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 
 !----------------------------------------------------------------------
 ! Exit if the requested spin multiplicity is not supported by the
-! maximum number of openshells
+! maximum number of open shells
 !----------------------------------------------------------------------
   smax=dble(nomax)/2.0d0
   s=dble(imult1-1)/2.0
@@ -80,11 +82,23 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 !----------------------------------------------------------------------
 ! Exit if the given point group is not recognised
 !----------------------------------------------------------------------
-  if (ipg1.lt.1.or.ipg1.gt.8) then
+  if (ipg1 < 1 .or. ipg1 > 8) then
      write(errmsg,'(a,1x,i0)') 'Illegal point group index:',ipg1
      call error_control
   endif
 
+!----------------------------------------------------------------------
+! Make sure that the requested Hamiltonian is supported
+!----------------------------------------------------------------------
+  ! Hamiltonian index
+  iham=findloc(hlbl,value=trim(ham))
+
+  ! Exit if the Hamiltonian label was not found
+  if (iham(1) == 0) then
+     write(errmsg,'(a,1x,a)') 'Unrecognised Hamiltonian:',trim(ham)
+     call error_control
+  endif
+  
 !----------------------------------------------------------------------
 ! Set the spin multiplicity
 !----------------------------------------------------------------------
@@ -157,8 +171,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 
 !----------------------------------------------------------------------
 ! Load the Hamiltonian parameters
-!----------------------------------------------------------------------
-  call load_hpar(iham)
+!----------------------------------------------------------------------  
+  call load_hpar(iham(1))
 
 !----------------------------------------------------------------------
 ! Generate the CSFs for the given spin multiplicity up to the maximum
