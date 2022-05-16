@@ -39,7 +39,6 @@ class Dftmrci2(cimethod.Cimethod):
         self.truncate        = True
         self.truncate_thresh = 0.9
         self.shift           = 0.005
-        self.multistate      = False
         self.hamiltonian     = 'heil17_standard'
         self.ras1            = []
         self.ras2            = []
