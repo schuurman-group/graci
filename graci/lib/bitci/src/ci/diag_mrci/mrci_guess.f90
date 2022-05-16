@@ -942,7 +942,7 @@ contains
     character(len=60)        :: guessfile
     
     ! Everything else
-    integer(is)              :: i,j,idum,info
+    integer(is)              :: i,j,info
     real(dp)                 :: inner_prod
     real(dp), allocatable    :: work(:),tau(:)
 
@@ -977,7 +977,7 @@ contains
 ! Compute the ENPT2 wave function corrections
 !----------------------------------------------------------------------
     call enpt2(irrep,cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,&
-         nguess,0.0d0,idum,.false.)
+         nguess)
 
 !----------------------------------------------------------------------
 ! Read in the reference space eigenpairs

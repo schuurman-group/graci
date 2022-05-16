@@ -55,29 +55,29 @@ dftmrci_kword  = {'mult'           : int,
                   'label'          : str
                   }
 
-# DFT/MR-ENPT2 section input keywords and data types
-dftmrenpt2_kword  = {'mult'           : int,
-                     'charge'         : int,
-                     'truncate'       : bool,
-                     'multistate'     : bool,
-                     'shift'          : float,
-                     'nstates'        : int,
-                     'hamiltonian'    : str,
-                     'ras1'           : int,
-                     'ras2'           : int,
-                     'ras3'           : int,
-                     'nhole1'         : int,
-                     'nelec3'         : int,
-                     'icvs'           : int,
-                     'autoras'        : bool,
-                     'refiter'        : int,
-                     'ref_prune'      : bool,
-                     'print_orbitals' : bool,
-                     'save_wf'        : bool,
-                     'ddci'           : bool,
-                     'ref_state'      : int,
-                     'label'          : str
-                     }
+# DFT/MRCI(2) section input keywords and data types
+dftmrci2_kword  = {'mult'           : int,
+                   'charge'         : int,
+                   'truncate'       : bool,
+                   'multistate'     : bool,
+                   'shift'          : float,
+                   'nstates'        : int,
+                   'hamiltonian'    : str,
+                   'ras1'           : int,
+                   'ras2'           : int,
+                   'ras3'           : int,
+                   'nhole1'         : int,
+                   'nelec3'         : int,
+                   'icvs'           : int,
+                   'autoras'        : bool,
+                   'refiter'        : int,
+                   'ref_prune'      : bool,
+                   'print_orbitals' : bool,
+                   'save_wf'        : bool,
+                   'ddci'           : bool,
+                   'ref_state'      : int,
+                   'label'          : str
+}
 
 #---------------------------------------------------
 
@@ -119,7 +119,7 @@ parameterize_kword = {'algorithm' : str,
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-ci_objs      = ['Dftmrci', 'Dftmrenpt2']
+ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap']
 valid_objs   = ['Molecule', 'Scf', 'Parameterize'] + \
@@ -130,7 +130,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Parameterize' : parameterize_kword,
           'Scf'          : scf_kword,
           'Dftmrci'      : dftmrci_kword,
-          'Dftmrenpt2'   : dftmrenpt2_kword,
+          'Dftmrci2'     : dftmrci2_kword,
           'Spinorbit'    : spinorbit_kword,
           'Transition'   : transition_kword,
           'Overlap'      : overlap_kword

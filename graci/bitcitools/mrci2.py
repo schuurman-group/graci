@@ -1,5 +1,5 @@
 """
-Module for calculating the ENPT2 energy and wave function corrections
+Module for calculating the DFT/MRCI(2) energy and wave function corrections
 """
 
 import sys
@@ -12,10 +12,7 @@ import graci.io.convert as convert
 
 @timing.timed
 def corrections(ci_method):
-    """Calculation of the ENPT2 corrections"""
-
-    # is this a multistate MR-ENPT2 calculation?
-    multistate = ci_method.multistate
+    """Calculation of the DFT/MRCI(2) corrections"""
 
     # ISA shift
     shift = ci_method.shift
@@ -54,10 +51,10 @@ def corrections(ci_method):
         # Number of extra roots
         nextra = ci_method.nextra['enpt2'][irrep]
         
-        args = (irrep, nroots, nextra, shift, multistate, ci_confunits,
+        args = (irrep, nroots, nextra, shift, ci_confunits,
                 ciunit, ref_ciunits, qunit, dspunit)
 
-        ciunit, qunit, dspunit = libs.lib_func('mrenpt2', args)
+        ciunit, qunit, dspunit = libs.lib_func('gvvpt2', args)
 
         # Bitci eigenvector, Q-space, and intruder state
         # scratch numbers
@@ -65,7 +62,7 @@ def corrections(ci_method):
         qunits.append(qunit)
         dspunits.append(dspunit)
 
-    # Retrieve the MR-ENPT2 energies
+    # Retrieve the DFT/MRCI(2) energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
@@ -78,7 +75,7 @@ def corrections(ci_method):
             (ener[irrep,:nroots]) = \
                     libs.lib_func('retrieve_energies', args)
 
-    # Retrieve the MR-ENPT2 eigenvector scratch file names
+    # Retrieve the DFT/MRCI(2) eigenvector scratch file names
     ciname = []
     name   = ''
     for irrep in range(nirr):
@@ -86,7 +83,7 @@ def corrections(ci_method):
         name = libs.lib_func('retrieve_filename', args)
         ciname.append(name)
 
-    # Optional truncation of the MR-ENPT2 1st-order corrected
+    # Optional truncation of the DFT/MRCI(2) 1st-order corrected
     # wave functions
     if ci_method.truncate:
         for irrep in range(nirr):
@@ -98,8 +95,8 @@ def corrections(ci_method):
             (nconf_new)  = libs.lib_func('truncate_mrci_wf', args)
             nconf[irrep] = nconf_new
     
-    # Print the report of the MR-ENPT2 states 
-    output.print_dftmrenpt2_states_header()
+    # Print the report of the DFT/MRCI(2) states 
+    output.print_dftmrci2_states_header()
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states_sym()
     args = (ci_confunits, ciunits, nstates)

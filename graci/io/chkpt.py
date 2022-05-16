@@ -13,7 +13,7 @@ import graci.core.molecule as molecule
 import graci.core.parameterize as parameterize
 import graci.core.scf as scf
 import graci.methods.dftmrci as dftmrci
-import graci.methods.dftmrenpt2 as dftmrenpt2
+import graci.methods.dftmrci2 as dftmrci2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap

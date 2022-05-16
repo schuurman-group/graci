@@ -182,13 +182,13 @@ def print_dftmrci_header(label):
     return
 
 #
-def print_dftmrenpt2_header(label):
+def print_dftmrci2_header(label):
     global file_names
 
     LLEN = 76
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        title = 'DFT/MR-ENPT2 computation, label = '+str(label)
+        title = 'DFT/MRCI(2) computation, label = '+str(label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
         pstr = str('*'.ljust(lpad)+title)
         pstr = pstr.ljust(LLEN-1)+'*'
@@ -270,12 +270,12 @@ def print_dftmrci_states_header():
         outfile.flush()
 
 #
-def print_dftmrenpt2_states_header():
-    """print the DFT/MR-ENPT2 eigenstate report header"""
+def print_dftmrci2_states_header():
+    """print the DFT/MRCI(2) eigenstate report header"""
     global file_names
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n DFT/MR-ENPT2 Eigenstates\n')
+        outfile.write('\n DFT/MRCI(2) Eigenstates\n')
         outfile.write(' -------------------------------')
         outfile.flush()
         

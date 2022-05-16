@@ -1,5 +1,5 @@
 """
-Module for the refinement of the reference space in an MRENPT2 calculation
+Module for the refinement of the reference space in a DFT/MRCI(2) calculation
 """
 
 import sys
