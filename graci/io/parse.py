@@ -50,7 +50,8 @@ def parse_section(class_name, input_file):
     # find the start of the section
     iline = 0
     while iline < nlines:
-        if '$'+mod_name in input_file[iline].lower():
+        if '$'+mod_name+' ' in input_file[iline].lower():
+
             iline += 1
             
             # section exists, create class object
