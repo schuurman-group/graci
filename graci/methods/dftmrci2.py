@@ -49,6 +49,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.icvs            = []
         self.refiter         = 3
         self.ref_prune       = True
+        self.nbuffer         = []
         self.label           = 'Dftmrci2'
 
         # class variables
@@ -92,9 +93,14 @@ class Dftmrci2(cimethod.Cimethod):
         self.mrci_wfn = bitciwfn.Bitciwfn()
 
         # set the number of extra roots to be calculated
-        # (hard-wired for now)
-        self.nextra = {'enpt2' : [10 for n in range(self.n_irrep())],
-                       'max'   : [10 for n in range(self.n_irrep())]}
+        if len(self.nbuffer) == 0:
+            # default: 10 roots per irrep
+            self.nextra = {'pt2' : [10 for n in range(self.n_irrep())],
+                           'max' : [10 for n in range(self.n_irrep())]}
+        else:
+            # user-specified values
+            self.nextra = {'pt2' : np.ndarray.tolist(self.nbuffer),
+                           'max' : np.ndarray.tolist(self.nbuffer)}
         
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)

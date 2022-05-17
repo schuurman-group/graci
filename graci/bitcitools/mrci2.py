@@ -49,7 +49,7 @@ def corrections(ci_method):
         nroots = ci_method.n_states_sym(irrep)
 
         # Number of extra roots
-        nextra = ci_method.nextra['enpt2'][irrep]
+        nextra = ci_method.nextra['pt2'][irrep]
         
         args = (irrep, nroots, nextra, shift, ci_confunits,
                 ciunit, ref_ciunits, qunit, dspunit)

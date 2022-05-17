@@ -75,6 +75,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'save_wf'        : bool,
                    'ddci'           : bool,
                    'ref_state'      : int,
+                   'nbuffer'        : int,
                    'label'          : str
 }
 

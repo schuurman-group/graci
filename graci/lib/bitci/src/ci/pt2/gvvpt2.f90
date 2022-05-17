@@ -26,7 +26,7 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   ! Number of roots requested
   integer(is), intent(in)  :: nroots
 
-  ! Number of extra roots to include in the ENPT2 calculation
+  ! Number of extra roots to include in the GVVPT2 calculation
   integer(is), intent(in)  :: nextra
 
   ! ISA shift
