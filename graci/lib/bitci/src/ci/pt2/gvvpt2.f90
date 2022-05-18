@@ -353,8 +353,8 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
   call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-       'mrenpt2')
-  
+       'gvvpt2')
+
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------

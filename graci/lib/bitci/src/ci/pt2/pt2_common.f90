@@ -95,7 +95,7 @@ contains
           ! reference and 1-hole configurations
           nac=n_create_annihilate(cfg%conf0h(1:n_int_I,:,kconf), &
                cfg%conf1h(1:n_int_I,:,n),n_int_I)
-
+          
           ! 1I elements
           if (nac <= 5) then
              if (cfg%n1I > 0) then
@@ -107,7 +107,7 @@ contains
           else
              ibconf1I=ibconf1I+cfg%off1I(n+1)-cfg%off1I(n)
           endif
-
+          
           ! 1E elements
           if (nac <= 3) then
              if (cfg%n1E > 0) then
@@ -954,11 +954,14 @@ contains
        
        ! Loop over ket CSFs (reference space CSFs)
        do ikcsf=kcsfs(kconf),kcsfs(kconf+1)-1
+
+          ! Cycle if the ket CSF coefficient is tiny
+          if (abs(vec0(ikcsf,j)) < epshij) cycle
           
-          ! Loop over bra CSFs (MRCI CSFs not in the reference space)
+          ! Loop over bra CSFs (FOIS CSFs)
           do ibcsf=bcsfs(bconf),bcsfs(bconf+1)-1
              counter=counter+1
-             
+
              Avec(ibcsf,j)=Avec(ibcsf,j)&
                   +harr2(counter)*vec0(ikcsf,j)
              
@@ -971,5 +974,7 @@ contains
     return
     
   end subroutine contract_hmat_vec0
+
+!######################################################################
   
 end module pt2_common
