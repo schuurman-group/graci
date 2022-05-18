@@ -13,8 +13,8 @@ import graci.bitcitools.ref_space as ref_space
 import graci.bitcitools.ref_diag as ref_diag
 import graci.bitcitools.ref_prune as ref_prune
 import graci.bitcitools.mrci_space as mrci_space
-import graci.bitcitools.mrci2 as mrci2
-import graci.bitcitools.mrci2_refine as mrci2_refine
+import graci.bitcitools.gvvpt2 as gvvpt2
+import graci.bitcitools.gvvpt2_refine as gvvpt2_refine
 import graci.bitcitools.mrci_1rdm as mrci_1rdm
 import graci.bitcitools.mrci_wf as mrci_wf
 
@@ -146,7 +146,7 @@ class Dftmrci2(cimethod.Cimethod):
 
             # DFT/MRCI(2) calculation
             mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units, dsp_units, n_conf_new = \
-                mrci2.corrections(self)
+                gvvpt2.diag_heff(self)
 
             # set the new number of mrci confs if wave function
             # truncation is being used
@@ -166,7 +166,7 @@ class Dftmrci2(cimethod.Cimethod):
                 
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
-                    mrci2_refine.refine_ref_space(self)
+                    gvvpt2_refine.refine_ref_space(self)
             self.ref_wfn.set_nconf(n_ref_conf)
             self.ref_wfn.set_confunits(ref_conf_units)
 

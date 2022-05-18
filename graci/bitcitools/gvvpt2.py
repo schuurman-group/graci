@@ -1,5 +1,6 @@
 """
 Module for calculating the DFT/MRCI(2) energy and wave function corrections
+via the diagonalisation of the GVVPT2 effective Hamiltonian
 """
 
 import sys
@@ -11,8 +12,8 @@ import graci.io.output as output
 import graci.io.convert as convert
 
 @timing.timed
-def corrections(ci_method):
-    """Calculation of the DFT/MRCI(2) corrections"""
+def diag_heff(ci_method):
+    """Diagonalisation of the DFT/MRCI(2) effective Hamiltonian"""
 
     # ISA shift
     shift = ci_method.shift
