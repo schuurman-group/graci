@@ -27,6 +27,9 @@ def parse_input():
     with open(output.file_names['input_file'], 'r') as infile:
         input_file = infile.readlines()
 
+    # check for invalid sections
+    check_sections(input_file)
+        
     run_list = []
     for obj_name in params.valid_objs:
 
@@ -91,8 +94,10 @@ def parse_section(class_name, input_file):
                             setattr(sec_obj, kword, val)
                         else:
                             print(kword+" is wrong type, expected: "
-                              +str(expected), flush=True)
-
+                                  +str(expected), flush=True)
+                    else:
+                        sys.exit('Invalid keyword found: '+kword)
+                            
                 elif class_name == 'Molecule' and \
                         len(input_file[iline].strip()) > 0:
                     # try to interpret as a cartesian atom definition
@@ -219,6 +224,21 @@ def parse_value(valstr):
     else:
         return convert_array(vec_str)
 
+#
+def check_sections(input_file):
+    """checks for the existense of invalid sections in the input file"""
+
+    # get the list of section headers
+    header_list  = [line.strip() for line in input_file if 'section' in line]
+    
+    # make sure that each section corresponds to valid class object
+    valid_objs = [obj.lower() for obj in params.valid_objs]
+    for header in header_list:
+        section_name = header[1:header.index('section')].lower().strip()
+        if section_name not in valid_objs:
+            sys.exit('Invalid section found: $'+section_name)
+
+    return
 #
 def check_input(run_list):
     """Checks on the user-supplied input"""
