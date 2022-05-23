@@ -153,7 +153,7 @@ class Driver:
         #------------------------------------------------------------
         for si_obj in si_objs:
             arg_list = self.get_postscf_objs(si_obj, 
-                                             ci_objs + postci_objs)
+                                             ci_objs + postci_objs)            
             si_obj.run(arg_list)
             chkpt.write(si_obj)
 

@@ -320,8 +320,8 @@ def check_input(run_list):
 
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
-        if (type(obj).__name__ == 'Transition' or 
-            type(obj).__name__ == 'Overlap'):
+        if (type(obj).__name__ == 'Transition'
+            or type(obj).__name__ == 'Overlap'):
             if obj.init_states is not None:
                 if not isinstance(obj.init_states, (list, np.ndarray)):
                     obj.init_states = np.array([obj.init_states])
@@ -330,8 +330,8 @@ def check_input(run_list):
                     obj.final_states = np.array([obj.final_states])
             # shift statesby 1 to internal/C ordering
             obj.init_states  -= 1
-            obj.final_states -= 1
-
+            obj.final_states -= 1            
+            
     return
     
 #
