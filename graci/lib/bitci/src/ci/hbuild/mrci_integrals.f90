@@ -194,8 +194,8 @@ contains
 ! creation operators
 !----------------------------------------------------------------------
     ! Creation operator
-    k=(ac-1)/64+1
-    i=ac-(k-1)*64-1
+    k=(ac-1)/n_bits+1
+    i=ac-(k-1)*n_bits-1
     if (btest(ksop(k,1),i)) then
        wac=1
     else
@@ -203,8 +203,8 @@ contains
     endif
 
     ! Annihilation operator
-    k=(ia-1)/64+1
-    i=ia-(k-1)*64-1
+    k=(ia-1)/n_bits+1
+    i=ia-(k-1)*n_bits-1
     if (btest(ksop(k,1),i)) then
        wia=1
     else

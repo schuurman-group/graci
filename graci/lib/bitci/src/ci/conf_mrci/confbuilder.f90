@@ -343,8 +343,8 @@ contains
           ! 2-hole and base configurations
           nac2H=nacR
           ! First annihilation operator
-          k=(ia2h-1)/64+1
-          i=ia2h-(k-1)*64-1
+          k=(ia2h-1)/n_bits+1
+          i=ia2h-(k-1)*n_bits-1
           if (iocc0(ia2h) == 0) then
              ! Unoccupied MO in the base conf
              nac2H=nac2H-1
@@ -363,8 +363,8 @@ contains
           endif
           !
           ! Second annihilation operator
-          k=(ja2h-1)/64+1
-          i=ja2h-(k-1)*64-1
+          k=(ja2h-1)/n_bits+1
+          i=ja2h-(k-1)*n_bits-1
           if (iocc0(ja2h) == 0) then
              ! Unoccupied MO in the base conf
              nac2H=nac2H-1
@@ -392,8 +392,8 @@ contains
           !
           ! 1st annihilation operator
           !
-          k=(ia2h-1)/64+1
-          i=ia2h-(k-1)*64-1
+          k=(ia2h-1)/n_bits+1
+          i=ia2h-(k-1)*n_bits-1
           if (btest(cfgM%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf: nopen -> nopen+1
              no2H=noR+1
@@ -404,8 +404,8 @@ contains
           !
           ! 2nd annihilation operator
           !
-          k=(ja2h-1)/64+1
-          i=ja2h-(k-1)*64-1
+          k=(ja2h-1)/n_bits+1
+          i=ja2h-(k-1)*n_bits-1
           if (btest(cfgM%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf:
              if (ia2h == ja2h) then
@@ -478,10 +478,10 @@ contains
              irrep1H1I=ib2
 
              ! Block index
-             k=(iint1-1)/64+1
+             k=(iint1-1)/n_bits+1
 
              ! Postion of the external MO within the kth block
-             i=iint1-(k-1)*64-1
+             i=iint1-(k-1)*n_bits-1
              
              ! Number of creation and annihilation operators linking the
              ! 1H1I and base configurations
@@ -548,10 +548,10 @@ contains
                 if (ldftmrci .and. esum1I1E > E0max + desel) cycle
 
                 ! Block index
-                k=(iext-1)/64+1
+                k=(iext-1)/n_bits+1
                 
                 ! Postion of the external MO within the kth block
-                i=iext-(k-1)*64-1
+                i=iext-(k-1)*n_bits-1
 
                 ! Full configuration
                 conf=0_ib
@@ -633,10 +633,10 @@ contains
                 if (ldftmrci .and. esum2I > E0max + desel) cycle
                 
                 ! Block index
-                k=(iint2-1)/64+1
+                k=(iint2-1)/n_bits+1
                 
                 ! Postion of the internal MO within the kth block
-                i=iint2-(k-1)*64-1
+                i=iint2-(k-1)*n_bits-1
 
                 ! Full configuration
                 conf=0_ib
@@ -2230,8 +2230,8 @@ contains
           if (nexci1H+1 > nexmax) cycle
 
           ! Number of open shells in the 1-hole configuration
-          k=(ia1h-1)/64+1
-          i=ia1h-(k-1)*64-1
+          k=(ia1h-1)/n_bits+1
+          i=ia1h-(k-1)*n_bits-1
           if (btest(cfgM(0)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf: nopen -> nopen+1
              no1H=noR+1
@@ -2523,8 +2523,8 @@ contains
           !
           ! 1st annihilation operator
           !
-          k=(ia2h-1)/64+1
-          i=ia2h-(k-1)*64-1
+          k=(ia2h-1)/n_bits+1
+          i=ia2h-(k-1)*n_bits-1
           if (btest(cfgM(0)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf:
              ! nopen -> nopen+1
@@ -2537,8 +2537,8 @@ contains
           !
           ! 2nd annihilation operator
           !
-          k=(ja2h-1)/64+1
-          i=ja2h-(k-1)*64-1
+          k=(ja2h-1)/n_bits+1
+          i=ja2h-(k-1)*n_bits-1
           if (btest(cfgM(0)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf:
              if (ia2h == ja2h) then
@@ -2973,8 +2973,8 @@ contains
           ! Number of creation and annihilation operators linking the
           ! 1-hole and base configurations
           nac1H=nacR
-          k=(ia1h-1)/64+1
-          i=ia1h-(k-1)*64-1
+          k=(ia1h-1)/n_bits+1
+          i=ia1h-(k-1)*n_bits-1
           if (iocc0(ia1h) == 0) then
              ! Unoccupied MO in the base conf
              nac1H=nac1H-1
@@ -2993,8 +2993,8 @@ contains
           endif
 
           ! Number of open shells in the 1-hole configuration
-          k=(ia1h-1)/64+1
-          i=ia1h-(k-1)*64-1
+          k=(ia1h-1)/n_bits+1
+          i=ia1h-(k-1)*n_bits-1
           if (btest(cfgM(0)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf: nopen -> nopen+1
              no1H=noR+1
@@ -3105,10 +3105,10 @@ contains
              irrep1I=ib2
 
              ! Block index
-             k=(iint-1)/64+1
+             k=(iint-1)/n_bits+1
 
              ! Postion of the external MO within the kth block
-             i=iint-(k-1)*64-1
+             i=iint-(k-1)*n_bits-1
 
              ! Number of creation and annihilation operators linking the
              ! 1I and base configurations

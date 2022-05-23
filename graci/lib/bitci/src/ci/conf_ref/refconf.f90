@@ -306,10 +306,10 @@ contains
        if (icvs(imo) == 1) then
 
           ! Block index
-          k=(imo-1)/64+1
+          k=(imo-1)/n_bits+1
           
           ! Orbital index in the bit string
-          i=imo-(k-1)*64-1
+          i=imo-(k-1)*n_bits-1
 
           if (btest(sop(k,2),i)) then
              ! Doubly-occupied MO
@@ -396,10 +396,10 @@ contains
        do imo=1,nmo
           
           ! Block index
-          k=(imo-1)/64+1
+          k=(imo-1)/n_bits+1
           
           ! Orbital index in the bit string
-          i=imo-(k-1)*64-1
+          i=imo-(k-1)*n_bits-1
           
           ! Fill in the new configuration and SOP bit strings
           do n=1,2
@@ -408,10 +408,10 @@ contains
              imo1=c2m(imo)
              
              ! New block index
-             k1=(imo1-1)/64+1
+             k1=(imo1-1)/n_bits+1
              
              ! New orbital index in the bit string
-             i1=imo1-(k1-1)*64-1
+             i1=imo1-(k1-1)*n_bits-1
              
              ! Configuration
              if (btest(conf(k,n,iconf),i)) &
@@ -572,10 +572,10 @@ contains
     enddo
 
 !----------------------------------------------------------------------
-! Number of 64-bit integers needed to represent each reference space
-! configuration and SOP bit string
+! Number of (n_bits)-bit integers needed to represent each reference
+! space configuration and SOP bit string
 !----------------------------------------------------------------------
-    n_int_I=(nmoI-1)/64+1
+    n_int_I=(nmoI-1)/n_bits+1
   
 !----------------------------------------------------------------------
 ! Write the configuration information to the scratch files
@@ -601,8 +601,8 @@ contains
        ! Number of reference space configurations
        write(iscratch) nsym(irrep)
        
-       ! Number of 64-bit integers needed to represent each reference
-       ! space configuration and SOP bit string
+       ! Number of (n_bits)-bit integers needed to represent each
+       ! reference space configuration and SOP bit string
        write(iscratch) n_int_I
        
        ! Number of internal and external MOs

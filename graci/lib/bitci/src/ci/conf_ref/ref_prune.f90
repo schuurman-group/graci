@@ -43,7 +43,8 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
   ! Number of configurations found in the scratch file
   integer(is)                :: nconf1
 
-  ! Number of 64-bit integers required to represent the internal MOs
+  ! Number of (n_bits)-bit integers required to represent the
+  ! internal MOs
   integer(is)                :: n_int_I
 
   ! Internal and external MOs
@@ -586,10 +587,10 @@ subroutine rewrite_ref_confs(conf_new,sop_new,nconf_tot,nconf,&
 
   
 !----------------------------------------------------------------------
-! Number of 64-bit integers needed to represent each reference space
-! configuration and SOP bit string
+! Number of (n_bits)-bit integers needed to represent each reference
+! space configuration and SOP bit string
 !----------------------------------------------------------------------
-  n_int_I=(nmoI-1)/64+1
+  n_int_I=(nmoI-1)/n_bits+1
 
 !----------------------------------------------------------------------
 ! Overwrite the ref conf scratch files
@@ -612,8 +613,8 @@ subroutine rewrite_ref_confs(conf_new,sop_new,nconf_tot,nconf,&
      ! Number of reference space configurations
      write(iscratch) nconf(irrep)
      
-     ! Number of 64-bit integers needed to represent each reference
-     ! space configuration and SOP bit string
+     ! Number of (n_bits)-bit integers needed to represent each
+     ! reference space configuration and SOP bit string
      write(iscratch) n_int_I
   
      ! Number of internal and external MOs

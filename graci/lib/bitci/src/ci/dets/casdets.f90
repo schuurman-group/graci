@@ -41,9 +41,10 @@ subroutine generate_cas_dets(icas,n,m,ndet)
      call error_control
   endif
 
-  ! Exit if the number of CAS orbitals is greater than 64 (this is both
-  ! an insane number and would over-fill the permutation bit string)
-  if (m.gt.64) then
+  ! Exit if the number of CAS orbitals is greater than n_bits
+  ! (this is both an insane number and would over-fill the permutation
+  ! bit string)
+  if (m > n_bits) then
      errmsg='Error in generate_cas_excitations: the no. CAS orbitals'&
           //' is greater than 64'
      call error_control
@@ -63,10 +64,10 @@ subroutine generate_cas_dets(icas,n,m,ndet)
      imo=icas(i1)
 
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index in the bit string
-     i=imo-(k-1)*64-1
+     i=imo-(k-1)*n_bits-1
 
      ! Cumulative numbers of alpha and beta electrons
      if (btest(det0(k,1),i)) na=na+1
@@ -151,9 +152,9 @@ subroutine generate_cas_dets(icas,n,m,ndet)
         ! Loop over CAS orbitals
         do i1=1,m
            ! Block index
-           k=(icas(i1)-1)/64+1
+           k=(icas(i1)-1)/n_bits+1
            ! Index of the orbital in the bit string block
-           i=icas(i1)-1-(k-1)*64
+           i=icas(i1)-1-(k-1)*n_bits
            if (btest(v(jalpha,1),i1-1)) then
               ! Bit set to 1
               detcas(k,1,ic)=ibset(detcas(k,1,ic),i)
@@ -168,9 +169,9 @@ subroutine generate_cas_dets(icas,n,m,ndet)
         ! Loop over CAS orbitals
         do i1=1,m
            ! Block index
-           k=(icas(i1)-1)/64+1
+           k=(icas(i1)-1)/n_bits+1
            ! Index of the orbital in the bit string block
-           i=icas(i1)-1-(k-1)*64
+           i=icas(i1)-1-(k-1)*n_bits
            if (btest(v(jbeta,2),i1-1)) then
               ! Bit set to 1
               detcas(k,2,ic)=ibset(detcas(k,2,ic),i)

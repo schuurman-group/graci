@@ -13,9 +13,9 @@
 !          To make this fast, the hashes of the keys are also stored.
 !          Then, each re-mapping only requires a single modulo
 !          operation. Because each key is a determinant represented
-!          by 2*N_int 64-bit integers, the memory overhead introduced
-!          by also storing the hashed keys is relatively small - only
-!          one extra 64-bit integer per key.
+!          by 2*N_int (N_bits)-bit integers, the memory overhead
+!          introduced by also storing the hashed keys is relatively
+!          small - only one extra (N_bits)-bit integer per key.
 !----------------------------------------------------------------------
 !          This borrows some ideas and code snippets from the FFHASH
 !          code of Jannis Teunissen

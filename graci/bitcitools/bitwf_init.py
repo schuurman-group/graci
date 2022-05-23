@@ -1,5 +1,5 @@
 """
-Module for loadin/finalising the bitwf library
+Module for loading/finalising the bitwf library
 """
 
 import sys as sys
@@ -23,7 +23,17 @@ def init(bra, ket, calctype):
     smat   = gto.intor_cross('int1e_ovlp', bra.scf.mol.mol_obj,
                              ket.scf.mol.mol_obj)
     smat   = np.matmul(np.matmul(bra.scf.orbs.T, smat), ket.scf.orbs)
-    
+
+    # point groups
+    if bra.scf.mol.sym_indx <= 0:
+        pgrpBra = 1
+    else:
+        pgrpBra = bra.scf.mol.sym_indx + 1
+    if ket.scf.mol.sym_indx <= 0:
+        pgrpKet = 1
+    else:
+        pgrpKet = ket.scf.mol.sym_indx + 1
+        
     # set all variable that have to be passed to bitwf_initialise
     multBra = bra.mult
     multKet = ket.mult
@@ -35,7 +45,7 @@ def init(bra, ket, calctype):
     
     # call to bitwf_initialise
     args = (multBra, multKet, nelBra, nelKet, nmoBra, nmoKet, smat,
-            calctype)
+            pgrpBra,pgrpKet,calctype)
     libs.lib_func('bitwf_initialise', args)
     
     return

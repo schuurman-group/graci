@@ -41,7 +41,8 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
   ! Number of configurations found in the scratch file
   integer(is)                :: nconf1
 
-  ! Number of 64-bit integers required to represent the configurations
+  ! Number of (n_bits)-bit integers required to represent
+  ! the configurations
   integer(is)                :: n_int_I
 
   ! Number of internal and external MOs

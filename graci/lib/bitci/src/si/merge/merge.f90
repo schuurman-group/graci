@@ -218,7 +218,7 @@ contains
     enddo
 
     ! Unset any unused bits at the end of the array
-    n=mod(nmo,64)
+    n=mod(nmo,n_bits)
     if (n /= 0) iext(n_int)=ibits(iext(n_int),0,n)
 
 !----------------------------------------------------------------------
@@ -252,7 +252,7 @@ contains
 !----------------------------------------------------------------------
 ! Set the new value of n_int_I
 !----------------------------------------------------------------------
-    n_int_I=(nmoI-1)/64+1
+    n_int_I=(nmoI-1)/n_bits+1
     
     return
     
@@ -774,16 +774,16 @@ contains
     work=conf
 
     !
-    ! Number of 64 bit integers required to encode the internal
-    ! MOs
+    ! Number of (n_bits)-bit integers required to encode the
+    ! internal MOs
     !
-    n_int_I=(nmoI-1)/64+1
+    n_int_I=(nmoI-1)/n_bits+1
 
     !
     ! Unset the bits corresponding to the external MOs in the
     ! n_int_I'th block of the bit string
     !
-    n=mod(nmoI,64)
+    n=mod(nmoI,n_bits)
     if (n /= 0) then
        work(n_int_I,1)=ibits(work(n_int_I,1),0,n)
        work(n_int_I,2)=ibits(work(n_int_I,2),0,n)

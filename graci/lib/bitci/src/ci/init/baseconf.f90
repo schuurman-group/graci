@@ -61,10 +61,10 @@ subroutine generate_base_det
   do imo=1,ndocc
 
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index
-     i=imo-1-(k-1)*64
+     i=imo-1-(k-1)*n_bits
      
      ! Add the alpha electron
      det0(k,1)=ibset(det0(k,1),i)
@@ -81,10 +81,10 @@ subroutine generate_base_det
   do imo=ndocc+1,ndocc+nopen
      
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index
-     i=imo-1-(k-1)*64
+     i=imo-1-(k-1)*n_bits
      
      ! Add the unpaired alpha electron
      det0(k,1)=ibset(det0(k,1),i)
@@ -139,10 +139,10 @@ end subroutine generate_base_det
        do imo=1,nel/2
 
           ! Block index
-          k=(imo-1)/64+1
+          k=(imo-1)/n_bits+1
 
           ! Orbital index
-          i=imo-(k-1)*64-1
+          i=imo-(k-1)*n_bits-1
           
           ! Set the bits
           conf0(k,1)=ibset(conf0(k,1),i)       
@@ -163,10 +163,10 @@ end subroutine generate_base_det
        do imo=1,ihomo
 
           ! Block index
-          k=(imo-1)/64+1
+          k=(imo-1)/n_bits+1
              
           ! Orbital index
-          i=imo-(k-1)*64-1
+          i=imo-(k-1)*n_bits-1
              
           if (imo == ihomo) then
              ! Singly-occupied MO

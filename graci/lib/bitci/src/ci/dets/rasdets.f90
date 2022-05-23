@@ -31,7 +31,7 @@ module rasperm
   integer(is)              :: nperma_ras2(-2:2),npermb_ras2(-2:2)
   integer(is)              :: nperma_ras3(0:2),npermb_ras3(0:2)
 
-  ! Encoding of the permutations in 64-bit integers
+  ! Encoding of the permutations in (n_bits)-bit integers
   integer(is)              :: v_ras1_dim,v_ras2_dim,v_ras3_dim
   integer(ib), allocatable :: v_ras1(:,:,:),v_ras2(:,:,:),v_ras3(:,:,:)
 
@@ -212,10 +212,11 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
   endif
 
 !----------------------------------------------------------------------  
-! Exit if the number of CAS orbitals is greater than 64 (this is both
-! an insane number and would over-fill the permutation bit string)
+! Exit if the number of CAS orbitals is greater than n_bits
+! (this is both an insane number and would over-fill the permutation
+! bit string)
 !----------------------------------------------------------------------
-  if (mras2 > 64) then
+  if (mras2 > n_bits) then
      errmsg='Error in generate_cas_excitations: the no. CAS orbitals'&
           //' is greater than 64'
      call error_control
@@ -235,10 +236,10 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
      imo=iras2(i1)
 
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index in the bit string
-     i=imo-(k-1)*64-1
+     i=imo-(k-1)*n_bits-1
 
      ! Cumulative numbers of alpha and beta electrons
      if (btest(det0(k,1),i)) na=na+1
@@ -281,10 +282,10 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
      imo=iras1(i1)
 
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index in the bit string
-     i=imo-(k-1)*64-1
+     i=imo-(k-1)*n_bits-1
 
      ! Is this orbital unoccupied
      if (.not. btest(det0(k,1),i) &
@@ -308,10 +309,10 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
      imo=iras3(i1)
 
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index in the bit string
-     i=imo-(k-1)*64-1
+     i=imo-(k-1)*n_bits-1
 
      ! Sum of alpha and beta occupations
      if (btest(det0(k,1),i)) n=n+1
@@ -394,10 +395,10 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
      imo=iras1(i1)
 
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index in the bit string
-     i=imo-(k-1)*64-1
+     i=imo-(k-1)*n_bits-1
 
      ! Sum the number of alpha and beta holes
      if (.not. btest(det0(k,1),i)) nha_ras1=nha_ras1+1
@@ -422,10 +423,10 @@ subroutine get_common_ras_data(iras1,iras2,iras3,nras1,mras1,nras2,&
      imo=iras2(i1)
 
      ! Block index
-     k=(imo-1)/64+1
+     k=(imo-1)/n_bits+1
 
      ! Orbital index in the bit string
-     i=imo-(k-1)*64-1
+     i=imo-(k-1)*n_bits-1
 
      ! Cumulative numbers of alpha and beta electrons
      if (btest(det0(k,1),i)) na_ras2=na_ras2+1
@@ -1014,10 +1015,10 @@ subroutine fill_orbitals(det,ispin,morb,v,iorb)
   do i1=1,morb
 
      ! Block index
-     k=(iorb(i1)-1)/64+1
+     k=(iorb(i1)-1)/n_bits+1
 
      ! Index of the orbital in the kth block
-     i=iorb(i1)-(k-1)*64-1
+     i=iorb(i1)-(k-1)*n_bits-1
 
      ! Set the bit
      if (btest(v,i1-1)) then

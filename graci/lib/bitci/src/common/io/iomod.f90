@@ -414,8 +414,8 @@ contains
     read(iscratch) nconf
     
     !
-    ! Number of 64-bit integers needed to represent each reference
-    ! space configuration and SOP bit string
+    ! Number of (n_bits)-bit integers needed to represent each
+    ! reference space configuration and SOP bit string
     !
     read(iscratch) n_int_I
 
@@ -515,8 +515,8 @@ contains
     read(iscratch) nconf
     
     !
-    ! Number of 64-bit integers needed to represent each reference
-    ! space configuration and SOP bit string
+    ! Number of (n_bits)-bit integers needed to represent each
+    ! reference space configuration and SOP bit string
     !
     read(iscratch) n_int_I
     
