@@ -25,6 +25,7 @@ class Scf:
         self.restart        = False
         self.mult           = 0
         self.charge         = 0
+        self.grid_level     = 2
         
         # computed quantities
         self.mol          = None 
@@ -75,7 +76,7 @@ class Scf:
 
         # set the verbosity of the output
         pymol.verbose = self.verbose
-       
+        
         #print standard header 
         output.print_scf_header(self)
 
@@ -253,6 +254,10 @@ class Scf:
             # set the XC functional to BHLYP
             mf.xc = self.xc
 
+            # set the DFT quadrature grids
+            mf.grids.level = self.grid_level
+            mf.grids.prune = dft.sg1_prune
+            
         # if using density-fitting, set the name of the DF-tensor
         if hasattr(mf, 'with_df'):
              if self.mol.use_df:
