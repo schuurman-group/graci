@@ -5,6 +5,21 @@ import numpy as np
 import graci.methods.cimethod as cimethod
 import graci.utils.timing as timing
 
+class SpinInfo:
+    """class to hold spin formation for a set of states"""
+    def __init__(self, method_obj=None):
+        self.mult = None
+        self.S    = None
+        self.M    = None
+        if method_obj is not None:
+            # total spin
+            self.mult  = method_obj.mult
+            self.S     = (self.mult - 1.)/2.
+            self.M     = np.array([-self.S + i for
+                               i in range(self.mult)], dtype=float)
+        
+
+
 class Interaction:
     """Parent state interaction class to be inherited by any module
        computing matrix elements <psi_i|O|psi_j> for some operator O"""
@@ -26,15 +41,6 @@ class Interaction:
         self.symmetries   = {}
         # spin info for the states in group
         self.spins        = {}
-
-    class SpinInfo:
-        """class to hold spin formation for a set of states"""
-        def __init__(self, method_obj):
-            # total spin
-            self.mult  = method_obj.mult
-            self.S     = (self.mult - 1.)/2.
-            self.M     = np.array([-self.S + i for 
-                                   i in range(self.mult)], dtype=float)
 
     def same_obj(self, obj1, obj2):
         """return true if the bra and ket objects are the same"""
@@ -68,7 +74,7 @@ class Interaction:
             self.symmetries[lbl] = [obj.state_sym(i)[0] 
                                     for i in state_list]
  
-            self.spins[lbl]      = self.SpinInfo(obj)
+            self.spins[lbl]      = SpinInfo(obj)
        
         return
 

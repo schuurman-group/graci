@@ -122,6 +122,7 @@ parameterize_kword = {'algorithm' : str,
 ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap']
+support_objs = ['Bitciwfn','Moments','SpinInfo']
 valid_objs   = ['Molecule', 'Scf', 'Parameterize'] + \
                ci_objs + postci_objs + si_objs
 
