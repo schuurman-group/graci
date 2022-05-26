@@ -259,7 +259,7 @@ class Transition(interaction.Interaction):
             # if this is a postci object, should already extend
             # interaction and have groups set up. Add all of them
             # here
-            elif type(bra_ket).__name__ in params.postci_objs:
+            elif type(arg_obj).__name__ in params.postci_objs:
                 grp_lbls = arg_obj.get_lbls()
 
                 for ibk in range(len(grp_lbls)):
@@ -707,8 +707,10 @@ class Transition(interaction.Interaction):
             f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
             if abs(f2_av.imag) > 0.1 * abs(f2_av):
-                print('discarding imaginary component of elec. dip'+
-                      ' - elec. oct term for transition '+str(tpair))
+                print(' Discarding imaginary component of Oscillator'+
+                      ' Strength for transition: '+str(tpair)+
+                      ' Abs(f2)={:9.5} | Im(f2)={:9.5}'.format(
+                        [abs(f2_av), f2_av.imag]))
             f2_iso[indx] = f2_av.real
              
         oscstr_l = {}
@@ -796,8 +798,10 @@ class Transition(interaction.Interaction):
             f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
             if abs(f2_av.imag) > 0.1 * abs(f2_av):
-                print('discarding imaginary component of elec. dip'+
-                      ' - elec. oct term for transition '+str(tpair))
+                print(' Discarding imaginary component of Oscillator'+
+                      ' Strength for transition: '+str(tpair)+
+                      ' Abs(f2)={:9.5} | Im(f2)={:9.5}'.format(
+                        [abs(f2_av), f2_av.imag]))
             f2_iso[indx] = f2_av.real
 
         oscstr_v = {}

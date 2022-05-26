@@ -146,7 +146,10 @@ class Spinorbit(interaction.Interaction):
         
         # diagonalise H_soc
         self.so_ener, self.so_vec = np.linalg.eigh(hsoc)
-        
+       
+        # build the one-particle RDMS
+        self.build_rdms()
+ 
         # print the H_SOC elements
         if self.print_thresh >= 1:
             self.print_hsoc(hsoc)
@@ -175,12 +178,13 @@ class Spinorbit(interaction.Interaction):
         if indx < 0 or indx >= self.so_vec.shape[0]:
             return None
 
-        msval = [-1, 0, 1]
-        ind   = 0
-        igrp  = 0
-        while ind < indx:
+        ind     = 0
+        igrp    = 0
+        nstates = 0
+        mult    = 0
+        while ind <= indx:
             nstates = len(self.get_states(self.grp_lbls[igrp]))
-            mult    = self.get_spins(self.grp_lbls[i]).mult
+            mult    = self.get_spins(self.grp_lbls[igrp]).mult
             ind    += nstates*mult
             igrp   += 1
 
@@ -189,15 +193,17 @@ class Spinorbit(interaction.Interaction):
         lbl   = self.grp_lbls[igrp]
 
         # decrement indx to start of the grp
-        ind  -= nstates*mult
+        ind  -= int(nstates*mult)
 
         # find the state index
-        st    = np.floor((indx - ind) / self.get_spins(lbl).mult)
+        imult = self.get_spins(lbl).mult
+        st    = int(np.floor((indx - ind) / imult))
 
         # get Ms value (-1, 0, 1)
-        ms    = indx - (ind + st*self.get_spins(lbl).mult)
+        ms_indx = int(indx - (ind + st*imult))
+        msval   = int(self.get_spins(lbl).M[ms_indx])
 
-        return lbl, self.get_states(lbl)[st], msval[ms]
+        return lbl, self.get_states(lbl)[st], msval
 
     #
     def soc_index(self, lbl, state, m_s):
@@ -239,9 +245,52 @@ class Spinorbit(interaction.Interaction):
         else:
             return self.so_ener[state]
 
+    #
+    def rdm(self, istate):
+        """return the density matrix for the state istate"""
+
+        if self.dmats is not None and istate < self.n_states():
+            return self.dmats[istate, :, :]
+        else:
+            print("rdm called but density does not exist")
+            return None
+
     #-----------------------------------------------------------------
     # 
     # methods not meant to be called from outside the class
+
+    #
+    def build_rdms(self):
+        """
+        construct the 1RDMs 
+        """
+        nst     = self.n_states()
+        nmo     = self.get_obj(self.grp_lbls[0]).scf.nmo
+        soc_wts = (np.conj(self.so_vec) * self.so_vec).real
+
+        soc_lbls = [self.soc_basis_lbl(i) for i in range(nst)]
+        grps     = list(set([lbl[0] for lbl in soc_lbls]))
+        nsf_st   = [len(self.get_states(igrp)) for igrp in grps]
+        
+        wts      = [np.zeros((nst, nsf_st[i]), dtype=float) 
+                                     for i in range(len(grps))]
+
+        for soc_ind in range(len(soc_lbls)):
+            lbl  = soc_lbls[soc_ind]
+            gind = grps.index(lbl[0])
+            sind = self.get_states(lbl[0]).index(lbl[1])
+            wts[gind][:, sind] += soc_wts[soc_ind, :]
+           
+        self.dmats = np.zeros((nst, nmo, nmo), dtype=float)
+        for igrp in grps:
+            ind    = grps.index(igrp)
+            obj    = self.get_obj(igrp)
+            states = self.get_states(igrp)
+            self.dmats += np.einsum('ij,jkl->ikl', wts[ind], 
+                                       obj.dmats[states,:,:])
+
+        return
+
 
     #
     def check_list(self, obj_lst):
