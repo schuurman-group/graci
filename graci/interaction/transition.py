@@ -707,10 +707,11 @@ class Transition(interaction.Interaction):
             f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
             if abs(f2_av.imag) > 0.1 * abs(f2_av):
-                print(' Discarding imaginary component of Oscillator'+
-                      ' Strength for transition: '+str(tpair)+
-                      ' Abs(f2)={:9.5} | Im(f2)={:9.5}'.format(
-                        [abs(f2_av), f2_av.imag]))
+                args = [s+1 for s in tpair] + [abs(f2_av), f2_av.imag]
+                pstr =' Discarding imaginary component of Oscillator'+ \
+                      ' Strength for transition: {0:3d}<-{1:3d}, '+    \
+                      ' Abs(f2)={2:9.5f}/Im(f2)={3:9.5f}'
+                print(pstr.format(*args))
             f2_iso[indx] = f2_av.real
              
         oscstr_l = {}
@@ -798,10 +799,11 @@ class Transition(interaction.Interaction):
             f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
             if abs(f2_av.imag) > 0.1 * abs(f2_av):
-                print(' Discarding imaginary component of Oscillator'+
-                      ' Strength for transition: '+str(tpair)+
-                      ' Abs(f2)={:9.5} | Im(f2)={:9.5}'.format(
-                        [abs(f2_av), f2_av.imag]))
+                args = [s+1 for s in tpair] + [abs(f2_av), f2_av.imag]
+                pstr =' Discarding imaginary component of Oscillator'+ \
+                      ' Strength for transition: {0:3d}<-{1:3d}, '+ \
+                      ' Abs(f2)={2:9.5f}/Im(f2)={3:9.5f}'
+                print(pstr.format(*args))
             f2_iso[indx] = f2_av.real
 
         oscstr_v = {}
