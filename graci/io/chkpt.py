@@ -2,36 +2,50 @@
 Module for facilitating passing of strings between
 Python and compiled dlls
 """
+import os as os
 import sys as sys
+import base64 as base64
 import h5py as h5py
 import numpy as np
 import struct as struct
 import json as json
-
 import graci.core.params as params
 import graci.core.molecule as molecule
 import graci.core.parameterize as parameterize
 import graci.core.scf as scf
+import graci.core.bitciwfn as bitciwfn
 import graci.methods.dftmrci as dftmrci
-import graci.methods.dftmrenpt2 as dftmrenpt2
+import graci.methods.dftmrci2 as dftmrci2
+import graci.properties.moments as moments
+import graci.interaction.interaction as spininfo # this makes me uncomfortable...
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
 import graci.utils.timing as timing
 import graci.io.output as output
 
+# top level computation objects: each will have own top-level group
+comp_objs = tuple([getattr(globals()[obj_class.lower()], obj_class)
+                               for obj_class in params.valid_objs])
+
+# support level computation objects: each will have own sub-group
+sub_objs = tuple([getattr(globals()[obj_class.lower()], obj_class)
+                               for obj_class in params.support_objs])
+
 #
-def contents(file_name=None, grp_name=None):
+def contents(file_name=None, file_handle=None, grp_name=None):
     """return the group names present in the checkpoint file"""
 
-    f_name = file_name
-    if f_name is None:
-        f_name = output.file_names['chkpt_file']
-
-    try:
-        chkpt = h5py.File(f_name, 'r', libver='latest')
-    except:
-        return None
+    if file_handle is not None:
+        chkpt = file_handle
+    else:
+        f_name = file_name
+        if f_name is None:
+            f_name = output.file_names['chkpt_file']
+        try:
+            chkpt = h5py.File(f_name, 'r', libver='latest')
+        except:
+            return None
 
     # if grp_name stub (i.e. class type) is not given,
     # return all top-level class objects in checkpoint file
@@ -44,64 +58,146 @@ def contents(file_name=None, grp_name=None):
     else:
         grp_lst = None
 
-    chkpt.close()
+    # if we were just passed the file_name, close the chkpt
+    # when done
+    if file_handle is None:
+        chkpt.close()
 
     return grp_lst
 
 #
-def write(graci_obj, file_name=None):
+def write(graci_obj, file_name=None, file_handle=None, grp_name=None):
     """write the graci_obj to the checkpoint file"""
+    global sub_objs, comp_objs
 
-    # get the data sets and attributes
-    dsets, attrs = pack(graci_obj)
+    # by default, the group name will by the class type + object label
+    if grp_name is None:
+        grp_name = str(type(graci_obj).__name__)+'.'+str(graci_obj.label)
 
-    if len(dsets)+len(attrs) == 0:
-        return
-
-    # the group name will by the class type + object label
-    grp_name = str(type(graci_obj).__name__)+'.'+str(graci_obj.label)
-
-    f_name = file_name
-    if f_name is None:
-        f_name = output.file_names['chkpt_file']
-    chkpt = h5py.File(f_name, 'a', libver='latest')
+    # this routine is called recursively. If the file handle
+    # is given, use that to access checkpoint file, else try
+    # to open file given by file_name (or barring that, the chkpt_file
+    # variable in the output module
+    if file_handle is None:
+        f_name = file_name
+        if f_name is None:
+            f_name = output.file_names['chkpt_file']
+        chkpt = h5py.File(f_name, 'a', libver='latest')
+    else:
+        chkpt = file_handle
 
     # if grp doesn't exist, create it 
-    if grp_name not in list(chkpt.keys()):
+    if grp_name not in chkpt:
         obj_grp = chkpt.create_group(grp_name)
     else:
         obj_grp = chkpt[grp_name]
 
-    # first write the datasets
-    for name, dset in dsets.items():
+    # list of all objects in the class
+    objs = graci_obj.__dict__
+
+    for name, obj in objs.items():
+
+        # if object is a numpy array, save
+        # as a distinct dataset
+        if isinstance(obj, np.ndarray):
+            dset_name = link_name(obj, suffix=str(name)) 
+            obj_grp.attrs[name] = dumps(dset_name)
+            write_dataset(chkpt, grp_name+'/'+dset_name, obj)
+            continue
+
+        # if the object is a graci computation class object, save
+        # the name of the object as a string -- this
+        # is preferable to storing the same object
+        # repeatedly
+        if isinstance(obj, comp_objs):
+            obj_grp.attrs[name] = dumps(link_name(obj))
+            continue
+
+        # if this is a class object, create a subgroup and write it there
+        if isinstance(obj, sub_objs):
+            dset_name = link_name(obj, suffix=str(name))
+            obj_grp.attrs[name] = dumps(dset_name)
+            write(obj, file_handle=chkpt, grp_name=grp_name+'/'+dset_name)
+            continue
+
+        # if this is a pyscf object, simply save as 'None', this will
+        # be regenerated if need be
+        if str(type(obj).__name__) == 'Mole':
+            obj_grp.attrs[name] = dumps(None)
+            continue
+
+        # if this is a list, replace complex objects with links
+        if isinstance(obj, list):
+            obj_write = obj.copy()
+            for indx in range(len(obj)):
+                lname = str(name)+'.'+str(indx)
+                value = obj[indx]
+                if isinstance(value, np.ndarray):
+                    dset_name = link_name(value, suffix=lname)
+                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
+                    obj_write[indx] = dset_name
+                elif isinstance(value, comp_objs):
+                    dset_name = link_name(value)
+                    obj_write[indx] = dset_name
+                elif isinstance(value, sub_objs):
+                    dset_name = link_name(value, suffix=lname)
+                    write(obj[indx], file_handle=chkpt,
+                                   grp_name=grp_name+'/'+dset_name)
+                    obj_write[indx] = dset_name
+
+            # the list has been rendered safe for writing
+            try:
+                attr_str = dumps(obj_write)
+                obj_grp.attrs[name] = attr_str
+            except:
+                sys.exit('Could not write list: '+str(name))
+            continue
         
-        # if dataset exists, delete it
-        if name in obj_grp.keys():
-            del obj_grp[name]
+        # if this is a dictionary, check if any
+        # values are numpy arrays or class objects:
+        # things that we don't want to store as attributes
+        if isinstance(obj, dict):
+            obj_write = obj.copy()
+            for key,value in obj_write.items():
+                lname = str(name)+'.'+str(key)
+                if isinstance(value, np.ndarray):
+                    dset_name = link_name(value, suffix=lname)
+                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
+                    obj_write[key] = dset_name
+                elif isinstance(value, comp_objs):
+                    dset_name = link_name(value)
+                    obj_write[key] = dset_name
+                elif isinstance(value, sub_objs):
+                    dset_name = link_name(value, suffix=lname)
+                    write(value, file_handle=chkpt, 
+                                 grp_name=grp_name+'/'+dset_name)
+                    obj_write[key] = dset_name
 
-        try:
-            obj_grp.create_dataset(name, data=dset, dtype=dset.dtype, 
-                            compression="gzip", compression_opts=9)
-        # if non-native HDf5 type, just convert to a string
-        except TypeError:
-            dset_str = str(dset)
-            obj_grp.create_dataset(name, data=dset_str, 
-                            compression="gzip", compression_opts=9)
+            # the dictionary has been rendered safe for writing
+            try:
+                attr_str = dumps(obj_write)
+                obj_grp.attrs[name] = attr_str
+            except:
+                sys.exit('Could not write dictionary: '+str(name))
+            continue
 
-    # next write the attributes
-    for name, attr in attrs.items():
+        # everything else should be handled by json
+        
         try:
-            obj_grp.attrs[name] = attr
-        # if attribute is non-native HDF5 type, convert to string
-        except TypeError:
-            attr_str = str(attr)
+            attr_str = dumps(obj)
             obj_grp.attrs[name] = attr_str
-            
-    chkpt.close()
+        except TypeError:
+            sys.exit('Writing attribute = '+str(name) + 
+                     ' to chkpt file failed')
+
+    # close the chkpt file if the file_name was passed
+    if file_handle is None:
+        chkpt.close()
+
     return
 
 #
-def read(obj_name, build_subobj=True, make_mol=True, 
+def read(grp_name, build_subobj=True, make_mol=True, 
          file_name=None, file_handle=None):
     """return a GRaCI object, with name 'obj_name', after parsing 
        checkpoint file. If build_subobj is True, also build GRaCI 
@@ -109,12 +205,10 @@ def read(obj_name, build_subobj=True, make_mol=True,
        directly, use that instead of opening file. If make_mol is 
        'True', call run() routine in GRaCI mol object to regenerate
        the pyscf mol object (which is not written to chkpt file)"""
+    global sub_objs
 
     # if file doesn't exist, just return None
-    if file_handle is not None:
-        chkpt = file_handle
-    # else, try to open the checkpoint file
-    else:
+    if file_handle is None:
         f_name = file_name
         if f_name is None:
             f_name = output.file_names['chkpt_file']
@@ -122,78 +216,101 @@ def read(obj_name, build_subobj=True, make_mol=True,
             chkpt = h5py.File(f_name, 'r', libver='latest')
         except:
             return None
+    else:
+        chkpt = file_handle
 
     # if requested item doesn't exist, just return None
-    if obj_name not in list(chkpt.keys()):
+    if grp_name not in chkpt:
         return None
     else:
-        class_grp = chkpt[obj_name]
+        class_grp = chkpt[grp_name]
 
     # group names must have the form ClassName.label
-    obj_class = obj_name.split('.')[0]
+    obj_class = os.path.basename(grp_name).split('.')[0]
 
     # create the object -- assumes module has already been 
     # imported above
     Chkpt_obj = getattr(globals()[obj_class.lower()], obj_class)()
 
-    # populate with the save datasets (we know these 
-    # are N-rank numpy arrays)
-    for name, dset in class_grp.items():
-
-        # only load if class has attribute. 
-        if hasattr(Chkpt_obj, name):
-            nparray = np.empty(dset.shape, dset.dtype)
-            nparray = dset[...]
-            setattr(Chkpt_obj, name, nparray)
-
-    # populate with the saved attributes (these can
-    # be more complicated)
+    # first set the class variables that are saved as attributes
     for name, attr in class_grp.attrs.items():
-   
+
         if not hasattr(Chkpt_obj, name):
             raise AttributeError(
             'Class '+str(obj_class)+' has no attribute '+str(name))
 
-        # if this is a graci object, read this object from 
-        # this file
-        if 'GRACI_OBJ.' in str(attr) and build_subobj:
-            subgrp_name = str(attr).replace('GRACI_OBJ.', '')
-            subobj = read(subgrp_name, 
-                          build_subobj = build_subobj, 
-                          make_mol = make_mol, 
-                          file_name = file_name,
-                          file_handle = chkpt)
-            setattr(Chkpt_obj, name, subobj)
+        # run the parser through JSON
+        try:
+            setattr(Chkpt_obj, name, loads(attr))
+        except:
+            sys.exit('Cannot set class object, name='+str(name))
+
+        # Scroll through lists looking for links 
+        if isinstance(getattr(Chkpt_obj, name), list):
+            list_obj = getattr(Chkpt_obj, name)
+            for indx in range(len(list_obj)):
+                # this is a link to a top level object
+                value = list_obj[indx]
+                if '.OBJ' in str(value):
+                    if '.OBJC' in str(value):
+                        sub_name = grp_name+'/'+value
+                    else:
+                        sub_name = value.replace('.OBJ','')
+                    obj = read(sub_name,
+                               build_subobj = build_subobj,
+                               make_mol = make_mol,
+                               file_handle = chkpt)
+                    list_obj[indx] = obj
+                # or this is a numpy dataset
+                if 'NUMPY' in str(value):
+                    sub_name = grp_name+'/'+value
+                    list_obj[indx] = np.array(chkpt[sub_name])
             continue
 
-        # if this is a dictonary, need to convert
-        # from string
+        # if this is a dictionary, run through the keys and load
+        # any non-json serializable objects
         if isinstance(getattr(Chkpt_obj, name), dict):
-            try:
-                str_json = attr.replace("'","\"")
-                #setattr(Chkpt_obj, name, ast.literal.eval(attr))
-                setattr(Chkpt_obj, name, json.loads(str_json))
-            except:
-                print("Chkpt error reading dictionary: "+str(name),flush=True)
+            dict_obj = getattr(Chkpt_obj, name)
+            for key, value in dict_obj.items():
+                # this is a link to a top level object
+                if '.OBJ' in str(value):
+                    if '.OBJC' in str(value):
+                        sub_name = grp_name+'/'+value
+                    else:
+                        sub_name = value.replace('.OBJ','')
+                    obj = read(sub_name,
+                               build_subobj = build_subobj,
+                               make_mol = make_mol,
+                               file_handle = chkpt)
+                    dict_obj[key] = obj
+                # or this is a numpy dataset
+                if 'NUMPY' in str(value):
+                    sub_name = grp_name+'/'+value
+                    dict_obj[key] = np.array(chkpt[sub_name])
             continue
 
-        # if this is a string 'None', convert to NoneType. This 
-        # feels hacky, but, None is not a native type, so...
-        if str(attr) == 'None':
-            setattr(Chkpt_obj, name, None)
+        # check the for links to complex objects
+        name_str = str(getattr(Chkpt_obj, name))
+
+        # attribute holds a link to a complex object
+        if '.OBJ' in name_str:
+            if '.OBJC' in name_str:
+                obj_name = grp_name+'/'+name_str
+            else:
+                obj_name = name_str.replace('.OBJ','')
+            obj = read(obj_name, 
+                       build_subobj = build_subobj,
+                       make_mol = make_mol,
+                       file_handle = chkpt)
+            setattr(Chkpt_obj, name, obj)
             continue
 
-        # explicitly doing logical as well for now, must be 
-        # a better way
-        if str(attr).lower() == 'false':
-            setattr(Chkpt_obj, name, False)
+        # attribute holds a link to a complex object
+        if 'NUMPY' in name_str:
+            obj_name = grp_name+'/'+name_str
+            obj = np.array(chkpt[obj_name])
+            setattr(Chkpt_obj, name, obj)
             continue
-
-        if str(attr).lower() == 'true':
-            setattr(Chkpt_obj, name, True)
-            continue        
-
-        setattr(Chkpt_obj, name, attr) 
 
     # don't close the file if it was called by handle -- if it's called
     # recursively, may trip up higher levels
@@ -304,39 +421,70 @@ def read_wfn(obj_name, wfn_indx, cutoff, file_name=None):
 
     return cfs[:idet], dets[:,:idet]
 
-#--------------------------------------------------------
+#----------------------------------------------------------------------------
 
 #
-def pack(graci_obj):
-    """packs the contents of the current object into two
-       dictionaries: datasets and attributes"""
+def write_dataset(chkpt_handle, dset_name, dset):
+    """
+    Write a dataset to the grp_handle
 
-    graci_objs = tuple([getattr(globals()[obj_class.lower()], obj_class) 
-                                    for obj_class in params.valid_objs])
+    Arguments:
+    grp_handle:   handle to checkpoint file group
+    dset_name:    name of the dataset (a string)
+    dset:         the dataset, typically, a numpy array
+    """
 
-    # list of all objects in the class
-    objs = graci_obj.__dict__
-    obj_attr = {}
-    obj_dset = {}
+    # if dataset exists, delete it
+    if dset_name in chkpt_handle:
+        del chkpt_handle[dset_name]
 
-    for name, obj in objs.items():
-        # if object is a numpy array, save
-        # as a distinct dataset
-        if isinstance(obj, np.ndarray):
-            obj_dset[name] = obj
-            continue
+    try:
+        chkpt_handle.create_dataset(dset_name, data=dset, dtype=dset.dtype,
+                                    compression="gzip", compression_opts=9)
+    # if non-native HDf5 type, DIE
+    except TypeError:
+        sys.exit('Could not create dataset: '+str(dset_name))
 
-        # if the object is a graci class object, save
-        # the name of the object as a string -- this
-        # is preferable to storing the same object
-        # repeatedly
-        if isinstance(obj, graci_objs):
-            obj_attr[name] = 'GRACI_OBJ.'+ str(type(obj).__name__) + \
-                             '.' + str(obj.label)
-            continue
+    return
 
-        obj_attr[name] = obj
 
-    return obj_dset, obj_attr
+#
+def link_name(obj, suffix=''):
+    """
+    Generate a string file name that points to an object in checkpoint file
+    """
+    global comp_objs, sub_objs
 
+    if isinstance(obj, comp_objs):
+        return str(type(obj).__name__)+'.'+str(obj.label)+'.OBJ'
+
+    if isinstance(obj, sub_objs):
+        return str(type(obj).__name__)+'.'+str(suffix)+'.OBJC'
+
+    if isinstance(obj, np.ndarray):
+        return 'NUMPY.'+str(suffix)
+
+
+#
+class GraciEncoder(json.JSONEncoder):
+    def default(self, obj):
+        """
+        if input object is a ndarray it will be converted into a dict holding dtype,
+        shape and the data base64 encoded
+        """
+        if isinstance(obj, bytes):
+            return obj.decode()
+        # json doesn't like numpy data types
+        if isinstance(obj, np.int64):
+            return int(obj)
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
+
+# Overload dump/load to default use this behavior.
+def dumps(*args, **kwargs):
+    kwargs.setdefault('cls', GraciEncoder)
+    return json.dumps(*args, **kwargs)
+
+def loads(*args, **kwargs):
+    return json.loads(*args, **kwargs)
 

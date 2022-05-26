@@ -1,20 +1,21 @@
 !######################################################################
-! Top-level routine to compute the MR-ENPT2 energy and wave function
-! corrections
+! Top-level routine to compute the 2nd-order generalised van Vleck
+! perturbation theory energies and wave functions using the Epstein-
+! Nesbet Hamiltonian partitioning
 !######################################################################
 #ifdef CBINDING
-subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
-     vecscr,vec0scr,Qscr,dspscr) bind(c,name="mrenpt2")
+subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
+     Qscr,dspscr) bind(c,name="gvvpt2")
 #else
-subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
-       vecscr,vec0scr,Qscr,dspscr)
+subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
+       Qscr,dspscr)
 #endif
 
   use constants
   use bitglobal
   use conftype
   use hii
-  use epstein_nesbet
+  use heff
   use utils
   use iomod
   use timing
@@ -25,14 +26,11 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   ! Number of roots requested
   integer(is), intent(in)  :: nroots
 
-  ! Number of extra roots to include in the ENPT2 calculation
+  ! Number of extra roots to include in the GVVPT2 calculation
   integer(is), intent(in)  :: nextra
 
   ! ISA shift
   real(dp), intent(in)     :: shift
-  
-  ! Multistate calculation?
-  logical, intent(in)      :: multistate
   
   ! Array of MRCI configuration scratch file numbers
   integer(is), intent(in)  :: confscr(0:nirrep-1)
@@ -102,15 +100,9 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
 !----------------------------------------------------------------------
   ! Section header
   write(6,'(/,52a)') ('-',i=1,52)
-  if (multistate) then
-     write(6,'(3(x,a))') 'MS-MR-ENPT2 corrections for the',&
-          trim(irreplbl(irrep,ipg)),&
-          'subspace'
-  else
-     write(6,'(3(x,a))') 'MR-ENPT2 corrections for the',&
-          trim(irreplbl(irrep,ipg)),&
-          'subspace'
-  endif
+  write(6,'(3(x,a))') 'GVVPT2 calculation for the',&
+       trim(irreplbl(irrep,ipg)),&
+       'subspace'
   write(6,'(52a)') ('-',i=1,52)
 
 !----------------------------------------------------------------------
@@ -172,11 +164,11 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   allocate(Sinvsq(nroots,nroots))
   Sinvsq=0.0d0
 
-  if (multistate) then
-     allocate(EQD(nvec))
-     allocate(mix(nvec,nvec))
-     allocate(work(cfg%csfdim,nvec))
-  endif
+  allocate(EQD(nvec))
+
+  allocate(mix(nvec,nvec))
+
+  allocate(work(cfg%csfdim,nvec))
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
@@ -189,15 +181,12 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
 
 !----------------------------------------------------------------------
-! Compute the ENPT2 energy and wave function corrections
+! Compute the eigenpairs of the GVVPT2 effective Hamiltonian
+! Also returns the 1st-order perturbed model functions in the Avec
+! array
 !----------------------------------------------------------------------
-  if (multistate) then
-     call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-          vec0scr(irrep),Avec,E2,nvec,shift,dspscr,multistate,EQD,mix)
-  else
-     call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-          vec0scr(irrep),Avec,E2,nvec,shift,dspscr,multistate)
-  endif
+  call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+       vec0scr(irrep),Avec,E2,nvec,shift,dspscr,EQD,mix)
 
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
@@ -207,26 +196,17 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   enddo
   
 !----------------------------------------------------------------------
-! If this a multi-state calculation, then mix the 1st-order corrected
-! wave functions using the QDPT2 coefficients
+! Compute the 1st-order wave functions
 !----------------------------------------------------------------------
-  if (multistate) then
-     work=Avec
-     Avec=matmul(work,mix)
-  endif
+  work=Avec
+  Avec=matmul(work,mix)
   
 !----------------------------------------------------------------------
-! Sort the 2nd-order corrected energies
+! Sort the 2nd-order energies
 !----------------------------------------------------------------------
-  ! 2nd-order corrected energies
-  if (multistate) then
-     ! Take the multi-state energies
-     EPT2=EQD
-  else
-     ! Take the single-state energies
-     EPT2=E0+E2
-  endif
-  
+  ! Eigenvalues of the effective Hamiltonian
+  EPT2=EQD
+    
   ! Sorting
   call dsortindxa1('A',nvec,EPT2,indx)
 
@@ -238,13 +218,14 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
 !----------------------------------------------------------------------
 ! Write the Q-space information to disk
 !----------------------------------------------------------------------
-  ! Norms of the 1st-order wave corrections
+  ! Norms of the 1st-order wave functions projected onto the Q-space
   do i=1,nroots
      Qnorm(i)=sqrt(dot_product(Avec(refdim:cfg%csfdim,indx(i)),&
           Avec(refdim:cfg%csfdim,indx(i))))
   enddo
 
-  ! Energy corrections
+  ! ENPT2 energy corrections
+  ! (do we still need these?)
   do i=1,nroots
      Qener(i)=E2(indx(i))
   enddo
@@ -274,8 +255,7 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   close(iscratch)
   
 !----------------------------------------------------------------------
-! 1st-order corrected wave functions for the nroots lowest energy
-! roots only
+! 1st-order wave functions for the nroots lowest energy roots only
 !----------------------------------------------------------------------
   do i=1,nroots
      Avec_ortho(:,i)=Avec(:,indx(i))
@@ -316,8 +296,7 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
   Avec_ortho=matmul(Avec(:,1:nroots),Sinvsq)
 
 !----------------------------------------------------------------------
-! Write the 2nd-order corrected energies and 1st-order corrected
-! wave functions to disk
+! Write the 2nd-order energies and 1st-order wave functions to disk
 !----------------------------------------------------------------------
   ! Register the scratch file
    write(amult,'(i0)') imult
@@ -337,10 +316,10 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
    ! No. roots
    write(iscratch) nroots
     
-   ! 2nd-order corrected energies
+   ! 2nd-order energies
    write(iscratch) Elow
     
-   ! 1st-order corrected wave functions
+   ! 1st-order wave functions
    do i=1,nroots
       write(iscratch) Avec_ortho(:,i)
    enddo
@@ -374,8 +353,8 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
   call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-       'mrenpt2')
-  
+       'gvvpt2')
+
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------
@@ -383,5 +362,5 @@ subroutine mrenpt2(irrep,nroots,nextra,shift,multistate,confscr,&
     
   return
   
-end subroutine mrenpt2
+end subroutine gvvpt2
 

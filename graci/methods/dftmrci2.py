@@ -1,5 +1,5 @@
 """
-Module for computing DFT/MR-ENPT2 energies
+Module for computing DFT/MRCI(2) states and energies
 """
 import sys as sys
 import numpy as np
@@ -13,13 +13,24 @@ import graci.bitcitools.ref_space as ref_space
 import graci.bitcitools.ref_diag as ref_diag
 import graci.bitcitools.ref_prune as ref_prune
 import graci.bitcitools.mrci_space as mrci_space
-import graci.bitcitools.mrenpt2 as mrenpt2
-import graci.bitcitools.mrenpt2_refine as mrenpt2_refine
+import graci.bitcitools.gvvpt2 as gvvpt2
+import graci.bitcitools.gvvpt2_refine as gvvpt2_refine
 import graci.bitcitools.mrci_1rdm as mrci_1rdm
 import graci.bitcitools.mrci_wf as mrci_wf
 
-class Dftmrenpt2(cimethod.Cimethod):
-    """Class constructor for DFT/MR-ENPT2 objects"""
+# MRCI and DFT/MRCI Hamiltonian labels
+hamiltonians   = ['canonical',
+                  'grimme_standard',
+                  'grimme_short',
+                  'lyskov_standard',
+                  'lyskov_short',
+                  'heil17_standard',
+                  'heil17_short',
+                  'heil18_standard',
+                  'heil18_short']
+
+class Dftmrci2(cimethod.Cimethod):
+    """Class constructor for DFT/MRCI(2) objects"""
     def __init__(self):        
          # parent attributes
         super().__init__()
@@ -28,7 +39,6 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.truncate        = True
         self.truncate_thresh = 0.9
         self.shift           = 0.005
-        self.multistate      = False
         self.hamiltonian     = 'heil17_standard'
         self.ras1            = []
         self.ras2            = []
@@ -39,7 +49,8 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.icvs            = []
         self.refiter         = 3
         self.ref_prune       = True
-        self.label           = 'Dftmrenpt2'
+        self.nbuffer         = []
+        self.label           = 'Dftmrci2'
 
         # class variables
         # No. extra ref space roots needed
@@ -63,7 +74,7 @@ class Dftmrenpt2(cimethod.Cimethod):
 
     @timing.timed
     def run(self, scf):
-        """ compute the DFT/MR-ENPT2 eigenpairs for all irreps """
+        """ compute the DFT/MRCI(2) eigenpairs for all irreps """
 
         # set the scf object
         self.set_scf(scf)
@@ -72,7 +83,7 @@ class Dftmrenpt2(cimethod.Cimethod):
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
 
         # write the output logfile header for this run
-        output.print_dftmrenpt2_header(self.label)
+        output.print_dftmrci2_header(self.label)
 
         # initialize bitci
         bitci_init.init(self)
@@ -82,9 +93,14 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.mrci_wfn = bitciwfn.Bitciwfn()
 
         # set the number of extra roots to be calculated
-        # (hard-wired for now)
-        self.nextra = {'enpt2' : [10 for n in range(self.n_irrep())],
-                       'max'   : [10 for n in range(self.n_irrep())]}
+        if len(self.nbuffer) == 0:
+            # default: 10 roots per irrep
+            self.nextra = {'pt2' : [10 for n in range(self.n_irrep())],
+                           'max' : [10 for n in range(self.n_irrep())]}
+        else:
+            # user-specified values
+            self.nextra = {'pt2' : np.ndarray.tolist(self.nbuffer),
+                           'max' : np.ndarray.tolist(self.nbuffer)}
         
         # generate the initial reference space configurations
         n_ref_conf, ref_conf_units = ref_space.generate(self)
@@ -92,7 +108,7 @@ class Dftmrenpt2(cimethod.Cimethod):
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
 
-        # Perform the MR-ENPT2 iterations, refining the reference
+        # Perform the DFT/MRCI(2) iterations, refining the reference
         # space as we go
         self.niter = 0
         for self.niter in range(self.refiter):
@@ -128,9 +144,9 @@ class Dftmrenpt2(cimethod.Cimethod):
             self.mrci_wfn.set_confunits(mrci_conf_units)
             self.mrci_wfn.set_confname(mrci_conf_files)
 
-            # MR-ENPT2 calculation
+            # DFT/MRCI(2) calculation
             mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units, dsp_units, n_conf_new = \
-                mrenpt2.corrections(self)
+                gvvpt2.diag_heff(self)
 
             # set the new number of mrci confs if wave function
             # truncation is being used
@@ -150,7 +166,7 @@ class Dftmrenpt2(cimethod.Cimethod):
                 
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
-                    mrenpt2_refine.refine_ref_space(self)
+                    gvvpt2_refine.refine_ref_space(self)
             self.ref_wfn.set_nconf(n_ref_conf)
             self.ref_wfn.set_confunits(ref_conf_units)
 

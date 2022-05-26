@@ -1,5 +1,6 @@
 """
-Module for the refinement of the reference space in an MRENPT2 calculation
+Module for the refinement of the reference space in a DFT/MRCI(2) calculation
+via the analysis of the GVVPT2 first-order corrected eigenstates
 """
 
 import sys
