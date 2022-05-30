@@ -31,6 +31,8 @@ class Overlap(interaction.Interaction):
         self.allowed_calcs = ['overlap', 'dyson', 'adt']
         self.bra_obj       = None
         self.ket_obj       = None
+        self.bra_wfunit    = None
+        self.ket_wfunit    = None
         
     #
     @timing.timed
@@ -124,9 +126,9 @@ class Overlap(interaction.Interaction):
         list of these into a more usable format
         """
 
-        # compute the determinant representation of the wave functions
-        wf_overlap.extract(bra, ket)
-        
+        # extract the determinant representation of the wave functions
+        self.bra_wfunit, self.ket_wfunit = wf_overlap.extract(bra, ket)
+
         # compute the overlaps
         overlap_list = wf_overlap.overlap(bra, ket, trans_list_sym)
         

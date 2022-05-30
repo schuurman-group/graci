@@ -23,27 +23,53 @@ def extract(bra, ket):
     wfn_bra = bra.bitci_mrci()
     wfn_ket = bra.bitci_mrci()
 
+    # bitwf wave function scratch file numbers
+    wfunits_bra = []
+    wfunits_ket = []
+    
     # Extract the bra wave functions
     for irr in range(nirr_bra):
-
+    
         # number of states for this irrep
         nstates = bra.n_states_sym(irr)
         if nstates == 0:
             continue
-
+    
         # bitci configuration and eigenvectos scratch files
         conf_file = wfn_bra.conf_name[irr]
         vec_file  = wfn_bra.ci_name[irr]
-
+    
         # bitwf determinant wave function file number
         wf_scr = 0
         
         # extract the determinant representation wave functions
         # for this irrep
-        args   = (conf_file, vec_file, nstates, 'bra', wf_scr)
+        args   = (irr, conf_file, vec_file, nstates, 'bra', wf_scr)
         wf_scr = libs.lib_func('detwf', args)
+        wfunits_bra.append(wf_scr)
         
-    return
+    # Extract the ket wave functions
+    for irr in range(nirr_ket):
+    
+        # number of states for this irrep
+        nstates = ket.n_states_sym(irr)
+        if nstates == 0:
+            continue
+    
+        # bitci configuration and eigenvectos scratch files
+        conf_file = wfn_ket.conf_name[irr]
+        vec_file  = wfn_ket.ci_name[irr]
+    
+        # bitwf determinant wave function file number
+        wf_scr = 0
+        
+        # extract the determinant representation wave functions
+        # for this irrep
+        args   = (irr, conf_file, vec_file, nstates, 'ket', wf_scr)
+        wf_scr = libs.lib_func('detwf', args)
+        wfunits_ket.append(wf_scr)
+
+    return wfunits_bra, wfunits_ket
     
 @timing.timed
 def overlap(bra, ket, overlap_list):
