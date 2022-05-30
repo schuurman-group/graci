@@ -11,8 +11,10 @@ import graci.utils.timing as timing
 
 @timing.timed
 def tdm(bra, ket, trans_list):
-    """Calculation of the MRCI 1-TDMs for all pairs of 
-      states in trans_list"""
+    """
+    Calculation of the MRCI 1-TDMs for all pairs of states
+    in trans_list
+    """
 
     # number of irreps
     nirr_ket = ket.n_irrep()

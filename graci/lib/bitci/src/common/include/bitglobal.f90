@@ -204,6 +204,19 @@ module bitglobal
   integer(is), allocatable :: offminus(:)       ! k=-1 spincp array offsets for the
                                                 ! different coefficient cases
 
+!----------------------------------------------------------------------
+! Determinant-based wave function calculation variables
+!----------------------------------------------------------------------
+  !
+  ! No. MOs used to represent the bra and ket wave functions
+  !
+  integer(is) :: nmoB,nmoK
+
+  !
+  ! No. (n_bits)-bit integers needed to represent the bra and ket
+  ! alpha/beta strings
+  !
+  integer(is) :: n_intB,n_intK
   
 end module bitglobal
 

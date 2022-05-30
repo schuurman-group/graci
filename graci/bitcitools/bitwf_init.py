@@ -24,16 +24,13 @@ def init(bra, ket, calctype):
                              ket.scf.mol.mol_obj)
     smat   = np.matmul(np.matmul(bra.scf.orbs.T, smat), ket.scf.orbs)
 
-    # point groups
+    # point group: currently we are limited to
+    # bra point group = ket point group, which has already been checked
     if bra.scf.mol.sym_indx <= 0:
-        pgrpBra = 1
+        pgrp = 1
     else:
-        pgrpBra = bra.scf.mol.sym_indx + 1
-    if ket.scf.mol.sym_indx <= 0:
-        pgrpKet = 1
-    else:
-        pgrpKet = ket.scf.mol.sym_indx + 1
-        
+        pgrp = bra.scf.mol.sym_indx + 1
+
     # set all variable that have to be passed to bitwf_initialise
     multBra = bra.mult
     multKet = ket.mult
@@ -45,7 +42,7 @@ def init(bra, ket, calctype):
     
     # call to bitwf_initialise
     args = (multBra, multKet, nelBra, nelKet, nmoBra, nmoKet, smat,
-            pgrpBra,pgrpKet,calctype)
+            pgrp, calctype)
     libs.lib_func('bitwf_initialise', args)
     
     return

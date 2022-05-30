@@ -6,6 +6,7 @@ import sys as sys
 import graci.utils.timing as timing
 import graci.interaction.interaction as interaction
 import graci.bitcitools.bitwf_init as bitwf_init
+import graci.bitcitools.wf_overlap as wf_overlap
 import graci.io.output as output
 
 class Overlap(interaction.Interaction):
@@ -50,25 +51,30 @@ class Overlap(interaction.Interaction):
         
         # initialise the bitwf library
         bitwf_init.init(self.bra_obj, self.ket_obj, self.calc)
+
+        # if bra and ket are the same object, only compute the unique
+        # overlaps
+        list_type = 'full'
+        if self.same_obj(self.bra_obj, self.ket_obj):
+            list_type = 'nodiag'
+
+        # construct the list of state pairs between which we
+        # will compute overlaps
+        self.add_group('ket', self.ket_obj, self.init_states)
+        self.add_group('bra', self.bra_obj, self.final_states)
+        self.trans_list = self.build_pair_list('bra',
+                                               'ket',
+                                               pairs=list_type)
+        self.trans_list_sym = self.build_pair_list('bra',
+                                                   'ket',
+                                                   pairs=list_type,
+                                                   sym_blk=True)
         
-        ## construct the list state pairs between which we
-        ## will compute overlaps
-        #self.add_group('bra', self.bra_obj, self.bra_states)
-        #self.add_group('ket', self.ket_obj, self.ket_states)
-        #
-        ## if bra/ket are the same, only consider unique pairs
-        #if self.same_obj(self.bra_obj, self.ket_obj):
-        #    pair_blks = 'nodiag'
-        #else:
-        #    pair_blks = 'full'
-        #
-        #s_list     = self.build_pair_list('bra', 'ket', 
-        #                                   pairs=pair_blks)
-        #s_list_sym = self.build_pair_list('bra', 'ket', 
-        #                                   pairs=pair_blks, 
-        #                                   sym_blk=True)
-
-
+        
+        # compute the wave function overlaps
+        self.build_overlaps(self.bra_obj, self.ket_obj,
+                            self.trans_list, self.trans_list_sym)
+        
         sys.exit()
 
 #----------------------------------------------------------------------
@@ -98,10 +104,30 @@ class Overlap(interaction.Interaction):
         """
         Checks whether the requested calculation type is supported
         """
-        
+
+        # check the calculation type
         if self.calc not in self.allowed_calcs:
             print('\n Unsupported calc type in overlap: '+str(self.calc)
                   +'\n Allowed keywords: \n'+str(self.allowed_calcs))
             sys.exit()
+
+        # bitwf currently only supports equal bra and ket point groups
+        if self.bra_obj.scf.mol.sym_indx != self.ket_obj.scf.mol.sym_indx:
+            sys.exit('Error: unequal bra and ket point groups')
+        
+        return
+
+    #
+    def build_overlaps(self, bra, ket, trans_list, trans_list_sym):
+        """
+        grab the wave function overlaps from bitwf and then reshape the
+        list of these into a more usable format
+        """
+
+        # compute the determinant representation of the wave functions
+        wf_overlap.extract(bra, ket)
+        
+        # compute the overlaps
+        overlap_list = wf_overlap.overlap(bra, ket, trans_list_sym)
         
         return

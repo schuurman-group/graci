@@ -141,7 +141,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   nmo=nmo1
 
 !----------------------------------------------------------------------
-! Set the bitstring integer array lengths
+! Set the bit string integer array lengths
 !----------------------------------------------------------------------
   n_int=(nmo-1)/n_bits+1
 

@@ -93,7 +93,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   conffileB=adjustl(trim(conffileB_in))
   vecfileB=adjustl(trim(conffileB_in))
   conffileK=adjustl(trim(conffileK_in))
-  vecfileK=adjustl(trim(conffileK_in))
+  vecfileK=adjustl(trim(vecfileK_in))
 #endif
   
 !----------------------------------------------------------------------

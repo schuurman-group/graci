@@ -2,19 +2,21 @@
 ! bitwf_initialise: Interface to the bitwf library. Sets all the
 !                   globally accessible variables that are needed to
 !                   evaluate matrix elements <psi_m|O|psi'_n> in the
-!                   Slater deteminant representation.
+!                   Slater determinant representation.
 !######################################################################
 #ifdef CBINDING
 subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
-     Smat1,ipgB1,ipgK1,calctype_in) bind(c,name='bitwf_initialise')
+     Smat1,ipg1,calctype_in) bind(c,name='bitwf_initialise')
 #else
 subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
-     Smat1,ipgB1,ipgK1,calctype_in)
+     Smat1,ipg1,calctype_in)
 #endif
 
   use iso_c_binding, only: C_CHAR
   use constants
   use bitglobal
+  use setsym
+  use csf
   use iomod
 
   implicit none
@@ -38,8 +40,8 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
   ! Bra-ket MO overlap matrix
   real(dp), intent(in)    :: Smat1(nmoB1,nmoK1)
 
-  ! Bra and ket point group indices
-  integer(is), intent(in) :: ipgB1,ipgK1
+  ! Point group indice
+  integer(is), intent(in) :: ipg1
   
   ! Everything else
   integer(is)             :: i,j
@@ -103,17 +105,10 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
   endif
 
 !----------------------------------------------------------------------
-! Exit if the given point groups are not recognised
+! Exit if the given point group is not recognised
 !----------------------------------------------------------------------
-  ! Bra
-  if (ipgB1 < 1 .or. ipgB1 > 8) then
-     write(errmsg,'(a,1x,i0)') 'Illegal bra point group index:',ipgB1
-     call error_control
-  endif
-
-  ! Ket
-  if (ipgK1 < 1 .or. ipgK1 > 8) then
-     write(errmsg,'(a,1x,i0)') 'Illegal ket point group index:',ipgB1
+  if (ipg1 < 1 .or. ipg1 > 8) then
+     write(errmsg,'(a,1x,i0)') 'Illegal bra point group index:',ipg1
      call error_control
   endif
 
@@ -141,10 +136,69 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
 !----------------------------------------------------------------------
 ! Set the number of spatial orbitals
 !----------------------------------------------------------------------
-  ! We now need nmoB and nmoK variables
-  ! Also: n_int can be different for the bra and ket WFs...
+  nmoB=nmoB1
+  nmoK=nmoK1
+
+!----------------------------------------------------------------------
+! Set the bit string integer array lengths
+!----------------------------------------------------------------------
+  n_intB=(nmoB-1)/n_bits+1
+  n_intK=(nmoK-1)/n_bits+1
+
+!----------------------------------------------------------------------
+! Initialise the symmetry arrays
+!----------------------------------------------------------------------
+  call initialise_symmetry
   
-  STOP
+!----------------------------------------------------------------------
+! Point group: note that we only currently support equal bra and ket
+! point groups
+!----------------------------------------------------------------------
+  ! Point group index
+  ipg=ipg1
+
+  ! Point group label
+  pgroup=pglbls(ipg)
+
+  ! Number of irreps
+  nirrep=pgdim(ipg)
+  
+!----------------------------------------------------------------------
+! Generate the bra and ket CSFs
+!----------------------------------------------------------------------
+  ! Don't spam the user with info that's already been generated
+  verbose=.false.
+
+  ! Bra CSFs
+  call generate_csfs(imultB,nocase2,ncsfsB,ndetsB,maxcsfB,&
+       maxdetB,csfcoeB,detvecB,verbose)
+
+  ! Ket CSFs
+  call generate_csfs(imultK,nocase2,ncsfsK,ndetsK,maxcsfK,&
+       maxdetK,csfcoeK,detvecK,verbose)
+
+!----------------------------------------------------------------------
+! Scratch directory: the top-level bitscratch directory is assumed to
+! have already been created in a preceding bitci calculation
+!----------------------------------------------------------------------
+  scratchdir='bitscratch/wf'
+  call system('mkdir -p '//trim(scratchdir))
+
+!----------------------------------------------------------------------
+! Initialise the scratch unit counter and allocate the scratch unit
+! arrays
+!----------------------------------------------------------------------
+  nscratch=0
+  maxunits=200
+  allocate(scrunit(maxunits))
+  scrunit=0
+  allocate(scrname(maxunits))
+  scrname=''
+
+!----------------------------------------------------------------------
+! Flush stdout
+!----------------------------------------------------------------------
+  flush(6)
   
   return
   
