@@ -18,15 +18,16 @@ hamiltonians   = ['canonical',
                   'heil17_standard',
                   'heil17_short',
                   'heil18_standard',
-                  'heil18_short']
+                  'heil18_short',
+                  'cvs_standard']
 
 libraries      = ['bitci','bitsi','bitwf']
 
 # registry of bitci functions
 bitci_registry = {
     'bitci_initialise'        : ['int32','int32','int32','int64',
-                                'double','int32','double','int32',
-                                'string'],
+                                 'double','int32','double','string',
+                                 'string'],
     'bitci_finalise'         : [],
     'bitci_int_initialize'   : ['string', 'string', 'string', 'string'],
     'bitci_int_finalize'     : [],
@@ -74,7 +75,7 @@ bitci_registry = {
 
 bitci_intent = {
     'bitci_initialise'       : ['in','in','in','in','in','in','in',
-                                'in','in'],
+                                'in','in','in'],
     'bitci_finalise'         : [],
     'bitci_int_initialize'   : ['in','in','in','in'],
     'bitci_int_finalize'     : [],

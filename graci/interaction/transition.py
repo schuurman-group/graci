@@ -60,7 +60,12 @@ class Transition(interaction.Interaction):
         # the tdms
         self.tdms       = None
         # various orbital quantities (NDOs, NTOs, wts, etc.)
-        self.nos        = {}
+        self.ndos       = None
+        self.ndo_wts    = None
+        self.ndos_mo    = None
+        self.ndo_wts_mo = None
+        self.ntos       = None
+        self.nto_wts    = None
         # electric/magnetic multipole tensors -- all guages
         self.multipole  = {}
         # oscillator strengths -- all gauges
@@ -96,7 +101,7 @@ class Transition(interaction.Interaction):
         # if all_final_states is true, over-ride current contents of
         # self.final_states
         if self.all_final_states:
-            self.final_states = range(self.bra_obj.n_states())
+            self.final_states = np.asarray(range(self.bra_obj.n_states()))
 
         # these are the initial and final states -- in whatever form
         # the bra and ket objects take (ci or postci objects)
@@ -165,7 +170,14 @@ class Transition(interaction.Interaction):
         self.oscstr = self.build_osc_str()
 
         # build the NDOs and NTOS, print to file if print_orbitals=True
-        self.nos = self.build_orbitals(self.print_orbitals)
+        self.nto_wts, self.ntos = self.build_ntos(self.print_orbitals, 
+                                                  basis='ao')
+        self.ndo_wts, self.ndos = self.build_ndos(self.print_orbitals, 
+                                                  basis='ao')
+        self.ndo_wts_mo, self.ndos_mo = self.build_ndos(
+                                                  self.print_orbitals, 
+                                                  basis='mo')
+
 
         # print the summary output
         self.print_log()
@@ -239,14 +251,15 @@ class Transition(interaction.Interaction):
             # if this is a ci method, create a new group associated
             # with the CI states
             if type(arg_obj).__name__ in params.ci_objs:
-                lbl = lbls[indx]+'_grp0'
+                lbl = str(lbls[indx]+'_grp0')
                 self.state_grps[lbls[indx]].append(lbl)
-                self.add_group(lbl, arg_obj, range(arg_obj.n_states()))
+                self.add_group(lbl, arg_obj, 
+                               np.asarray(range(arg_obj.n_states())))
 
             # if this is a postci object, should already extend
             # interaction and have groups set up. Add all of them
             # here
-            elif type(bra_ket).__name__ in params.postci_objs:
+            elif type(arg_obj).__name__ in params.postci_objs:
                 grp_lbls = arg_obj.get_lbls()
 
                 for ibk in range(len(grp_lbls)):
@@ -411,9 +424,52 @@ class Transition(interaction.Interaction):
 
         return {**oscstr_l, **oscstr_v}
 
+    # 
+    def build_ndos(self, print_orbs, basis='ao'):
+        """
+        Construct the NDOS for the transitions in the trans_list
+
+        Arguments:
+            print_orbs: if true, print orbitals to file
+
+        Returns:
+            ndos:       numpy array of NDOS
+            ndo_wts:    corresponding weights for the NDOS
+        """
+     
+        if basis not in ['ao','mo']:
+            sys.exit('error in build_ndos: basis must be ao or mo')
+
+        # check to see if rdm function exists in bra/ket objects.
+        # If so, also construct NDOs
+        b_rdm = getattr(self.bra_obj, "rdm", None)
+        k_rdm = getattr(self.ket_obj, "rdm", None)
+        if b_rdm is None or k_rdm is None:
+            return None, None
+
+        # NTOs are always constructed
+        ndos = []
+        wts  = []
+
+        for it in range(len(self.trans_list)):
+            bst = self.trans_list[it][0]
+            kst = self.trans_list[it][1]
+
+            wt, ndo = orbitals.build_ndos(b_rdm(bst), k_rdm(kst),
+                            thresh=0.01, basis=basis, mos=self.scf.orbs)
+            ndos.append(ndo)
+            wts.append(wt)
+
+            if print_orbs and basis == 'ao':
+                fname ='ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
+                orbitals.export_orbitals(fname, self.scf.mol, ndo,
+                                         orb_occ=wt, fmt='molden')
+
+        return wts, ndos
+
 
     #
-    def build_orbitals(self, print_orbs):
+    def build_ntos(self, print_orbs, basis='ao'):
         """ contruct the NDOs and NTOs for the transitions in the 
             trans_list list
 
@@ -423,63 +479,29 @@ class Transition(interaction.Interaction):
             Returns:
               None
         """
-        #dimensions of the orbital quantities
-        nao = self.scf.mol.nao
-        nmo = self.scf.nmo
-        npr = len(self.trans_list)
 
-        # check to see if rdm function exists in bra/ket objects.
-        # If so, also construct NDOs
-        b_rdm = getattr(self.bra_obj, "rdm", None)
-        k_rdm = getattr(self.ket_obj, "rdm", None)
-        make_ndos = b_rdm is not None and k_rdm is not None
+        if basis not in ['ao','mo']:
+            sys.exit('error in build_ntos: basis must be ao or mo')
 
         # NTOs are always constructed
-        ntos       = []
-        nto_wts    = []
-        ndos_ao    = []
-        ndo_wts_ao = []
-        ndos_mo    = []
-        ndo_wts_mo = []
+        ntos = []
+        wts  = []
 
         for it in range(len(self.trans_list)):
             bst = self.trans_list[it][0]
             kst = self.trans_list[it][1]
 
-            nto_wt, nto = orbitals.build_ntos(self.tdm(bst, kst), 
-                            thresh=0.01, basis='ao', mos=self.scf.orbs)
+            wt, nto = orbitals.build_ntos(self.tdm(bst, kst), 
+                          thresh=0.01, basis=basis, mos=self.scf.orbs)
             ntos.append(nto)
-            nto_wts.append(nto_wt)
+            wts.append(wt)
 
-            if print_orbs:
+            if print_orbs and basis == 'ao':
                 fname = 'nto_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
                 orbitals.export_orbitals(fname, self.scf.mol, nto,
-                                        orb_occ=nto_wt, fmt='molden')
+                                        orb_occ=wt, fmt='molden')
 
-            if make_ndos:
-                wt_ao, ndo_ao = orbitals.build_ndos(b_rdm(bst),k_rdm(kst), 
-                                thresh=0.01, basis='ao',mos=self.scf.orbs)
-                wt_mo, ndo_mo = orbitals.build_ndos(b_rdm(bst),k_rdm(kst),
-                                thresh=0.01, basis='mo',mos=self.scf.orbs)
-                ndos_ao.append(ndo_ao)
-                ndo_wts_ao.append(wt_ao)
-                ndos_mo.append(ndo_mo)
-                ndo_wts_mo.append(wt_mo)
-                
-                if print_orbs:
-                    fname ='ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
-                    orbitals.export_orbitals(fname, self.scf.mol,ndo_ao,
-                                        orb_occ=wt_ao, fmt='molden')
-
-        ndo_nto           = {}
-        ndo_nto['nto']       = ntos
-        ndo_nto['nto_wt']    = nto_wts
-        ndo_nto['ndo_mo']    = ndos_mo
-        ndo_nto['ndo_wt_mo'] = ndo_wts_mo
-        ndo_nto['ndo_ao']    = ndos_ao
-        ndo_nto['ndo_wt_ao'] = ndo_wts_ao
-
-        return ndo_nto
+        return wts, ntos 
 
     #-----------------------------------------------------------------
     # construction of multipole moments
@@ -685,8 +707,11 @@ class Transition(interaction.Interaction):
             f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
             if abs(f2_av.imag) > 0.1 * abs(f2_av):
-                print('discarding imaginary component of elec. dip'+
-                      ' - elec. oct term for transition '+str(tpair))
+                args = [s+1 for s in tpair] + [abs(f2_av), f2_av.imag]
+                pstr =' Discarding imaginary component of Oscillator'+ \
+                      ' Strength for transition: {0:3d}<-{1:3d}, '+    \
+                      ' Abs(f2)={2:9.5f}/Im(f2)={3:9.5f}'
+                print(pstr.format(*args))
             f2_iso[indx] = f2_av.real
              
         oscstr_l = {}
@@ -774,8 +799,11 @@ class Transition(interaction.Interaction):
             f2_av = f0_iso[indx] + \
                     fQ_iso + fm_iso + fuO_iso + fuM_iso
             if abs(f2_av.imag) > 0.1 * abs(f2_av):
-                print('discarding imaginary component of elec. dip'+
-                      ' - elec. oct term for transition '+str(tpair))
+                args = [s+1 for s in tpair] + [abs(f2_av), f2_av.imag]
+                pstr =' Discarding imaginary component of Oscillator'+ \
+                      ' Strength for transition: {0:3d}<-{1:3d}, '+ \
+                      ' Abs(f2)={2:9.5f}/Im(f2)={3:9.5f}'
+                print(pstr.format(*args))
             f2_iso[indx] = f2_av.real
 
         oscstr_v = {}
@@ -910,8 +938,8 @@ class Transition(interaction.Interaction):
 
                 # this check on the NDOs could be made stronger..
                 pa, pd = orbitals.promotion_numbers(
-                                        self.nos['ndo_wt_mo'][indx], 
-                                        self.nos['ndo_mo'][indx])
+                                        self.ndo_wts_mo[indx], 
+                                        self.ndos_mo[indx])
                 promo_num.append([pa,pd])
 
             # print a 'transition table' for each initial state

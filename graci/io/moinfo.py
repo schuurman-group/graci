@@ -292,7 +292,6 @@ class Orbitals:
 
         return
 
-
 class BasisFunction:
     """An object to hold information about a single basis function
     including angular momentum, exponents and contraction coefficients."""

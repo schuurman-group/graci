@@ -4,6 +4,7 @@ Module for loading/finalizing bitci library
 
 import numpy as np
 import graci.core.libs as libs
+import sys as sys
 
 #
 def init(ci_method):
@@ -22,11 +23,13 @@ def init(ci_method):
         pgrp = ci_method.scf.mol.sym_indx + 1
 
     escf  = ci_method.scf.energy
-    iham  = libs.hamiltonians.index(ci_method.hamiltonian)+1
+
+    ham   = ci_method.hamiltonian
+        
     label = ci_method.label
 
     # call to bitci_initialise
-    args = (imult, nel, nmo, mosym, moen, pgrp, escf, iham, label)
+    args = (imult, nel, nmo, mosym, moen, pgrp, escf, ham, label)
     libs.lib_func('bitci_initialise', args)
 
     return
