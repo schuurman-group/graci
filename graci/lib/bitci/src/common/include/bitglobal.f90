@@ -217,6 +217,11 @@ module bitglobal
   ! alpha/beta strings
   !
   integer(is) :: n_intB,n_intK
-  
+
+  !
+  ! Bra-ket MO overlaps
+  !
+  real(dp), allocatable :: smo(:,:)
+
 end module bitglobal
 

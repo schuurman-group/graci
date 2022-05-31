@@ -6,10 +6,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
-     Smat1,ipg1,calctype_in) bind(c,name='bitwf_initialise')
+     smo1,ipg1,calctype_in) bind(c,name='bitwf_initialise')
 #else
 subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
-     Smat1,ipg1,calctype_in)
+     smo1,ipg1,calctype_in)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -38,7 +38,7 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
   integer(is), intent(in) :: nmoB1,nmoK1
 
   ! Bra-ket MO overlap matrix
-  real(dp), intent(in)    :: Smat1(nmoB1,nmoK1)
+  real(dp), intent(in)    :: smo1(nmoB1,nmoK1)
 
   ! Point group indice
   integer(is), intent(in) :: ipg1
@@ -145,6 +145,12 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
   n_intB=(nmoB-1)/n_bits+1
   n_intK=(nmoK-1)/n_bits+1
 
+!----------------------------------------------------------------------
+! Save the MO overlap matrix
+!----------------------------------------------------------------------
+  allocate(smo(nmoB,nmoK))
+  smo=smo1
+  
 !----------------------------------------------------------------------
 ! Initialise the symmetry arrays
 !----------------------------------------------------------------------

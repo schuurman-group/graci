@@ -98,7 +98,7 @@ def diag(ci_method):
             ener[irrep,:nstates[irrep]] += qcorr
             
     # Print the report of the MRCI states
-    output.print_dftmrci_states_header()
+    output.print_dftmrci_states_header(ci_method.prune)
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states_sym()
     nextra  = np.array(ci_method.nextra['prune'], dtype=int)

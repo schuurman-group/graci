@@ -72,13 +72,13 @@ class Overlap(interaction.Interaction):
                                                    pairs=list_type,
                                                    sym_blk=True)
         
-        
         # compute the wave function overlaps
         self.build_overlaps(self.bra_obj, self.ket_obj,
                             self.trans_list, self.trans_list_sym)
         
-        sys.exit()
-
+        # finalize the bitwf library
+        bitwf_init.finalize()
+         
 #----------------------------------------------------------------------
 # "Private" class methods
 #
@@ -130,6 +130,9 @@ class Overlap(interaction.Interaction):
         self.bra_wfunit, self.ket_wfunit = wf_overlap.extract(bra, ket)
 
         # compute the overlaps
-        overlap_list = wf_overlap.overlap(bra, ket, trans_list_sym)
+        overlap_list = wf_overlap.overlap(bra, ket,
+                                          self.bra_wfunit,
+                                          self.ket_wfunit,
+                                          trans_list_sym)
         
         return

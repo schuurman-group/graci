@@ -21,7 +21,7 @@ def extract(bra, ket):
     
     # bitci wave function objects
     wfn_bra = bra.bitci_mrci()
-    wfn_ket = bra.bitci_mrci()
+    wfn_ket = ket.bitci_mrci()
 
     # bitwf wave function scratch file numbers
     wfunits_bra = []
@@ -72,7 +72,7 @@ def extract(bra, ket):
     return wfunits_bra, wfunits_ket
     
 @timing.timed
-def overlap(bra, ket, overlap_list):
+def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list):
     """
     Calculation of the overlaps between all pairs of states
     in overlap_list using the determinant representation
@@ -83,13 +83,47 @@ def overlap(bra, ket, overlap_list):
     nirr_ket = ket.n_irrep()
     nirr_bra = bra.n_irrep()
 
-    # bitci bra mrci wfn object
-    bra_wfn = bra.bitci_mrci()
+    # bitci bra and ket mrci wfn object
+    wfn_bra = bra.bitci_mrci()
    
     # bitci ket mrci wfn object
-    ket_wfn = ket.bitci_mrci()
+    wfn_ket = ket.bitci_mrci()    
     
     # overlaps for all irreps
     overlap = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
-    
+
+    # loop over irreps: note that we are enforcing equal bra and ket
+    # point groups and that the wave function overlaps will be zero
+    # unless the bra and ket irreps are the same
+    for irr in range(bra.n_irrep()):
+
+        # pairs of states for this bra irrep and ket irrep
+        # bitwf uses Fortran indexing for these, hence the +1
+        npairs = len(overlap_list[irr][irr])
+
+        if npairs == 0:
+            continue
+
+        overlap_pairs = 1 + np.reshape(
+            np.array(overlap_list[irr][irr], dtype=int),
+            (2*npairs), order='F')
+
+        # total number of bra and ket roots for this irrep
+        bra_tot = bra.n_states_sym(irr)
+        ket_tot = ket.n_states_sym(irr)
+
+        # wave function overlap array
+        sij = np.zeros((npairs), dtype=np.float64)
+
+        # bitwf wave function file numbers
+        bra_unit = bra_wfunit[irr]
+        ket_unit = ket_wfunit[irr]
+
+        # compute the overlaps for all requested pairs of states
+        args = (irr, bra_tot, ket_tot, npairs, overlap_pairs,
+                bra_unit, ket_unit, sij)
+        sij  = libs.lib_func('detoverlap', args)
+        
+    sys.exit()
+        
     return overlap

@@ -165,7 +165,7 @@ def print_dftmrci_header(label):
     global file_names
 
     LLEN = 76
-
+    
     with output_file(file_names['out_file'], 'a+') as outfile:
         title = 'DFT/MRCI computation, label = '+str(label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
@@ -260,12 +260,16 @@ def print_autoras_header():
         outfile.flush()
 
 #
-def print_dftmrci_states_header():
+def print_dftmrci_states_header(prune):
     """print the DFT/MRCI eigenstate report header"""
     global file_names
 
+    title = 'DFT/MRCI Eigenstates'
+    if prune:
+        title = 'p-'+title
+    
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n DFT/MRCI Eigenstates\n')
+        outfile.write('\n '+title+'\n')
         outfile.write(' -------------------------------')
         outfile.flush()
 

@@ -218,8 +218,10 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   write(iscratch) detdim
     
   ! Eigenvectors in the determinant basis
-  write(iscratch) vec_det
-
+  do i=1,nroots
+     write(iscratch) vec_det(:,i)
+  enddo
+     
   ! Determinant bit strings
   write(iscratch) det
   

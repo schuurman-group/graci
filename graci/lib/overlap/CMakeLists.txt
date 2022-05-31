@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.2)
 #
 # Project name and language
 #
-project(bitci)
+project(overlap)
 enable_language(Fortran)
 
 #
@@ -31,21 +31,6 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
 endif()
   
 #
-# HDF5 include and lib directories
-#
-if (HDF5_INC_DIR)
-  include_directories(${HDF5_INC_DIR})
-endif()
-if (HDF5_LIB_DIR)
-  link_directories(${HDF5_LIB_DIR})
-endif()
-
-#
-# overlap library directory
-#
-link_directories(../overlap/lib)
-
-#
 # Compiler-specific flags
 #
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -64,32 +49,12 @@ list(APPEND CMAKE_Fortran_FLAGS_DEBUG ${bounds})
 list(APPEND CMAKE_Fortran_FLAGS ${dialect})
 
 #
-# Add bitCI library target
+# Add overlap library target
 #
-file(GLOB_RECURSE CIsources src/ci/* src/common/* src/integrals/*)
-add_library(bitci SHARED ${CIsources})
-
-#
-# Add bitSI library target
-#
-file(GLOB_RECURSE SIsources src/si/* src/common/* src/integrals/*)
-add_library(bitsi SHARED ${SIsources})
-
-#
-# Add bitWF library target
-#
-file(GLOB_RECURSE SIsources src/wf/* src/common/* src/integrals/*)
-add_library(bitwf SHARED ${SIsources})
-
-# Link the targets to the HDF5 Fortran library
-target_link_libraries(bitci -lhdf5_fortran)
-target_link_libraries(bitsi -lhdf5_fortran)
-target_link_libraries(bitwf -lhdf5_fortran)
-
-# Link the bitwf target to the overlap library
-target_link_libraries(bitwf -loverlap)
+file(GLOB_RECURSE OVERLAPsources src/*)
+add_library(overlap SHARED ${OVERLAPsources})
 
 #
 # Install
 #
-install(TARGETS bitci bitsi bitwf DESTINATION lib)
+install(TARGETS overlap DESTINATION lib)

@@ -62,7 +62,7 @@ def tdm(bra, ket, trans_list):
             ket_conf = ket_wfn.conf_name[ket_irr]
             ket_vec  = ket_wfn.ci_name[ket_irr]
 
-            # Compute the 1-TDMs for all states in this irrep
+            # compute the 1-TDMs for all states in this irrep
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
                     tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
                     ket_vec)

@@ -138,13 +138,19 @@ bitsi_intent   = {
 bitwf_registry = {
     'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
                           'double','int32','string'],
+    'bitwf_finalise'   : [],
     'detwf'            : ['int32','string','string','int32','string',
-                          'int32']
+                          'int32'],
+    'detoverlap'       : ['int32','int32','int32','int32','int32',
+                          'int32','int32','double']
 }
 
 bitwf_intent = {
     'bitwf_initialise' : ['in','in','in','in','in','in','in','in','in'],
-    'detwf'            : ['in','in','in','in','in','out']
+    'bitwf_finalise'   : [],
+    'detwf'            : ['in','in','in','in','in','out'],
+    'detoverlap'       : ['int','int','int','int','int','int','int',
+                          'out']
 }
 
 # list of existing library objects

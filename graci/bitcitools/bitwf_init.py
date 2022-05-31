@@ -46,3 +46,13 @@ def init(bra, ket, calctype):
     libs.lib_func('bitwf_initialise', args)
     
     return
+
+def finalize():
+    """
+    finalize the bitwf library
+    """
+
+    args = ()
+    libs.lib_func('bitwf_finalise', args)
+    
+    return
