@@ -1,1 +1,0 @@
-/home/simon/software/intel/oneapi/compiler/2021.1.1/linux/bin/intel64/ifort -fPIC -w -g -O0 -check all -cpp -free -implicitnone -traceback                -qmkl -qopenmp -xhost -auto -ipo -qopt-prefetch                -check noarg_temp_created -shared -nofor-main -Wl,-soname,liboverlap.so -o liboverlap.so CMakeFiles/overlap.dir/src/overlap.f90.o 
