@@ -159,7 +159,8 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
 ! Call to liboverlap
 !----------------------------------------------------------------------
-  call overlap()
+  call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
+       detB,detK,vecB,vecK)
 
   return
   
