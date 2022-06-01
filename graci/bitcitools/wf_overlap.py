@@ -113,7 +113,7 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list):
         ket_tot = ket.n_states_sym(irr)
 
         # wave function overlap array
-        sij = np.zeros((npairs), dtype=np.float64)
+        sij = np.zeros((2*npairs), dtype=np.float64)
 
         # bitwf wave function file numbers
         bra_unit = bra_wfunit[irr]
@@ -123,6 +123,8 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list):
         args = (irr, bra_tot, ket_tot, npairs, overlap_pairs,
                 bra_unit, ket_unit, sij)
         sij  = libs.lib_func('detoverlap', args)
+
+        # Reshape sij to shape (2,npairs)?
         
     sys.exit()
         

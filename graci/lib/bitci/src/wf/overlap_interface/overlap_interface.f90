@@ -20,6 +20,7 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 
   use constants
   use bitglobal
+  use iowf
   use iomod
 
   implicit none
@@ -35,7 +36,7 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   integer(is), intent(in)  :: wfscrB,wfscrK
 
   ! Wave function overlaps
-  real(dp), intent(out)    :: Sij(nrootsB,nrootsK)
+  real(dp), intent(out)    :: Sij(npairs,2)
 
   ! Determinant bit strings
   integer(ib), allocatable :: detB(:,:,:),detK(:,:,:)
@@ -63,9 +64,23 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
 ! Get the number of bra and ket determinants
 !----------------------------------------------------------------------
-  print*,''
-  print*,'We need to write the bitwf iomod routines...'
-  stop
+  call read_ndet(wfscrB,ndetB)
+  call read_ndet(wfscrK,ndetK)
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+  allocate(detB(n_intB,2,ndetB))
+  detB=0_ib
+  
+  allocate(detK(n_intK,2,ndetB))
+  detK=0_ib
+
+  allocate(iBra(nrootsB), iKet(nrootsK))
+  iBra=0; iKet=0
+
+  allocate(Bmap(npairs), Kmap(npairs))
+  Bmap=0; Kmap=0
   
 !----------------------------------------------------------------------
 ! Which eigenvectors are needed?
@@ -73,8 +88,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   !
   ! Bra and ket states appearing in the requested 1-TDMs
   !
-  allocate(iBra(nrootsB), iKet(nrootsK))
-  iBra=0; iKet=0
   do i=1,npairs
      iBra(iroots(i,1))=1
      iKet(iroots(i,2))=1
@@ -94,8 +107,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   ! Kmap(n) <-> index of the Ket eigenvector needed to evaluate the
   !             n'th 1-TDM
   !
-  allocate(Bmap(npairs), Kmap(npairs))
-  Bmap=0; Kmap=0
   do i=1,npairs
      Bmap(i)=sum(iBra(1:iroots(i,1)))
      Kmap(i)=sum(iKet(1:iroots(i,2)))
@@ -105,6 +116,9 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 ! Read in the bra eigenvectors and determinant bit strings
 !----------------------------------------------------------------------
   ! Allocate arrays
+  allocate(vecB(ndetB,nvecB))
+  vecB=0.0d0
+
   allocate(ireadB(nvecB))
   ireadB=0
   
@@ -117,11 +131,36 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
      endif
   enddo
 
-  !! Read in the eigenvectors
-  !call read_some_eigenpairs(vecscrB,vecB,enerB,cfgB%csfdim,nvecB,ireadB)
+  ! Read in the eigenvectors  
+  call read_detwf(wfscrB,ndetB,nvecB,n_intB,detB,vecB,ireadB)
 
-  STOP
+!----------------------------------------------------------------------
+! Read in the ket eigenvectors and determinant bit strings
+!----------------------------------------------------------------------
+  ! Allocate arrays
+  allocate(vecK(ndetK,nvecK))
+  vecK=0.0d0
+
+  allocate(ireadK(nvecK))
+  ireadK=0
   
+  ! List of needed eigenvectors
+  k=0
+  do i=1,nrootsK
+     if (iKet(i) == 1) then
+        k=k+1
+        ireadK(k)=i
+     endif
+  enddo
+
+  ! Read in the eigenvectors  
+  call read_detwf(wfscrK,ndetK,nvecK,n_intK,detK,vecK,ireadK)
+
+!----------------------------------------------------------------------
+! Call to liboverlap
+!----------------------------------------------------------------------
+  call overlap()
+
   return
   
 end subroutine detoverlap

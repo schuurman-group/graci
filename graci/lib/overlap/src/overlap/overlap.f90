@@ -1,7 +1,7 @@
 !**********************************************************************
 ! Public-facing interface to the overlap library
 !**********************************************************************
-subroutine overlap
+subroutine overlap()
 
   implicit none
 

@@ -213,10 +213,10 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   
   ! Dimensions
   write(iscratch) n_int
-  write(iscratch) nmo
-  write(iscratch) nroots
   write(iscratch) detdim
-    
+  write(iscratch) nroots
+  write(iscratch) nmo
+
   ! Eigenvectors in the determinant basis
   do i=1,nroots
      write(iscratch) vec_det(:,i)
