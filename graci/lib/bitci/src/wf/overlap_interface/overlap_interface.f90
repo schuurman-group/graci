@@ -51,6 +51,7 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: Bmap(:),Kmap(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
+  real(dp)                 :: normthrsh
   
 !----------------------------------------------------------------------
 ! Output what we are doing
@@ -159,8 +160,11 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
 ! Call to liboverlap
 !----------------------------------------------------------------------
+  ! Temporarily hard-wired truncation threshold
+  normthrsh=0.99d0
+
   call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
-       detB,detK,vecB,vecK)
+       detB,detK,vecB,vecK,normthrsh)
 
   return
   
