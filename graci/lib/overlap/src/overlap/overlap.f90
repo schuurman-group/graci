@@ -2,12 +2,13 @@
 ! Public-facing interface to the overlap library
 !**********************************************************************
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
-     nrootsK1,detB1,detK1,vecB1,vecK1,normthrsh)
+     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh)
 
   use constants
   use global
   use detfuncs
   use detsort
+  use factors
   
   implicit none
 
@@ -32,21 +33,30 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   real(dp), intent(in)    :: vecB1(ndetB1,nrootsB1)
   real(dp), intent(in)    :: vecK1(ndetK1,nrootsK1)
 
+  ! Matrix of bra-ket MO overlaps
+  real(dp), intent(in)    :: smo1(nmoB1,nmoK1)
+  
   ! Norm-based truncation threshold
   real(dp), intent(in)    :: normthrsh
-
+  
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
 ! not allocated
 !----------------------------------------------------------------------
-  if (allocated(detB))   deallocate(detB)
-  if (allocated(detK))   deallocate(detK)
-  if (allocated(vecB))   deallocate(vecB)
-  if (allocated(vecK))   deallocate(vecK)
-  if (allocated(alphaB)) deallocate(alphaB)
-  if (allocated(betaB))  deallocate(betaB)
-  if (allocated(alphaK)) deallocate(alphaK)
-  if (allocated(betaK))  deallocate(betaK)
+  if (allocated(smo))       deallocate(smo)
+  if (allocated(detB))      deallocate(detB)
+  if (allocated(detK))      deallocate(detK)
+  if (allocated(vecB))      deallocate(vecB)
+  if (allocated(vecK))      deallocate(vecK)
+  if (allocated(alphaB))    deallocate(alphaB)
+  if (allocated(betaB))     deallocate(betaB)
+  if (allocated(alphaK))    deallocate(alphaK)
+  if (allocated(betaK))     deallocate(betaK)
+  if (allocated(offsetB))   deallocate(offsetB)
+  if (allocated(offsetK))   deallocate(offsetK)
+  if (allocated(det2betaB)) deallocate(det2betaB)
+  if (allocated(det2betaK)) deallocate(det2betaK)
+  if (allocated(betafac))   deallocate(betafac)
   
 !----------------------------------------------------------------------
 ! Set some globally accessible variables
@@ -63,6 +73,10 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   nrootsB=nrootsB1
   nrootsK=nrootsK1
 
+  ! Bra-ket overlaps
+  allocate(smo(nmoB,nmoK))
+  smo=smo1
+  
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
   call get_nel(n_intK,detK1(:,:,1),nelK,nel_alphaK,nel_betaK)
@@ -78,22 +92,44 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   call truncate_wave_functions(n_intK,ndetK1,nrootsK,detK1,vecK1,&
        normthrsh,ndetK,detK,vecK)
 
-!!----------------------------------------------------------------------
-!! Get the unique alpha and beta strings
-!!----------------------------------------------------------------------
-!  ! Bra
-!  call unique_strings(n_intB,ndetB,detB,nalphaB,nbetaB,alphaB,betaB)
-!
-!  ! Ket
-!  call unique_strings(n_intK,ndetK,detK,nalphaK,nbetaK,alphaK,betaK)
-
+  ! Ouput the numbers of determinants
+  write(6,'(/,x,a,x,i0)')    'Original no. bra determinants:',ndetB1
+  write(6,'(x,a,x,i0)')      'Original no. ket determinants:',ndetK1
+  write(6,'(/,x,a,x,F10.7)') 'Truncation threshold:',normthrsh
+  write(6,'(/,x,a,x,i0)')    'Truncated no. bra determinants:',ndetB
+  write(6,'(x,a,x,i0)')      'Truncated no. ket determinants:',ndetK
+  
 !----------------------------------------------------------------------
-! Double sorting of the bra and ket determinants, as well as the
+! Sorting of the bra and ket determinants, as well as the
 ! determination of the unique alpha and beta strings
 !----------------------------------------------------------------------
   ! Bra
   call det_sorting(n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
        alphaB,betaB,offsetB,det2betaB)
+
+  ! Ket
+  call det_sorting(n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
+       alphaK,betaK,offsetK,det2betaK)
+
+  ! Ouput the number of unique alpha and beta strings
+  write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&
+       nalphaB,'/',nbetaB
+  write(6,'(x,a,x,i0,a,i0)')   'No. ket alpha/beta strings:',&
+       nalphaK,'/',nbetaK
+    
+!----------------------------------------------------------------------
+! Pre-computation of the unique beta factors
+!----------------------------------------------------------------------
+  allocate(betafac(nbetaB,nbetaK))
+  betafac=0.0d0
+
+  call get_factors(nel_betaB,nel_betaK,nbetaB,nbetaK,betaB,betaK,&
+       betafac)
+  
+!----------------------------------------------------------------------
+! Flush stdout
+!----------------------------------------------------------------------
+  flush(6)
   
   STOP
   

@@ -164,7 +164,7 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   normthrsh=0.99d0
 
   call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
-       detB,detK,vecB,vecK,normthrsh)
+       detB,detK,vecB,vecK,smo,normthrsh)
 
   return
   

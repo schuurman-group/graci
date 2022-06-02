@@ -14,6 +14,9 @@ module global
 
   ! Number of bra and ket electrons
   integer(is) :: nelB,nelK,nel_alphaB,nel_alphaK,nel_betaB,nel_betaK
+
+  ! Bra-ket MO overlaps
+  real(dp), allocatable :: smo(:,:)
   
   ! Determinant bit strings
   integer(is)              :: n_intB,n_intK
@@ -36,5 +39,8 @@ module global
 
   ! Detetrminant-to-beta-string mapping
   integer(is), allocatable :: det2betaB(:),det2betaK(:)
+
+  ! Unique beta factors
+  real(dp), allocatable    :: betafac(:,:)
   
 end module global

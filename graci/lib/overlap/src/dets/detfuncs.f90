@@ -8,7 +8,7 @@ module detfuncs
 contains
 
 !######################################################################
-! truncate_wave_functions: truncation of the input wave functions
+! truncate_wave_functions: Truncation of the input wave functions
 !                          based on a minimum norm threshold
 !######################################################################
   subroutine truncate_wave_functions(n_int,ndet,nroots,det,vec,&
@@ -148,7 +148,7 @@ contains
   end subroutine truncate_wave_functions
 
 !######################################################################
-! get_nel: determines the number of electrons (total, alpha and beta)
+! get_nel: Determines the number of electrons (total, alpha and beta)
 !          in a given determinant d
 !######################################################################
   subroutine get_nel(n_int,d,nel,nel_alpha,nel_beta)
@@ -187,6 +187,75 @@ contains
     return
     
   end subroutine get_nel
+  
+!######################################################################
+! mo_occ_string: Given a single alpha/beta string, determines the
+!                indices of the occupied MOs
+!######################################################################
+  subroutine mo_occ_string(n_int,string,dim,nocc,occ)
+
+    use constants
+    
+    implicit none
+
+    ! Alpha or beta string
+    integer(is), intent(in)  :: n_int
+    integer(ib), intent(in)  :: string(n_int)
+
+    ! No. occupied orbitals
+    integer(is), intent(out) :: nocc
+
+    ! Indices of the occupied orbitals
+    integer(is), intent(in)  :: dim
+    integer(is), intent(out) :: occ(dim)
+
+    ! Everything else
+    integer(is)              :: ic,k,ipos
+    integer(ib)              :: h
+
+    !
+    ! Initialisation
+    !
+    occ=0
+    nocc=0
+
+    !
+    ! Get the indices of the occupied orbitals
+    !
+    ! Orbital counter
+    ic=1
+
+    ! Loop over bit string blocks
+    do k=1,n_int
+
+       ! Initialise the work array
+       h=string(k)
+
+       ! Get the occupied orbital indices for this block
+       do while (h /= 0_ib)
+
+          ! Number of trailing zeros left in h
+          ipos=trailz(h)
+
+          ! Index of the next occupied orbital
+          occ(ic)=1+ipos+(k-1)*n_bits
+
+          ! Clear the bits up to the occupied orbital in h
+          h=ibclr(h,ipos)
+
+          ! Increment the orbital counter
+          ic=ic+1
+          
+       enddo
+          
+    enddo
+
+    ! No. occupied orbitals
+    nocc=ic-1
+    
+    return
+    
+  end subroutine mo_occ_string
   
 !######################################################################
   
