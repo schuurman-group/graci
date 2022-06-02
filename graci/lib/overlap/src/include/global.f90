@@ -23,5 +23,12 @@ module global
   ! Eigenvectors
   integer(is)           :: nrootsB,nrootsK
   real(dp), allocatable :: vecB(:,:),vecK(:,:)
+
+  ! Number of unique alpha and beta strings
+  integer(is)           :: nalphaB,nbetaB,nalphaK,nbetaK
+
+  ! Unique alpha and beta strings
+  integer(ib), allocatable :: alphaB(:,:),betaB(:,:),&
+                              alphaK(:,:),betaK(:,:)
   
 end module global

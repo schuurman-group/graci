@@ -39,10 +39,14 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! Make sure that all globally accessible allocatable arrays are
 ! not allocated
 !----------------------------------------------------------------------
-  if (allocated(detB)) deallocate(detB)
-  if (allocated(detK)) deallocate(detK)
-  if (allocated(vecB)) deallocate(vecB)
-  if (allocated(vecK)) deallocate(vecK)
+  if (allocated(detB))   deallocate(detB)
+  if (allocated(detK))   deallocate(detK)
+  if (allocated(vecB))   deallocate(vecB)
+  if (allocated(vecK))   deallocate(vecK)
+  if (allocated(alphaB)) deallocate(alphaB)
+  if (allocated(betaB))  deallocate(betaB)
+  if (allocated(alphaK)) deallocate(alphaK)
+  if (allocated(betaK))  deallocate(betaK)
   
 !----------------------------------------------------------------------
 ! Set some globally accessible variables
@@ -78,7 +82,10 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! Get the unique alpha and beta strings
 !----------------------------------------------------------------------
   ! Bra
-  call unique_strings(n_intB,ndetB,detB)
+  call unique_strings(n_intB,ndetB,detB,nalphaB,nbetaB,alphaB,betaB)
+
+  ! Ket
+  call unique_strings(n_intK,ndetK,detK,nalphaK,nbetaK,alphaK,betaK)
   
   STOP
   

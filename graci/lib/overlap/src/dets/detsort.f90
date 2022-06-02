@@ -10,10 +10,10 @@ module detsort
 contains
 
 !######################################################################
-! unique_strings: top level routine for the determination of the unique
+! unique_strings: Top level routine for the determination of the unique
 !                 alpha and beta strings
 !######################################################################
-  subroutine unique_strings(n_int,ndet,det)
+  subroutine unique_strings(n_int,ndet,det,nalpha,nbeta,alpha,beta)
 
     use constants
     
@@ -23,6 +23,12 @@ contains
     integer(is), intent(in)  :: n_int,ndet
     integer(ib), intent(in)  :: det(n_int,2,ndet)
 
+    ! No. unique alpha and beta strings
+    integer(is), intent(out) :: nalpha,nbeta
+
+    ! Unique alpha and beta strings
+    integer(ib), allocatable :: alpha(:,:),beta(:,:)
+    
     ! Working arrays
     integer(ib), allocatable :: det_sort(:,:,:),dwork(:,:,:)
     integer(is), allocatable :: mwork(:)
@@ -55,13 +61,44 @@ contains
     det_sort=det
     call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,1)
 
+    ! Get the no. unique alpha strings
+    nalpha=nunique(n_int,ndet,det_sort,1)
+
+    ! Allocate the unique alpha string array
+    allocate(alpha(n_int,nalpha))
+    alpha=0_ib
+
+    ! Fill in the unique alpha strings
+    call fill_unique(n_int,ndet,nalpha,det_sort,alpha,1)
+    
+!----------------------------------------------------------------------
+! Determine the uniqe beta strings
+!----------------------------------------------------------------------
+    ! Put the determinants into beta-major order
+    det_sort=det
+    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,2)
+
+    ! Get the no. unique beta strings
+    nbeta=nunique(n_int,ndet,det_sort,2)
+
+    ! Allocate the unique beta string array
+    allocate(beta(n_int,nbeta))
+    beta=0_ib
+
+    ! Fill in the unique beta strings
+    call fill_unique(n_int,ndet,nbeta,det_sort,beta,2)
+
     return
     
   end subroutine unique_strings
 
 !######################################################################
-! radix_sort: radix sorting of a given set of determinants into either
-!             alpha- or beta-major order
+! radix_sort: Radix sorting (in base 256) of a given set of
+!             determinants into either alpha- or beta-major order, as
+!             determined by the value of srt_indx (1<-> alpha-major,
+!             2<-> beta-major)
+!             Also returns the array imap of sorted-to-unsorted
+!             determinant index mappings
 !######################################################################
   subroutine radix_sort(n_int,ndet,det_list,imap,dscr,mscr,srt_indx)
 
@@ -234,6 +271,108 @@ contains
 
   end subroutine radix_sort
   
+!######################################################################
+! nunique: Determines the number of unique alpha (ispin=1) or beta
+!          (ispin=2) strings in an array of determinants that have
+!          been ***pre-sorted*** into alpha- or beta-major order
+!######################################################################
+  function nunique(n_int,ndet,det,ispin)
+
+    use constants
+    
+    implicit none
+
+    integer(is)             :: nunique
+    integer(is), intent(in) :: n_int,ndet
+    integer(ib), intent(in) :: det(n_int,2,ndet)
+    integer(is), intent(in) :: ispin
+
+    integer(is)             :: i
+    
+    nunique=1
+
+    do i=2,ndet
+       if (.not. same_string(n_int,det(:,ispin,i), det(:,ispin,i-1))) &
+            nunique=nunique+1
+    enddo
+    
+    return
+    
+  end function nunique
+
+!######################################################################
+! same_string: Returns .true. (.false.) if the two input alpha/beta
+!              strings are the same (not the same)
+!######################################################################  
+  function same_string(n_int,string1,string2)
+
+    use constants
+
+    implicit none
+
+    logical                 :: same_string
+    integer(is), intent(in) :: n_int
+    integer(ib), intent(in) :: string1(n_int),string2(n_int)
+    integer(is)             :: k
+
+    same_string=.true.
+
+    do k=1,n_int
+       if (string1(k) /= string2(k)) then
+          same_string=.false.
+          exit
+       endif
+    enddo
+    
+    return
+    
+  end function same_string
+  
+!######################################################################
+! fill_unique: Returns the unique alpha (ispin=1) or beta (ispin=2)
+!              strings given an array of determinants, det, that has
+!              been ***pre-sorted*** into alpha- or beta-major order
+!######################################################################
+  subroutine fill_unique(n_int,ndet,nunique,det,string,ispin)
+
+    use constants
+
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in)  :: n_int,ndet,nunique
+
+    ! Pre-sorted determinant bit strings
+    integer(ib), intent(in)  :: det(n_int,2,ndet)
+
+    ! Unique ispin-spin strings
+    integer(is), intent(in)  :: ispin
+    integer(ib), intent(out) :: string(n_int,nunique)
+
+    ! Everything else
+    integer(is)              :: i,n
+
+    !
+    ! First string
+    !
+    string(:,1)=det(:,ispin,1)
+
+    !
+    ! Remaining strings
+    !
+    n=1
+    do i=2,ndet
+       if (.not. &
+            same_string(n_int,det(:,ispin,i), det(:,ispin,i-1))) then
+          n=n+1
+          string(:,n)=det(:,ispin,i)
+       endif
+    enddo
+    
+    return
+    
+  end subroutine fill_unique
+    
 !######################################################################
   
 end module detsort
