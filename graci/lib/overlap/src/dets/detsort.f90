@@ -23,7 +23,7 @@ contains
 !              (sorted) determinant-to-unique beta string mapping
 !######################################################################
   subroutine det_sorting(n_int,ndet,nroots,det,vec,nalpha,nbeta,alpha,&
-       beta,offset)
+       beta,offset,det2beta)
 
     use constants
 
@@ -42,13 +42,16 @@ contains
 
     ! Alpha string offsets
     integer(is), allocatable   :: offset(:)
+
+    ! Determinant-to-beta-string mapping
+    integer(is), allocatable   :: det2beta(:)
     
     ! Unique alpha and beta strings
     integer(ib), allocatable   :: alpha(:,:),beta(:,:)
     
     ! Working arrays
     integer(ib), allocatable   :: det_sort(:,:,:),dwork(:,:,:)
-    integer(is), allocatable   :: mwork(:)
+    integer(is), allocatable   :: mwork(:),offb(:)
     real(dp), allocatable      :: vwork(:)
     
     ! Sorted-to-unsorted determinant index mapping array
@@ -87,10 +90,8 @@ contains
     nalpha=nunique(n_int,ndet,det,1)
 
     ! Allocate arrays
-    allocate(alpha(n_int,nalpha))
-    alpha=0_ib
-    allocate(offset(nalpha+1))
-    offset=0
+    allocate(alpha(n_int,nalpha), offset(nalpha+1))
+    alpha=0_ib; offset=0
 
     ! Fill in the unique alpha strings and their offsets
     call fill_unique(n_int,ndet,nalpha,det,alpha,offset,1)
@@ -108,7 +109,7 @@ contains
        ! Number of determinants in this block
        nd=iend-istart+1
 
-       ! Allocate arrays
+       ! Allocate work arrays
        allocate(det_sort(n_int,2,nd), dwork(n_int,2,nd), mwork(nd), &
             imap(nd), vwork(nd))
        dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
@@ -128,7 +129,7 @@ contains
           enddo
        enddo
        
-       ! Deallocate arrays
+       ! Deallocate work arrays
        deallocate(det_sort,dwork,mwork,imap,vwork)
        
     enddo
@@ -138,7 +139,7 @@ contains
 !     (i)  the unique beta strings
 !     (ii) the determinant-to-unique beta string mapping
 !----------------------------------------------------------------------
-    ! Allocate arrays
+    ! Allocate work arrays
     allocate(dwork(n_int,2,ndet), mwork(ndet), imap(ndet), vwork(ndet))
     dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
     
@@ -147,103 +148,33 @@ contains
     det_sort=det
     call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,2)
 
+    ! Deallocate now undeeded work arrays
+    deallocate(dwork,mwork,vwork)
+    
     ! Get the no. unique beta strings
     nbeta=nunique(n_int,ndet,det_sort,2)
 
-    ! Fill in the unique alpha strings (passing a dummy offset array)
+    ! Allocate arrays
+    allocate(offb(nbeta+1), beta(n_int,nbeta), det2beta(ndet))
+    offb=0; beta=0_ib; det2beta=0
     
-    
+    ! Fill in the unique alpha strings
+    call fill_unique(n_int,ndet,nbeta,det_sort,beta,offb,2)
+
+    ! Fill in the determinant-to-beta-string mapping array
+    do n=1,nbeta
+       do i=offb(n),offb(n+1)-1
+          det2beta(imap(i))=n
+       enddo
+    enddo
     
     ! Deallocate arrays
-    deallocate(det_sort,dwork,mwork,imap,vwork)
-    
+    deallocate(offb)
+
     return
     
   end subroutine det_sorting
   
-!!######################################################################
-!! unique_strings: Top level routine for the determination of the unique
-!!                 alpha and beta strings
-!!######################################################################
-!  subroutine unique_strings(n_int,ndet,det,nalpha,nbeta,alpha,beta)
-!
-!    use constants
-!    
-!    implicit none
-!
-!    ! Determinant bit strings
-!    integer(is), intent(in)  :: n_int,ndet
-!    integer(ib), intent(in)  :: det(n_int,2,ndet)
-!
-!    ! No. unique alpha and beta strings
-!    integer(is), intent(out) :: nalpha,nbeta
-!
-!    ! Unique alpha and beta strings
-!    integer(ib), allocatable :: alpha(:,:),beta(:,:)
-!    
-!    ! Working arrays
-!    integer(ib), allocatable :: det_sort(:,:,:),dwork(:,:,:)
-!    integer(is), allocatable :: mwork(:)
-!
-!    ! Sorted-to-unsorted determinant index mapping array
-!    integer(is), allocatable :: imap(:)
-!    
-!    ! Everything else
-!    integer(is)              :: i
-!    
-!!----------------------------------------------------------------------
-!! Allocate arrays
-!!----------------------------------------------------------------------
-!    allocate(det_sort(n_int,2,ndet))
-!    det_sort=0_ib
-!
-!    allocate(dwork(n_int,2,ndet))
-!    dwork=0_ib
-!
-!    allocate(imap(ndet))
-!    imap=0
-!
-!    allocate(mwork(ndet))
-!    mwork=0
-!    
-!!----------------------------------------------------------------------
-!! Determine the uniqe alpha strings
-!!----------------------------------------------------------------------
-!    ! Put the determinants into alpha-major order
-!    det_sort=det
-!    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,1)
-!
-!    ! Get the no. unique alpha strings
-!    nalpha=nunique(n_int,ndet,det_sort,1)
-!
-!    ! Allocate the unique alpha string array
-!    allocate(alpha(n_int,nalpha))
-!    alpha=0_ib
-!
-!    ! Fill in the unique alpha strings
-!    call fill_unique(n_int,ndet,nalpha,det_sort,alpha,1)
-!    
-!!----------------------------------------------------------------------
-!! Determine the uniqe beta strings
-!!----------------------------------------------------------------------
-!    ! Put the determinants into beta-major order
-!    det_sort=det
-!    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,2)
-!
-!    ! Get the no. unique beta strings
-!    nbeta=nunique(n_int,ndet,det_sort,2)
-!
-!    ! Allocate the unique beta string array
-!    allocate(beta(n_int,nbeta))
-!    beta=0_ib
-!
-!    ! Fill in the unique beta strings
-!    call fill_unique(n_int,ndet,nbeta,det_sort,beta,2)
-!
-!    return
-!    
-!  end subroutine unique_strings
-
 !######################################################################
 ! radix_sort: Radix sorting (in base 256) of a given set of
 !             determinants into either alpha- or beta-major order, as

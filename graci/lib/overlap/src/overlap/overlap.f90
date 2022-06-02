@@ -93,7 +93,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   ! Bra
   call det_sorting(n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
-       alphaB,betaB,offsetB)
+       alphaB,betaB,offsetB,det2betaB)
   
   STOP
   

@@ -33,5 +33,8 @@ module global
 
   ! Alpha string offsets
   integer(is), allocatable :: offsetB(:),offsetK(:)
+
+  ! Detetrminant-to-beta-string mapping
+  integer(is), allocatable :: det2betaB(:),det2betaK(:)
   
 end module global
