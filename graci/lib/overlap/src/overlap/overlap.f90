@@ -78,14 +78,22 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   call truncate_wave_functions(n_intK,ndetK1,nrootsK,detK1,vecK1,&
        normthrsh,ndetK,detK,vecK)
 
+!!----------------------------------------------------------------------
+!! Get the unique alpha and beta strings
+!!----------------------------------------------------------------------
+!  ! Bra
+!  call unique_strings(n_intB,ndetB,detB,nalphaB,nbetaB,alphaB,betaB)
+!
+!  ! Ket
+!  call unique_strings(n_intK,ndetK,detK,nalphaK,nbetaK,alphaK,betaK)
+
 !----------------------------------------------------------------------
-! Get the unique alpha and beta strings
+! Double sorting of the bra and ket determinants, as well as the
+! determination of the unique alpha and beta strings
 !----------------------------------------------------------------------
   ! Bra
-  call unique_strings(n_intB,ndetB,detB,nalphaB,nbetaB,alphaB,betaB)
-
-  ! Ket
-  call unique_strings(n_intK,ndetK,detK,nalphaK,nbetaK,alphaK,betaK)
+  call det_sorting(n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
+       alphaB,betaB,offsetB)
   
   STOP
   

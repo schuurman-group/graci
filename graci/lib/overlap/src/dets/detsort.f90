@@ -10,87 +10,239 @@ module detsort
 contains
 
 !######################################################################
-! unique_strings: Top level routine for the determination of the unique
-!                 alpha and beta strings
+! det_sorting: Double sorting of a given set of input determinants
+!
+!              The determinants are subjected to the following:
+!
+!              (1) sorting into alpha-major order, followed by;
+!
+!              (2) sorting of each alpha-string block by beta strings
+!
+!              During the course of this, the unique alpha and beta
+!              strings are also determined, as well as the
+!              (sorted) determinant-to-unique beta string mapping
 !######################################################################
-  subroutine unique_strings(n_int,ndet,det,nalpha,nbeta,alpha,beta)
+  subroutine det_sorting(n_int,ndet,nroots,det,vec,nalpha,nbeta,alpha,&
+       beta,offset)
 
     use constants
-    
+
     implicit none
 
     ! Determinant bit strings
-    integer(is), intent(in)  :: n_int,ndet
-    integer(ib), intent(in)  :: det(n_int,2,ndet)
+    integer(is), intent(in)    :: n_int,ndet
+    integer(ib), intent(inout) :: det(n_int,2,ndet)
 
+    ! Eigenvectors
+    integer(is)                :: nroots
+    real(dp), intent(inout)    :: vec(ndet,nroots)
+    
     ! No. unique alpha and beta strings
-    integer(is), intent(out) :: nalpha,nbeta
+    integer(is), intent(out)   :: nalpha,nbeta
 
+    ! Alpha string offsets
+    integer(is), allocatable   :: offset(:)
+    
     ! Unique alpha and beta strings
-    integer(ib), allocatable :: alpha(:,:),beta(:,:)
+    integer(ib), allocatable   :: alpha(:,:),beta(:,:)
     
     ! Working arrays
-    integer(ib), allocatable :: det_sort(:,:,:),dwork(:,:,:)
-    integer(is), allocatable :: mwork(:)
-
+    integer(ib), allocatable   :: det_sort(:,:,:),dwork(:,:,:)
+    integer(is), allocatable   :: mwork(:)
+    real(dp), allocatable      :: vwork(:)
+    
     ! Sorted-to-unsorted determinant index mapping array
-    integer(is), allocatable :: imap(:)
+    integer(is), allocatable   :: imap(:)
     
     ! Everything else
-    integer(is)              :: i
-    
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(det_sort(n_int,2,ndet))
-    det_sort=0_ib
+    integer(is)                :: i,j,k,n,istart,iend,nd
 
-    allocate(dwork(n_int,2,ndet))
-    dwork=0_ib
-
-    allocate(imap(ndet))
-    imap=0
-
-    allocate(mwork(ndet))
-    mwork=0
-    
 !----------------------------------------------------------------------
-! Determine the uniqe alpha strings
+! (1) Put the determinant and eigenvector arrays into alpha-major
+!     order
 !----------------------------------------------------------------------
+    ! Allocate work arrays
+    allocate(dwork(n_int,2,ndet), mwork(ndet), imap(ndet), vwork(ndet))
+    dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
+
     ! Put the determinants into alpha-major order
-    det_sort=det
-    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,1)
+    call radix_sort(n_int,ndet,det,imap,dwork,mwork,1)
 
+    ! Put the eigenvectors into alpha-major order
+    do i=1,nroots
+       vwork=vec(:,i)
+       do j=1,ndet
+          vec(j,i)=vwork(imap(j))
+       enddo
+    enddo
+
+    ! Deallocate work arrays
+    deallocate(dwork,mwork,imap,vwork)
+    
+!----------------------------------------------------------------------
+! (2) Using the alpha-major ordered determinants, determine the unique
+!     alpha strings and their offsets
+!----------------------------------------------------------------------
     ! Get the no. unique alpha strings
-    nalpha=nunique(n_int,ndet,det_sort,1)
+    nalpha=nunique(n_int,ndet,det,1)
 
-    ! Allocate the unique alpha string array
+    ! Allocate arrays
     allocate(alpha(n_int,nalpha))
     alpha=0_ib
+    allocate(offset(nalpha+1))
+    offset=0
 
-    ! Fill in the unique alpha strings
-    call fill_unique(n_int,ndet,nalpha,det_sort,alpha,1)
+    ! Fill in the unique alpha strings and their offsets
+    call fill_unique(n_int,ndet,nalpha,det,alpha,offset,1)
+
+!----------------------------------------------------------------------
+! (3) Sort each alpha-string block of determinants by their beta string
+!----------------------------------------------------------------------
+    ! Loop over alpha string blocks
+    do n=1,nalpha
+
+       ! Start and end of this block
+       istart=offset(n)
+       iend=offset(n+1)-1
+       
+       ! Number of determinants in this block
+       nd=iend-istart+1
+
+       ! Allocate arrays
+       allocate(det_sort(n_int,2,nd), dwork(n_int,2,nd), mwork(nd), &
+            imap(nd), vwork(nd))
+       dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
+       
+       ! Sort this block by beta string
+       det_sort=det(:,:,istart:iend)
+       call radix_sort(n_int,nd,det_sort,imap,dwork,mwork,2)
+
+       ! Rearrange this block of the determinants
+       det(:,:,istart:iend)=det_sort
+       
+       ! Rearrange this block of the eigenvectors
+       do i=1,nroots
+          vwork=vec(istart:iend,i)
+          do j=1,nd
+             vec(istart+j-1,i)=vwork(imap(j))
+          enddo
+       enddo
+       
+       ! Deallocate arrays
+       deallocate(det_sort,dwork,mwork,imap,vwork)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! (4) Using the now double-sorted array of determinants, determine:
+!     (i)  the unique beta strings
+!     (ii) the determinant-to-unique beta string mapping
+!----------------------------------------------------------------------
+    ! Allocate arrays
+    allocate(dwork(n_int,2,ndet), mwork(ndet), imap(ndet), vwork(ndet))
+    dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
     
-!----------------------------------------------------------------------
-! Determine the uniqe beta strings
-!----------------------------------------------------------------------
-    ! Put the determinants into beta-major order
+    ! Put a copy of the double-sorted determinants into beta-major
+    ! order
     det_sort=det
     call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,2)
 
     ! Get the no. unique beta strings
     nbeta=nunique(n_int,ndet,det_sort,2)
 
-    ! Allocate the unique beta string array
-    allocate(beta(n_int,nbeta))
-    beta=0_ib
-
-    ! Fill in the unique beta strings
-    call fill_unique(n_int,ndet,nbeta,det_sort,beta,2)
-
+    ! Fill in the unique alpha strings (passing a dummy offset array)
+    
+    
+    
+    ! Deallocate arrays
+    deallocate(det_sort,dwork,mwork,imap,vwork)
+    
     return
     
-  end subroutine unique_strings
+  end subroutine det_sorting
+  
+!!######################################################################
+!! unique_strings: Top level routine for the determination of the unique
+!!                 alpha and beta strings
+!!######################################################################
+!  subroutine unique_strings(n_int,ndet,det,nalpha,nbeta,alpha,beta)
+!
+!    use constants
+!    
+!    implicit none
+!
+!    ! Determinant bit strings
+!    integer(is), intent(in)  :: n_int,ndet
+!    integer(ib), intent(in)  :: det(n_int,2,ndet)
+!
+!    ! No. unique alpha and beta strings
+!    integer(is), intent(out) :: nalpha,nbeta
+!
+!    ! Unique alpha and beta strings
+!    integer(ib), allocatable :: alpha(:,:),beta(:,:)
+!    
+!    ! Working arrays
+!    integer(ib), allocatable :: det_sort(:,:,:),dwork(:,:,:)
+!    integer(is), allocatable :: mwork(:)
+!
+!    ! Sorted-to-unsorted determinant index mapping array
+!    integer(is), allocatable :: imap(:)
+!    
+!    ! Everything else
+!    integer(is)              :: i
+!    
+!!----------------------------------------------------------------------
+!! Allocate arrays
+!!----------------------------------------------------------------------
+!    allocate(det_sort(n_int,2,ndet))
+!    det_sort=0_ib
+!
+!    allocate(dwork(n_int,2,ndet))
+!    dwork=0_ib
+!
+!    allocate(imap(ndet))
+!    imap=0
+!
+!    allocate(mwork(ndet))
+!    mwork=0
+!    
+!!----------------------------------------------------------------------
+!! Determine the uniqe alpha strings
+!!----------------------------------------------------------------------
+!    ! Put the determinants into alpha-major order
+!    det_sort=det
+!    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,1)
+!
+!    ! Get the no. unique alpha strings
+!    nalpha=nunique(n_int,ndet,det_sort,1)
+!
+!    ! Allocate the unique alpha string array
+!    allocate(alpha(n_int,nalpha))
+!    alpha=0_ib
+!
+!    ! Fill in the unique alpha strings
+!    call fill_unique(n_int,ndet,nalpha,det_sort,alpha,1)
+!    
+!!----------------------------------------------------------------------
+!! Determine the uniqe beta strings
+!!----------------------------------------------------------------------
+!    ! Put the determinants into beta-major order
+!    det_sort=det
+!    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,2)
+!
+!    ! Get the no. unique beta strings
+!    nbeta=nunique(n_int,ndet,det_sort,2)
+!
+!    ! Allocate the unique beta string array
+!    allocate(beta(n_int,nbeta))
+!    beta=0_ib
+!
+!    ! Fill in the unique beta strings
+!    call fill_unique(n_int,ndet,nbeta,det_sort,beta,2)
+!
+!    return
+!    
+!  end subroutine unique_strings
 
 !######################################################################
 ! radix_sort: Radix sorting (in base 256) of a given set of
@@ -332,8 +484,13 @@ contains
 ! fill_unique: Returns the unique alpha (ispin=1) or beta (ispin=2)
 !              strings given an array of determinants, det, that has
 !              been ***pre-sorted*** into alpha- or beta-major order
+!
+!              Also fills in the alpha string offset array:
+!
+!              offset(i): starting point in the det array of the i'th
+!                         unique ispin-spin string
 !######################################################################
-  subroutine fill_unique(n_int,ndet,nunique,det,string,ispin)
+  subroutine fill_unique(n_int,ndet,nunique,det,string,offset,ispin)
 
     use constants
 
@@ -349,6 +506,9 @@ contains
     integer(is), intent(in)  :: ispin
     integer(ib), intent(out) :: string(n_int,nunique)
 
+    ! Offsets
+    integer(is), intent(out) :: offset(nunique+1)
+    
     ! Everything else
     integer(is)              :: i,n
 
@@ -356,7 +516,8 @@ contains
     ! First string
     !
     string(:,1)=det(:,ispin,1)
-
+    offset(1)=1
+    
     !
     ! Remaining strings
     !
@@ -366,8 +527,11 @@ contains
             same_string(n_int,det(:,ispin,i), det(:,ispin,i-1))) then
           n=n+1
           string(:,n)=det(:,ispin,i)
+          offset(n)=i
        endif
     enddo
+
+    offset(nunique+1)=ndet+1
     
     return
     

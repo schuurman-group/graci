@@ -30,5 +30,8 @@ module global
   ! Unique alpha and beta strings
   integer(ib), allocatable :: alphaB(:,:),betaB(:,:),&
                               alphaK(:,:),betaK(:,:)
+
+  ! Alpha string offsets
+  integer(is), allocatable :: offsetB(:),offsetK(:)
   
 end module global
