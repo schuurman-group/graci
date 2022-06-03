@@ -52,7 +52,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   integer(is)              :: ndetB,ndetK
   integer(is)              :: nvecB,nvecK
   integer(is), allocatable :: iBra(:),iKet(:)
-  integer(is), allocatable :: Bmap(:),Kmap(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
   
 !----------------------------------------------------------------------
@@ -76,15 +75,12 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   allocate(detB(n_intB,2,ndetB))
   detB=0_ib
   
-  allocate(detK(n_intK,2,ndetB))
+  allocate(detK(n_intK,2,ndetK))
   detK=0_ib
 
   allocate(iBra(nrootsB), iKet(nrootsK))
   iBra=0; iKet=0
 
-  allocate(Bmap(npairs), Kmap(npairs))
-  Bmap=0; Kmap=0
-  
 !----------------------------------------------------------------------
 ! Which eigenvectors are needed?
 !----------------------------------------------------------------------
@@ -101,19 +97,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   !
   nvecB=sum(iBra)
   nvecK=sum(iKet)
-
-  !
-  ! Bra-ket pair to eigenvector mapping
-  !
-  ! Bmap(n) <-> index of the bra eigenvector needed to evaluate the
-  !             n'th 1-TDM
-  ! Kmap(n) <-> index of the Ket eigenvector needed to evaluate the
-  !             n'th 1-TDM
-  !
-  do i=1,npairs
-     Bmap(i)=sum(iBra(1:iroots(i,1)))
-     Kmap(i)=sum(iKet(1:iroots(i,2)))
-  enddo
 
 !----------------------------------------------------------------------
 ! Read in the bra eigenvectors and determinant bit strings

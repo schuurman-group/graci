@@ -177,7 +177,7 @@ contains
     integer(is), intent(out) :: ipiv(dim)
     
     integer(is)              :: info,i
-    
+
 !----------------------------------------------------------------------
 ! LU factorisation of the input matrix
 ! Note that, on exit, mat will contain the L and U factors of the

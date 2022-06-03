@@ -43,7 +43,7 @@ endif()
 #
 # overlap library directory
 #
-link_directories(../overlap/lib)
+link_directories(../lib)
 
 #
 # Compiler-specific flags

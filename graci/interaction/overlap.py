@@ -162,5 +162,18 @@ class Overlap(interaction.Interaction):
         prints a summary of the overlap calculation to the
         log file
         """
-                
+
+        # TEST
+        for indx in range(len(self.trans_list)):
+
+            sij = self.overlaps[indx]
+
+            bk_st = self.trans_list[indx]
+
+            [birr, bst]    = self.bra_obj.state_sym(bk_st[0])
+            [kirr, kst]    = self.ket_obj.state_sym(bk_st[1])
+
+            if np.abs(sij) > 1e-4:
+                print(bst, kst, sij)
+            
         return

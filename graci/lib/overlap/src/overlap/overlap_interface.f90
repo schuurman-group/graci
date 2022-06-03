@@ -47,7 +47,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 
   ! Wave function overlaps
   real(dp), intent(out)   :: Sij(npairs)
-  
+
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
 ! not allocated
@@ -111,6 +111,15 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
        'No. bra determinants after truncation:',ndetB
   write(6,'(x,a,x,i0)') &
        'No. ket determinants after truncation:',ndetK
+
+!----------------------------------------------------------------------
+! Symmetric orthogonalisation the truncated wave functions
+!----------------------------------------------------------------------
+  ! Bra
+  call symm_ortho(n_intB,ndetB,nrootsB,vecB)
+
+  ! Ket
+  call symm_ortho(n_intK,ndetK,nrootsK,vecK)
   
 !----------------------------------------------------------------------
 ! Sorting of the bra and ket determinants, as well as the

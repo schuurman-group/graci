@@ -148,6 +148,67 @@ contains
   end subroutine truncate_wave_functions
 
 !######################################################################
+! symm_ortho: Orthonormalisation of a set of wave functions using
+!             Lowdin's symmetric orthogonalisation
+!######################################################################
+  subroutine symm_ortho(n_int,ndet,nroots,vec)
+
+    use constants
+    use utils
+    
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in) :: n_int,ndet,nroots
+
+    ! Eigenvectors
+    real(dp), intent(inout) :: vec(ndet,nroots)
+
+    ! Everything else
+    integer(is)             :: i,j
+    real(dp)                :: norm
+    real(dp), allocatable   :: Smat(:,:),Sinvsq(:,:),vec_ortho(:,:)
+        
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(Smat(nroots,nroots), Sinvsq(nroots,nroots), &
+         vec_ortho(ndet,nroots))
+    Smat=0.0d0; Sinvsq=0.0d0; vec_ortho=0.0d0
+    
+!----------------------------------------------------------------------
+! Normalisation
+!----------------------------------------------------------------------
+    do i=1,nroots
+       norm=dot_product(vec(:,i),vec(:,i))
+       norm=sqrt(norm)
+       vec(:,i)=vec(:,i)/norm
+    enddo
+    
+!----------------------------------------------------------------------
+! Overlap matrix
+!----------------------------------------------------------------------
+    call dgemm('T','N',nroots,nroots,ndet,1.0d0,vec,ndet,vec,ndet,&
+         0.0d0,Smat,nroots)
+
+!----------------------------------------------------------------------
+! Inverse square root of the overlap matrix
+!----------------------------------------------------------------------
+    call invsqrt_matrix(Smat,Sinvsq,nroots)
+
+!----------------------------------------------------------------------
+! Orthogonalisation
+!----------------------------------------------------------------------
+    call dgemm('N','N',ndet,nroots,nroots,1.0d0,vec,ndet,Sinvsq,&
+         nroots,0.0d0,vec_ortho,ndet)
+
+    vec=vec_ortho
+    
+    return
+    
+  end subroutine symm_ortho
+    
+!######################################################################
 ! get_nel: Determines the number of electrons (total, alpha and beta)
 !          in a given determinant d
 !######################################################################
