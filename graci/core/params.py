@@ -105,6 +105,7 @@ overlap_kword   = {'init_states'       : int,
                    'final_states'      : int,
                    'final_label'       : str,
                    'calc'              : str,
+                   'norm_thresh'       : float,
                    'label'             : str,
                   } 
 

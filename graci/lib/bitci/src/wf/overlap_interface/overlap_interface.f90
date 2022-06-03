@@ -12,10 +12,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,Sij) bind(c,name='detoverlap')
+     wfscrK,norm_thresh,Sij) bind(c,name='detoverlap')
 #else
 subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,Sij)
+     wfscrK,norm_thresh,Sij)
 #endif
 
   use constants
@@ -35,8 +35,11 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   ! Scratch file numbers
   integer(is), intent(in)  :: wfscrB,wfscrK
 
+  ! Norm-based wave function truncation threshold
+  real(dp), intent(in)     :: norm_thresh
+  
   ! Wave function overlaps
-  real(dp), intent(out)    :: Sij(npairs,2)
+  real(dp), intent(out)    :: Sij(npairs)
 
   ! Determinant bit strings
   integer(ib), allocatable :: detB(:,:,:),detK(:,:,:)
@@ -51,7 +54,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: Bmap(:),Kmap(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
-  real(dp)                 :: normthrsh
   
 !----------------------------------------------------------------------
 ! Output what we are doing
@@ -160,11 +162,8 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
 ! Call to liboverlap
 !----------------------------------------------------------------------
-  ! Temporarily hard-wired truncation threshold
-  normthrsh=0.99d0
-
   call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
-       detB,detK,vecB,vecK,smo,normthrsh)
+       detB,detK,vecB,vecK,smo,norm_thresh,npairs,Sij,iroots)
 
   return
   

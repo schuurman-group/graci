@@ -72,7 +72,7 @@ def extract(bra, ket):
     return wfunits_bra, wfunits_ket
     
 @timing.timed
-def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list):
+def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
     """
     Calculation of the overlaps between all pairs of states
     in overlap_list using the determinant representation
@@ -113,7 +113,7 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list):
         ket_tot = ket.n_states_sym(irr)
 
         # wave function overlap array
-        sij = np.zeros((2*npairs), dtype=np.float64)
+        sij = np.zeros((npairs), dtype=np.float64)
 
         # bitwf wave function file numbers
         bra_unit = bra_wfunit[irr]
@@ -121,11 +121,9 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list):
 
         # compute the overlaps for all requested pairs of states
         args = (irr, bra_tot, ket_tot, npairs, overlap_pairs,
-                bra_unit, ket_unit, sij)
+                bra_unit, ket_unit, norm_thresh, sij)
         sij  = libs.lib_func('detoverlap', args)
 
-        # Reshape sij to shape (2,npairs)?
-        
     sys.exit()
         
     return overlap

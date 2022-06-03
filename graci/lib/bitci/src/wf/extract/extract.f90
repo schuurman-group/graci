@@ -21,6 +21,7 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   use conftype
   use csf2det
   use det_expec
+  use mrciutils
   use iomod
   use timing
 
@@ -188,6 +189,13 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
 !----------------------------------------------------------------------
   call bitstrings_detbas(cfg,detdim,det)
 
+!----------------------------------------------------------------------
+! Put the determinant bit strings into the 'canonical' MO ordering
+! (the reorder_conf subroutine is used for this as the det bit strings
+! have the same structure as conf bit strings)
+!----------------------------------------------------------------------
+  call reorder_confs(cfg%m2c,det,detdim)
+  
 !----------------------------------------------------------------------
 ! Compute the eigenvectors in the determinant basis
 !----------------------------------------------------------------------

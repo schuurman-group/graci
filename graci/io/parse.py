@@ -96,8 +96,9 @@ def parse_section(class_name, input_file):
                             print(kword+" is wrong type, expected: "
                                   +str(expected), flush=True)
                     else:
-                        sys.exit('Invalid keyword found: '+kword)
-                            
+                        sys.exit('Invalid keyword found in a $' \
+                                 +mod_name+' section'': '+kword)
+                        
                 elif class_name == 'Molecule' and \
                         len(input_file[iline].strip()) > 0:
                     # try to interpret as a cartesian atom definition

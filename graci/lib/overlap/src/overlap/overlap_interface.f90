@@ -2,13 +2,15 @@
 ! Public-facing interface to the overlap library
 !**********************************************************************
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
-     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh)
+     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,&
+     npairs,Sij,ipairs)
 
   use constants
   use global
   use detfuncs
   use detsort
   use factors
+  use wfoverlap
   
   implicit none
 
@@ -38,6 +40,13 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   
   ! Norm-based truncation threshold
   real(dp), intent(in)    :: normthrsh
+
+  ! Indices of the pairs of states for which overlaps are requested
+  integer(is), intent(in) :: npairs
+  integer(is), intent(in) :: ipairs(npairs,2)
+
+  ! Wave function overlaps
+  real(dp), intent(out)   :: Sij(npairs)
   
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
@@ -87,17 +96,21 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra
   call truncate_wave_functions(n_intB,ndetB1,nrootsB,detB1,vecB1,&
        normthrsh,ndetB,detB,vecB)
-
+  
   ! Ket
   call truncate_wave_functions(n_intK,ndetK1,nrootsK,detK1,vecK1,&
        normthrsh,ndetK,detK,vecK)
 
   ! Ouput the numbers of determinants
-  write(6,'(/,x,a,x,i0)')    'Original no. bra determinants:',ndetB1
-  write(6,'(x,a,x,i0)')      'Original no. ket determinants:',ndetK1
+  write(6,'(/,x,a,x,i0)') &
+       'No. bra determinants before truncation:',ndetB1
+  write(6,'(x,a,x,i0)') &
+       'No. ket determinants before truncation:',ndetK1
   write(6,'(/,x,a,x,F10.7)') 'Truncation threshold:',normthrsh
-  write(6,'(/,x,a,x,i0)')    'Truncated no. bra determinants:',ndetB
-  write(6,'(x,a,x,i0)')      'Truncated no. ket determinants:',ndetK
+  write(6,'(/,x,a,x,i0)') &
+       'No. bra determinants after truncation:',ndetB
+  write(6,'(x,a,x,i0)') &
+       'No. ket determinants after truncation:',ndetK
   
 !----------------------------------------------------------------------
 ! Sorting of the bra and ket determinants, as well as the
@@ -123,15 +136,17 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   allocate(betafac(nbetaB,nbetaK))
   betafac=0.0d0
 
-  call get_factors(nel_betaB,nel_betaK,nbetaB,nbetaK,betaB,betaK,&
-       betafac)
+  call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
+
+!----------------------------------------------------------------------
+! Calculate the wave function overlaps
+!----------------------------------------------------------------------
+  call get_overlaps(npairs,ipairs,Sij)
   
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------
   flush(6)
-  
-  STOP
   
   return
   

@@ -24,6 +24,7 @@ class Overlap(interaction.Interaction):
         self.final_label  = None
         self.init_states  = None
         self.final_states = None
+        self.norm_thresh  = 0.99
 
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
@@ -133,6 +134,7 @@ class Overlap(interaction.Interaction):
         overlap_list = wf_overlap.overlap(bra, ket,
                                           self.bra_wfunit,
                                           self.ket_wfunit,
-                                          trans_list_sym)
+                                          trans_list_sym,
+                                          self.norm_thresh)
         
         return
