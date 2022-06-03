@@ -162,7 +162,7 @@ def lib_load(name):
     # if we haven't loaded the bitX object, do so now
     if name not in lib_objs.keys() and name in libraries:
         # load the appropriate library
-        rel_path = '/graci/lib/bitci/lib/lib'+str(name)+'.{}'
+        rel_path = '/graci/lib/lib/lib'+str(name)+'.{}'
         path_str = os.environ['GRACI'] + rel_path
         lib_path = path_str.format('so' if sys.platform != 'darwin' 
                                                       else 'dylib')

@@ -3,6 +3,7 @@ Overlap class
 """
 
 import sys as sys
+import numpy as np
 import graci.utils.timing as timing
 import graci.interaction.interaction as interaction
 import graci.bitcitools.bitwf_init as bitwf_init
@@ -24,7 +25,7 @@ class Overlap(interaction.Interaction):
         self.final_label  = None
         self.init_states  = None
         self.final_states = None
-        self.norm_thresh  = 0.99
+        self.norm_thresh  = 0.995
 
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
@@ -34,6 +35,7 @@ class Overlap(interaction.Interaction):
         self.ket_obj       = None
         self.bra_wfunit    = None
         self.ket_wfunit    = None
+        self.overlaps      = None
         
     #
     @timing.timed
@@ -74,8 +76,12 @@ class Overlap(interaction.Interaction):
                                                    sym_blk=True)
         
         # compute the wave function overlaps
-        self.build_overlaps(self.bra_obj, self.ket_obj,
-                            self.trans_list, self.trans_list_sym)
+        self.overlaps = self.build_overlaps(self.bra_obj, self.ket_obj,
+                                            self.trans_list,
+                                            self.trans_list_sym)
+
+        # output the overlaps
+        self.print_log()
         
         # finalize the bitwf library
         bitwf_init.finalize()
@@ -136,5 +142,25 @@ class Overlap(interaction.Interaction):
                                           self.ket_wfunit,
                                           trans_list_sym,
                                           self.norm_thresh)
+
+        # make the overlap list
+        npairs   = len(trans_list)
+        overlaps = np.zeros((npairs), dtype=float)
+
+        for indx in range(len(trans_list)):
+            bk_st          = trans_list[indx]
+            [birr, bst]    = bra.state_sym(bk_st[0])
+            [kirr, kst]    = ket.state_sym(bk_st[1])
+            sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
+            overlaps[indx] = overlap_list[birr][kirr][sym_indx]
         
+        return overlaps
+
+    #
+    def print_log(self):
+        """
+        prints a summary of the overlap calculation to the
+        log file
+        """
+                
         return

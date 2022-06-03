@@ -92,18 +92,18 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
     # overlaps for all irreps
     overlap = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
 
-    # loop over irreps: note that we are enforcing equal bra and ket
-    # point groups and that the wave function overlaps will be zero
+    # fill in the overlaps that are non-zero by symmetry
+    #
+    # note that we are enforcing equal bra and ket point groups
+    # and that the wave function overlaps will be zero
     # unless the bra and ket irreps are the same
     for irr in range(bra.n_irrep()):
 
         # pairs of states for this bra irrep and ket irrep
         # bitwf uses Fortran indexing for these, hence the +1
         npairs = len(overlap_list[irr][irr])
-
         if npairs == 0:
             continue
-
         overlap_pairs = 1 + np.reshape(
             np.array(overlap_list[irr][irr], dtype=int),
             (2*npairs), order='F')
@@ -124,6 +124,16 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
                 bra_unit, ket_unit, norm_thresh, sij)
         sij  = libs.lib_func('detoverlap', args)
 
-    sys.exit()
-        
+        overlap[irr][irr] = sij
+
+    # fill in the overlaps that are zero by symmetry
+    for bra_irr in range(bra.n_irrep()):
+        for ket_irr in range(ket.n_irrep()):
+            if bra_irr != ket_irr:
+                npairs = len(overlap_list[irr][irr])
+                if npairs == 0:
+                    continue
+                overlap[bra_irr][ket_irr] = np.zeros((npairs),
+                                                     dtype=np.float64)
+                
     return overlap
