@@ -1,0 +1,28 @@
+#!/bin/bash
+
+#
+# Conditional compilation flags
+#
+args=""
+for var in "$@"; do
+    args+=" $var"
+done
+
+#
+# Make the build directory
+#
+if [ -d build ]; then
+    rm -r build/*
+else
+    mkdir build
+fi
+
+#
+# Move into the build directory and build and install bitci
+#
+cd build
+cmake ../ -DCMAKE_INSTALL_PREFIX=../.. $args
+make
+make install
+cd ../
+

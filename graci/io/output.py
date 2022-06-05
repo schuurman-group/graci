@@ -165,7 +165,7 @@ def print_dftmrci_header(label):
     global file_names
 
     LLEN = 76
-
+    
     with output_file(file_names['out_file'], 'a+') as outfile:
         title = 'DFT/MRCI computation, label = '+str(label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
@@ -260,12 +260,16 @@ def print_autoras_header():
         outfile.flush()
 
 #
-def print_dftmrci_states_header():
+def print_dftmrci_states_header(prune):
     """print the DFT/MRCI eigenstate report header"""
     global file_names
 
+    title = 'DFT/MRCI Eigenstates'
+    if prune:
+        title = 'p-'+title
+    
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n DFT/MRCI Eigenstates\n')
+        outfile.write('\n '+title+'\n')
         outfile.write(' -------------------------------')
         outfile.flush()
 
@@ -530,6 +534,7 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
     
     return
 
+
 def print_hsoc_eig(eig, vec, hdim, stlbl):
     """print out the summary of the eigenpairs of H_SOC"""
 
@@ -595,4 +600,49 @@ def print_overlap_header(label):
         outfile.write(  '\n '+str('*'*LLEN)+'\n')
         outfile.flush()
 
+    return
+
+
+def print_overlaps(trans_list, overlaps, bra_obj, ket_obj):
+    """Prints the table of wave function overlaps"""
+
+    # table header
+    delim = ' '+'-'*(36)
+    print('\n'+delim)
+
+    fstr = '  {:<12} {:<12} {:<12}'
+    
+    print(fstr.format('Bra State',
+                      'Ket State',
+                      'Overlap'))
+
+    print(delim)
+
+    # Overlaps
+    fstr = '{:4d} {:<7} {:4d} {:<8} {:9.6f}'
+    for indx in range(len(trans_list)):
+        
+        sij = overlaps[indx]
+        
+        bk_st = trans_list[indx]
+            
+        [birr, bst]    = bra_obj.state_sym(bk_st[0])
+        [kirr, kst]    = ket_obj.state_sym(bk_st[1])
+
+        if birr != kirr:
+            continue
+
+        if np.abs(sij) < 1e-6:
+            continue
+        
+        irr   = birr
+        irrlbl = bra_obj.scf.mol.irreplbl[irr]
+        
+        print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
+                          bk_st[1]+1, '('+irrlbl+')',
+                          sij))
+
+    # table footer
+    print(delim)
+        
     return

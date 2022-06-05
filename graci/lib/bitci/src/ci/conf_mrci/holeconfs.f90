@@ -687,10 +687,10 @@ contains
           if (lcvs .and. icvs(cfgM%m2c(imo)) == 1) cycle
           
           ! Block index
-          k=(imo-1)/64+1
+          k=(imo-1)/n_bits+1
           
           ! Postion of the external MO within the kth block
-          i=imo-(k-1)*64-1          
+          i=imo-(k-1)*n_bits-1          
 
           ! Cycle if this MO is doubly-occupied
           if (btest(cfgM%conf2h(k,2,n),i)) cycle

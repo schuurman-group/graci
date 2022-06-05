@@ -86,7 +86,7 @@ contains
   
 !######################################################################
 ! most_significant_bit: returns the most significant bit in the
-!                       64 bit integer i
+!                       (n_bits)-bit integer i
 !######################################################################
   function most_significant_bit(i) result(msb)
 
@@ -138,7 +138,7 @@ contains
        do while (I(k)/=0_ib)
           e=trailz(I(k))
           I(k)=ibclr(I(k),e)
-          list(n)=e+(k-1)*64+1
+          list(n)=e+(k-1)*n_bits+1
           n=n+1
        enddo
        

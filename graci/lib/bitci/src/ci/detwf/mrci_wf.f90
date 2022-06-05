@@ -8,10 +8,11 @@
 !          irrep
 !######################################################################
 #ifdef CBINDING
-subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,ndet) &
-     bind(c,name='wf_mrci')
+subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,&
+     grp_name,lbls,ndet) bind(c,name='wf_mrci')
 #else
-subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,ndet)
+subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,&
+     grp_name,lbls,ndet)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -20,6 +21,7 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,nd
   use conftype
   use csf2det
   use det_expec
+  use mrciutils
   use iomod
   use chkpt
   use timing
@@ -67,8 +69,8 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,nd
   real(dp), allocatable    :: vec_det(:,:)
 
   ! Timing variables
-    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
-                               twall_end
+  real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
+                              twall_end
   
   ! Everything else
   integer(is)              :: i
@@ -141,6 +143,13 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,nd
 ! Get the determinant bit strings
 !----------------------------------------------------------------------
   call bitstrings_detbas(cfg,detdim,det)
+
+!----------------------------------------------------------------------
+! Put the determinant bit strings into the 'canonical' MO ordering
+! (the reorder_conf subroutine is used for this as the det bit strings
+! have the same structure as conf bit strings)
+!----------------------------------------------------------------------
+  call reorder_confs(cfg%m2c,det,detdim)
   
 !----------------------------------------------------------------------
 ! Compute the eigenvectors in the determinant basis
@@ -172,9 +181,9 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,h5file_in,grp_name,lbls,nd
 !----------------------------------------------------------------------
 ! Write the determinant lists to the h5 checkpoint file
 !----------------------------------------------------------------------
-  do i = 1, nroots
-    call chkpt_write_wfn(h5file, grp, nmo, lbls(i), detdim, & 
-                                                     vec_det(:,i), det)
+  do i=1,nroots
+     call chkpt_write_wfn(h5file,grp,nmo,lbls(i),detdim,vec_det(:,i),&
+          det)
   enddo
 
 !----------------------------------------------------------------------

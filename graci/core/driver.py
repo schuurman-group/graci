@@ -93,7 +93,7 @@ class Driver:
 
                 mol_lbls = [obj.label for obj in mol_objs]
                 if scf_obj.label in mol_lbls:
-                    mol_obj = mol_objs[mol_objs.index(scf_obj.label)]
+                    mol_obj = mol_objs[mol_lbls.index(scf_obj.label)]
                 elif len(mol_objs) == 1:
                     mol_obj = mol_objs[0]
                 else:
@@ -153,7 +153,7 @@ class Driver:
         #------------------------------------------------------------
         for si_obj in si_objs:
             arg_list = self.get_postscf_objs(si_obj, 
-                                             ci_objs + postci_objs)
+                                             ci_objs + postci_objs)            
             si_obj.run(arg_list)
             chkpt.write(si_obj)
 

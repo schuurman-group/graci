@@ -75,7 +75,7 @@ class Dftmrci(cimethod.Cimethod):
 
         # write the output logfile header for this run
         output.print_dftmrci_header(self.label)
-
+        
         # initialize bitci
         bitci_init.init(self)
         

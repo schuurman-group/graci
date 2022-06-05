@@ -41,10 +41,10 @@ contains
 ! Annihilation operator
 !----------------------------------------------------------------------
     ! Block index
-    k=(ja-1)/64+1
+    k=(ja-1)/n_bits+1
 
     ! Orbital index in the bit string
-    i=ja-(k-1)*64-1
+    i=ja-(k-1)*n_bits-1
     
     ! Set the annihilation operator bits
     if (btest(sop(k,1),i)) then
@@ -60,10 +60,10 @@ contains
 ! Creation operator
 !----------------------------------------------------------------------
     ! Block index
-    k=(ic-1)/64+1
+    k=(ic-1)/n_bits+1
 
     ! Orbital index in the bit string
-    i=ic-(k-1)*64-1
+    i=ic-(k-1)*n_bits-1
 
     ! Set the creation operator bits
     if (btest(sop(k,1),i)) then

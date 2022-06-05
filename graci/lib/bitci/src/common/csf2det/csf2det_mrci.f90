@@ -573,10 +573,10 @@ contains
     do i1=1,nopen
        
        ! Block index
-       k=(socc(i1)-1)/64+1
+       k=(socc(i1)-1)/n_bits+1
 
        ! Position of the MO within the block
-       i=socc(i1)-(k-1)*64-1
+       i=socc(i1)-(k-1)*n_bits-1
 
        ! Add the electron
        if (btest(detvec(idet,nopen),i1-1)) then

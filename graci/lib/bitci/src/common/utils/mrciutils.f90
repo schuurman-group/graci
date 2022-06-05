@@ -47,7 +47,7 @@ contains
           ipos=trailz(h)
 
           ! Index of the next singly-occupied orbital
-          imo=1+ipos+(k-1)*64
+          imo=1+ipos+(k-1)*n_bits
 
           ! Direct product
           isym=ieor(mosym(m2c(imo)),isym)
@@ -101,7 +101,7 @@ contains
 ! n_bits_set_before: Given an array of bit strings, b, returns the
 !                    number of set bits before the position ipos.
 !                    Here, the bit in the i'th position in b(k) has
-!                    the index k*64+(i-1), where i=0,1,...,63.
+!                    the index k*n_bits+(i-1), where i=0,1,...,n_bits-1
 !######################################################################
   function n_bits_set_before(b,bdim,ipos) result(nbits)
 
@@ -122,7 +122,7 @@ contains
     !
     ! Block corresponding to the index ipos
     !
-    kipos=(ipos-1)/64+1
+    kipos=(ipos-1)/n_bits+1
 
     !
     ! Contributions from the blocks 1,...,kipos-1
@@ -134,8 +134,8 @@ contains
     !
     ! Contribution from the block that the bit indexed ipos sits in
     !
-    ipos1=ipos-(kipos-1)*64-1
-    nbits=nbits+popcnt(ishft(b(kipos),64-ipos1))
+    ipos1=ipos-(kipos-1)*n_bits-1
+    nbits=nbits+popcnt(ishft(b(kipos),n_bits-ipos1))
     
     return
     
@@ -178,7 +178,7 @@ contains
        do while (iocc(k) /= 0_ib)
           e=trailz(iocc(k))
           iocc(k)=ibclr(iocc(k),e)
-          list(n)=e+(k-1)*64+1
+          list(n)=e+(k-1)*n_bits+1
           n=n+1
        enddo
        
@@ -221,7 +221,7 @@ contains
     !
     ! Clear the unused bits at the end of the bitstring
     !
-    last=nmo1-(ldc-1)*64
+    last=nmo1-(ldc-1)*n_bits
     iunocc(ldc)=ibits(iunocc(ldc),0,last)
     
     !
@@ -237,7 +237,7 @@ contains
        do while (iunocc(k) /= 0_ib)
           e=trailz(iunocc(k))
           iunocc(k)=ibclr(iunocc(k),e)
-          list(n)=e+(k-1)*64+1
+          list(n)=e+(k-1)*n_bits+1
           n=n+1
        enddo
        
@@ -290,7 +290,7 @@ contains
        do while (sop1(k) /= 0_ib)
           e=trailz(sop1(k))
           sop1(k)=ibclr(sop1(k),e)
-          list(n)=e+(k-1)*64+1
+          list(n)=e+(k-1)*n_bits+1
           n=n+1
        enddo
        
@@ -343,7 +343,7 @@ contains
        do while (sop2(k) /= 0_ib)
           e=trailz(sop2(k))
           sop2(k)=ibclr(sop2(k),e)
-          list(n)=e+(k-1)*64+1
+          list(n)=e+(k-1)*n_bits+1
           n=n+1
        enddo
        
@@ -385,7 +385,7 @@ contains
     !
     ! Clear the unused bits at the end of the bitstring
     !
-    last=nmo1-(ldsop-1)*64
+    last=nmo1-(ldsop-1)*n_bits
     iunocc(ldsop)=ibits(iunocc(ldsop),0,last)
 
     !
@@ -401,7 +401,7 @@ contains
        do while (iunocc(k) /= 0_ib)
           e=trailz(iunocc(k))
           iunocc(k)=ibclr(iunocc(k),e)
-          list(n)=e+(k-1)*64+1
+          list(n)=e+(k-1)*n_bits+1
           n=n+1
        enddo
        
@@ -484,7 +484,7 @@ contains
 
           do while (h /= 0_ib)
              ipos=trailz(h)
-             imo=1+ipos+(k-1)*64
+             imo=1+ipos+(k-1)*n_bits
              n=n+1
              hlist1(n)=imo
              h=ibclr(h,ipos)
@@ -505,7 +505,7 @@ contains
     
           do while (p /= 0_ib)
              ipos=trailz(p)
-             imo=1+ipos+(k-1)*64
+             imo=1+ipos+(k-1)*n_bits
              n=n+1
              plist1(n)=imo
              p=ibclr(p,ipos)
@@ -626,7 +626,7 @@ contains
           g=d(k,i)
           do while (g /= 0_ib)
              ipos=trailz(g)
-             imo=1+ipos+(k-1)*64
+             imo=1+ipos+(k-1)*n_bits
              ndiff=ndiff+1
              diff(ndiff,1)=imo
              diff(ndiff,2)=-i
@@ -641,7 +641,7 @@ contains
           g=a(k,i)
           do while (g /= 0_ib)
              ipos=trailz(g)
-             imo=1+ipos+(k-1)*64
+             imo=1+ipos+(k-1)*n_bits
              ndiff=ndiff+1
              diff(ndiff,1)=imo
              diff(ndiff,2)=i
@@ -697,7 +697,7 @@ contains
           ipos=trailz(h)
 
           ! Index of the next singly-occupied orbital
-          imo=1+ipos+(k-1)*64
+          imo=1+ipos+(k-1)*n_bits
 
           ! Fill in the array
           list(ilast:imo)=count
@@ -787,12 +787,12 @@ contains
     !
     ! Block index
     !
-    k=(ia-1)/64+1
+    k=(ia-1)/n_bits+1
 
     !
     ! Position of the bit within the k'th block 
     !
-    i=ia-(k-1)*64-1
+    i=ia-(k-1)*n_bits-1
 
     !
     ! Annihilate the electron
@@ -841,12 +841,12 @@ contains
     !
     ! Block index
     !
-    k=(ic-1)/64+1
+    k=(ic-1)/n_bits+1
 
     !
     ! Position of the bit within the k'th block 
     !
-    i=ic-(k-1)*64-1
+    i=ic-(k-1)*n_bits-1
 
     !
     ! Create the electron
@@ -929,19 +929,19 @@ contains
        do imo=1,nmo
           
           ! Block index
-          k=(imo-1)/64+1
+          k=(imo-1)/n_bits+1
           
           ! Orbital index in the bit string
-          i=imo-(k-1)*64-1
+          i=imo-(k-1)*n_bits-1
 
           ! New MO index
           imo1=imap(imo)
              
           ! New block index
-          k1=(imo1-1)/64+1
+          k1=(imo1-1)/n_bits+1
              
           ! New orbital index in the bit string
-          i1=imo1-(k1-1)*64-1
+          i1=imo1-(k1-1)*n_bits-1
           
           ! Fill in the new configuration bit string
           do n=1,2
@@ -1011,7 +1011,7 @@ contains
     enddo
 
     ! Unset any unused bits at the end of the array
-    n=mod(nmo,64)
+    n=mod(nmo,n_bits)
     if (n /= 0) iunset(n_int)=ibits(iunset(n_int),0,n)
 
 !----------------------------------------------------------------------

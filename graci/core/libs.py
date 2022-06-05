@@ -137,11 +137,19 @@ bitsi_intent   = {
 # registry of bitwf functions
 bitwf_registry = {
     'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
-                          'double','string']
+                          'double','int32','string'],
+    'bitwf_finalise'   : [],
+    'detwf'            : ['int32','string','string','int32','string',
+                          'int32'],
+    'detoverlap'       : ['int32','int32','int32','int32','int32',
+                          'int32','int32','double','double']
 }
 
 bitwf_intent = {
-    'bitwf_initialise' : ['in','in','in','in','in','in','double']
+    'bitwf_initialise' : ['in','in','in','in','in','in','in','in','in'],
+    'bitwf_finalise'   : [],
+    'detwf'            : ['in','in','in','in','in','out'],
+    'detoverlap'       : ['in','in','in','in','in','in','in','in','out']
 }
 
 # list of existing library objects
@@ -154,7 +162,7 @@ def lib_load(name):
     # if we haven't loaded the bitX object, do so now
     if name not in lib_objs.keys() and name in libraries:
         # load the appropriate library
-        rel_path = '/graci/lib/bitci/lib/lib'+str(name)+'.{}'
+        rel_path = '/graci/lib/lib/lib'+str(name)+'.{}'
         path_str = os.environ['GRACI'] + rel_path
         lib_path = path_str.format('so' if sys.platform != 'darwin' 
                                                       else 'dylib')

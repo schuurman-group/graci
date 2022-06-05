@@ -224,7 +224,7 @@ contains
 !----------------------------------------------------------------------
 ! Clear the unused bits at the end of the unoccupied MO bit string
 !----------------------------------------------------------------------
-    last=nmo-(n_int-1)*64
+    last=nmo-(n_int-1)*n_bits
     Iu(n_int)=ibits(Iu(n_int),0,last)
 
 !----------------------------------------------------------------------
@@ -236,7 +236,7 @@ contains
     enddo
 
     ! Clear the unused bits
-    last=nmo-(n_int-1)*64
+    last=nmo-(n_int-1)*n_bits
     Ia(n_int)=ibits(Ia(n_int),0,last)
     
 !----------------------------------------------------------------------

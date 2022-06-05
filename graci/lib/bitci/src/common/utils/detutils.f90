@@ -76,7 +76,7 @@ contains
        do k=1,n_int
           if (popcnt(d(k,ispin)).eq.0) cycle
           msb=most_significant_bit(d(k,ispin))
-          ihighest(ispin)=msb+(k-1)*64
+          ihighest(ispin)=msb+(k-1)*n_bits
        enddo
     enddo
     ihomo=maxval(ihighest)
@@ -207,7 +207,7 @@ contains
              ipos=trailz(h)
 
              ! Index of the next occupied orbital
-             occ(ic,ispin)=1+ipos+(k-1)*64
+             occ(ic,ispin)=1+ipos+(k-1)*n_bits
 
              ! Clear the bits up to the occupied orbital in h
              h=ibclr(h,ipos)
@@ -266,8 +266,8 @@ contains
              ipos=trailz(h)
 
              ! Exit if we have reached the end of the MOs in the basis
-             ! This will happen when nmo/64 is not an integer
-             imo=1+ipos+(k-1)*64
+             ! This will happen when nmo/(n_bits) is not an integer
+             imo=1+ipos+(k-1)*n_bits
              if (imo.gt.nmo) exit
              
              ! Index of the next occupied orbital
@@ -410,7 +410,7 @@ contains
           ipos=trailz(h)
 
           ! Index of the next singly-occupied orbital
-          imo=1+ipos+(k-1)*64
+          imo=1+ipos+(k-1)*n_bits
 
           ! Direct product
           isym=ieor(mosym(imo),isym)
@@ -459,10 +459,10 @@ contains
     do imo=1,ihomo
 
        ! Block index
-       k=(imo-1)/64+1
+       k=(imo-1)/n_bits+1
        
        ! Orbital position with the block
-       i=imo-1-(k-1)*64
+       i=imo-1-(k-1)*n_bits
 
        ! Alpha-spin occupancy
        if (btest(d(k,1),i)) then
