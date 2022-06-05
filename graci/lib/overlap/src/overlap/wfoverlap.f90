@@ -40,9 +40,6 @@ contains
     real(dp), allocatable    :: fwork(:,:)
     integer(is), allocatable :: iwork(:)
 
-    ! Alpha/beta factor threshold
-    real(dp), parameter      :: thrsh=1e-8_dp
-    
     ! Timing variables
     real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
@@ -106,7 +103,7 @@ contains
                occB,occK,fwork,iwork,afac)
 
           ! Cycle if the alpha factor is below threshold
-          if (abs(afac) < thrsh) cycle
+          if (abs(afac) < fthrsh) cycle
 
           ! Loop over determinants in the ket block
           do idK=offsetK(iaK),offsetK(iaK+1)-1
@@ -124,7 +121,7 @@ contains
                 bfac=betafac(ibB,ibK)
 
                 ! Cycle if the beta factor is below threshold
-                if (abs(bfac) < thrsh) cycle
+                if (abs(bfac) < fthrsh) cycle
                 
                 ! Loop over bra-ket state pairs
                 do n=1,npairs

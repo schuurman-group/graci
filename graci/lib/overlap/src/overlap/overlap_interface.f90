@@ -11,6 +11,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   use detsort
   use factors
   use wfoverlap
+  use timing
   
   implicit none
 
@@ -48,6 +49,14 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Wave function overlaps
   real(dp), intent(out)   :: Sij(npairs)
 
+  ! Timing variables
+  real(dp)                :: tcpu_start,tcpu_end,twall_start,twall_end
+
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+  
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
 ! not allocated
@@ -151,6 +160,13 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------
   call get_overlaps(npairs,ipairs,Sij)
+
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+  call get_times(twall_end,tcpu_end)
+  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+       'overlap')
   
 !----------------------------------------------------------------------
 ! Flush stdout

@@ -25,7 +25,7 @@ class Overlap(interaction.Interaction):
         self.final_label  = None
         self.init_states  = None
         self.final_states = None
-        self.norm_thresh  = 0.995
+        self.norm_thresh  = 0.999
 
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed

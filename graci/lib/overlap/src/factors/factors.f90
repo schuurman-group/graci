@@ -17,7 +17,7 @@ contains
        fac)
 
     use constants
-    use global, only: n_intB,n_intK,nmoB,nmoK,smo
+    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh
     use detfuncs
     use timing
     
@@ -92,6 +92,12 @@ contains
              enddo
           enddo
 
+          ! Determinant screening
+          if (hadamard_bound(nelX,work) < hthrsh) then
+             fac(ibra,iket)=0.0d0
+             cycle
+          endif
+             
           ! Determinant of the matrix of MO overlaps
           fac(ibra,iket)=ludet(nelX,work,ipiv)
           
@@ -119,7 +125,7 @@ contains
        fac)
 
     use constants
-    use global, only: n_intB,n_intK,nmoB,nmoK,smo
+    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh
     use detfuncs
     use timing
 
@@ -152,6 +158,14 @@ contains
        enddo
     enddo
 
+!----------------------------------------------------------------------
+! Screening based on Hadamard's inequality
+!----------------------------------------------------------------------
+    if (hadamard_bound(nelX,work) < hthrsh) then
+       fac=0.0d0
+       return
+    endif
+    
 !----------------------------------------------------------------------    
 ! Determinant of the matrix of MO overlaps
 !----------------------------------------------------------------------    
@@ -207,7 +221,37 @@ contains
     return
     
   end function ludet
-  
+
+!######################################################################
+! hadamard_bound: Calculation of the upper bound of the determinant
+!                 of an input matrix using Hadamard's inequality
+!######################################################################
+  function hadamard_bound(dim,mat)
+
+    use constants
+    
+    implicit none
+
+    ! Function result
+    real(dp)                :: hadamard_bound
+
+    ! Input matrix
+    integer(is), intent(in) :: dim
+    real(dp), intent(in)    :: mat(dim,dim)
+
+    ! Everything else
+    integer(is)             :: i
+
+    hadamard_bound=1.0d0
+
+    do i=1,dim
+       hadamard_bound=hadamard_bound*dot_product(mat(:,i),mat(:,i))
+    enddo
+    
+    return
+    
+  end function hadamard_bound
+    
 !######################################################################
   
 end module factors
