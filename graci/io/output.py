@@ -534,6 +534,7 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
     
     return
 
+
 def print_hsoc_eig(eig, vec, hdim, stlbl):
     """print out the summary of the eigenpairs of H_SOC"""
 
@@ -599,4 +600,49 @@ def print_overlap_header(label):
         outfile.write(  '\n '+str('*'*LLEN)+'\n')
         outfile.flush()
 
+    return
+
+
+def print_overlaps(trans_list, overlaps, bra_obj, ket_obj):
+    """Prints the table of wave function overlaps"""
+
+    # table header
+    delim = ' '+'-'*(36)
+    print('\n'+delim)
+
+    fstr = '  {:<12} {:<12} {:<12}'
+    
+    print(fstr.format('Bra State',
+                      'Ket State',
+                      'Overlap'))
+
+    print(delim)
+
+    # Overlaps
+    fstr = '{:4d} {:<7} {:4d} {:<8} {:9.6f}'
+    for indx in range(len(trans_list)):
+        
+        sij = overlaps[indx]
+        
+        bk_st = trans_list[indx]
+            
+        [birr, bst]    = bra_obj.state_sym(bk_st[0])
+        [kirr, kst]    = ket_obj.state_sym(bk_st[1])
+
+        if birr != kirr:
+            continue
+
+        if np.abs(sij) < 1e-6:
+            continue
+        
+        irr   = birr
+        irrlbl = bra_obj.scf.mol.irreplbl[irr]
+        
+        print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
+                          bk_st[1]+1, '('+irrlbl+')',
+                          sij))
+
+    # table footer
+    print(delim)
+        
     return

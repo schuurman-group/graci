@@ -13,7 +13,7 @@ import graci.io.output as output
 class Overlap(interaction.Interaction):
     """
     Calculation of overlaps, Dyson orbitals and ADT matrices using
-    the bitwf library
+    the bitwf and overlap libraries
     """
     def __init__(self):
         super().__init__()
@@ -81,8 +81,9 @@ class Overlap(interaction.Interaction):
                                             self.trans_list_sym)
 
         # output the overlaps
-        self.print_log()
-        
+        output.print_overlaps(self.trans_list, self.overlaps,
+                              self.bra_obj, self.ket_obj)
+                
         # finalize the bitwf library
         bitwf_init.finalize()
          
@@ -155,25 +156,3 @@ class Overlap(interaction.Interaction):
             overlaps[indx] = overlap_list[birr][kirr][sym_indx]
         
         return overlaps
-
-    #
-    def print_log(self):
-        """
-        prints a summary of the overlap calculation to the
-        log file
-        """
-
-        # TEST
-        for indx in range(len(self.trans_list)):
-
-            sij = self.overlaps[indx]
-
-            bk_st = self.trans_list[indx]
-
-            [birr, bst]    = self.bra_obj.state_sym(bk_st[0])
-            [kirr, kst]    = self.ket_obj.state_sym(bk_st[1])
-
-            if np.abs(sij) > 1e-4:
-                print(bst, kst, sij)
-            
-        return
