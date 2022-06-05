@@ -12,10 +12,11 @@
 !######################################################################
 #ifdef CBINDING
 subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,norm_thresh,Sij) bind(c,name='detoverlap')
+     wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij) &
+     bind(c,name='detoverlap')
 #else
 subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,norm_thresh,Sij)
+     wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij)
 #endif
 
   use constants
@@ -37,6 +38,11 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 
   ! Norm-based wave function truncation threshold
   real(dp), intent(in)     :: norm_thresh
+
+  ! Frozen/deleted core MOs
+  integer(is), intent(in)  :: ncore
+  integer(is), intent(in)  :: icore(ncore)
+  logical(is), intent(in)  :: lfrzcore
   
   ! Wave function overlaps
   real(dp), intent(out)    :: Sij(npairs)
@@ -146,7 +152,8 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 ! Call to liboverlap
 !----------------------------------------------------------------------
   call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
-       detB,detK,vecB,vecK,smo,norm_thresh,npairs,Sij,iroots)
+       detB,detK,vecB,vecK,smo,norm_thresh,ncore,icore,lfrzcore,&
+       npairs,Sij,iroots)
 
   return
   

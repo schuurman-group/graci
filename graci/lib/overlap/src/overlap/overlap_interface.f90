@@ -2,8 +2,8 @@
 ! Public-facing interface to the overlap library
 !**********************************************************************
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
-     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,&
-     npairs,Sij,ipairs)
+     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
+     lfrzcore,npairs,Sij,ipairs)
 
   use constants
   use global
@@ -42,6 +42,11 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Norm-based truncation threshold
   real(dp), intent(in)    :: normthrsh
 
+  ! Frozen/deleted core MOs
+  integer(is), intent(in) :: ncore
+  integer(is), intent(in) :: icore(ncore)
+  logical(is), intent(in) :: lfrzcore
+  
   ! Indices of the pairs of states for which overlaps are requested
   integer(is), intent(in) :: npairs
   integer(is), intent(in) :: ipairs(npairs,2)
@@ -52,10 +57,13 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Timing variables
   real(dp)                :: tcpu_start,tcpu_end,twall_start,twall_end
 
+  ! Everything else
+  integer(is)             :: i
+  
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
+  call get_times(twall_start,tcpu_start)
   
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
@@ -120,6 +128,24 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
        'No. bra determinants after truncation:',ndetB
   write(6,'(x,a,x,i0)') &
        'No. ket determinants after truncation:',ndetK
+
+!----------------------------------------------------------------------
+! Optional freezing/removal of the core MOs
+!----------------------------------------------------------------------
+! We have two options here: either the truncation/rearrangement of
+! the determinant bit strings or the modification of the MO overlaps
+!----------------------------------------------------------------------
+! Looking forward to dealing with core-excited states, the latter
+! approach seems preferable, even if it does lead to an increased
+! computational cost
+!----------------------------------------------------------------------
+  if (lfrzcore) then
+     do i=1,ncore
+        smo(i,:)=0.0d0
+        smo(:,i)=0.0d0
+        smo(i,i)=1.0d0
+     enddo
+  endif
 
 !----------------------------------------------------------------------
 ! Symmetric orthogonalisation the truncated wave functions

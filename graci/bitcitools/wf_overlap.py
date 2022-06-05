@@ -7,6 +7,7 @@ import ctypes as ctypes
 import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
+import graci.core.molecule as molecule
 
 @timing.timed
 def extract(bra, ket):
@@ -88,6 +89,22 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
    
     # bitci ket mrci wfn object
     wfn_ket = ket.bitci_mrci()    
+
+    # frozen core orbitals
+    ncore_el = np.array([molecule.atom_ncore[n] for n in
+                         [molecule.atom_name.index(m)
+                          for m in bra.scf.mol.asym]])
+    ncore_mo = int(np.sum(ncore_el/2))
+
+    # fill in the core MO indices
+    # (bitX libraries have the MOs in energy order and
+    # use Fortran indexing)
+    icore = np.arange(0, ncore_mo, 1) + 1
+    ncore = icore.size
+
+    # deleted core orbital flag
+    # (hard-wired to True for now)
+    delete_core = True
     
     # overlaps for all irreps
     overlap = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
@@ -121,7 +138,8 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
 
         # compute the overlaps for all requested pairs of states
         args = (irr, bra_tot, ket_tot, npairs, overlap_pairs,
-                bra_unit, ket_unit, norm_thresh, sij)
+                bra_unit, ket_unit, norm_thresh, ncore, icore,
+                delete_core, sij)
         sij  = libs.lib_func('detoverlap', args)
 
         overlap[irr][irr] = sij
