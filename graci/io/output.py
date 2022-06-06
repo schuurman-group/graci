@@ -603,9 +603,8 @@ def print_overlap_header(label):
     return
 
 
-def print_overlaps(trans_list, overlaps, bra_obj, ket_obj,
-                   bra_label, ket_label, irreplbl,
-                   bra_state_sym, ket_state_sym):
+def print_overlaps(trans_list, overlaps, bra_label, ket_label,
+                   irreplbl, bra_state_sym, ket_state_sym):
     """Prints the table of wave function overlaps"""
 
     # max bra/ket label length

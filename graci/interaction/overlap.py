@@ -86,7 +86,6 @@ class Overlap(interaction.Interaction):
         ket_state_sym = [self.ket_obj.state_sym(n)
                          for n in range(self.ket_obj.n_states())]
         output.print_overlaps(self.trans_list, self.overlaps,
-                              self.bra_obj, self.ket_obj,
                               self.init_label, self.final_label,
                               self.bra_obj.scf.mol.irreplbl,
                               bra_state_sym, ket_state_sym)
