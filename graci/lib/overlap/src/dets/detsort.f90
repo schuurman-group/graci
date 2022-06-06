@@ -26,7 +26,6 @@ contains
        beta,offset,det2beta)
 
     use constants
-    use timing
     
     implicit none
 
@@ -58,18 +57,9 @@ contains
     ! Sorted-to-unsorted determinant index mapping array
     integer(is), allocatable   :: imap(:)
 
-    ! Timing variables
-    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
-                                  twall_end
-    
     ! Everything else
     integer(is)                :: i,j,k,n,istart,iend,nd
 
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-    
 !----------------------------------------------------------------------
 ! (1) Put the determinant and eigenvector arrays into alpha-major
 !     order
@@ -181,13 +171,6 @@ contains
     ! Deallocate arrays
     deallocate(offb)
 
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'det_sorting')
-    
     return
     
   end subroutine det_sorting

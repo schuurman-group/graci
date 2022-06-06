@@ -140,11 +140,15 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! computational cost
 !----------------------------------------------------------------------
   if (lfrzcore) then
+
+     write(6,'(/,2(x,a,x,i0))') 'Freezing MOs',1,'to',ncore
+     
      do i=1,ncore
         smo(i,:)=0.0d0
         smo(:,i)=0.0d0
         smo(i,i)=1.0d0
      enddo
+     
   endif
 
 !----------------------------------------------------------------------

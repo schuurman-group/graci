@@ -65,8 +65,8 @@ class Overlap(interaction.Interaction):
 
         # construct the list of state pairs between which we
         # will compute overlaps
-        self.add_group('ket', self.ket_obj, self.init_states)
-        self.add_group('bra', self.bra_obj, self.final_states)
+        self.add_group('ket', self.ket_obj, self.final_states)
+        self.add_group('bra', self.bra_obj, self.init_states)
         self.trans_list = self.build_pair_list('bra',
                                                'ket',
                                                pairs=list_type)
@@ -81,8 +81,15 @@ class Overlap(interaction.Interaction):
                                             self.trans_list_sym)
 
         # output the overlaps
+        bra_state_sym = [self.bra_obj.state_sym(n)
+                         for n in range(self.bra_obj.n_states())]
+        ket_state_sym = [self.ket_obj.state_sym(n)
+                         for n in range(self.ket_obj.n_states())]
         output.print_overlaps(self.trans_list, self.overlaps,
-                              self.bra_obj, self.ket_obj)
+                              self.bra_obj, self.ket_obj,
+                              self.init_label, self.final_label,
+                              self.bra_obj.scf.mol.irreplbl,
+                              bra_state_sym, ket_state_sym)
                 
         # finalize the bitwf library
         bitwf_init.finalize()

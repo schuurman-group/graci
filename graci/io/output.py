@@ -603,19 +603,30 @@ def print_overlap_header(label):
     return
 
 
-def print_overlaps(trans_list, overlaps, bra_obj, ket_obj):
+def print_overlaps(trans_list, overlaps, bra_obj, ket_obj,
+                   bra_label, ket_label, irreplbl,
+                   bra_state_sym, ket_state_sym):
     """Prints the table of wave function overlaps"""
 
+    # max bra/ket label length
+    llen = max(len(bra_label), len(ket_label))
+    
     # table header
     delim = ' '+'-'*(36)
     print('\n'+delim)
 
+    fstr = '  {:'+str(10+llen)+'}'
+    print(fstr.format('Bra Label: '+bra_label))
+    print(fstr.format('Ket Label: '+ket_label))
+    
+    print(delim)
+    
     fstr = '  {:<12} {:<12} {:<12}'
     
     print(fstr.format('Bra State',
                       'Ket State',
                       'Overlap'))
-
+    
     print(delim)
 
     # Overlaps
@@ -626,17 +637,20 @@ def print_overlaps(trans_list, overlaps, bra_obj, ket_obj):
         
         bk_st = trans_list[indx]
             
-        [birr, bst]    = bra_obj.state_sym(bk_st[0])
-        [kirr, kst]    = ket_obj.state_sym(bk_st[1])
-
+        #[birr, bst]    = bra_obj.state_sym(bk_st[0])
+        #[kirr, kst]    = ket_obj.state_sym(bk_st[1])
+        
+        [birr, bst] = bra_state_sym[bk_st[0]]
+        [kirr, kst] = ket_state_sym[bk_st[1]]
+                
         if birr != kirr:
             continue
 
         if np.abs(sij) < 1e-6:
             continue
         
-        irr   = birr
-        irrlbl = bra_obj.scf.mol.irreplbl[irr]
+        irr    = birr
+        irrlbl = irreplbl[irr]
         
         print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
                           bk_st[1]+1, '('+irrlbl+')',
