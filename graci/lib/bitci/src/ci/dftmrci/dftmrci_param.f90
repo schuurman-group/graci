@@ -53,10 +53,10 @@ module hparam
   ! Singlet parameters, delta E_sel = 0.8
   real(dp), parameter, dimension(5) :: grimme1_short= &
        [0.6290d0, & ! p1
-        8.0000d0, &  ! p2
-        0.5030d0, &  ! pJ
-        0.6110d0, &  ! p[0]
-        0.1190d0]    ! alpha
+        8.0000d0, & ! p2
+        0.5030d0, & ! pJ
+        0.6110d0, & ! p[0]
+        0.1190d0]   ! alpha
   
   ! Triplet parameters, delta E_sel = 1.0
   real(dp), parameter, dimension(5) :: grimme3_standard= &
