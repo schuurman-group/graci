@@ -25,6 +25,10 @@ def extract_wf(ci_method):
     # MRCI eigenvector scratch file numbers
     ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
 
+    # Initialise the determinant bit string and eigenvector arrays
+    mrci_wfn.det_strings = []
+    mrci_wfn.vec_det     = []
+    
     # Loop over irreps
     for irr in range(ci_method.n_irrep()):
         
@@ -47,12 +51,45 @@ def extract_wf(ci_method):
         grp_name = type(ci_method).__name__ + '.' + str(ci_method.label)
 
         # No. determinants
-        ndet    = 0
+        ndet = 0
+
+        # Determinant wave function scratch file numbers
+        ci_wfunit = 0
+
+        # Norm-based truncation threshold
+        norm_thresh = 0.999
+
+        # Truncated no. determinants
+        ndet_trunc = 0
         
-        # Extract the WFs for all states in this irrep
-        args = (irr, nstates, states, ci_confunits,
-                ci_ciunits, outfile, grp_name, state_lbls, ndet)
+        # Convert the WFs from the CSF to determinant basis for
+        # all states in this irrep
+        args              = (irr, nstates, states, ci_confunits,
+                             ci_ciunits, ndet, ci_wfunit)
+        (ndet, ci_wfunit) = libs.lib_func('wf_mrci', args)
+
+        # Get the truncated no. determinants
+        args       = (ci_wfunit, nstates, norm_thresh, ndet_trunc)
+        ndet_trunc = libs.lib_func('ndet_truncated', args)
+
+        # Retrieve the truncated list of determinants and
+        # eigenvectors
+        n_int      = 0
+        args       = [n_int]
+        n_int      = libs.lib_func('get_n_int', args)
+        dets       = np.zeros((n_int*2*ndet_trunc), dtype=np.int64)
+        vec        = np.zeros((ndet_trunc*nstates), dtype=float)
+        args       = (ci_wfunit, ndet, ndet_trunc, nstates, dets,
+                      vec, norm_thresh)
+        (det, vec) = libs.lib_func('retrieve_det_truncated', args)
+
+        # Reshaping
+        det = np.reshape(det, (n_int,2,ndet_trunc), order='F')
+        vec = np.reshape(vec, (ndet_trunc,nstates), order='F')
         
-        ndet = libs.lib_func('wf_mrci', args)
+        # Save the determinant bit strings and eigenvectors
+        # for this irrep
+        mrci_wfn.det_strings.append(det)
+        mrci_wfn.vec_det.append(vec)
         
     return
