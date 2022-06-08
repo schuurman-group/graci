@@ -27,6 +27,7 @@ class Parameterize:
 
         # -------------------------------
         self.target_data    = {}
+        self.ndata          = 0
 
 
     def run(self):
@@ -87,8 +88,17 @@ class Parameterize:
         libs.lib_func('update_params', params)
 
         iter_ener = eval_energies(target_data, scf_data, ci_data)
+        dif_vec   = np.zeros(self.ndata, dtype=float)
 
+        ide = 0
+        for molecule, states in target_data.items():
+            for trans, ener in target_data[molecule].items():
+                init, final  = trans.split().strip()
+                de_iter      = iter_ener[molecule][final] - \
+                               iter_ener[molecule][init]
+                dif_vec[ide] = de_iter - ener
 
+        return dif_vec
 
 
     #
@@ -107,6 +117,8 @@ class Parameterize:
                   ' Exiting...')
             sys.exit(1)
 
+        energies = {}
+
         # run through all the reference data objects
         for name, data in target_data.items():
 
@@ -119,7 +131,7 @@ class Parameterize:
                                                 for ci in ci_names]
 
             # pull the reference CI states
-
+            ref_wf = extract_ci_states(ref_chkpt, ci_data[name], data)
 
             # change to the appropriate sub-directory
             os.chdir(name)
@@ -132,13 +144,14 @@ class Parameterize:
             for ci_obj in ci_objs:
                 ci_obj.run(scf_obj)
 
-            # pull reference states from the graci ref file 
-                        
+            # use overlap with ref states to identify relevant states
+            ener_match = identify_states(ref_wf, ci_objs, data)
 
+            energies[name] = {}
+            for key,value in ener_match:
+                energies[name][key] = value
 
         return energies
-
-
 
     #
     def parse_graci_file(target_vals):
@@ -197,16 +210,18 @@ class Parameterize:
         with open(self.target_file, 'r') as t_file:
             t_file_lines = t_file.readlines()
 
+        self.ndata  = 0
         target_dict = {}
         for line in tfile_lines:
-            key              = line[0]
-            target_dict[key] = []
-            # every other value should be a floating point number
-            # try to convert..
-            for i in range(1,len(line)):
+            molecule         = line[0]
+            target_dict[key] = {} 
+            # format is: state1 state2 energy
+            for i in range(1,len(line),3):
                 try:
-                    val = line[i]
-                    target_dict[key].append(parse.convert_value(val))
+                    states = line[i].strip()+' '+line[i+1].strip()
+                    val    = parse.convert_value(line[i+2])
+                    target_dict[molecule][states] = val
+                    self.ndata += 1
                 except:
                     print('Error parsing value as str/float: '+str(val))
                     print('line = '+str(line))
