@@ -147,7 +147,8 @@ class Scf:
                                      orb_sym=self.orb_irrep,
                                      orb_occ=self.orb_occ,
                                      orb_ener=self.orb_ener,
-                                     orb_dir=True, cart=True)
+                                     orb_dir='scf.'+str(self.label), 
+                                     cart=True)
 
         return
 
@@ -176,7 +177,8 @@ class Scf:
             orbitals.export_orbitals('mos_molden', self.mol, self.orbs, 
                                      orb_sym=self.orb_irrep, 
                                      orb_ener=self.orb_ener, 
-                                     orb_dir=True, cart=True)
+                                     orb_dir='Scf.'+str(self.label), 
+                                     cart=True)
         return
 
     #
