@@ -26,8 +26,8 @@ def extract_wf(ci_method):
     ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
 
     # Initialise the determinant bit string and eigenvector arrays
-    mrci_wfn.det_strings = []
-    mrci_wfn.vec_det     = []
+    ci_method.det_strings = []
+    ci_method.vec_det     = []
     
     # Loop over irreps
     for irr in range(ci_method.n_irrep()):
@@ -57,7 +57,7 @@ def extract_wf(ci_method):
         ci_wfunit = 0
 
         # Norm-based truncation threshold
-        norm_thresh = 0.999
+        norm_thresh = ci_method.wf_thresh
 
         # Truncated no. determinants
         ndet_trunc = 0
@@ -89,7 +89,7 @@ def extract_wf(ci_method):
         
         # Save the determinant bit strings and eigenvectors
         # for this irrep
-        mrci_wfn.det_strings.append(det)
-        mrci_wfn.vec_det.append(vec)
+        ci_method.det_strings.append(det)
+        ci_method.vec_det.append(vec)
         
     return
