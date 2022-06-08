@@ -592,7 +592,7 @@ contains
     return
     
   end subroutine fill_socc_mos
-    
+
 !######################################################################
   
 end module csf2det

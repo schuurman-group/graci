@@ -32,6 +32,12 @@ def init(ci_method):
     args = (imult, nel, nmo, mosym, moen, pgrp, escf, ham, label)
     libs.lib_func('bitci_initialise', args)
 
+    # optional overriding of the Hamiltonian parameters
+    if ci_method.hparam is not None:
+        nparam = ci_method.hparam.size
+        args   = (nparam, ci_method.hparam)
+        libs.lib_func('override_hparam', args)
+
     return
 
 def finalize():

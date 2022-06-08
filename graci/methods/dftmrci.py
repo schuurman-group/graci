@@ -25,6 +25,7 @@ class Dftmrci(cimethod.Cimethod):
 
         # user defined quanties
         self.hamiltonian    = 'heil17_standard'
+        self.hparam         = None
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
