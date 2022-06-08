@@ -34,6 +34,8 @@ class Dftmrci(cimethod.Cimethod):
         self.icvs           = []
         self.refiter        = 3
         self.ref_prune      = True
+        self.ref_prop       = False
+        self.ref_label      = None
         self.prune          = False
         self.prune_thresh   = 0.9
         self.prune_qcorr    = True
@@ -87,7 +89,11 @@ class Dftmrci(cimethod.Cimethod):
         self.nextra = ref_diag.n_extra(self)
 
         # generate the initial reference space configurations
-        n_ref_conf, ref_conf_units = ref_space.generate(self)
+        if self.ref_prop:
+            print('\n', self.ref_label)
+            sys.exit()
+        else:
+            n_ref_conf, ref_conf_units = ref_space.generate(self)
 
         # set the number of configurations and the scratch file numbers
         self.ref_wfn.set_nconf(n_ref_conf)

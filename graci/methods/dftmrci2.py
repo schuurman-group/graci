@@ -49,6 +49,8 @@ class Dftmrci2(cimethod.Cimethod):
         self.icvs            = []
         self.refiter         = 3
         self.ref_prune       = True
+        self.ref_prop        = False
+        self.ref_label       = None
         self.nbuffer         = []
         self.label           = 'Dftmrci2'
 
