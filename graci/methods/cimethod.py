@@ -36,7 +36,8 @@ class Cimethod:
         self.save_wf        = False
         self.ref_state      = -1
         self.ddci           = True
-
+        self.wf_thresh      = 0.999
+        
         # class variables
         # total number of electrons
         self.nel            = 0
@@ -60,7 +61,11 @@ class Cimethod:
         self.natorb_ao      = None
         # symmetry of the natural orbitals
         self.natorb_sym     = None
-
+        # List of determinant bit strings (one per irrep)
+        self.det_strings = None
+        # List of eigenvectors in the determinant basis (one per irrep)
+        self.vec_det     = None
+        
 
 # Required functions #############################################################
 

@@ -24,10 +24,7 @@ class Bitciwfn:
         self.eq_units    = None
         # class label
         self.label       = 'Bitciwfn'
-        # List of determinant bit strings (one per irrep)
-        self.det_strings = None
-        # List of eigenvectors in the determinant basis (one per irrep)
-        self.vec_det     = None
+        
     #
     def set_nconf(self, nconf):
         """Sets the numbers of configurations"""
