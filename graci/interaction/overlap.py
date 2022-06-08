@@ -21,10 +21,10 @@ class Overlap(interaction.Interaction):
         # user defined quantities
         self.calc         = None
         self.label        = 'Overlap'
-        self.init_label   = None
-        self.final_label  = None
-        self.init_states  = None
-        self.final_states = None
+        self.bra_label    = None
+        self.ket_label    = None
+        self.bra_states   = None
+        self.ket_states   = None
         self.norm_thresh  = 0.999
 
         # ----------------------------------------------------------
@@ -65,15 +65,13 @@ class Overlap(interaction.Interaction):
 
         # construct the list of state pairs between which we
         # will compute overlaps
-        self.add_group('ket', self.ket_obj, self.final_states)
-        self.add_group('bra', self.bra_obj, self.init_states)
-        self.trans_list = self.build_pair_list('bra',
-                                               'ket',
+        self.add_group('bra', self.bra_obj, self.bra_states)
+        self.add_group('ket', self.ket_obj, self.ket_states)
+        self.trans_list = self.build_pair_list('bra', 'ket',
                                                pairs=list_type)
-        self.trans_list_sym = self.build_pair_list('bra',
-                                                   'ket',
-                                                   pairs=list_type,
-                                                   sym_blk=True)
+        self.trans_list_sym = self.build_pair_list('bra', 'ket',
+                                               pairs=list_type,
+                                               sym_blk=True)
         
         # compute the wave function overlaps
         self.overlaps = self.build_overlaps(self.bra_obj, self.ket_obj,
@@ -86,7 +84,7 @@ class Overlap(interaction.Interaction):
         ket_state_sym = [self.ket_obj.state_sym(n)
                          for n in range(self.ket_obj.n_states())]
         output.print_overlaps(self.trans_list, self.overlaps,
-                              self.init_label, self.final_label,
+                              self.ket_label, self.bra_label,
                               self.bra_obj.scf.mol.irreplbl,
                               bra_state_sym, ket_state_sym)
                 
@@ -106,7 +104,7 @@ class Overlap(interaction.Interaction):
         bra_obj = None
         ket_obj = None
 
-        if obj_list[0].label == self.init_label:
+        if obj_list[0].label == self.ket_label:
             bra_obj = obj_list[0]
             ket_obj = obj_list[1]
         else:

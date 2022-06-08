@@ -42,6 +42,7 @@ class Interaction:
         # spin info for the states in group
         self.spins        = {}
 
+
     def same_obj(self, obj1, obj2):
         """return true if the bra and ket objects are the same"""
         class_obj1 = type(obj1).__name__ 

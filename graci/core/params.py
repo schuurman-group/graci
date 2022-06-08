@@ -112,8 +112,11 @@ overlap_kword   = {'init_states'       : int,
 #----------------------------------------------------
 
 # used to parameterize new Hamiltonians
-parameterize_kword = {'algorithm' : str,
-                      'label'     : str}
+parameterize_kword = {'algorithm'      : str,
+                      'label'          : str,
+                      'input_files'    : str,
+                      'graci_ref_file' : str,
+                      'hamiltonian'    : str}
 
 ######################################################################
 ## only the following are directly accessed from outside the module ##

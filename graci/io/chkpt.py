@@ -447,6 +447,76 @@ def write_dataset(chkpt_handle, dset_name, dset):
 
     return
 
+#
+def read_dataset(chkpt_handle, dset_name):
+    """
+    Read a dataset from chkpt_handle
+
+    Arguments;
+    chkpt_handle:   file handle for the chkpt file
+    dset_name:      name of the dataset (str)
+
+    Returns:
+    dset:           a numpy array with same shape as dset_name
+    """
+
+    if dset_name not in chkpt_handle:
+        sys.exit('Could not locate '+str(dset_name)+' in chkpt file')
+
+    try:
+        dset = np.ndarray(chkpt_handle[dset_name])
+    except TypeError:
+        sys.exit('Could not read '+str(dset_name)+' as numpy array')
+
+    return dset
+
+# 
+def write_attribute(chkpt_handle, obj_name, name, value):
+    """
+    Write an attribute to a dataset or group
+
+    Arguments:
+    chkpt_handle:   file handle for the chkpt file
+    obj_name:       group or dataset name
+    name:           name of attribute
+    value:           attribute to write. attribute will be run through
+                    overloaded json method dumps()
+    """
+
+    if obj_name not in chkpt_handle:
+        sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
+
+    try:
+        chkpt_handle[obj_name].attrs[name] = dumps(value)
+    except:
+        sys.exit('Could not write attribute: '+str(name))
+
+    return
+
+#
+def read_attribute(chkpt_handle, obj_name, name):
+    """
+    Read an attribute from a dataset or group
+
+    Arguments:
+    chkpt_handle:   file handle for the chkpt file
+    obj_name:       group or dataset name
+    name:           name of attribute
+
+    Returns
+    value:           attribute to write. attribute will be run through
+                     overloaded json method dumps()
+    """
+
+   if obj_name not in chkpt_handle:
+        sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
+
+    try:
+        value = loads(chkpt_handle[obj_name].attrs[name])
+    except:
+        sys.exit('Could not load attribute: '+str(name))
+
+    return value
 
 #
 def link_name(obj, suffix=''):
@@ -463,7 +533,6 @@ def link_name(obj, suffix=''):
 
     if isinstance(obj, np.ndarray):
         return 'NUMPY.'+str(suffix)
-
 
 #
 class GraciEncoder(json.JSONEncoder):

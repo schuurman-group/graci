@@ -15,7 +15,7 @@ class Driver:
            will be needed to be passed to the driver at the moment"""
         self.label = 'default'
 
-    def run(self, calc_array):
+    def run(self, calc_array, save_to_chkpt=True):
         """Determine how to run the calculation given the array
            of postscf objects in the array argument"""
 
@@ -54,7 +54,8 @@ class Driver:
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
             mol_obj.run()
-            chkpt.write(mol_obj)
+            if save_to_chkpt:
+                chkpt.write(mol_obj)
 
         # print output file header
         output.print_header(calc_array)
@@ -108,7 +109,8 @@ class Driver:
                     sys.exit(1)
 
                 scf_obj.run(mol_obj)
-                chkpt.write(scf_obj)
+                if save_to_chkpt:
+                    chkpt.write(scf_obj)
 
             # initialize the MO integrals following the SCF run, but
             # finalise previous integrals if they exist. Not sure if this
@@ -134,7 +136,8 @@ class Driver:
                 # to the molecule object
                 if ci_obj.label == scf_obj.label or len(scf_objs)==1:
                     ci_obj.run(scf_obj)
-                    chkpt.write(ci_obj)
+                    if save_to_chkpt:
+                        chkpt.write(ci_obj)
 
         # All SCF + CI objects are created and run() called before 
         # PostCI and subsequently SI objects are run()
@@ -146,7 +149,8 @@ class Driver:
             arg_list = self.get_postscf_objs(postci_obj, ci_objs)
 
             postci_obj.run(arg_list)
-            chkpt.write(postci_obj)
+            if save_to_chkpt:
+                chkpt.write(postci_obj)
 
         # State Interaction sections
         # -- these can take ci_objects or postci_objects as arguments
@@ -155,7 +159,8 @@ class Driver:
             arg_list = self.get_postscf_objs(si_obj, 
                                              ci_objs + postci_objs)            
             si_obj.run(arg_list)
-            chkpt.write(si_obj)
+            if save_to_chkpt:
+                chkpt.write(si_obj)
 
         return
 
@@ -169,7 +174,14 @@ class Driver:
         if type(run_obj).__name__ in params.postci_objs:
             lbls = list(run_obj.couple_groups)
         elif type(run_obj).__name__ in params.si_objs:
-            lbls = [run_obj.final_label, run_obj.init_label]
+            if hasattr(run_obj, 'final_label'):
+                lbls = [run_obj.final_label, run_obj.init_label]
+            elif hasattr(run_obj, 'bra_label'):
+                lbls = [run_obj.bra_label, run_obj.ket_label]
+            else:
+                print('Cannot find init/ket, final/bra states in '+
+                      'state interaction object: '+str(run_obj.label))
+                sys.exit(1)
         else:
             print('Cannot construct argument list for run() '+
                   ' method for object: '+str(run_obj.label))
