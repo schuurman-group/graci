@@ -39,6 +39,9 @@ class Parameterize:
         # parse the graci reference file
         scf_data, ci_data = parse_graci_file(target_data)
 
+        # pull the reference CI states
+        ref_wf = extract_ci_states(ref_chkpt,ci_data[molecule],data)
+
         # print the parameterize header
         # show the mappings between the target data and the data in the
         # reference checkpoint file
@@ -90,6 +93,8 @@ class Parameterize:
         iter_ener = eval_energies(target_data, scf_data, ci_data)
         dif_vec   = np.zeros(self.ndata, dtype=float)
 
+        # this approach assumes dict is ordered! Only true from Python
+        # 3.6 onwards...
         ide = 0
         for molecule, states in target_data.items():
             for trans, ener in target_data[molecule].items():
@@ -120,21 +125,21 @@ class Parameterize:
         energies = {}
 
         # run through all the reference data objects
-        for name, data in target_data.items():
+        for molecule, states in target_data.items():
 
             # pull the reference SCF and CI objects
-            scf_name = scf_data[name]
+            scf_name = scf_data[molecule]
             scf_obj  = chpt.read(scf_name, file_handle=ref_chkpt)
 
-            ci_names = ci_data[name]
+            ci_names = ci_data[molecule]
             ci_objs  = [chkpt.read(ci, file_handle=ref_chkpt) 
                                                 for ci in ci_names]
 
             # pull the reference CI states
-            ref_wf = extract_ci_states(ref_chkpt, ci_data[name], data)
+            ref_wf = extract_ci_states(ref_chkpt,ci_data[molecule],data)
 
             # change to the appropriate sub-directory
-            os.chdir(name)
+            os.chdir(molecule)
 
             # run the scf (and generate integral files if need be)
             if run_scf:
@@ -145,13 +150,34 @@ class Parameterize:
                 ci_obj.run(scf_obj)
 
             # use overlap with ref states to identify relevant states
-            ener_match = identify_states(ref_wf, ci_objs, data)
+            ener_match = identify_states(ref_wf, ci_objs, states)
 
-            energies[name] = {}
-            for key,value in ener_match:
-                energies[name][key] = value
+            energies[molecule] = {}
+            for state, ener in ener_match.items():
+                energies[molecule][state] = ener
 
         return energies
+
+    # 
+    def extract_ci_states(chkpt, ci_objs, states):
+        """
+        Extract det list expansions for the reference states
+
+        Arguments:
+        chkpt:        file handle for checkpoint file
+        ci_objs:      CI objects to check for needed states
+        states:       labels for the states to extract
+
+        Returns:
+        ref_wf:       dictionary of bitstring wfs
+        """
+
+        # run through the ci objects looking for states with the
+        # correct label
+        for ci_obj in ci_objs:
+
+            # check the 
+
 
     #
     def parse_graci_file(target_vals):
@@ -181,23 +207,23 @@ class Parameterize:
 
         ci_objs  = {}
         scf_objs = {}
-        for tkey in target_vals.keys():
-            ci_objs[tkey]  = []
-            scf_objs[tkey] = None
+        for molecule in target_vals.keys():
+            ci_objs[molecule]  = []
+            scf_objs[molecule] = None
 
             # if the molecule string is in the reference 
             # object name, add it ref_objs dict
             for name in ref_contents:
                 ci_type = any([ci in name for ci in params.ci_objs])
-                if name in tkey:
+                if molecule in name:
                     if ci_type:
-                        ci_objs[tkey].append(name)
+                        ci_objs[molecule].append(name)
                     elif 'Scf' in name:
-                        scf_objs[tkey] = name
+                        scf_objs[molecule] = name
 
         return scf_objs, ci_objs
 
-
+    #
     def parse_target_file():
         """
         Parse the file containing the data we're going to parameterize
@@ -213,8 +239,8 @@ class Parameterize:
         self.ndata  = 0
         target_dict = {}
         for line in tfile_lines:
-            molecule         = line[0]
-            target_dict[key] = {} 
+            molecule              = line[0]
+            target_dict[molecule] = {} 
             # format is: state1 state2 energy
             for i in range(1,len(line),3):
                 try:
