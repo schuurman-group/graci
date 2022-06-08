@@ -75,7 +75,7 @@ class Dftmrci2(cimethod.Cimethod):
 # Required functions #############################################################
 
     @timing.timed
-    def run(self, scf):
+    def run(self, scf, refci):
         """ compute the DFT/MRCI(2) eigenpairs for all irreps """
 
         # set the scf object
@@ -105,11 +105,13 @@ class Dftmrci2(cimethod.Cimethod):
                            'max' : np.ndarray.tolist(self.nbuffer)}
         
         # generate the initial reference space configurations
-        n_ref_conf, ref_conf_units = ref_space.generate(self)
-        # set the number of configurations and the scratch file numbers
+        n_ref_conf, ref_conf_units, ref_conf_files = ref_space.generate(self)
+        # set the number of configurations and scratch file numbers
+        # and names
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
-
+        self.ref_wfn.set_confname(ref_conf_files)
+        
         # Perform the DFT/MRCI(2) iterations, refining the reference
         # space as we go
         self.niter = 0

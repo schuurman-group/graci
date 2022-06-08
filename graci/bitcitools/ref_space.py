@@ -9,6 +9,7 @@ import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.io.output as output
 import graci.io.convert as convert
+from pyscf import gto
 
 @timing.timed
 def generate(ci_method):
@@ -81,7 +82,15 @@ def generate(ci_method):
             cvsflag, ref_nconf, confunits)
     (ref_nconf, confunits) = libs.lib_func('generate_ref_confs', args)
 
-    return ref_nconf, confunits
+    # Retrieve the reference space configuration scratch file names
+    confnames = []
+    name      = ' '
+    for i in range(nirr):
+        args = (confunits[i], name)
+        name = libs.lib_func('retrieve_filename', args)
+        confnames.append(name)
+    
+    return ref_nconf, confunits, confnames
 
 @timing.timed
 def autoras(ci_method):
@@ -213,3 +222,49 @@ def autoras(ci_method):
         ci_method.nelec3 = 2
     
     return
+
+@timing.timed
+def propagate(ci_method, ci_method0):
+    """
+    propagates forwards the reference space from a previous
+    CI calculation
+    """
+
+    # Exit if the point groups for the two calculations are different
+    if ci_method.scf.mol.comp_sym != ci_method0.scf.mol.comp_sym:
+        sys.exit('\n Error in ref_space.propagate: non-equal point groups')
+
+    # Number of irreps
+    nirr = ci_method.n_irrep()
+    
+    # Number of reference space configurations per irrep
+    ref_nconf = np.zeros(nirr, dtype=int)
+
+    # Reference space configurations scratch file number
+    confunits = np.zeros(nirr, dtype=int)
+
+    # Names of the previous reference space configuration files
+    confnames0 = ci_method0.ref_wfn.conf_name
+
+    # MO overlaps
+    mol0 = ci_method0.scf.mol.mol_obj.copy()
+    mol  = ci_method.scf.mol.mol_obj.copy()
+    smat = gto.intor_cross('int1e_ovlp', ci_method0.scf.mol.mol_obj,
+                           ci_method.scf.mol.mol_obj)
+    smat = np.matmul(np.matmul(ci_method0.scf.orbs.T, smat), ci_method.scf.orbs)
+    nmo0 = ci_method0.scf.nmo
+    nmo  = ci_method.scf.nmo
+    smat = np.reshape(smat, (nmo0 * nmo), order='F')
+    
+    # Create the reference spaces for this calculation
+    for irr in range(nirr):
+        nconf = 0
+        unit  = 0
+        args  = (nmo0, nmo, smat, confnames0[irr], nconf, unit)
+        (nconf, unit) = libs.lib_func('ref_space_propagate', args)
+        
+    # We will need to pass back the names of the ref space configuration
+    # files that were created in this function...
+    sys.exit()
+    
+    return ref_nconf, confunits

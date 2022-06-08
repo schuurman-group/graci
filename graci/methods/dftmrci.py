@@ -66,7 +66,7 @@ class Dftmrci(cimethod.Cimethod):
 # Required functions #############################################################
 
     @timing.timed
-    def run(self, scf):
+    def run(self, scf, refci):
         """ compute the DFT/MRCI eigenpairs for all irreps """
         
         # set the scf object 
@@ -90,15 +90,17 @@ class Dftmrci(cimethod.Cimethod):
 
         # generate the initial reference space configurations
         if self.ref_prop:
-            print('\n', self.ref_label)
-            sys.exit()
+            n_ref_conf, ref_conf_units = ref_space.propagate(self, refci)
         else:
-            n_ref_conf, ref_conf_units = ref_space.generate(self)
-
+            n_ref_conf, ref_conf_units, ref_conf_files = \
+                ref_space.generate(self)
+            
         # set the number of configurations and the scratch file numbers
+        # and names
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
-
+        self.ref_wfn.set_confname(ref_conf_files)
+        
         # Perform the MRCI iterations, refining the reference space
         # as we go
         self.niter = 0
