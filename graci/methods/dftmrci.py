@@ -90,7 +90,8 @@ class Dftmrci(cimethod.Cimethod):
 
         # generate the initial reference space configurations
         if self.ref_prop:
-            n_ref_conf, ref_conf_units = ref_space.propagate(self, refci)
+            n_ref_conf, ref_conf_units, ref_conf_files = \
+                ref_space.propagate(self, refci)
         else:
             n_ref_conf, ref_conf_units, ref_conf_files = \
                 ref_space.generate(self)
@@ -115,7 +116,8 @@ class Dftmrci(cimethod.Cimethod):
             
             # optional removal of deadwood from the
             # guess reference space
-            if self.ref_prune and self.niter == 0:
+            if self.ref_prune and self.niter == 0 \
+               and self.ref_prop == False:
                 # remove the deadwood
                 n_ref_conf = ref_prune.prune(self)
                 # set the new no. ref confs

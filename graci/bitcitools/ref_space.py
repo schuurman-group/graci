@@ -260,11 +260,17 @@ def propagate(ci_method, ci_method0):
     for irr in range(nirr):
         nconf = 0
         unit  = 0
-        args  = (nmo0, nmo, smat, confnames0[irr], nconf, unit)
+        args  = (irr, nmo0, nmo, smat, confnames0[irr], nconf, unit)
         (nconf, unit) = libs.lib_func('ref_space_propagate', args)
-        
-    # We will need to pass back the names of the ref space configuration
-    # files that were created in this function...
-    sys.exit()
-    
-    return ref_nconf, confunits
+        ref_nconf[irr] = nconf
+        confunits[irr] = unit
+
+     # Retrieve the reference space configuration scratch file names
+    confnames = []
+    name      = ' '
+    for i in range(nirr):
+        args = (confunits[i], name)
+        name = libs.lib_func('retrieve_filename', args)
+        confnames.append(name)
+
+    return ref_nconf, confunits, confnames
