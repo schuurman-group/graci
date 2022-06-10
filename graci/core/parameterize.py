@@ -28,7 +28,7 @@ class Parameterize:
         # -------------------------------
         self.target_data    = {}
         self.ndata          = 0
-
+        self.iter           = 0
 
     def run(self):
         """re-parameterize the Hamiltonian"""
@@ -87,6 +87,9 @@ class Parameterize:
         norm of the different between target and current values
         """
 
+        print(' ITERATION '+self.iter+' params='+str(params))
+        self.iter += 1
+
         # update the Hamiltonian
         libs.lib_func('update_params', params)
 
@@ -136,7 +139,9 @@ class Parameterize:
                                                 for ci in ci_names]
 
             # pull the reference CI states
-            ref_wf = extract_ci_states(ref_chkpt,ci_data[molecule],data)
+            ref_det, ref_cf = extract_ci_states(ref_chkpt, 
+                                                ci_data[molecule], 
+                                                states)
 
             # change to the appropriate sub-directory
             os.chdir(molecule)
@@ -150,16 +155,43 @@ class Parameterize:
                 ci_obj.run(scf_obj)
 
             # use overlap with ref states to identify relevant states
-            ener_match = identify_states(ref_wf, ci_objs, states)
+            ener_match = identify_states(ref_det, ref_cf, 
+                                         ci_objs, states)
 
             energies[molecule] = {}
             for state, ener in ener_match.items():
                 energies[molecule][state] = ener
 
         return energies
+ 
+    #
+    def identify_states(ref_det, ref_cf, ci_objs, states):
+        """
+        compute overlaps to identify states
+        """
+
+        eners = {}
+
+        for ci_obj in ci_objs:
+            ci_dets = ci_obj.det_strings
+            ci_cf   = ci_obj.vec_det
+
+            for lbl in ref_det.keys():
+                Sij = compute_overlaps(ref_det[lbl], ref_cf[lbl], 
+                                            ci_dets, ci_cf, 
+                                            ci_obj.scf.orbs)
+                if max(Sij) >= 0.9:
+                    st = maxloc(Sij)
+                    eners[lbl] = ci_obj.energies[st]
+
+        if list(eners.keys()).sort() != list(ref_det.keys()).sort():
+            sys.exit('Could not identify states: ' + str(ci_objs) + 
+                     ' lbl:'+str(states))
+
+        return eners
 
     # 
-    def extract_ci_states(chkpt, ci_objs, states):
+    def extract_ci_states(chkpt, obj_names, states):
         """
         Extract det list expansions for the reference states
 
@@ -172,12 +204,46 @@ class Parameterize:
         ref_wf:       dictionary of bitstring wfs
         """
 
+        ref_dets = {}
+        ref_cf   = {}
+
         # run through the ci objects looking for states with the
         # correct label
-        for ci_obj in ci_objs:
+        for obj_name in obj_names:
 
-            # check the 
+            # variables names are stored as attributes
+            var_names = chkpt[obj_name].attrs
+            ener_dset = var_names['energies']
+            vec_dset  = var_names['det_strings']
+            cf_dset   = var_names['vec_det']
 
+            attrs = chkpt[ci_obj+'/'+ener_dset].attrs
+
+            if 'labels' not in attrs.keys():
+                continue
+
+            for lbl,st in attrs['labels'].items():
+                if lbl in states.keys(): 
+                    st = states[lbl]
+                    ref_vec[lbl] = chkpt[obj_name+'/'+vec_dset][st]
+                    ref_cf[lbl]  = chkpt[obj_name+'/'+cf_dset][:,st]
+
+        if list(states.keys()).sort() != list(ref_vec.keys()).sort():
+            sys.exit('Could not find all requested states: ' + 
+                      str(obj_names)+' lbls='+str(states))
+
+        return ref_vec, ref_cf
+
+    # 
+    def compute_overlaps(ref_det, ref_cf, test_dets, test_cf, orbs):
+        """
+        compute overlaps
+        """
+       
+        Sij = np.zeros(len(test_dets.keys()), dtype=float)
+
+
+        return 
 
     #
     def parse_graci_file(target_vals):

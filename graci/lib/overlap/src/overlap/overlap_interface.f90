@@ -1,6 +1,58 @@
 !**********************************************************************
 ! Public-facing interface to the overlap library
 !**********************************************************************
+subroutine overlap_wf(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
+     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
+     lfrzcore,npairs,Sij,ipairs) bind(c,name="overlap_wf")
+
+  use constants
+
+  ! No. MOs
+  integer(is), intent(in) :: nmoB1,nmoK1
+
+  ! No. (n_bits)-bit integers needed to represent each alpha/beta
+  ! string
+  integer(is), intent(in) :: n_intB1,n_intK1
+
+  ! No. determinants
+  integer(is), intent(in) :: ndetB1,ndetK1
+
+  ! No. roots
+  integer(is), intent(in) :: nrootsB1,nrootsK1
+
+  ! Untruncated determinant bit strings
+  integer(ib), intent(in) :: detB1(n_intB1,2,ndetB1)
+  integer(ib), intent(in) :: detK1(n_intK1,2,ndetK1)
+
+  ! Untruncated eigenvectors
+  real(dp), intent(in)    :: vecB1(ndetB1,nrootsB1)
+  real(dp), intent(in)    :: vecK1(ndetK1,nrootsK1)
+
+  ! Matrix of bra-ket MO overlaps
+  real(dp), intent(in)    :: smo1(nmoB1,nmoK1)
+
+  ! Norm-based truncation threshold
+  real(dp), intent(in)    :: normthrsh
+
+  ! Frozen/deleted core MOs
+  integer(is), intent(in) :: ncore
+  integer(is), intent(in) :: icore(ncore)
+  logical(is), intent(in) :: lfrzcore
+
+  ! Indices of the pairs of states for which overlaps are requested
+  integer(is), intent(in) :: npairs
+  integer(is), intent(in) :: ipairs(npairs,2)
+
+  ! Wave function overlaps
+  real(dp), intent(inout)   :: Sij(npairs)
+
+  call overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
+     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
+     lfrzcore,npairs,Sij,ipairs)
+
+end subroutine overlap_wf
+
+!
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
      lfrzcore,npairs,Sij,ipairs)
