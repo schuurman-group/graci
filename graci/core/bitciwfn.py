@@ -24,7 +24,7 @@ class Bitciwfn:
         self.eq_units    = None
         # class label
         self.label       = 'Bitciwfn'
-
+        
     #
     def set_nconf(self, nconf):
         """Sets the numbers of configurations"""

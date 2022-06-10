@@ -463,7 +463,9 @@ class Transition(interaction.Interaction):
             if print_orbs and basis == 'ao':
                 fname ='ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
                 orbitals.export_orbitals(fname, self.scf.mol, ndo,
-                                         orb_occ=wt, fmt='molden')
+                                orb_occ=wt, 
+                                orb_dir='Transition.'+str(self.label),
+                                fmt='molden')
 
         return wts, ndos
 
@@ -499,7 +501,9 @@ class Transition(interaction.Interaction):
             if print_orbs and basis == 'ao':
                 fname = 'nto_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
                 orbitals.export_orbitals(fname, self.scf.mol, nto,
-                                        orb_occ=wt, fmt='molden')
+                                orb_occ=wt, 
+                                orb_dir='Transition.'+str(self.label),
+                                fmt='molden')
 
         return wts, ntos 
 

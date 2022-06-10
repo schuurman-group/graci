@@ -582,10 +582,10 @@ contains
     do imo=1,ihomo
 
        ! Block index
-       k=(imo-1)/64+1
+       k=(imo-1)/n_bits+1
        
        ! Orbital position with the block
-       i=imo-1-(k-1)*64
+       i=imo-1-(k-1)*n_bits
 
        ! Orbital occupancy
        occ=0

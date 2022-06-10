@@ -44,9 +44,12 @@ module constants
   real(dp), parameter :: eh2ev=27.2113845d0
   real(dp), parameter :: mu2me=1822.888486d0
   real(dp), parameter :: au2wn=219474.63068d0
+
+  ! Length of the integers used to represent the dets, confs and SOPs
+  integer(is), parameter :: n_bits=64
   
-  ! Number of 64-bit integers needed to represent each alpha and beta
-  ! string in a determinant
+  ! Number of length n_bits integers needed to represent each component
+  ! of a det, conf or SOP
   integer(is) :: n_int
 
   ! Convenient spin labels

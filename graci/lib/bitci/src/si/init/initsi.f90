@@ -109,7 +109,7 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
 !----------------------------------------------------------------------
 ! Exit if the given point group is not recognised
 !----------------------------------------------------------------------
-  if (ipg1.lt.1.or.ipg1.gt.8) then
+  if (ipg1 < 1 .or. ipg1 > 8) then
      write(errmsg,'(a,1x,i0)') 'Illegal point group index:',ipg1
      call error_control
   endif
@@ -141,9 +141,9 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   nmo=nmo1
 
 !----------------------------------------------------------------------
-! Set the bitstring integer array lengths
+! Set the bit string integer array lengths
 !----------------------------------------------------------------------
-  n_int=(nmo-1)/64+1
+  n_int=(nmo-1)/n_bits+1
 
 !----------------------------------------------------------------------
 ! Initialise the symmetry arrays

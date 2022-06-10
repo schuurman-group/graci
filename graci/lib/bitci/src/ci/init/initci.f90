@@ -167,7 +167,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 !----------------------------------------------------------------------
 ! Set the bitstring integer array lengths
 !----------------------------------------------------------------------
-  n_int=(nmo-1)/64+1
+  n_int=(nmo-1)/n_bits+1
 
 !----------------------------------------------------------------------
 ! Load the Hamiltonian parameters

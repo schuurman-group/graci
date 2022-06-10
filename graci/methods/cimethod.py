@@ -36,6 +36,7 @@ class Cimethod:
         self.save_wf        = False
         self.ref_state      = -1
         self.ddci           = True
+        self.label          = ''
 
         # class variables
         # total number of electrons
@@ -259,8 +260,10 @@ class Cimethod:
         for i in range(n_tot):
             fname = 'nos_'+str(i+1)+'_'+syms[i]+'_molden'
             orbitals.export_orbitals(fname, self.scf.mol, 
-                    self.natorb_ao[i,:,:],orb_occ=self.natocc[i,:], 
-                    fmt='molden')
+                   self.natorb_ao[i,:,:],
+                   orb_occ=self.natocc[i,:], 
+                   orb_dir=str(type(self).__name__)+'.'+str(self.label),
+                   fmt='molden')
 
         return
 

@@ -100,12 +100,13 @@ transition_kword = {'init_states'      : int,
                     'label'            : str
                    }
 
-# overlap section input keywords and data types
-overlap_kword   = {'bra_states'        : int,
-                   'bra_label'         : str,
-                   'ket_states'        : int,
-                   'ket_label'         : str,
-                   'calc'              : str
+overlap_kword   = {'init_states'       : int,
+                   'init_label'        : str,
+                   'final_states'      : int,
+                   'final_label'       : str,
+                   'calc'              : str,
+                   'norm_thresh'       : float,
+                   'label'             : str,
                   } 
 
 #----------------------------------------------------

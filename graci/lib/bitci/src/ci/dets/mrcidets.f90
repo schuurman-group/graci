@@ -235,7 +235,7 @@ subroutine make_mrci_dets(h,refscr,order)
         ia=occ(ia1,1,iref)
 
         ! Block that the annihilated electron sits in
-        ika=(ia-1)/64+1
+        ika=(ia-1)/n_bits+1
         
         ! Loop over creators
         do ic1=1,nha
@@ -244,7 +244,7 @@ subroutine make_mrci_dets(h,refscr,order)
            ic=unocc(ic1,1,iref)
 
            ! Block that the created electron sits in
-           ikc=(ic-1)/64+1
+           ikc=(ic-1)/n_bits+1
            
            ! Increment the determinant counter
            iexc1=iexc1+1
@@ -277,7 +277,7 @@ subroutine make_mrci_dets(h,refscr,order)
         ia=occ(ia1,2,iref)
 
         ! Block that the annihilated electron sits in
-        ika=(ia-1)/64+1
+        ika=(ia-1)/n_bits+1
         
         ! Loop over creators
         do ic1=1,nhb
@@ -286,7 +286,7 @@ subroutine make_mrci_dets(h,refscr,order)
            ic=unocc(ic1,2,iref)
 
            ! Block that the created electron sits in
-           ikc=(ic-1)/64+1
+           ikc=(ic-1)/n_bits+1
            
            ! Increment the determinant counter
            iexc1=iexc1+1
@@ -327,7 +327,7 @@ subroutine make_mrci_dets(h,refscr,order)
            ia=occ(ia1,1,iref)
            
            ! Block index for the first annihilator
-           ika=(ia-1)/64+1
+           ika=(ia-1)/n_bits+1
            
            ! Loop over the second annihilator
            do iap1=ia1+1,nea
@@ -336,7 +336,7 @@ subroutine make_mrci_dets(h,refscr,order)
               iap=occ(iap1,1,iref)
 
               ! Block index for the first annihilator
-              ikap=(iap-1)/64+1
+              ikap=(iap-1)/n_bits+1
            
               ! Loop over the first creator
               do ic1=1,nha-1
@@ -345,7 +345,7 @@ subroutine make_mrci_dets(h,refscr,order)
                  ic=unocc(ic1,1,iref)
                  
                  ! Block index for the first creator
-                 ikc=(ic-1)/64+1
+                 ikc=(ic-1)/n_bits+1
                  
                  ! Loop over the second creator
                  do icp1=ic1+1,nha
@@ -354,7 +354,7 @@ subroutine make_mrci_dets(h,refscr,order)
                     icp=unocc(icp1,1,iref)
                     
                     ! Block index for the second creator
-                    ikcp=(icp-1)/64+1
+                    ikcp=(icp-1)/n_bits+1
                     
                     ! Increment the determinant counter
                     iexc2=iexc2+1
@@ -393,7 +393,7 @@ subroutine make_mrci_dets(h,refscr,order)
            ia=occ(ia1,2,iref)
            
            ! Block index for the first annihilator
-           ika=(ia-1)/64+1
+           ika=(ia-1)/n_bits+1
            
            ! Loop over the second annihilator
            do iap1=ia1+1,neb
@@ -402,7 +402,7 @@ subroutine make_mrci_dets(h,refscr,order)
               iap=occ(iap1,2,iref)
               
               ! Block index for the first annihilator
-              ikap=(iap-1)/64+1
+              ikap=(iap-1)/n_bits+1
               
               ! Loop over the first creator
               do ic1=1,nhb-1
@@ -411,7 +411,7 @@ subroutine make_mrci_dets(h,refscr,order)
                  ic=unocc(ic1,2,iref)
                  
                  ! Block index for the first creator
-                 ikc=(ic-1)/64+1
+                 ikc=(ic-1)/n_bits+1
                  
                  ! Loop over the second creator
                  do icp1=ic1+1,nhb
@@ -420,7 +420,7 @@ subroutine make_mrci_dets(h,refscr,order)
                     icp=unocc(icp1,2,iref)
                     
                     ! Block index for the second creator
-                    ikcp=(icp-1)/64+1
+                    ikcp=(icp-1)/n_bits+1
                  
                     ! Increment the determinant counter
                     iexc2=iexc2+1
@@ -459,7 +459,7 @@ subroutine make_mrci_dets(h,refscr,order)
            ia=occ(ia1,1,iref)
            
            ! Block index for the first annihilator
-           ika=(ia-1)/64+1
+           ika=(ia-1)/n_bits+1
         
            ! Loop over the second annihilator (beta)
            do iap1=1,neb
@@ -468,7 +468,7 @@ subroutine make_mrci_dets(h,refscr,order)
               iap=occ(iap1,2,iref)
 
               ! Block index for the first annihilator
-              ikap=(iap-1)/64+1
+              ikap=(iap-1)/n_bits+1
               
               ! Loop over the first creator (alpha)
               do ic1=1,nha
@@ -477,7 +477,7 @@ subroutine make_mrci_dets(h,refscr,order)
                  ic=unocc(ic1,1,iref)
 
                  ! Block index for the first creator
-                 ikc=(ic-1)/64+1
+                 ikc=(ic-1)/n_bits+1
               
                  ! Loop over the second creator (beta)
                  do icp1=1,nhb
@@ -486,7 +486,7 @@ subroutine make_mrci_dets(h,refscr,order)
                     icp=unocc(icp1,2,iref)
 
                     ! Block index for the second creator
-                    ikcp=(icp-1)/64+1
+                    ikcp=(icp-1)/n_bits+1
                  
                     ! Increment the determinant counter
                     iexc2=iexc2+1

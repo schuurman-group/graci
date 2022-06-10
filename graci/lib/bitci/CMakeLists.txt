@@ -41,6 +41,11 @@ if (HDF5_LIB_DIR)
 endif()
 
 #
+# overlap library directory
+#
+link_directories(../lib)
+
+#
 # Compiler-specific flags
 #
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
@@ -49,9 +54,9 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   set(bounds "-fbounds-check")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(dialect "-w -g -O3 -cpp -free -implicitnone -traceback \
-               -qmkl -qopenmp -xhost -auto -ipo -qopt-prefetch \
-               -check noarg_temp_created")
+  set(dialect "-w -g -O3 -cpp -free -implicitnone \
+               -traceback -qmkl -qopenmp -xhost -auto -ipo \
+               -qopt-prefetch -check noarg_temp_created")
   set(bounds "-check bounds")
 endif()
 
@@ -80,6 +85,9 @@ add_library(bitwf SHARED ${SIsources})
 target_link_libraries(bitci -lhdf5_fortran)
 target_link_libraries(bitsi -lhdf5_fortran)
 target_link_libraries(bitwf -lhdf5_fortran)
+
+# Link the bitwf target to the overlap library
+target_link_libraries(bitwf -loverlap)
 
 #
 # Install

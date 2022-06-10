@@ -189,11 +189,11 @@ contains
        c=1
     endif
 
-    in=(i-1)/64+1
-    jn=(j-1)/64+1
+    in=(i-1)/n_bits+1
+    jn=(j-1)/n_bits+1
 
-    ibb=modulo(i-1,64)
-    jbb=modulo(j-1,64)
+    ibb=modulo(i-1,n_bits)
+    jbb=modulo(j-1,n_bits)
 
     B=ieor(ishft(mask(in),-ibb),ishft(mask(jn),-jbb))
 
@@ -311,12 +311,12 @@ contains
        !
        ia=hlist(2,1)
        ! Block and orbital indices corresponding to the annihilator
-       k=(ia-1)/64+1
-       i=ia-1-(k-1)*64
+       k=(ia-1)/n_bits+1
+       i=ia-1-(k-1)*n_bits
        ! Number of bits set before the orbital being annihilated
        nbset=0
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,1),i1)) nbset=nbset+1
           enddo
        enddo
@@ -333,12 +333,12 @@ contains
        !
        ic=plist(2,1)
        ! Block and orbital indices corresponding to the creator
-       k=(ic-1)/64+1
-       i=ic-1-(k-1)*64
+       k=(ic-1)/n_bits+1
+       i=ic-1-(k-1)*n_bits
        ! Number of bits set before the orbital being created
        nbset=0
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,1),i1)) nbset=nbset+1
           enddo
        enddo
@@ -359,12 +359,12 @@ contains
        !
        ia=hlist(1,1)
        ! Block and orbital indices corresponding to the annihilator
-       k=(ia-1)/64+1
-       i=ia-1-(k-1)*64
+       k=(ia-1)/n_bits+1
+       i=ia-1-(k-1)*n_bits
        ! Number of bits set before the orbital being annihilated
        nbset=0
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,1),i1)) nbset=nbset+1
           enddo
        enddo
@@ -381,12 +381,12 @@ contains
        !
        ic=plist(1,1)
        ! Block and orbital indices corresponding to the creator
-       k=(ic-1)/64+1
-       i=ic-1-(k-1)*64
+       k=(ic-1)/n_bits+1
+       i=ic-1-(k-1)*n_bits
        ! Number of bits set before the orbital being created
        nbset=0
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,1),i1)) nbset=nbset+1
           enddo
        enddo
@@ -410,12 +410,12 @@ contains
        !
        ia=hlist(2,2)
        ! Block and orbital indices corresponding to the annihilator
-       k=(ia-1)/64+1
-       i=ia-1-(k-1)*64
+       k=(ia-1)/n_bits+1
+       i=ia-1-(k-1)*n_bits
        ! Number of bits set before the orbital being annihilated
        nbset=nalpha
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,2),i1)) nbset=nbset+1
           enddo
        enddo
@@ -432,12 +432,12 @@ contains
        !
        ic=plist(2,2)
        ! Block and orbital indices corresponding to the creator
-       k=(ic-1)/64+1
-       i=ic-1-(k-1)*64
+       k=(ic-1)/n_bits+1
+       i=ic-1-(k-1)*n_bits
        ! Number of bits set before the orbital being created
        nbset=nalpha
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,2),i1)) nbset=nbset+1
           enddo
        enddo
@@ -458,12 +458,12 @@ contains
        !
        ia=hlist(1,2)
        ! Block and orbital indices corresponding to the annihilator
-       k=(ia-1)/64+1
-       i=ia-1-(k-1)*64
+       k=(ia-1)/n_bits+1
+       i=ia-1-(k-1)*n_bits
        ! Number of bits set before the orbital being annihilated
        nbset=nalpha
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,2),i1)) nbset=nbset+1
           enddo
        enddo
@@ -480,12 +480,12 @@ contains
        !
        ic=plist(1,2)
        ! Block and orbital indices corresponding to the creator
-       k=(ic-1)/64+1
-       i=ic-1-(k-1)*64
+       k=(ic-1)/n_bits+1
+       i=ic-1-(k-1)*n_bits
        ! Number of bits set before the orbital being created
        nbset=nalpha
        do k1=1,k-1
-          do i1=0,63
+          do i1=0,n_bits-1
              if (btest(onv(k1,2),i1)) nbset=nbset+1
           enddo
        enddo
