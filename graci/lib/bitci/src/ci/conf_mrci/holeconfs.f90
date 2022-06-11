@@ -192,7 +192,7 @@ contains
 
           ! Cycle if the excitation degree is greater than 1
           if (nexci > 1) cycle
-          
+
           ! Determine the index of the annihilation operator and mark
           ! it as forbidden
           call get_exci_indices(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
