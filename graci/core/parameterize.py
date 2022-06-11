@@ -2,6 +2,8 @@
 The Parameterize object and its associated functions.
 """
 import numpy as np
+import graci.core.driver as driver
+import graci.io.parse
 
 
 class Parameterize:
