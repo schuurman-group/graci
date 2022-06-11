@@ -34,8 +34,7 @@ class Dftmrci(cimethod.Cimethod):
         self.icvs           = []
         self.refiter        = 3
         self.ref_prune      = True
-        self.ref_prop       = False
-        self.ref_label      = None
+        self.guess_label    = None
         self.prune          = False
         self.prune_thresh   = 0.9
         self.prune_qcorr    = True
@@ -66,7 +65,7 @@ class Dftmrci(cimethod.Cimethod):
 # Required functions #############################################################
 
     @timing.timed
-    def run(self, scf, refci):
+    def run(self, scf, guess):
         """ compute the DFT/MRCI eigenpairs for all irreps """
         
         # set the scf object 
@@ -89,9 +88,9 @@ class Dftmrci(cimethod.Cimethod):
         self.nextra = ref_diag.n_extra(self)
 
         # generate the initial reference space configurations
-        if self.ref_prop:
+        if self.guess_label is not None:
             n_ref_conf, ref_conf_units, ref_conf_files = \
-                ref_space.propagate(self, refci)
+                ref_space.propagate(self, guess)
         else:
             n_ref_conf, ref_conf_units, ref_conf_files = \
                 ref_space.generate(self)
@@ -117,7 +116,7 @@ class Dftmrci(cimethod.Cimethod):
             # optional removal of deadwood from the
             # guess reference space
             if self.ref_prune and self.niter == 0 \
-               and self.ref_prop == False:
+               and self.guess_label is not None:
                 # remove the deadwood
                 n_ref_conf = ref_prune.prune(self)
                 # set the new no. ref confs

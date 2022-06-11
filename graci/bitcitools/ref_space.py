@@ -246,6 +246,11 @@ def propagate(ci_method, ci_method0):
     # Names of the previous reference space configuration files
     confnames0 = ci_method0.ref_wfn.conf_name
 
+    # No. previous geometry ref space roots
+    nroots = [ci_method0.n_states_sym(irr) for irr in range(nirr)]
+    nextra = [ci_method0.nextra['max'][irr] for irr in range(nirr)]
+    nvec   = np.array((nroots+nextra), dtype=int)
+
     # MO overlaps
     mol0 = ci_method0.scf.mol.mol_obj.copy()
     mol  = ci_method.scf.mol.mol_obj.copy()
@@ -257,15 +262,10 @@ def propagate(ci_method, ci_method0):
     smat = np.reshape(smat, (nmo0 * nmo), order='F')
     
     # Create the reference spaces for this calculation
-    for irr in range(nirr):
-        nconf = 0
-        unit  = 0
-        args  = (irr, nmo0, nmo, smat, confnames0[irr], nconf, unit)
-        (nconf, unit) = libs.lib_func('ref_space_propagate', args)
-        ref_nconf[irr] = nconf
-        confunits[irr] = unit
+    args = (nvec, nmo0, nmo, smat, confnames0, ref_nconf, confunits)
+    (ref_nconf, confunits) = libs.lib_func('ref_space_propagate', args)
 
-     # Retrieve the reference space configuration scratch file names
+    # Retrieve the reference space configuration scratch file names
     confnames = []
     name      = ' '
     for i in range(nirr):

@@ -49,8 +49,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.icvs            = []
         self.refiter         = 3
         self.ref_prune       = True
-        self.ref_prop        = False
-        self.ref_label       = None
+        self.guess_label     = None
         self.nbuffer         = []
         self.label           = 'Dftmrci2'
 
@@ -75,7 +74,7 @@ class Dftmrci2(cimethod.Cimethod):
 # Required functions #############################################################
 
     @timing.timed
-    def run(self, scf, refci):
+    def run(self, scf, guess):
         """ compute the DFT/MRCI(2) eigenpairs for all irreps """
 
         # set the scf object
@@ -105,7 +104,13 @@ class Dftmrci2(cimethod.Cimethod):
                            'max' : np.ndarray.tolist(self.nbuffer)}
         
         # generate the initial reference space configurations
-        n_ref_conf, ref_conf_units, ref_conf_files = ref_space.generate(self)
+        if self.guess_label is not None:
+            n_ref_conf, ref_conf_units, ref_conf_files = \
+                ref_space.propagate(self, guess)
+        else:
+            n_ref_conf, ref_conf_units, ref_conf_files = \
+                ref_space.generate(self)
+
         # set the number of configurations and scratch file numbers
         # and names
         self.ref_wfn.set_nconf(n_ref_conf)
@@ -126,7 +131,8 @@ class Dftmrci2(cimethod.Cimethod):
 
             # optional removal of deadwood from the
             # guess reference space
-            if self.ref_prune and self.niter == 0:
+            if self.ref_prune and self.niter == 0 \
+               and self.guess_label is not None:
                 # remove the deadwood
                 n_ref_conf = ref_prune.prune(self)
                 # set the new no. ref confs
