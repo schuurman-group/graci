@@ -12,7 +12,9 @@ import graci.io.output as output
 
 @timing.timed
 def diag(ci_method):
-    """Diagonalisation of the reference space Hamiltonian"""
+    """
+    Diagonalisation of the reference space Hamiltonian
+    """
 
     # length of nstates vector is the number of irreps
     nirr    = ci_method.n_irrep()
@@ -30,7 +32,7 @@ def diag(ci_method):
     nconf = np.array(ref_wfn.nconf, dtype=int)
 
     # Bitci eigenvector scratch file numbers
-    ciunit   = 0
+    ciunit  = 0
     ciunits = []
     
     # Loop over irreps
@@ -75,8 +77,10 @@ def diag(ci_method):
 
 @timing.timed
 def n_extra(ci_method):
-    """Determination of the number of extra reference space
-    eigenvectors needed"""
+    """
+    Determination of the number of extra reference space
+    eigenvectors needed
+    """
 
     # Initialisation
     nextra = {'prune' : None,
@@ -116,3 +120,37 @@ def n_extra(ci_method):
                                   if key != 'max']))
 
     return nextra
+
+@timing.timed
+def diag_follow(ci_method, ci_method0):
+    """
+    Diagonalisation of the reference space Hamiltonian plus root
+    following based on overlaps with the saved MRCI vectors of the
+    ci_method0 object computed at a previous geometry R0
+    """
+
+    # length of nstates vector is the number of irreps
+    nirr    = ci_method.n_irrep()
+
+    # bitci reference space wfn
+    ref_wfn = ci_method.bitci_ref()
+
+    # Print the section header
+    output.print_refdiag_header()
+    
+    # Bitci reference configuration scratch file numbers
+    confunits = np.array(ref_wfn.conf_units, dtype=int)
+
+    # Numbers of configurations
+    nconf = np.array(ref_wfn.nconf, dtype=int)
+
+    # Bitci eigenvector scratch file numbers
+    ciunit  = 0
+    ciunits = []
+
+    # R0 determinant bit strings and eigenvectors
+    #print('\n', ci_method0.)
+    
+    sys.exit()
+    
+    return ciunits, ener

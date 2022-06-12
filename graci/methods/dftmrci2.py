@@ -50,6 +50,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.refiter         = 3
         self.ref_prune       = True
         self.guess_label     = None
+        self.diabatic        = False
         self.nbuffer         = []
         self.label           = 'Dftmrci2'
 
@@ -81,8 +82,12 @@ class Dftmrci2(cimethod.Cimethod):
         self.set_scf(scf)
 
         if self.scf.mol is None or self.scf is None:
-            sys.exit('ERROR: mol and scf objects not set in dftmrci')
+            sys.exit('ERROR: mol and scf objects not set in dftmrci2')
 
+        # check on the diabatic guess object
+        if self.diabatic and guess == None:
+            sys.exit('ERROR: diabatisation requires a guess dftmrci2 object')
+            
         # write the output logfile header for this run
         output.print_dftmrci2_header(self.label)
 
@@ -123,7 +128,10 @@ class Dftmrci2(cimethod.Cimethod):
         for self.niter in range(self.refiter):
 
             # reference space diagonalisation
-            ref_ci_units, ref_ener = ref_diag.diag(self)
+            if self.diabatic:
+                ref_ci_units, ref_ener = ref_diag.diag_follow(self, guess)
+            else:
+                ref_ci_units, ref_ener = ref_diag.diag(self)
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
