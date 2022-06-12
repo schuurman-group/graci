@@ -21,7 +21,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 
   use constants
   use bitglobal
-  use iowf
   use iomod
 
   implicit none
