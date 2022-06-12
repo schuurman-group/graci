@@ -11,10 +11,12 @@
 !                       with a set of previously computed ones
 !######################################################################
 #ifdef CBINDING
-subroutine ref_diag_mrci_follow(irrep,nroots,confscr,nconf,vecscr) &
+subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
+     nrootsR0,detR0,vecR0,nmo0,smat,nconf,vecscr) &
      bind(c,name="ref_diag_mrci_follow")
 #else
-subroutine ref_diag_mrci_follow(irrep,nroots,confscr,nconf,vecscr)
+subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
+     nrootsR0,detR0,vecR0,nmo0,smat,nconf,vecscr)
 #endif
 
   use constants
@@ -36,14 +38,30 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,nconf,vecscr)
   ! Array of reference configuration scratch file numbers
   integer(is), intent(in)    :: confscr(0:nirrep-1)
 
-  ! Array of numbers of referecne configurations
+  ! Eigenvectors to follow, expressed in a Slater determinant basis
+  integer(is), intent(in)    :: n_intR0,ndetR0,nrootsR0
+  integer(ib), intent(in)    :: detR0(n_intR0,2,ndetR0)
+  real(dp), intent(in)       :: vecR0(ndetR0,nrootsR0)
+
+  ! MO overlaps
+  integer(is), intent(in)    :: nmo0
+  real(dp), intent(in)       :: smat(nmo0,nmo)
+  
+  ! Array of numbers of reference configurations
   integer(is), intent(in)    :: nconf(0:nirrep-1)
 
   ! Eigenvector scratch file index
   integer(is), intent(out)   :: vecscr
 
+  ! Everything else
+  integer(is)                :: i,j
+
+
   print*,''
-  print*,'Here?'
+  do i=1,nmo
+     print*,i,dot_product(smat(:,i),smat(:,i))
+  enddo
+  
   stop
   
   return

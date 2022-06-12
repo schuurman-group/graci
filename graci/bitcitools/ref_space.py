@@ -256,7 +256,8 @@ def propagate(ci_method, ci_method0):
     mol  = ci_method.scf.mol.mol_obj.copy()
     smat = gto.intor_cross('int1e_ovlp', ci_method0.scf.mol.mol_obj,
                            ci_method.scf.mol.mol_obj)
-    smat = np.matmul(np.matmul(ci_method0.scf.orbs.T, smat), ci_method.scf.orbs)
+    smat = np.matmul(np.matmul(ci_method0.scf.orbs.T, smat),
+                     ci_method.scf.orbs)
     nmo0 = ci_method0.scf.nmo
     nmo  = ci_method.scf.nmo
     smat = np.reshape(smat, (nmo0 * nmo), order='F')

@@ -9,13 +9,14 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
+from pyscf import gto
 
 @timing.timed
 def diag(ci_method):
     """
     Diagonalisation of the reference space Hamiltonian
     """
-
+    
     # length of nstates vector is the number of irreps
     nirr    = ci_method.n_irrep()
 
@@ -129,6 +130,10 @@ def diag_follow(ci_method, ci_method0):
     ci_method0 object computed at a previous geometry R0
     """
 
+     # Exit if the point groups for the two calculations are different
+    if ci_method.scf.mol.comp_sym != ci_method0.scf.mol.comp_sym:
+        sys.exit('\n Error in ref_space.propagate: non-equal point groups')
+    
     # length of nstates vector is the number of irreps
     nirr    = ci_method.n_irrep()
 
@@ -148,9 +153,42 @@ def diag_follow(ci_method, ci_method0):
     ciunit  = 0
     ciunits = []
 
-    # R0 determinant bit strings and eigenvectors
-    #print('\n', ci_method0.)
+    # MO overlaps
+    mol0 = ci_method0.scf.mol.mol_obj.copy()
+    mol  = ci_method.scf.mol.mol_obj.copy()
+    smat = gto.intor_cross('int1e_ovlp', ci_method0.scf.mol.mol_obj,
+                           ci_method.scf.mol.mol_obj)
+    smat = np.matmul(np.matmul(ci_method0.scf.orbs.T, smat),
+                     ci_method.scf.orbs)
+    nmo0 = ci_method0.scf.nmo
+    nmo  = ci_method.scf.nmo
+    smat = np.reshape(smat, (nmo0 * nmo), order='F')
     
-    sys.exit()
+    # Loop over irreps
+    for irrep in range(nirr):
+
+        # Number of roots for the current irrep
+        nroots = ci_method.n_states_sym(irrep)
+
+        # Number of extra roots
+        nextra = ci_method.nextra['max'][irrep]
+        
+        # R0 determinant bit strings and eigenvectors
+        n_int0 = ci_method0.det_strings[irrep].shape[0]
+        n_det0 = ci_method0.det_strings[irrep].shape[2]
+        n_vec0 = ci_method0.vec_det[irrep].shape[1]
+        dets0  = np.reshape(ci_method0.det_strings[irrep],
+                            (n_int0*2*n_det0), order='F')
+        vec0   = np.reshape(ci_method0.vec_det[irrep],
+                            (n_det0*n_vec0), order='F')
+        
+        # Call to the bitci reference space diagonalisation
+        # plus root following routine
+        args = (irrep, nroots+nextra, confunits,
+                n_int0, n_det0, n_vec0, dets0, vec0, nmo0, smat,
+                nconf, ciunit)
+        (nroots, ciunit) = libs.lib_func('ref_diag_mrci_follow',args)
+    
+    sys.exit('\n')
     
     return ciunits, ener
