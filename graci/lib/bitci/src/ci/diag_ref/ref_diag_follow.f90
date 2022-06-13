@@ -12,11 +12,11 @@
 !######################################################################
 #ifdef CBINDING
 subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
-     nrootsR0,detR0,vecR0,nmoR0,smat,nconf,vecscr) &
-     bind(c,name="ref_diag_mrci_follow")
+     nrootsR0,detR0,vecR0,nmoR0,smat,ncore,icore,lfrzcore,nconf,&
+     vecscr) bind(c,name="ref_diag_mrci_follow")
 #else
 subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
-     nrootsR0,detR0,vecR0,nmoR0,smat,nconf,vecscr)
+     nrootsR0,detR0,vecR0,nmoR0,smat,ncore,icore,lfrzcore,nconf,vecscr)
 #endif
 
   use constants
@@ -54,6 +54,11 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ! Eigenvector scratch file index
   integer(is), intent(out)   :: vecscr
 
+  ! Frozen core orbital info
+  integer(is), intent(in)    :: ncore
+  integer(is), intent(in)    :: icore(ncore)
+  logical(is), intent(in)    :: lfrzcore
+  
   ! Number of configurations found in the scratch file
   integer(is)                :: nconf1
 
@@ -120,23 +125,17 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   real(dp), allocatable      :: Sij(:)
 
   ! Eigenfunction selection
-  integer(is)                :: imin(1)
+  integer(is)                :: imin(1),imax(1)
   integer(is), allocatable   :: isel(:)
-  real(dp), allocatable      :: maxSij(:)
+  real(dp), allocatable      :: Sij1(:,:),maxSij(:)
   real(dp), allocatable      :: ener1(:)
-  real(dp), parameter        :: eshift=1e+14_dp
+  real(dp), parameter        :: shift=1e+14_dp
 
   ! Everything else
   integer(is)                :: i,j,n,nsave
   integer(is)                :: iscratch
   integer(is)                :: isigma(3)
 
-  ! TEMPORARY
-  integer(is) :: ncore=1
-  integer(is) :: icore(1)
-  logical(is) :: lfrzcore
-  ! TEMPORARY
-  
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -289,8 +288,8 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   Sij=0.0d0
   ipairs=0
   
-  ! Temporarily hard-wired truncation threshold
-  normthrsh=1.0
+  ! Truncation threshold
+  normthrsh=0.99d0
 
   ! Fill in the array of bra-ket overlaps required
   n=0
@@ -301,11 +300,6 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
         ipairs(n,2)=j
      enddo
   enddo
-
-  ! TEMPORARY HACK
-  lfrzcore=.true.
-  icore(1)=1
-  ! TEMPORARY HACK
 
   ! Compute the overlaps
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nsave,&
@@ -318,19 +312,27 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ! Allocate arrays
   allocate(isel(nroots))
   allocate(maxSij(nroots))
+  allocate(Sij1(nrootsR0,nsave))
   allocate(ener1(nroots))
   isel=0
   maxSij=0.0d0
-  
-  ! Select the reference space eigenfunctions with the greatest
-  ! overlaps with the input wave functions
+  Sij1=0.0d0
+
+  ! Reshape the wave function overlap matrix into a more useful
+  ! form
   do n=1,npairs
      i=ipairs(n,1)
      j=ipairs(n,2)
-     if (abs(Sij(n)) > abs(maxSij(i))) then
-        isel(i)=j
-        maxSij(i)=Sij(n)
-     endif
+     Sij1(i,j)=Sij(n)
+  enddo
+  
+  ! Select the reference space eigenfunctions with the greatest
+  ! overlaps with the input wave functions
+  do i=1,nrootsR0
+     imax=maxloc(abs(Sij1(i,:)))
+     isel(i)=imax(1)
+     maxSij(i)=Sij1(i,imax(1))
+     Sij1(:,imax(1))=0.0d0
   enddo
 
 !----------------------------------------------------------------------
@@ -342,14 +344,14 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
      ! Shift up the already selected eigenvectors
      ener1=ener
      do n=1,nrootsR0
-        ener1(isel(n))=ener1(isel(n))+eshift
+        ener1(isel(n))=ener1(isel(n))+shift
      enddo
 
      ! Find the lowest energy of the remaining ones
      do n=nrootsR0+1,nroots
         imin=minloc(ener1)
         isel(n)=imin(1)
-        ener1(imin(1))=ener1(imin(1))+eshift
+        ener1(imin(1))=ener1(imin(1))+shift
      enddo
      
   endif

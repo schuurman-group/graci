@@ -9,6 +9,7 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
+import graci.core.molecule as molecule
 from pyscf import gto
 
 @timing.timed
@@ -163,6 +164,21 @@ def diag_follow(ci_method, ci_method0):
     nmo0 = ci_method0.scf.nmo
     nmo  = ci_method.scf.nmo
     smat = np.reshape(smat, (nmo0 * nmo), order='F')
+
+    # frozen core orbitals
+    ncore_el = np.array([molecule.atom_ncore[n] for n in
+                         [molecule.atom_name.index(m)
+                          for m in ci_method0.scf.mol.asym]])
+    ncore_mo = int(np.sum(ncore_el/2))
+
+    # fill in the core MO indices
+    # (bitX libraries have the MOs in energy order and
+    # use Fortran indexing)
+    icore = np.arange(0, ncore_mo, 1) + 1
+    ncore = icore.size
+
+    # deleted core orbital flag
+    delete_core = True
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -186,6 +202,8 @@ def diag_follow(ci_method, ci_method0):
         # diagonalisation routine
         args = (irrep, nroots+nextra, confunits,
                 n_int0, n_det0, n_vec0, dets0, vec0, nmo0, smat,
+                ncore, icore, delete_core,
+
                 nconf, ciunit)
         (nroots, ciunit) = libs.lib_func('ref_diag_mrci_follow',args)
 
