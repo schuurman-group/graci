@@ -54,7 +54,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   set(bounds "-fbounds-check")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-  set(dialect "-w -g -O3 -cpp -free -implicitnone \
+  set(dialect "-w -g -O0 -check all -cpp -free -implicitnone \
                -traceback -qmkl -qopenmp -xhost -auto -ipo \
                -qopt-prefetch -check noarg_temp_created")
   set(bounds "-check bounds")
@@ -86,7 +86,8 @@ target_link_libraries(bitci -lhdf5_fortran)
 target_link_libraries(bitsi -lhdf5_fortran)
 target_link_libraries(bitwf -lhdf5_fortran)
 
-# Link the bitwf target to the overlap library
+# Link the bitci and bitwf target to the overlap library
+target_link_libraries(bitci -loverlap)
 target_link_libraries(bitwf -loverlap)
 
 #
