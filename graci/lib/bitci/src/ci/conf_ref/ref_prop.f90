@@ -34,11 +34,11 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
   ! forwards
 #ifdef CBINDING
   character(len=1,kind=C_CHAR), intent(in) :: conffile0_in(255,0:nirrep-1)
-  character(len=255)                 :: conffile0(0:nirrep-1)
-  integer(is)                        :: length
+  character(len=255)                       :: conffile0(0:nirrep-1)
+  integer(is)                              :: length
 #else
-  character(len=255), intent(in)     :: conffile0_in(0:nirrep-1)
-  character(len=255)                 :: conffile0(0:nirrep-1
+  character(len=255), intent(in)           :: conffile0_in(0:nirrep-1)
+  character(len=255)                       :: conffile0(0:nirrep-1
 #endif
 
   ! Number of generated reference configurations
@@ -93,7 +93,7 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
      conffile0(irrep)=adjustl(trim(conffile0_in(irrep)))
   enddo
 #endif
-  
+
 !----------------------------------------------------------------------
 ! Register the previous geometry ref conf scratch files
 !----------------------------------------------------------------------

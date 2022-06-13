@@ -118,11 +118,17 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   integer(is)                :: npairs
   integer(is), allocatable   :: ipairs(:,:)
   real(dp), allocatable      :: Sij(:)
+
+  ! Eigenfunction selection
+  integer(is)                :: imin(1)
   integer(is), allocatable   :: isel(:)
   real(dp), allocatable      :: maxSij(:)
-  
+  real(dp), allocatable      :: ener1(:)
+  real(dp), parameter        :: eshift=1e+14_dp
+
   ! Everything else
-  integer(is)                :: i,j,k,nsave
+  integer(is)                :: i,j,n,nsave
+  integer(is)                :: iscratch
   integer(is)                :: isigma(3)
 
   ! TEMPORARY
@@ -140,6 +146,15 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
        'the '//trim(irreplbl(irrep,ipg)),'subspace'
   write(6,'(72a)') ('-',i=1,52)
 
+!----------------------------------------------------------------------
+! Sanity check on the requested number of roots
+!----------------------------------------------------------------------
+  if (nroots < nrootsR0) then
+     errmsg='Error in ref_diag_mrci_follow: ' &
+          //'too many input wave functions (nroots < nrootsR0)'
+     call error_control
+  endif
+  
 !----------------------------------------------------------------------
 ! Return if there are no configurations for the current irrep
 !----------------------------------------------------------------------
@@ -278,12 +293,12 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   normthrsh=1.0
 
   ! Fill in the array of bra-ket overlaps required
-  k=0
+  n=0
   do i=1,nrootsR0
      do j=1,nsave
-        k=k+1
-        ipairs(k,1)=i
-        ipairs(k,2)=j
+        n=n+1
+        ipairs(n,1)=i
+        ipairs(n,2)=j
      enddo
   enddo
 
@@ -303,17 +318,94 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ! Allocate arrays
   allocate(isel(nroots))
   allocate(maxSij(nroots))
+  allocate(ener1(nroots))
   isel=0
   maxSij=0.0d0
   
   ! Select the reference space eigenfunctions with the greatest
   ! overlaps with the input wave functions
-  
-  
-!----------------------------------------------------------------------
-! Re-phasing
-!----------------------------------------------------------------------
+  do n=1,npairs
+     i=ipairs(n,1)
+     j=ipairs(n,2)
+     if (abs(Sij(n)) > abs(maxSij(i))) then
+        isel(i)=j
+        maxSij(i)=Sij(n)
+     endif
+  enddo
 
+!----------------------------------------------------------------------
+! If nroots > nrootsR0, then add in the remaining (nrootsR0-nroots)
+! eigenfunctions with the lowest energies as 'buffer' states
+!----------------------------------------------------------------------
+  if (nroots > nrootsR0) then
+
+     ! Shift up the already selected eigenvectors
+     ener1=ener
+     do n=1,nrootsR0
+        ener1(isel(n))=ener1(isel(n))+eshift
+     enddo
+
+     ! Find the lowest energy of the remaining ones
+     do n=nrootsR0+1,nroots
+        imin=minloc(ener1)
+        isel(n)=imin(1)
+        ener1(imin(1))=ener1(imin(1))+eshift
+     enddo
+     
+  endif
+
+!----------------------------------------------------------------------
+! Check for duplicates
+!----------------------------------------------------------------------
+  do i=1,nroots
+     do j=1,nroots
+        if (i == j) cycle
+        if (isel(i) == isel(j)) then
+           errmsg='Error in ref_diag_mrci_follow: ' &
+                //'duplicate selected states found'
+           call error_control
+        endif
+     enddo
+  enddo
+    
+!----------------------------------------------------------------------
+! Re-phasing of the (non-buffer) states of interest
+!----------------------------------------------------------------------
+  do n=1,nrootsR0
+     if (maxSij(n) < 0.0d0) then
+        vec_csf(:,isel(n))=-vec_csf(:,isel(n))
+     endif
+  enddo
+
+!----------------------------------------------------------------------
+! Re-write the reference space eigenpair scratch file with the
+! selected states
+!----------------------------------------------------------------------
+  ! Open the scratch file
+  iscratch=scrunit(vecscr)
+  open(iscratch,file=scrname(vecscr),form='unformatted',&
+       status='unknown')
+
+  ! No. CSFs
+  write(iscratch) ncsf
+    
+  ! No. roots
+  write(iscratch) nroots
+    
+  ! Eigenvalues
+  ener1=0.0d0
+  do i=1,nroots
+     ener1(i)=ener(isel(i))
+  enddo
+  write(iscratch) ener(1:nroots)
+  
+  ! Eigenvectors
+  do i=1,nroots
+     write(iscratch) vec_csf(:,isel(i))
+  enddo
+  
+  ! Close the scratch file
+  close(iscratch)
   
 !----------------------------------------------------------------------
 ! Flush stdout

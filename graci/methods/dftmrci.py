@@ -35,7 +35,6 @@ class Dftmrci(cimethod.Cimethod):
         self.icvs           = []
         self.refiter        = 3
         self.ref_prune      = True
-        self.guess_label    = None
         self.prune          = False
         self.prune_thresh   = 0.9
         self.prune_qcorr    = True

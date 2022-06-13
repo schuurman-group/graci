@@ -60,7 +60,7 @@ def diag(ci_method):
     
     # Retrieve the reference space energies
     maxroots = max(ci_method.n_states_sym())
-    ener = np.zeros((nirr, maxroots), dtype=float)
+    ener     = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
         if ci_method.n_states_sym(irrep) > 0:
     
@@ -182,13 +182,36 @@ def diag_follow(ci_method, ci_method0):
         vec0   = np.reshape(ci_method0.vec_det[irrep],
                             (n_det0*n_vec0), order='F')
         
-        # Call to the bitci reference space diagonalisation
-        # plus root following routine
+        # Call to the bitci root-following reference space
+        # diagonalisation routine
         args = (irrep, nroots+nextra, confunits,
                 n_int0, n_det0, n_vec0, dets0, vec0, nmo0, smat,
                 nconf, ciunit)
         (nroots, ciunit) = libs.lib_func('ref_diag_mrci_follow',args)
+
+        # Bitci eigenvector scratch number
+        ciunits.append(ciunit)
+
+        # If the number of reference space configurations for the
+        # current irrep is less than the requested number of roots
+        # then reset nstates accordingly
+        if nroots < ci_method.n_states_sym(irrep):
+            ci_method.nstates[irrep] = nroots
+        
+    # Retrieve the reference space energies
+    maxroots = max(ci_method.n_states_sym())
+    ener     = np.zeros((nirr, maxroots), dtype=float)
+    for irrep in range(nirr):
+        if ci_method.n_states_sym(irrep) > 0:
     
-    sys.exit('\n')
-    
+            # Number of roots for the current irrep
+            nroots = ci_method.n_states_sym(irrep)
+
+            # Retrieve the energies
+            args = (ciunits[irrep], nroots, ener[irrep, :nroots],
+                    np.array([n+1 for n in range(nroots)], dtype=int))
+            
+            (ener[irrep, :nroots]) = \
+                    libs.lib_func('retrieve_some_energies', args)
+
     return ciunits, ener

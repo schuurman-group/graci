@@ -34,9 +34,11 @@ class Cimethod:
         self.nstates        = []
         self.print_orbitals = False
         self.save_wf        = False
+        self.wf_thresh      = 0.999
         self.ref_state      = -1
         self.ddci           = True
-        self.wf_thresh      = 0.999
+        self.guess_label    = None
+        
 
         # class variables
         # total number of electrons

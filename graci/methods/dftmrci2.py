@@ -50,7 +50,6 @@ class Dftmrci2(cimethod.Cimethod):
         self.icvs            = []
         self.refiter         = 3
         self.ref_prune       = True
-        self.guess_label     = None
         self.diabatic        = False
         self.nbuffer         = []
         self.label           = 'Dftmrci2'
