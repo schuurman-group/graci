@@ -17,7 +17,7 @@ import graci.bitcitools.gvvpt2 as gvvpt2
 import graci.bitcitools.gvvpt2_refine as gvvpt2_refine
 import graci.bitcitools.mrci_1rdm as mrci_1rdm
 import graci.bitcitools.mrci_wf as mrci_wf
-import graci.bitcitools.bdd as bdd
+import graci.overlaptools.bdd as bdd
 
 # MRCI and DFT/MRCI Hamiltonian labels
 hamiltonians   = ['canonical',

@@ -35,7 +35,7 @@ class Cimethod:
         self.nstates        = []
         self.print_orbitals = False
         self.save_wf        = False
-        self.wf_thresh      = 0.999
+        self.wf_thresh      = 1.
         self.ref_state      = -1
         self.ddci           = True
         self.guess_label    = None
@@ -70,6 +70,8 @@ class Cimethod:
         self.vec_det        = None
         # R_n-1 - R_n MO overlaps
         self.smo            = None
+        # ADT matrix
+        self.adt            = None
         
 
 # Required functions #############################################################

@@ -21,7 +21,7 @@ hamiltonians   = ['canonical',
                   'heil18_short',
                   'cvs_standard']
 
-libraries      = ['bitci','bitsi','bitwf']
+libraries      = ['bitci','bitsi','bitwf','overlap']
 
 # registry of bitci functions
 bitci_registry = {
@@ -179,6 +179,19 @@ bitwf_intent = {
                           'in','in','in','out']
 }
 
+# registry of overlap functions
+overlap_registry = {
+    'overlap_c' : ['int32','int32','int32','int32','int32','int32',
+                   'int32','int32','int64','int64','double','double',
+                   'double','double','int32','int32','logical','int32',
+                   'double','int32']
+}
+
+overlap_intent = {
+    'overlap_c' : ['in','in','in','in','in','in','in','in','in','in',
+                   'in','in','in','in','in','in','in','in','out','in']
+}
+
 # list of existing library objects
 lib_objs = {}
 
@@ -206,6 +219,7 @@ def lib_func(name, args):
     global bitci_registry, bitci_intent
     global bitsi_registry, bitsi_intent
     global bitwf_registry, bitwf_intent
+    global overlap_registry, overlap_intent
     global lib_objs
 
     if name in bitci_registry:
@@ -217,6 +231,9 @@ def lib_func(name, args):
     elif name in bitwf_registry:
         arg_list   = bitwf_registry[name]
         arg_intent = bitwf_intent[name]
+    elif name in overlap_registry:
+        arg_list   = overlap_registry[name]
+        arg_intent = overlap_intent[name]
     else:
         sys.exit('function: '+str(name)+' not found.') 
 
@@ -257,6 +274,11 @@ def lib_func(name, args):
             getattr(lib_objs['bitwf'], name)(*arg_ptr)
         else:
             getattr(lib_objs['bitwf'], name)()
+    elif name in overlap_registry:
+        if len(args) > 0:
+            getattr(lib_objs['overlap'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['overlap'], name)()
             
     args_out = ()
     for i in range(len(args)):
