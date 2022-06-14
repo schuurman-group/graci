@@ -508,7 +508,7 @@ def read_attribute(chkpt_handle, obj_name, name):
                      overloaded json method dumps()
     """
 
-   if obj_name not in chkpt_handle:
+    if obj_name not in chkpt_handle:
         sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
 
     try:

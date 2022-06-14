@@ -242,8 +242,32 @@ class Parameterize:
        
         Sij = np.zeros(len(test_dets.keys()), dtype=float)
 
+        # number of integers to represent bit string
+        nmo      = orbs.shape[1]
+        nint     = ref_det.shape[1]
+        ndetb    = ref_det.shape[0]
+        ndetk    = test_dets.shape[1]
+        nrtb     = 1
+        nrtk     = test_dets.shape[0]
+        detb     = [ref_det]
+        detk     = test_dets
+        vecb     = [ref_cf]
+        veck     = test_cf
+        smo      = np.identity(nmo)
+        thrsh    = 0.9
+        ncore    = 0
+        icore    = []
+        lfrzcore = True
+        npairs   = nrtk
+        ipairs   = [[1,i] for i in range(nrtk)]
+        args   = (nmo, nint, ndetb, ndetk, nrtb, nrtk, detb, detk, 
+                  vecb, veck, smo, thrsh, ncore, icore, lfrzcore, 
+                  npairs, Sij, ipairs)
 
-        return 
+        libs.lib_func('overlap_wf', args)
+
+
+        return Sij
 
     #
     def parse_graci_file(target_vals):
