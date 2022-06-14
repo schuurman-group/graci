@@ -215,6 +215,11 @@ class Dftmrci2(cimethod.Cimethod):
         if self.diabatic:
             bdd.adt(guess, self)
             self.diabatize()
+            nroots = [self.n_states_sym(irr)
+                      for irr in range(self.n_irrep())]
+            output.print_diabpot(self.diabpot, nroots,
+                                 self.n_irrep(),
+                                 self.scf.mol.irreplbl)
             
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
