@@ -9,11 +9,14 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
+import graci.core.molecule as molecule
 
 @timing.timed
 def diag(ci_method):
-    """Diagonalisation of the reference space Hamiltonian"""
-
+    """
+    Diagonalisation of the reference space Hamiltonian
+    """
+    
     # length of nstates vector is the number of irreps
     nirr    = ci_method.n_irrep()
 
@@ -30,7 +33,7 @@ def diag(ci_method):
     nconf = np.array(ref_wfn.nconf, dtype=int)
 
     # Bitci eigenvector scratch file numbers
-    ciunit   = 0
+    ciunit  = 0
     ciunits = []
     
     # Loop over irreps
@@ -57,7 +60,7 @@ def diag(ci_method):
     
     # Retrieve the reference space energies
     maxroots = max(ci_method.n_states_sym())
-    ener = np.zeros((nirr, maxroots), dtype=float)
+    ener     = np.zeros((nirr, maxroots), dtype=float)
     for irrep in range(nirr):
         if ci_method.n_states_sym(irrep) > 0:
     
@@ -75,8 +78,10 @@ def diag(ci_method):
 
 @timing.timed
 def n_extra(ci_method):
-    """Determination of the number of extra reference space
-    eigenvectors needed"""
+    """
+    Determination of the number of extra reference space
+    eigenvectors needed
+    """
 
     # Initialisation
     nextra = {'prune' : None,
@@ -116,3 +121,106 @@ def n_extra(ci_method):
                                   if key != 'max']))
 
     return nextra
+
+@timing.timed
+def diag_follow(ci_method, ci_method0):
+    """
+    Diagonalisation of the reference space Hamiltonian plus root
+    following based on overlaps with the saved MRCI vectors of the
+    ci_method0 object computed at a previous geometry R0
+    """
+
+     # Exit if the point groups for the two calculations are different
+    if ci_method.scf.mol.comp_sym != ci_method0.scf.mol.comp_sym:
+        sys.exit('\n Error in ref_space.propagate: non-equal point groups')
+    
+    # length of nstates vector is the number of irreps
+    nirr    = ci_method.n_irrep()
+
+    # bitci reference space wfn
+    ref_wfn = ci_method.bitci_ref()
+
+    # Print the section header
+    output.print_refdiag_header()
+    
+    # Bitci reference configuration scratch file numbers
+    confunits = np.array(ref_wfn.conf_units, dtype=int)
+
+    # Numbers of configurations
+    nconf = np.array(ref_wfn.nconf, dtype=int)
+
+    # Bitci eigenvector scratch file numbers
+    ciunit  = 0
+    ciunits = []
+
+    # MO overlaps
+    nmo0 = ci_method0.scf.nmo
+    nmo  = ci_method.scf.nmo
+    smat = np.reshape(ci_method.smo, (nmo0 * nmo), order='F')
+
+    # frozen core orbitals
+    ncore_el = np.array([molecule.atom_ncore[n] for n in
+                         [molecule.atom_name.index(m)
+                          for m in ci_method0.scf.mol.asym]])
+    ncore_mo = int(np.sum(ncore_el/2))
+
+    # fill in the core MO indices
+    # (bitX libraries have the MOs in energy order and
+    # use Fortran indexing)
+    icore = np.arange(0, ncore_mo, 1) + 1
+    ncore = icore.size
+
+    # deleted core orbital flag
+    delete_core = True
+    
+    # Loop over irreps
+    for irrep in range(nirr):
+
+        # Number of roots for the current irrep
+        nroots = ci_method.n_states_sym(irrep)
+
+        # Number of extra roots
+        nextra = ci_method.nextra['max'][irrep]
+        
+        # R0 determinant bit strings and eigenvectors
+        n_int0 = ci_method0.det_strings[irrep].shape[0]
+        n_det0 = ci_method0.det_strings[irrep].shape[2]
+        n_vec0 = ci_method0.vec_det[irrep].shape[1]
+        dets0  = np.reshape(ci_method0.det_strings[irrep],
+                            (n_int0*2*n_det0), order='F')
+        vec0   = np.reshape(ci_method0.vec_det[irrep],
+                            (n_det0*n_vec0), order='F')
+        
+        # Call to the bitci root-following reference space
+        # diagonalisation routine
+        args = (irrep, nroots+nextra, confunits,
+                n_int0, n_det0, n_vec0, dets0, vec0, nmo0, smat,
+                ncore, icore, delete_core, nconf, ciunit)
+        (nroots, ciunit) = libs.lib_func('ref_diag_mrci_follow',args)
+
+        # Bitci eigenvector scratch number
+        ciunits.append(ciunit)
+
+        # If the number of reference space configurations for the
+        # current irrep is less than the requested number of roots
+        # then reset nstates accordingly
+        if nroots < ci_method.n_states_sym(irrep):
+            ci_method.nstates[irrep] = nroots
+        
+    # Retrieve the reference space energies
+    maxroots = max(ci_method.n_states_sym())
+    ener     = np.zeros((nirr, maxroots), dtype=float)
+    for irrep in range(nirr):
+        if ci_method.n_states_sym(irrep) > 0:
+    
+            # Number of roots for the current irrep
+            nroots = ci_method.n_states_sym(irrep)
+
+            # Retrieve the energies
+            args = (ciunits[irrep], nroots, ener[irrep, :nroots],
+                    np.array([n+1 for n in range(nroots)], dtype=int))
+            
+            (ener[irrep, :nroots]) = \
+                    libs.lib_func('retrieve_some_energies', args)
+
+    return ciunits, ener

@@ -65,7 +65,7 @@ class Dftmrci(cimethod.Cimethod):
 # Required functions #############################################################
 
     @timing.timed
-    def run(self, scf):
+    def run(self, scf, guess):
         """ compute the DFT/MRCI eigenpairs for all irreps """
         
         # set the scf object 
@@ -73,9 +73,14 @@ class Dftmrci(cimethod.Cimethod):
 
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
-
+            
         # write the output logfile header for this run
         output.print_dftmrci_header(self.label)
+
+        # if a guess CI object has been passed, compute the
+        # MO overlaps
+        if guess is not None:
+            self.smo = self.mo_overlaps(guess)
         
         # initialize bitci
         bitci_init.init(self)
@@ -88,12 +93,19 @@ class Dftmrci(cimethod.Cimethod):
         self.nextra = ref_diag.n_extra(self)
 
         # generate the initial reference space configurations
-        n_ref_conf, ref_conf_units = ref_space.generate(self)
-
+        if guess is not None:
+            n_ref_conf, ref_conf_units, ref_conf_files = \
+                ref_space.propagate(self, guess)
+        else:
+            n_ref_conf, ref_conf_units, ref_conf_files = \
+                ref_space.generate(self)
+            
         # set the number of configurations and the scratch file numbers
+        # and names
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
-
+        self.ref_wfn.set_confname(ref_conf_files)
+        
         # Perform the MRCI iterations, refining the reference space
         # as we go
         self.niter = 0
@@ -108,7 +120,8 @@ class Dftmrci(cimethod.Cimethod):
             
             # optional removal of deadwood from the
             # guess reference space
-            if self.ref_prune and self.niter == 0:
+            if self.ref_prune and self.niter == 0 \
+               and guess is None:
                 # remove the deadwood
                 n_ref_conf = ref_prune.prune(self)
                 # set the new no. ref confs

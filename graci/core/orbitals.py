@@ -149,7 +149,7 @@ def promotion_numbers(wts, ndos):
 #
 def export_orbitals(fname, mol, orbs,
                     orb_occ=None, orb_ener=None, orb_sym=None,
-                    fmt='molden', orb_dir=True, cart=None):
+                    fmt='molden', orb_dir=None, cart=None):
     """export orbitals to various file formats
 
        Arguments:
@@ -172,11 +172,11 @@ def export_orbitals(fname, mol, orbs,
         None
     """
 
-    if orb_dir:
-        orb_file = 'orbs/'+str(fname)
+    if orb_dir is not None:
+        orb_file = orb_dir+'/'+str(fname)
         # if dir_name directory doesn't exist, create it
-        if not os.path.exists('orbs'):
-            os.mkdir('orbs')
+        if not os.path.exists(orb_dir):
+            os.mkdir(orb_dir)
     else:
         orb_file = str(fname)
 

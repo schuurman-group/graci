@@ -21,7 +21,7 @@ hamiltonians   = ['canonical',
                   'heil18_short',
                   'cvs_standard']
 
-libraries      = ['bitci','bitsi','bitwf']
+libraries      = ['bitci','bitsi','bitwf','overlap']
 
 # registry of bitci functions
 bitci_registry = {
@@ -37,11 +37,16 @@ bitci_registry = {
     'generate_ref_confs'     : ['int32','int32','int32','int32',
                                 'int32','int32','int32','int32',
                                 'int32','int32','int32','int32'],
+    'ref_space_propagate'    : ['int32','int32','int32','double','string',
+                                'int32','int32'],
     'diag_dftcis'            : ['int32','int32','int32','int32','logical'],
     'ras_guess_dftcis'       : ['int32','int32','int32','int32',
                                 'int32'],
     'ref_diag_mrci'          : ['int32','int32','int32','int32',
                                 'int32'],
+    'ref_diag_mrci_follow'   : ['int32','int32','int32','int32','int32',
+                                'int32','int64','double','int32','double',
+                                'int32','int32','logical','int32','int32'],
     'prune_ref_space'        : ['int32','int32','int32','int32','int32'],
     'retrieve_energies'      : ['int32','int32','double'],
     'retrieve_some_energies' : ['int32','int32','double','int32'],
@@ -74,6 +79,10 @@ bitci_registry = {
     'gvvpt2'                 : ['int32','int32','int32','double',
                                 'int32','int32','int32',
                                 'int32','int32'],
+    'gvvpt2_follow'          : ['int32','int32','int32','double',
+                                'int32','int32','int32','int64','double',
+                                'int32','double','int32','int32','logical',
+                                'int32','int32','int32','int32','int32'],
     'truncate_mrci_wf'       : ['int32','int32','int32','int32',
                                 'double','int32']
 }
@@ -89,9 +98,13 @@ bitci_intent = {
     'get_hparam'             : ['in','out'],
     'generate_ref_confs'     : ['in','in','in','in','in','in','in',
                                 'in','in','in','out','out'],
+    'ref_space_propagate'    : ['in','in','in','in','in','out','out'],
     'diag_dftcis'            : ['in','in','in','out','in'],
     'ras_guess_dftcis'       : ['in','in','in','out','out'],
     'ref_diag_mrci'          : ['in','out','in','in','out'],
+    'ref_diag_mrci_follow'   : ['in','out','in','in','in','in','in',
+                                'in','in','in','in','in','in','in',
+                                'out'],
     'prune_ref_space'        : ['in','in','in','out','in'],
     'retrieve_energies'      : ['in','in','out'],
     'retrieve_some_energies' : ['in','in','out','in'],
@@ -115,6 +128,9 @@ bitci_intent = {
     'retrieve_det_truncated' : ['in','in','in','in','out','out','in'],
     'gvvpt2'                 : ['in','in','in','in','in','out','in',
                                 'out','out'],
+    'gvvpt2_follow'          : ['in','in','in','in','in','in','in',
+                                'in','in','in','in','in','in','in',
+                                'in','out','in','out','out'],
     'truncate_mrci_wf'       : ['in','in','in','in','in','out']
 }
 
@@ -163,6 +179,19 @@ bitwf_intent = {
                           'in','in','in','out']
 }
 
+# registry of overlap functions
+overlap_registry = {
+    'overlap_c' : ['int32','int32','int32','int32','int32','int32',
+                   'int32','int32','int64','int64','double','double',
+                   'double','double','int32','int32','logical','int32',
+                   'double','int32']
+}
+
+overlap_intent = {
+    'overlap_c' : ['in','in','in','in','in','in','in','in','in','in',
+                   'in','in','in','in','in','in','in','in','out','in']
+}
+
 # list of existing library objects
 lib_objs = {}
 
@@ -190,6 +219,7 @@ def lib_func(name, args):
     global bitci_registry, bitci_intent
     global bitsi_registry, bitsi_intent
     global bitwf_registry, bitwf_intent
+    global overlap_registry, overlap_intent
     global lib_objs
 
     if name in bitci_registry:
@@ -201,6 +231,9 @@ def lib_func(name, args):
     elif name in bitwf_registry:
         arg_list   = bitwf_registry[name]
         arg_intent = bitwf_intent[name]
+    elif name in overlap_registry:
+        arg_list   = overlap_registry[name]
+        arg_intent = overlap_intent[name]
     else:
         sys.exit('function: '+str(name)+' not found.') 
 
@@ -211,6 +244,9 @@ def lib_func(name, args):
         # if argument is a string, pad to a length of 255 characters
         if isinstance(args[i], str):
             arg = args[i].ljust(255)
+        elif isinstance(args[i], list):
+            if all([isinstance(elem, str) for elem in args[i]]):
+                arg = [istr.ljust(255) for istr in args[i]]
         else:
             arg = args[i]
         c_arg = convert.convert_ctypes(arg, dtype=arg_list[i])
@@ -238,6 +274,11 @@ def lib_func(name, args):
             getattr(lib_objs['bitwf'], name)(*arg_ptr)
         else:
             getattr(lib_objs['bitwf'], name)()
+    elif name in overlap_registry:
+        if len(args) > 0:
+            getattr(lib_objs['overlap'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['overlap'], name)()
             
     args_out = ()
     for i in range(len(args)):

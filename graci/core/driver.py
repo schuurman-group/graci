@@ -40,10 +40,12 @@ class Driver:
                 
         # Load required libraries
         #-----------------------------------------------------
-        # for now, assume postscf will require bitci
+        # for now, assume postscf will require the bitci and
+        # overlap libraries
         if len(ci_objs) > 0:
             libs.lib_load('bitci')
-
+            libs.lib_load('overlap')
+            
         if len(si_objs) or len(postci_objs) > 0:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')
@@ -135,9 +137,23 @@ class Driver:
                 # if labels match -- set the geometry
                 # to the molecule object
                 if ci_obj.label == scf_obj.label or len(scf_objs)==1:
+<<<<<<< HEAD
                     ci_obj.run(scf_obj)
                     if save_to_chkpt:
                         chkpt.write(ci_obj)
+=======
+
+                    # guess CI object
+                    guess_obj = None
+                    if ci_obj.guess_label is not None:
+                        for ci_obj2 in ci_objs:
+                            if ci_obj2.label == ci_obj.guess_label:
+                                guess_obj = ci_obj2
+                                continue
+                    
+                    ci_obj.run(scf_obj, guess_obj)
+                    chkpt.write(ci_obj)
+>>>>>>> bef05cb5e2876e5e6f76647bdcfaf7774da17ca4
 
         # All SCF + CI objects are created and run() called before 
         # PostCI and subsequently SI objects are run()

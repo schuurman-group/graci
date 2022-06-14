@@ -52,7 +52,7 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   ! Eigenpairs in the CSF basis
   real(dp), allocatable    :: vec_csf(:,:),ener(:)
 
-  ! Determinants and eigenvectors in the determinat basis
+  ! Determinants and eigenvectors in the determinant basis
   integer(is)              :: detdim
   integer(ib), allocatable :: det(:,:,:)
   real(dp), allocatable    :: vec_det(:,:)
