@@ -70,8 +70,10 @@ class Cimethod:
         self.vec_det        = None
         # R_n-1 - R_n MO overlaps
         self.smo            = None
-        # ADT matrix
+        # ADT matrices (one per irrep)
         self.adt            = None
+        # Diabatic potential matrices (one per irrep)
+        self.diabpot        = None
         
 
 # Required functions #############################################################
@@ -394,4 +396,34 @@ class Cimethod:
             n_srt        += 1
             istate[iirr] += 1
 
+        return
+
+    #
+    def diabatize(self):
+        """
+        Constructs the diabatic potential matrix using
+        a prior-calculated ADT matrix
+        """
+
+        # number of irreps
+        nirr = self.n_irrep()
+
+        # initialise the list of diabatic potentials
+        self.diabpot = []
+
+        # loop over irreps
+        for irr in range(nirr):
+
+            # no. states
+            nstates = self.n_states_sym(irr)
+
+            # adiabatic potential matrix
+            vmat = np.zeros((nstates, nstates), dtype=float)
+            np.fill_diagonal(vmat, self.energies_sym[irr][0:nstates-1])
+
+            # diabatic potential matrix
+            wmat = np.matmul(self.adt[irr].T,
+                             np.matmul(vmat, self.adt[irr]))
+            self.diabpot.append(wmat)
+            
         return

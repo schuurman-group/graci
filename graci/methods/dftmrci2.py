@@ -211,10 +211,11 @@ class Dftmrci2(cimethod.Cimethod):
         if self.save_wf or self.diabatic:
             mrci_wf.extract_wf(self)
 
-        # calculate the ADT matrix
+        # ADT matrix
         if self.diabatic:
-            bdd.bdd(guess, self)
-
+            bdd.adt(guess, self)
+            self.diabatize()
+            
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
 

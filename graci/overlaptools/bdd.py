@@ -12,7 +12,7 @@ import graci.core.molecule as molecule
 import scipy as sp
 
 @timing.timed
-def bdd(ref_obj, disp_obj):
+def adt(ref_obj, disp_obj):
     """
     Calculation of the P-BDD ADT matrices for all irreps
     Here, ref_obj corresponds to the previous geometry, R_n-1,
