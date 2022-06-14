@@ -9,6 +9,7 @@ import graci.core.orbitals as orbitals
 import graci.utils.timing as timing
 import graci.io.output as output
 import graci.properties.moments as moments
+from pyscf import gto
 
 # Allowed MRCI and DFT/MRCI Hamiltonian labels
 # (not sure if this is the correct home for this, but we
@@ -64,9 +65,11 @@ class Cimethod:
         # symmetry of the natural orbitals
         self.natorb_sym     = None
         # List of determinant bit strings (one per irrep)
-        self.det_strings = None
+        self.det_strings    = None
         # List of eigenvectors in the determinant basis (one per irrep)
-        self.vec_det     = None
+        self.vec_det        = None
+        # R_n-1 - R_n MO overlaps
+        self.smo            = None
         
 
 # Required functions #############################################################
@@ -218,6 +221,27 @@ class Cimethod:
 
         return self.natorb_sym[istate, :]
 
+    #
+    def mo_overlaps(self, other):
+        """
+        returns the overlaps with the MOs of another CI
+        class object, 'other'
+        """
+
+        # mol objects
+        mol0 = other.scf.mol.mol_obj.copy()
+
+        mol  = self.scf.mol.mol_obj.copy()
+
+        # AO overlaps
+        smo  = gto.intor_cross('int1e_ovlp', other.scf.mol.mol_obj,
+                               self.scf.mol.mol_obj)
+
+        # AO-to-MO transformation
+        smo  = np.matmul(np.matmul(other.scf.orbs.T, smo), self.scf.orbs)
+
+        return smo
+    
 #########################################################################
     #
     def build_nos(self):

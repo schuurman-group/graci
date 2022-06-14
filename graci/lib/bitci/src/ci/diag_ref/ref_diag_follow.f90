@@ -47,17 +47,17 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ! MO overlaps
   integer(is), intent(in)    :: nmoR0
   real(dp), intent(in)       :: smat(nmoR0,nmo)
+
+  ! Frozen core orbital info
+  integer(is), intent(in)    :: ncore
+  integer(is), intent(in)    :: icore(ncore)
+  logical(is), intent(in)    :: lfrzcore
   
   ! Array of numbers of reference configurations
   integer(is), intent(in)    :: nconf(0:nirrep-1)
 
   ! Eigenvector scratch file index
   integer(is), intent(out)   :: vecscr
-
-  ! Frozen core orbital info
-  integer(is), intent(in)    :: ncore
-  integer(is), intent(in)    :: icore(ncore)
-  logical(is), intent(in)    :: lfrzcore
   
   ! Number of configurations found in the scratch file
   integer(is)                :: nconf1
@@ -279,7 +279,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   call eigenvectors_detbas(cfg,nsave,ncsf,ndet,vec_csf,vec_det)
 
 !----------------------------------------------------------------------
-! Compute the overlaps with the input wave functions
+! Compute the overlaps with the input/target wave functions
 !----------------------------------------------------------------------
   ! Allocate arrays
   npairs=nrootsR0*nsave

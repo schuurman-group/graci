@@ -71,7 +71,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.dspunits       = None
         # dictionary of bitci wfns
         self.bitciwfns      = {}
-
+        
 # Required functions #############################################################
 
     @timing.timed
@@ -85,8 +85,13 @@ class Dftmrci2(cimethod.Cimethod):
             sys.exit('ERROR: mol and scf objects not set in dftmrci2')
 
         # check on the diabatic guess object
-        if self.diabatic and guess == None:
+        if self.diabatic and guess is None:
             sys.exit('ERROR: diabatisation requires a guess dftmrci2 object')
+
+        # if a guess CI object has been passed, compute the
+        # MO overlaps
+        if guess is not None:
+            self.smo = self.mo_overlaps(guess)
             
         # write the output logfile header for this run
         output.print_dftmrci2_header(self.label)
@@ -109,7 +114,7 @@ class Dftmrci2(cimethod.Cimethod):
                            'max' : np.ndarray.tolist(self.nbuffer)}
         
         # generate the initial reference space configurations
-        if self.guess_label is not None:
+        if guess is not None:
             n_ref_conf, ref_conf_units, ref_conf_files = \
                 ref_space.propagate(self, guess)
         else:
@@ -132,6 +137,7 @@ class Dftmrci2(cimethod.Cimethod):
                 ref_ci_units, ref_ener = ref_diag.diag_follow(self, guess)
             else:
                 ref_ci_units, ref_ener = ref_diag.diag(self)
+            
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
@@ -140,7 +146,7 @@ class Dftmrci2(cimethod.Cimethod):
             # optional removal of deadwood from the
             # guess reference space
             if self.ref_prune and self.niter == 0 \
-               and self.guess_label is not None:
+               and guess is None:
                 # remove the deadwood
                 n_ref_conf = ref_prune.prune(self)
                 # set the new no. ref confs
@@ -163,8 +169,14 @@ class Dftmrci2(cimethod.Cimethod):
             self.mrci_wfn.set_confname(mrci_conf_files)
 
             # DFT/MRCI(2) calculation
-            mrci_ci_units, mrci_ci_files, mrci_ener_sym, q_units, dsp_units, n_conf_new = \
-                gvvpt2.diag_heff(self)
+            if self.diabatic:
+                mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
+                    q_units, dsp_units, n_conf_new = \
+                        gvvpt2.diag_heff_follow(self, guess)
+            else:
+                mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
+                    q_units, dsp_units, n_conf_new = \
+                        gvvpt2.diag_heff(self)
 
             # set the new number of mrci confs if wave function
             # truncation is being used
@@ -241,5 +253,4 @@ class Dftmrci2(cimethod.Cimethod):
     def bitci_mrci(self):
         """returns the bitci mrci wfn"""
         return self.mrci_wfn
-
-#########################################################################
+    

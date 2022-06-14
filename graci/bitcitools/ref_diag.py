@@ -10,7 +10,6 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 import graci.io.output as output
 import graci.core.molecule as molecule
-from pyscf import gto
 
 @timing.timed
 def diag(ci_method):
@@ -155,15 +154,9 @@ def diag_follow(ci_method, ci_method0):
     ciunits = []
 
     # MO overlaps
-    mol0 = ci_method0.scf.mol.mol_obj.copy()
-    mol  = ci_method.scf.mol.mol_obj.copy()
-    smat = gto.intor_cross('int1e_ovlp', ci_method0.scf.mol.mol_obj,
-                           ci_method.scf.mol.mol_obj)
-    smat = np.matmul(np.matmul(ci_method0.scf.orbs.T, smat),
-                     ci_method.scf.orbs)
     nmo0 = ci_method0.scf.nmo
     nmo  = ci_method.scf.nmo
-    smat = np.reshape(smat, (nmo0 * nmo), order='F')
+    smat = np.reshape(ci_method.smo, (nmo0 * nmo), order='F')
 
     # frozen core orbitals
     ncore_el = np.array([molecule.atom_ncore[n] for n in
@@ -202,9 +195,7 @@ def diag_follow(ci_method, ci_method0):
         # diagonalisation routine
         args = (irrep, nroots+nextra, confunits,
                 n_int0, n_det0, n_vec0, dets0, vec0, nmo0, smat,
-                ncore, icore, delete_core,
-
-                nconf, ciunit)
+                ncore, icore, delete_core, nconf, ciunit)
         (nroots, ciunit) = libs.lib_func('ref_diag_mrci_follow',args)
 
         # Bitci eigenvector scratch number
