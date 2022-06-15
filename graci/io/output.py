@@ -52,6 +52,7 @@ def print_header(run_list):
              " -----------------------------------------------------\n")
     
     inp_key =" Input Parameters \n"
+    calc_types = [type(calc_obj).__name__ for calc_obj in run_list]
 
     # Read input file. Small enough to gulp the whole thing
     with output_file(file_names['out_file'], 'w') as outfile:
@@ -82,19 +83,20 @@ def print_header(run_list):
                         ' = '+str(getattr(calc_obj,kword))+'\n'
             outfile.write(ostr)
 
-        outfile.write('\n Symmetry Information\n ---------------\n')
-        for calc_obj in run_list:
-            # pull out the molecule objets and print symmetry
-            # information for each molecule
-            if type(calc_obj).__name__ == 'Molecule':
+        if 'Molecule' in calc_types:
+            outfile.write('\n Symmetry Information\n ---------------\n')
+            for calc_obj in run_list:
+                # pull out the molecule objets and print symmetry
+                # information for each molecule
+                if type(calc_obj).__name__ == 'Molecule':
 
-                outfile.write(' $molecule '+str(calc_obj.label)+'\n')
-                outfile.write(' Full symmetry:     '+
-                        str(calc_obj.full_sym)+'\n')
-                outfile.write(' Abelian sub-group: '+
-                        str(calc_obj.comp_sym)+'\n')
-                outfile.write('\n')
-                outfile.flush()
+                    outfile.write(' $molecule '+str(calc_obj.label)+'\n')
+                    outfile.write(' Full symmetry:     '+
+                             str(calc_obj.full_sym)+'\n')
+                    outfile.write(' Abelian sub-group: '+
+                           str(calc_obj.comp_sym)+'\n')
+                    outfile.write('\n')
+                    outfile.flush()
         
     return
 
@@ -661,6 +663,44 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     print(delim)
         
     return
+
+#
+def print_param_header(target_data, ci_objs, ci_states):
+    """
+    print header for reparameterization run
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Parameterization Optimization Run\n')
+        outfile.write(' -----------------------------------\n\n')
+
+        outfile.write(' Reference Data -------------\n\n')
+        for molecule, states in target_data.items():
+            outfile.write(str(molecule)+': '+str(states)+'\n')
+
+        outfile.write(' Found Reference States -----\n\n')
+        for molecule, sections in ci_objs.items():
+            if molecule in ci_objs.keys():
+                outfile.write(str(molecule) + ': ' + 
+                              str(ci_objs[molecule]) + ': ' + 
+                              str(ci_states[molecule])+'\n')
+
+        outfile.flush()
+
+    return
+    
+#
+def print_param_results(fitp, info):
+    """
+    print result of a parameterization run
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Results -------------------------\n\n')
+        outfile.flush()
+
+    return
+
 
 #
 def print_bdd_header():

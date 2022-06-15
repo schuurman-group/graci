@@ -9,6 +9,7 @@ import graci.io.output as output
 
 import graci.core.molecule as molecule
 import graci.core.scf as scf
+import graci.core.parameterize as parameterize
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
 import graci.interaction.transition as transition

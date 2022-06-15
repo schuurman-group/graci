@@ -3,13 +3,15 @@ The Parameterize object and its associated functions.
 """
 import sys as sys
 import numpy as np
+import h5py as h5py
 import mpi4py as mpi4py
 import os as os
-
 import graci.core.libs as libs
 import graci.core.driver as driver
+import graci.core.params as params
 import graci.io.chkpt as chkpt
 import graci.io.parse as parse
+import graci.overlaptools.overlap as overlap
 
 class Parameterize:
     """Class constructor for the Parameterize object."""
@@ -21,12 +23,13 @@ class Parameterize:
         self.label       = 'parameterize'
 
         self.hamiltonian    = ''
-        self.graci_ref_data = ''
+        self.graci_ref_file = ''
         self.target_file    = ''
         self.pthresh        = 1.e-5
 
         # -------------------------------
         self.target_data    = {}
+        self.ref_states     = {}
         self.ndata          = 0
         self.iter           = 0
 
@@ -34,13 +37,11 @@ class Parameterize:
         """re-parameterize the Hamiltonian"""
  
         # parse the target data file
-        target_data = parse_target_file()
+        target_data = self.parse_target_file()
 
         # parse the graci reference file
-        scf_data, ci_data = parse_graci_file(target_data)
-
-        # pull the reference CI states
-        ref_wf = extract_ci_states(ref_chkpt,ci_data[molecule],data)
+        scf_data, ci_data, self.ref_states = \
+                               self.parse_graci_file(target_data)
 
         # print the parameterize header
         # show the mappings between the target data and the data in the
@@ -56,14 +57,14 @@ class Parameterize:
                 os.mkdir(target)
 
         # run the first pass
-        eval_energies(target_data, scf_data, ci_data, run_scf=True)
+        self.eval_energies(target_data, scf_data, ci_data, run_scf=True)
 
         # set the initial values of the parameters using the
         # named Hamiltonian
         args = (self.hamiltonian)
         p0 = libs.lib_func('get_params', args)
 
-        lsq_out = scipy.optimize.leastsq(err_func, p0, 
+        lsq_out = scipy.optimize.leastsq(self.err_func, p0, 
                              args = (target_data, scf_data, ci_data),
                              ftol = self.pthresh, full_output=True)
         (fitp, cov_p, info, mesg, ierr) = lsq_out  
@@ -74,7 +75,7 @@ class Parameterize:
         return
 
     #
-    def err_func(params, target_data, scf_data, ci_data):
+    def err_func(self, hparams, target_data, scf_data, ci_data):
         """
         Evaluate the error function. In this case, simple RMSD
 
@@ -87,11 +88,11 @@ class Parameterize:
         norm of the different between target and current values
         """
 
-        print(' ITERATION '+self.iter+' params='+str(params))
+        print(' ITERATION '+self.iter+' params='+str(hparams))
         self.iter += 1
 
         # update the Hamiltonian
-        libs.lib_func('update_params', params)
+        libs.lib_func('update_params', hparams)
 
         iter_ener = eval_energies(target_data, scf_data, ci_data)
         dif_vec   = np.zeros(self.ndata, dtype=float)
@@ -110,18 +111,19 @@ class Parameterize:
 
 
     #
-    def eval_energies(target_data, scf_data, ci_data, run_scf=False):
+    def eval_energies(self, target_data, scf_names, ci_names, 
+                                                    run_scf=False):
         """
         evaluate all the energies in the graci data set
 
         """
 
         # open the reference data file and get the contents
-        if os.path.isFile(self.graci_ref_data):
-            ref_chkpt = h5py.File(self.graci_ref_data, 'r',
+        if os.path.isFile(self.graci_ref_file):
+            ref_chkpt = h5py.File(self.graci_ref_file, 'r',
                                                    libver='latest')
         else:
-            print('File: '+str(self.graci_ref_data)+' not found. '+
+            print('File: '+str(self.graci_ref_file)+' not found. '+
                   ' Exiting...')
             sys.exit(1)
 
@@ -131,32 +133,35 @@ class Parameterize:
         for molecule, states in target_data.items():
 
             # pull the reference SCF and CI objects
-            scf_name = scf_data[molecule]
+            scf_name = scf_names[molecule]
             scf_obj  = chpt.read(scf_name, file_handle=ref_chkpt)
 
-            ci_names = ci_data[molecule]
+            ci_name = ci_names[molecule]
             ci_objs  = [chkpt.read(ci, file_handle=ref_chkpt) 
-                                                for ci in ci_names]
+                                                for ci in ci_name]
 
             # pull the reference CI states
-            ref_det, ref_cf = extract_ci_states(ref_chkpt, 
-                                                ci_data[molecule], 
-                                                states)
+            #ref_det, ref_cf = extract_ci_states(ref_chkpt, 
+            #                                    ci_data[molecule], 
+            #                                    states)
 
+            # copy the scf and CI objects and re-run them
+            scf_run = scf_obj.copy()
+            ci_runs = [ci_obj.copy() for ci_obj in ci_objs]
+         
             # change to the appropriate sub-directory
             os.chdir(molecule)
 
             # run the scf (and generate integral files if need be)
             if run_scf:
-                scf_obj.load()
+                scf_run.load()
 
             # run all the CI objects 
-            for ci_obj in ci_objs:
-                ci_obj.run(scf_obj)
+            for ci_run in ci_runs:
+                ci_run.run(scf_run)
 
             # use overlap with ref states to identify relevant states
-            ener_match = identify_states(ref_det, ref_cf, 
-                                         ci_objs, states)
+            ener_match = identify_states(molecule, ci_objs, ci_runs) 
 
             energies[molecule] = {}
             for state, ener in ener_match.items():
@@ -165,24 +170,26 @@ class Parameterize:
         return energies
  
     #
-    def identify_states(ref_det, ref_cf, ci_objs, states):
+    def identify_states(self, molecule, ref_ci, new_ci):
         """
         compute overlaps to identify states
         """
 
-        eners = {}
-
-        for ci_obj in ci_objs:
-            ci_dets = ci_obj.det_strings
-            ci_cf   = ci_obj.vec_det
-
-            for lbl in ref_det.keys():
-                Sij = compute_overlaps(ref_det[lbl], ref_cf[lbl], 
-                                            ci_dets, ci_cf, 
-                                            ci_obj.scf.orbs)
-                if max(Sij) >= 0.9:
-                    st = maxloc(Sij)
-                    eners[lbl] = ci_obj.energies[st]
+        eners  = {}
+        bra_st = []
+        smo    = np.identity(ref_ci.scf.nmo, dtype=float)
+        # iterate over the reference states
+        for ref_obj in ref_ci:
+            bra_st  = []
+            bra_lbl = ref_obj.label
+            for lbl, indx in self.ref_states[moleclue][bra_lbl].items():
+                ipairs = np.asarray([[indx, st] for st in 
+                                  range(new_ci.n_states())], dtype=int)
+                Sij = overlap.overlap(ref_ci, new_ci, smo, pairs, 
+                                                               1, 0.95)
+                if np.amax(Sij) >= 0.9:
+                    st = np.argmax(Sij)
+                    eners[lbl] = new_ci.energies[st]
 
         if list(eners.keys()).sort() != list(ref_det.keys()).sort():
             sys.exit('Could not identify states: ' + str(ci_objs) + 
@@ -190,87 +197,8 @@ class Parameterize:
 
         return eners
 
-    # 
-    def extract_ci_states(chkpt, obj_names, states):
-        """
-        Extract det list expansions for the reference states
-
-        Arguments:
-        chkpt:        file handle for checkpoint file
-        ci_objs:      CI objects to check for needed states
-        states:       labels for the states to extract
-
-        Returns:
-        ref_wf:       dictionary of bitstring wfs
-        """
-
-        ref_dets = {}
-        ref_cf   = {}
-
-        # run through the ci objects looking for states with the
-        # correct label
-        for obj_name in obj_names:
-
-            # variables names are stored as attributes
-            var_names = chkpt[obj_name].attrs
-            ener_dset = var_names['energies']
-            vec_dset  = var_names['det_strings']
-            cf_dset   = var_names['vec_det']
-
-            attrs = chkpt[ci_obj+'/'+ener_dset].attrs
-
-            if 'labels' not in attrs.keys():
-                continue
-
-            for lbl,st in attrs['labels'].items():
-                if lbl in states.keys(): 
-                    st = states[lbl]
-                    ref_vec[lbl] = chkpt[obj_name+'/'+vec_dset][st]
-                    ref_cf[lbl]  = chkpt[obj_name+'/'+cf_dset][:,st]
-
-        if list(states.keys()).sort() != list(ref_vec.keys()).sort():
-            sys.exit('Could not find all requested states: ' + 
-                      str(obj_names)+' lbls='+str(states))
-
-        return ref_vec, ref_cf
-
-    # 
-    def compute_overlaps(ref_det, ref_cf, test_dets, test_cf, orbs):
-        """
-        compute overlaps
-        """
-       
-        Sij = np.zeros(len(test_dets.keys()), dtype=float)
-
-        # number of integers to represent bit string
-        nmo      = orbs.shape[1]
-        nint     = ref_det.shape[1]
-        ndetb    = ref_det.shape[0]
-        ndetk    = test_dets.shape[1]
-        nrtb     = 1
-        nrtk     = test_dets.shape[0]
-        detb     = [ref_det]
-        detk     = test_dets
-        vecb     = [ref_cf]
-        veck     = test_cf
-        smo      = np.identity(nmo)
-        thrsh    = 0.9
-        ncore    = 0
-        icore    = []
-        lfrzcore = True
-        npairs   = nrtk
-        ipairs   = [[1,i] for i in range(nrtk)]
-        args   = (nmo, nint, ndetb, ndetk, nrtb, nrtk, detb, detk, 
-                  vecb, veck, smo, thrsh, ncore, icore, lfrzcore, 
-                  npairs, Sij, ipairs)
-
-        libs.lib_func('overlap_wf', args)
-
-
-        return Sij
-
     #
-    def parse_graci_file(target_vals):
+    def parse_graci_file(self, target_vals):
         """
         Parse the GRaCI reference data and confirm what data is present
         that can be compared to the target values
@@ -284,22 +212,28 @@ class Parameterize:
         """
 
        # open the reference data file and get the contents
-        if os.path.isFile(self.graci_ref_data):
-            ref_chkpt = h5py.File(self.graci_ref_data, 'r',
+        if os.path.isfile(self.graci_ref_file):
+            ref_chkpt = h5py.File(self.graci_ref_file, 'r',
                                                    libver='latest')
         else:
-            print('File: '+str(self.graci_ref_data)+' not found. '+
+            print('File: '+str(self.graci_ref_file)+' not found. '+
                   ' Exiting...')
             sys.exit(1)
 
         # get the top-level contents of the checkpoint file
-        ref_contents = chkpt.contents(file_name = self.graci_ref_data)
+        ref_contents = chkpt.contents(file_name = self.graci_ref_file)
 
         ci_objs  = {}
         scf_objs = {}
+        st_indxs = {}
         for molecule in target_vals.keys():
             ci_objs[molecule]  = []
             scf_objs[molecule] = None
+            st_indxs[molecule] = {}
+            st_strs            = []
+            for key in target_vals[molecule].keys():
+                st_strs.extend(key.strip().split())
+            st_lst = list(set(st_strs))
 
             # if the molecule string is in the reference 
             # object name, add it ref_objs dict
@@ -308,13 +242,39 @@ class Parameterize:
                 if molecule in name:
                     if ci_type:
                         ci_objs[molecule].append(name)
+                        # parse energy array to find target lbls
+                        ci_lbl, st_lbls = self.read_state_labels(
+                                                 ref_chkpt, name)
+                        st_indxs[molecule][ci_lbl] = st_lbls
                     elif 'Scf' in name:
                         scf_objs[molecule] = name
 
-        return scf_objs, ci_objs
+        ref_ckhpt.close()
+
+        return scf_objs, ci_objs, st_indxs
 
     #
-    def parse_target_file():
+    def read_state_labels(self, ref_chkpt, ci_name):
+        """
+        Read state labels for checkpoint file
+        """
+
+        # variables names are stored as attributes
+        var_names = ref_chkpt[ci_name].attrs
+        ener_dset = var_names['energies']
+        attrs = ref_chkpt[ci_name+'/'+ener_dset].attrs
+
+        ci_lbl = ref_chkpt[ci_name].attrs['label']
+
+        if 'labels' not in attrs.keys():
+            lbl_dic = dict()
+        else:
+            lbl_dic = dict(attrs['labels'])
+
+        return ci_lbl, lbl_dic
+
+    #
+    def parse_target_file(self):
         """
         Parse the file containing the data we're going to parameterize
         wrt to
@@ -326,22 +286,26 @@ class Parameterize:
         with open(self.target_file, 'r') as t_file:
             t_file_lines = t_file.readlines()
 
+        print('tfile='+str(t_file_lines))
+
         self.ndata  = 0
         target_dict = {}
-        for line in tfile_lines:
-            molecule              = line[0]
+        for line in t_file_lines:
+            str_arr               = line.strip().split()
+            molecule              = str_arr[0]
             target_dict[molecule] = {} 
             # format is: state1 state2 energy
-            for i in range(1,len(line),3):
+            for i in range(1,len(str_arr),3):
                 try:
-                    states = line[i].strip()+' '+line[i+1].strip()
-                    val    = parse.convert_value(line[i+2])
+                    states = str_arr[i].strip()+' '+str_arr[i+1].strip()
+                    val    = parse.convert_value(str_arr[i+2])
                     target_dict[molecule][states] = val
                     self.ndata += 1
                 except:
                     print('Error parsing value as str/float: '+str(val))
-                    print('line = '+str(line))
+                    print('line = '+str(str_arr))
                     sys.exit(1)
         
+        print('target_dict='+str(target_dict))
         return target_dict
 

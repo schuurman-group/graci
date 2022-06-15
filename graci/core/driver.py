@@ -25,6 +25,7 @@ class Driver:
         ci_objs     = []
         postci_objs = []
         si_objs     = []
+        param_objs  = []
         for obj in calc_array:
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
@@ -37,7 +38,9 @@ class Driver:
                 postci_objs.append(obj)
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
-                
+            elif type(obj).__name__ == 'Parameterize':
+                param_objs.append(obj)
+
         # Load required libraries
         #-----------------------------------------------------
         # for now, assume postscf will require the bitci and
@@ -132,28 +135,22 @@ class Driver:
             # run all the post-scf routines that map to the current
             # scf object.
 
+            ci_lbls = [ci.label for ci in ci_objs]
             for ci_obj in ci_objs:
 
                 # if labels match -- set the geometry
                 # to the molecule object
                 if ci_obj.label == scf_obj.label or len(scf_objs)==1:
-<<<<<<< HEAD
-                    ci_obj.run(scf_obj)
-                    if save_to_chkpt:
-                        chkpt.write(ci_obj)
-=======
 
                     # guess CI object
-                    guess_obj = None
-                    if ci_obj.guess_label is not None:
-                        for ci_obj2 in ci_objs:
-                            if ci_obj2.label == ci_obj.guess_label:
-                                guess_obj = ci_obj2
-                                continue
-                    
-                    ci_obj.run(scf_obj, guess_obj)
+                    g_lbl = ci_obj.guess_label
+                    if g_lbl in ci_lbls:
+                        ci_guess = ci_objs[ci_lbls.index(g_lbl)]
+                    else:
+                        ci_guess = None
+                       
+                    ci_obj.run(scf_obj, ci_guess)
                     chkpt.write(ci_obj)
->>>>>>> bef05cb5e2876e5e6f76647bdcfaf7774da17ca4
 
         # All SCF + CI objects are created and run() called before 
         # PostCI and subsequently SI objects are run()
@@ -177,6 +174,12 @@ class Driver:
             si_obj.run(arg_list)
             if save_to_chkpt:
                 chkpt.write(si_obj)
+
+        # Hamiltonian Parameterization
+        # -- this is a special case for now
+        #-------------------------------------------------------------
+        for param_obj in param_objs:
+            param_obj.run()
 
         return
 
