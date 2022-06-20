@@ -118,6 +118,15 @@ class Molecule:
                      symmetry   = self.use_sym,
                      unit       = self.units)
 
+        # do a quick check on symmetry: we will convert Coov and 
+        # Dooh to C2v and D2h, respectively
+        if self.mol_obj.topgroup.lower() == 'coov':
+            self.mol_obj.symmetry_subgroup = 'C2v'
+            self.mol_obj.build()
+        elif self.mol_obj.topgroup.lower() == 'dooh':
+            self.mol_obj.symmetry_subgroup = 'D2h'
+            self.mol_obj.build()
+
         # the nuclear repulsion energy
         self.enuc     = self.mol_obj.energy_nuc()
         # full point group symmetry of the molecule
