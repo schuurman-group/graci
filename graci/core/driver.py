@@ -133,7 +133,16 @@ class Driver:
                 # if labels match -- set the geometry
                 # to the molecule object
                 if ci_obj.label == scf_obj.label or len(scf_objs)==1:
-                    ci_obj.run(scf_obj)
+
+                    # guess CI object
+                    guess_obj = None
+                    if ci_obj.guess_label is not None:
+                        for ci_obj2 in ci_objs:
+                            if ci_obj2.label == ci_obj.guess_label:
+                                guess_obj = ci_obj2
+                                continue
+                    
+                    ci_obj.run(scf_obj, guess_obj)
                     chkpt.write(ci_obj)
 
         # All SCF + CI objects are created and run() called before 

@@ -35,7 +35,7 @@ def convert_ctypes(py_val, dtype=None):
     if isinstance(py_val, (float, int, np.int32, np.int64)):
         return ctype_sym(py_val)
 
-    if isinstance(py_val, list) and dtype='string':
+    if isinstance(py_val, list) and dtype == 'string':
         slen = max([len(elem) for elem in py_val])
         arr  = np.asarray(py_val, np.dtype('a'+str(slen)))
         return ctypes.c_void_p(arr.ctypes.data)
