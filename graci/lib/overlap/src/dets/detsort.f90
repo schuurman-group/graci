@@ -87,7 +87,7 @@ contains
 !     alpha strings and their offsets
 !----------------------------------------------------------------------
     ! Get the no. unique alpha strings
-    nalpha=nunique(n_int,ndet,det,1)
+    nalpha=nunique_strings(n_int,ndet,det,1)
 
     ! Allocate arrays
     allocate(alpha(n_int,nalpha), offset(nalpha+1))
@@ -112,7 +112,7 @@ contains
        ! Allocate work arrays
        allocate(det_sort(n_int,2,nd), dwork(n_int,2,nd), mwork(nd), &
             imap(nd), vwork(nd))
-       dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
+       det_sort=0_ib; dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
        
        ! Sort this block by beta string
        det_sort=det(:,:,istart:iend)
@@ -133,7 +133,7 @@ contains
        deallocate(det_sort,dwork,mwork,imap,vwork)
        
     enddo
-
+    
 !----------------------------------------------------------------------
 ! (4) Using the now double-sorted array of determinants, determine:
 !     (i)  the unique beta strings
@@ -152,7 +152,7 @@ contains
     deallocate(dwork,mwork,vwork)
     
     ! Get the no. unique beta strings
-    nbeta=nunique(n_int,ndet,det_sort,2)
+    nbeta=nunique_strings(n_int,ndet,det_sort,2)
 
     ! Allocate arrays
     allocate(offb(nbeta+1), beta(n_int,nbeta), det2beta(ndet))
@@ -257,7 +257,8 @@ contains
     ! Table for mapping radix indices
     !
     allocate(indx_table(0:255, 0:n_int*n_b-1))
-
+    indx_table=0
+    
     !
     ! Pointers to the det list, mapping and scratch arrays
     !
@@ -359,7 +360,7 @@ contains
 !          (ispin=2) strings in an array of determinants that have
 !          been ***pre-sorted*** into alpha- or beta-major order
 !######################################################################
-  function nunique(n_int,ndet,det,ispin)
+  function nunique_strings(n_int,ndet,det,ispin) result(nunique)
 
     use constants
     
@@ -378,10 +379,10 @@ contains
        if (.not. same_string(n_int,det(:,ispin,i), det(:,ispin,i-1))) &
             nunique=nunique+1
     enddo
-    
+
     return
     
-  end function nunique
+  end function nunique_strings
 
 !######################################################################
 ! same_string: Returns .true. (.false.) if the two input alpha/beta
@@ -403,7 +404,7 @@ contains
     do k=1,n_int
        if (string1(k) /= string2(k)) then
           same_string=.false.
-          exit
+          return
        endif
     enddo
     

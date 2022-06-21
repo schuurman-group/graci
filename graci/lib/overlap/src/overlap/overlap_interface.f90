@@ -7,12 +7,6 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
      bind(c,name="overlap_c")
 
   use constants
-  use global
-  use detfuncs
-  use detsort
-  use factors
-  use wfoverlap
-  use timing
   
   implicit none
   ! No. MOs
@@ -128,7 +122,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   real(dp)                :: tcpu_start,tcpu_end,twall_start,twall_end
 
   ! Everything else
-  integer(is)             :: i
+  integer(is)             :: i,ic,j
 
 !----------------------------------------------------------------------
 ! Start timing
@@ -172,7 +166,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra-ket overlaps
   allocate(smo(nmoB,nmoK))
   smo=smo1
-  
+
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
   call get_nel(n_intK,detK1(:,:,1),nelK,nel_alphaK,nel_betaK)
@@ -218,11 +212,12 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 
      if (verbose) &
           write(6,'(/,2(x,a,x,i0))') 'Freezing MOs',1,'to',ncore
-     
+
      do i=1,ncore
-        smo(i,:)=0.0d0
-        smo(:,i)=0.0d0
-        smo(i,i)=1.0d0
+        ic=icore(i)
+        smo(ic,:)=0.0d0
+        smo(:,ic)=0.0d0
+        smo(ic,ic)=1.0d0
      enddo
      
   endif
@@ -232,7 +227,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   ! Bra
   call symm_ortho(n_intB,ndetB,nrootsB,vecB)
-
+  
   ! Ket
   call symm_ortho(n_intK,ndetK,nrootsK,vecK)
   
@@ -243,11 +238,11 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra
   call det_sorting(n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
        alphaB,betaB,offsetB,det2betaB)
-
+  
   ! Ket
   call det_sorting(n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
        alphaK,betaK,offsetK,det2betaK)
-
+  
   ! Ouput the number of unique alpha and beta strings
   if (verbose) then
      write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&
@@ -263,7 +258,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   betafac=0.0d0
 
   call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
-
+  
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------

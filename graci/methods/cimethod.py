@@ -234,7 +234,6 @@ class Cimethod:
         self.hparam = hparams
         return
 
-#########################################################################
     #
     def build_nos(self):
         """calls routines in orbitals module to construct natural

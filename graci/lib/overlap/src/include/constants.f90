@@ -1,5 +1,7 @@
 module constants
 
+  implicit none
+  
   save
 
   ! Short integer (32-bit)
