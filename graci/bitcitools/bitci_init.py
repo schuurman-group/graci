@@ -36,6 +36,7 @@ def init(ci_method):
     if ci_method.hparam is not None:
         nparam = ci_method.hparam.size
         args   = (nparam, ci_method.hparam)
+        print("OVERRIDING HPARAM: "+str(args))
         libs.lib_func('override_hparam', args)
 
     return

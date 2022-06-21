@@ -55,6 +55,7 @@ dftmrci_kword  = {'mult'           : int,
                   'save_wf'        : bool,
                   'ddci'           : bool,
                   'ref_state'      : int,
+                  'verbose'        : int,
                   'label'          : str
                   }
 
@@ -82,6 +83,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'ddci'           : bool,
                    'ref_state'      : int,
                    'nbuffer'        : int,
+                   'verbose'        : int,
                    'label'          : str
 }
 
@@ -92,6 +94,7 @@ spinorbit_kword = {'couple_groups'     : str,
                    'couple_states'     : int,
                    'print_thresh'      : float,
                    'mf2e'              : str,
+                   'verbose'           : int,
                    'label'             : str
                    }
 
@@ -102,6 +105,7 @@ transition_kword = {'init_states'      : int,
                     'final_label'      : str,
                     'all_final_states' : bool,
                     'print_orbitals'   : bool,
+                    'verbose'          : int,
                     'label'            : str
                    }
 
@@ -111,6 +115,7 @@ overlap_kword   = {'init_states'       : int,
                    'final_label'       : str,
                    'calc'              : str,
                    'norm_thresh'       : float,
+                   'verbose'           : int,
                    'label'             : str,
                   } 
 
@@ -121,6 +126,7 @@ parameterize_kword = {'algorithm'      : str,
                       'label'          : str,
                       'target_file'    : str,
                       'graci_ref_file' : str,
+                      'verbose'        : int,
                       'hamiltonian'    : str}
 
 ######################################################################

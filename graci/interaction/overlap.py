@@ -37,6 +37,21 @@ class Overlap(interaction.Interaction):
         self.ket_wfunit    = None
         self.overlaps      = None
         
+    def copy(self):
+        """create of deepcopy of self"""
+        new = self.Overlap()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if type(value).__name__ in params.valid_objs:
+                setattr(new, key, value.copy())
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        return new
+
     #
     @timing.timed
     def run(self, obj_list):
@@ -49,7 +64,8 @@ class Overlap(interaction.Interaction):
         self.bra_obj, self.ket_obj = self.set_objs(obj_list)
 
         # section header
-        output.print_overlap_header(self.label)
+        if self.verbose > 0:
+            output.print_overlap_header(self.label)
         
         # check on the calculation type
         self.check_calc()
@@ -83,10 +99,12 @@ class Overlap(interaction.Interaction):
                          for n in range(self.bra_obj.n_states())]
         ket_state_sym = [self.ket_obj.state_sym(n)
                          for n in range(self.ket_obj.n_states())]
-        output.print_overlaps(self.trans_list, self.overlaps,
-                              self.ket_label, self.bra_label,
-                              self.bra_obj.scf.mol.irreplbl,
-                              bra_state_sym, ket_state_sym)
+
+        if self.verbose > 0:
+            output.print_overlaps(self.trans_list, self.overlaps,
+                                  self.ket_label, self.bra_label,
+                                  self.bra_obj.scf.mol.irreplbl,
+                                  bra_state_sym, ket_state_sym)
                 
         # finalize the bitwf library
         bitwf_init.finalize()

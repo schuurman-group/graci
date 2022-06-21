@@ -665,7 +665,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     return
 
 #
-def print_param_header(target_data, ci_objs, ci_states):
+def print_param_header(target_data, ci_objs, ci_states, hparams):
     """
     print header for reparameterization run
     """
@@ -678,12 +678,15 @@ def print_param_header(target_data, ci_objs, ci_states):
         for molecule, states in target_data.items():
             outfile.write(str(molecule)+': '+str(states)+'\n')
 
-        outfile.write(' Found Reference States -----\n\n')
+        outfile.write('\n Found Reference States -----\n\n')
         for molecule, sections in ci_objs.items():
             if molecule in ci_objs.keys():
                 outfile.write(str(molecule) + ': ' + 
                               str(ci_objs[molecule]) + ': ' + 
                               str(ci_states[molecule])+'\n')
+
+        outfile.write('\n Initial Parameter Values -----\n')
+        outfile.write(str(hparams)+'\n\n')
 
         outfile.flush()
 

@@ -195,6 +195,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 ! Generate the base determinant and base configuration
 !----------------------------------------------------------------------
   call generate_base_det
+
   call generate_base_conf
 
 !----------------------------------------------------------------------
@@ -204,7 +205,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 ! whether the full Fock matrix has to be computed
 !----------------------------------------------------------------------
   call precompute_integrals
-  
+
 !----------------------------------------------------------------------
 ! Create the scratch directory
 !----------------------------------------------------------------------

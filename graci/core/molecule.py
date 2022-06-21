@@ -3,6 +3,7 @@ The Molecule object and its associated functions.
 """
 import sys as sys
 import numpy as np
+import copy as copy
 import graci.io.output as output
 from pyscf.lib import logger
 from pyscf import gto
@@ -80,6 +81,25 @@ class Molecule:
         self.enuc     = 0.
         self.mol_obj  = None
         self.nao      = None
+
+    def copy(self):
+        """create of deepcopy of self"""
+        new = Molecule()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if key == 'mol_obj':
+                setattr(new, key, None)
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        if self.mol_obj is not None:
+            new.run()
+
+        return new
+
 
     def run(self):
         """return a gto.Molecule object: 

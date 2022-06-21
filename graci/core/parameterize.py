@@ -2,6 +2,7 @@
 The Parameterize object and its associated functions.
 """
 import sys as sys
+import scipy.optimize as sp_opt
 import numpy as np
 import h5py as h5py
 import mpi4py as mpi4py
@@ -11,6 +12,8 @@ import graci.core.driver as driver
 import graci.core.params as params
 import graci.io.chkpt as chkpt
 import graci.io.parse as parse
+import graci.io.output as output
+import graci.utils.constants as constants
 import graci.overlaptools.overlap as overlap
 
 class Parameterize:
@@ -26,6 +29,7 @@ class Parameterize:
         self.graci_ref_file = ''
         self.target_file    = ''
         self.pthresh        = 1.e-5
+        self.verbose        = 1
 
         # -------------------------------
         self.target_data    = {}
@@ -46,7 +50,10 @@ class Parameterize:
         # print the parameterize header
         # show the mappings between the target data and the data in the
         # reference checkpoint file
-        output.print_param_header(target_data, ci_data)
+        p0 = np.asarray([0.500779, 0.356986, 0.573523, 1.9266], 
+                                            dtype=float)
+        output.print_param_header(target_data, ci_data, 
+                                            self.ref_states, p0)
 
         # set up the directory structure
         for target in target_data.keys():
@@ -57,20 +64,17 @@ class Parameterize:
                 os.mkdir(target)
 
         # run the first pass
-        self.eval_energies(target_data, scf_data, ci_data, run_scf=True)
+        self.eval_energies(p0, target_data, scf_data, ci_data, 
+                                           run_scf=True)
 
-        # set the initial values of the parameters using the
-        # named Hamiltonian
-        args = (self.hamiltonian)
-        p0 = libs.lib_func('get_params', args)
+        res = sp_opt.minimize(self.err_func, p0, 
+                              args = (target_data, scf_data, ci_data),
+                              method = 'Nelder-Mead',
+                              tol = self.pthresh, 
+                              callback = self.status_func)
+        print('res='+str(res))
 
-        lsq_out = scipy.optimize.leastsq(self.err_func, p0, 
-                             args = (target_data, scf_data, ci_data),
-                             ftol = self.pthresh, full_output=True)
-        (fitp, cov_p, info, mesg, ierr) = lsq_out  
-    
-
-        output.print_param_results(fitp, info)
+        output.print_param_results(res.x, res.success)
 
         return
 
@@ -88,38 +92,48 @@ class Parameterize:
         norm of the different between target and current values
         """
 
-        print(' ITERATION '+self.iter+' params='+str(hparams))
-        self.iter += 1
-
-        # update the Hamiltonian
-        libs.lib_func('update_params', hparams)
-
-        iter_ener = eval_energies(target_data, scf_data, ci_data)
+        iter_ener = self.eval_energies(hparams, target_data, 
+                                         scf_data, ci_data)
         dif_vec   = np.zeros(self.ndata, dtype=float)
 
+        print('iter_ener='+str(iter_ener))
         # this approach assumes dict is ordered! Only true from Python
         # 3.6 onwards...
         ide = 0
         for molecule, states in target_data.items():
             for trans, ener in target_data[molecule].items():
-                init, final  = trans.split().strip()
+                init, final  = trans.strip().split()
+                print('init, final='+str(init)+','+str(final))
                 de_iter      = iter_ener[molecule][final] - \
                                iter_ener[molecule][init]
-                dif_vec[ide] = de_iter - ener
+                dif_vec[ide] = de_iter*constants.au2ev - ener
+                ide         += 1
 
-        return dif_vec
+        print('current values of params='+str(hparams)+' error='+str(np.linalg.norm(dif_vec)))
 
+        return np.linalg.norm(dif_vec)
 
     #
-    def eval_energies(self, target_data, scf_names, ci_names, 
-                                                    run_scf=False):
+    def status_func(self, xk):
+        """
+        Give status of optimization
+        """
+
+        print(' ITERATION '+str(self.iter)+' params='+str(xk))
+        self.iter += 1
+        
+        return
+
+    #
+    def eval_energies(self, hparams, target_data, scf_names, ci_names, 
+                                                       run_scf=False):
         """
         evaluate all the energies in the graci data set
 
         """
 
         # open the reference data file and get the contents
-        if os.path.isFile(self.graci_ref_file):
+        if os.path.isfile(self.graci_ref_file):
             ref_chkpt = h5py.File(self.graci_ref_file, 'r',
                                                    libver='latest')
         else:
@@ -127,6 +141,7 @@ class Parameterize:
                   ' Exiting...')
             sys.exit(1)
 
+        topdir = os.getcwd()
         energies = {}
 
         # run through all the reference data objects
@@ -134,38 +149,52 @@ class Parameterize:
 
             # pull the reference SCF and CI objects
             scf_name = scf_names[molecule]
-            scf_obj  = chpt.read(scf_name, file_handle=ref_chkpt)
+            scf_obj  = chkpt.read(scf_name, file_handle=ref_chkpt)
 
             ci_name = ci_names[molecule]
             ci_objs  = [chkpt.read(ci, file_handle=ref_chkpt) 
                                                 for ci in ci_name]
-
-            # pull the reference CI states
-            #ref_det, ref_cf = extract_ci_states(ref_chkpt, 
-            #                                    ci_data[molecule], 
-            #                                    states)
 
             # copy the scf and CI objects and re-run them
             scf_run = scf_obj.copy()
             ci_runs = [ci_obj.copy() for ci_obj in ci_objs]
          
             # change to the appropriate sub-directory
-            os.chdir(molecule)
+            os.chdir(topdir+'/'+str(molecule))
 
             # run the scf (and generate integral files if need be)
             if run_scf:
+                # run silent
+                scf_run.verbose = 0
                 scf_run.load()
+
+            # initialize the integrals
+            if scf_run.mol.use_df:
+                type_str = 'df'
+            else:
+                type_str = 'exact'
+            libs.lib_func('bitci_int_initialize', ['pyscf', type_str, 
+                            scf_run.moint_1e, scf_run.moint_2e_eri])
 
             # run all the CI objects 
             for ci_run in ci_runs:
-                ci_run.run(scf_run)
+                # run silent
+                ci_run.verbose = 0
+                ci_run.update_hparam(np.asarray(hparams))
+                ci_run.run(scf_run, None)
+
+            # deallocate the integral arrays
+            libs.lib_func('bitci_int_finalize', [])
 
             # use overlap with ref states to identify relevant states
-            ener_match = identify_states(molecule, ci_objs, ci_runs) 
+            ener_match = self.identify_states(molecule, ci_objs, ci_runs) 
 
             energies[molecule] = {}
             for state, ener in ener_match.items():
                 energies[molecule][state] = ener
+
+        os.chdir(topdir)
+        ref_chkpt.close()
 
         return energies
  
@@ -177,23 +206,24 @@ class Parameterize:
 
         eners  = {}
         bra_st = []
-        smo    = np.identity(ref_ci.scf.nmo, dtype=float)
+        smo    = np.identity(ref_ci[0].scf.nmo, dtype=float)
         # iterate over the reference states
-        for ref_obj in ref_ci:
+        for iobj in range(len(ref_ci)):
             bra_st  = []
-            bra_lbl = ref_obj.label
-            for lbl, indx in self.ref_states[moleclue][bra_lbl].items():
-                ipairs = np.asarray([[indx, st] for st in 
-                                  range(new_ci.n_states())], dtype=int)
-                Sij = overlap.overlap(ref_ci, new_ci, smo, pairs, 
-                                                               1, 0.95)
-                if np.amax(Sij) >= 0.9:
-                    st = np.argmax(Sij)
-                    eners[lbl] = new_ci.energies[st]
+            bra_lbl = ref_ci[iobj].label
 
-        if list(eners.keys()).sort() != list(ref_det.keys()).sort():
-            sys.exit('Could not identify states: ' + str(ci_objs) + 
-                     ' lbl:'+str(states))
+            for lbl, indx in self.ref_states[molecule][bra_lbl].items():
+                ipairs = np.asarray([[indx, st] for st in 
+                            range(new_ci[iobj].n_states())], dtype=int)
+                Sij = overlap.overlap(ref_ci[iobj], new_ci[iobj],
+                            smo, ipairs, 0, 0.95)
+                if np.amax(np.absolute(Sij)) >= 0.9:
+                    st = np.argmax(np.absolute(Sij))
+                    eners[lbl] = new_ci[iobj].energies[st]
+
+        #if list(eners.keys()).sort() != list(ref_det.keys()).sort():
+        #    sys.exit('Could not identify states: ' + str(ci_objs) + 
+        #             ' lbl:'+str(states))
 
         return eners
 
@@ -243,13 +273,13 @@ class Parameterize:
                     if ci_type:
                         ci_objs[molecule].append(name)
                         # parse energy array to find target lbls
-                        ci_lbl, st_lbls = self.read_state_labels(
-                                                 ref_chkpt, name)
-                        st_indxs[molecule][ci_lbl] = st_lbls
+                        lbl, states = self.read_state_labels(ref_chkpt,
+                                                             name)
+                        st_indxs[molecule][lbl] = states
                     elif 'Scf' in name:
                         scf_objs[molecule] = name
 
-        ref_ckhpt.close()
+        ref_chkpt.close()
 
         return scf_objs, ci_objs, st_indxs
 
@@ -259,17 +289,16 @@ class Parameterize:
         Read state labels for checkpoint file
         """
 
-        # variables names are stored as attributes
-        var_names = ref_chkpt[ci_name].attrs
-        ener_dset = var_names['energies']
-        attrs = ref_chkpt[ci_name+'/'+ener_dset].attrs
+        ci_lbl = chkpt.read_attribute(ref_chkpt, ci_name, 'label')
+        dset_path = chkpt.read_attribute(ref_chkpt, ci_name, 'energies')
 
-        ci_lbl = ref_chkpt[ci_name].attrs['label']
+        dset_name = ci_name+'/'+dset_path
+        lbl_dic = chkpt.read_attribute(ref_chkpt, dset_name, 'label')
 
-        if 'labels' not in attrs.keys():
-            lbl_dic = dict()
-        else:
-            lbl_dic = dict(attrs['labels'])
+        # convert the values in the lbl_dic to integers
+        for lbl,indx in lbl_dic.items():
+            # convert from range 1,n to 0,n-1
+            lbl_dic[lbl] = parse.convert_value(indx) - 1
 
         return ci_lbl, lbl_dic
 
@@ -285,8 +314,6 @@ class Parameterize:
 
         with open(self.target_file, 'r') as t_file:
             t_file_lines = t_file.readlines()
-
-        print('tfile='+str(t_file_lines))
 
         self.ndata  = 0
         target_dict = {}
@@ -306,6 +333,5 @@ class Parameterize:
                     print('line = '+str(str_arr))
                     sys.exit(1)
         
-        print('target_dict='+str(target_dict))
         return target_dict
 

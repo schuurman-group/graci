@@ -76,6 +76,22 @@ class Transition(interaction.Interaction):
         self.scf        = None
         self.mol        = None
 
+    def copy(self):
+        """create of deepcopy of self"""
+        new = self.Transition()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if type(value).__name__ in params.valid_objs:
+                setattr(new, key, value.copy())
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        return new
+
+
     #
     @timing.timed
     def run(self, arg_list):
@@ -180,7 +196,8 @@ class Transition(interaction.Interaction):
 
 
         # print the summary output
-        self.print_log()
+        if self.verbose > 0:
+            self.print_log()
 
         return
 

@@ -1,10 +1,12 @@
 """
 Module for computing DFT/MRCI energies
 """
+import copy as copy
 import sys as sys
 import numpy as np
 import graci.utils.timing as timing
 import graci.methods.cimethod as cimethod
+import graci.core.params as params
 import graci.core.bitciwfn as bitciwfn
 import graci.io.output as output
 import graci.bitcitools.bitci_init as bitci_init
@@ -25,7 +27,6 @@ class Dftmrci(cimethod.Cimethod):
 
         # user defined quanties
         self.hamiltonian    = 'heil17_standard'
-        self.hparam         = None
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
@@ -63,6 +64,20 @@ class Dftmrci(cimethod.Cimethod):
 
 
 # Required functions #############################################################
+    def copy(self):
+        """create of deepcopy of self"""
+        new = Dftmrci()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if type(value).__name__ in params.valid_objs:
+                setattr(new, key, value.copy())
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        return new
 
     @timing.timed
     def run(self, scf, guess):
@@ -75,13 +90,14 @@ class Dftmrci(cimethod.Cimethod):
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
             
         # write the output logfile header for this run
-        output.print_dftmrci_header(self.label)
+        if self.verbose > 0:
+            output.print_dftmrci_header(self.label)
 
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
-            self.smo = self.mo_overlaps(guess)
-        
+            self.smo = self.scf.mo_overlaps(guess.scf)
+       
         # initialize bitci
         bitci_init.init(self)
         
@@ -99,7 +115,7 @@ class Dftmrci(cimethod.Cimethod):
         else:
             n_ref_conf, ref_conf_units, ref_conf_files = \
                 ref_space.generate(self)
-            
+        
         # set the number of configurations and the scratch file numbers
         # and names
         self.ref_wfn.set_nconf(n_ref_conf)
@@ -113,10 +129,12 @@ class Dftmrci(cimethod.Cimethod):
             
             # reference space diagonalisation
             ref_ci_units, ref_ener = ref_diag.diag(self)
+
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
-            output.print_refdiag_summary(self)
+            if self.verbose > 0:
+                output.print_refdiag_summary(self)
             
             # optional removal of deadwood from the
             # guess reference space
@@ -131,7 +149,8 @@ class Dftmrci(cimethod.Cimethod):
                 # set the ci files and reference energies
                 self.ref_wfn.set_ciunits(ref_ci_units)
                 self.ref_ener = ref_ener
-                output.print_refdiag_summary(self)
+                if self.verbose > 0:
+                    output.print_refdiag_summary(self)
                 
             # generate the MRCI configurations
             n_mrci_conf, mrci_conf_units, mrci_conf_files, eq_units = \

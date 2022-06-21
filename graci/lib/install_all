@@ -8,6 +8,9 @@ for var in "$@"; do
     args+=" $var"
 done
 
+args+=" -DHDF5_INC_DIR=/home/schuurm/software/hdf5/include"
+args+=" -DHDF5_LIB_DIR=/home/schuurm/software/hdf5/lib"
+
 #
 # Build all the libraries
 #

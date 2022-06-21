@@ -6,7 +6,9 @@ Initial pass, at least, will employ PySCF
 import os
 import sys
 import h5py
+import copy
 import numpy as np
+import graci.core.params as params
 import graci.core.orbitals as orbitals
 import graci.io.output as output
 import graci.utils.timing as timing
@@ -21,7 +23,7 @@ class Scf:
         self.xc             = 'hf'
         self.print_orbitals = False
         self.label          = 'Scf'
-        self.verbose        = 0
+        self.verbose        = 1 
         self.restart        = False
         self.mult           = 0
         self.charge         = 0
@@ -46,6 +48,21 @@ class Scf:
  
 
 # Required functions #######################################################
+
+    def copy(self):
+        """create of deepcopy of self"""
+        new = Scf()
+
+        var_dict = {key:value for key,value in self.__dict__.items() 
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if type(value).__name__ in params.valid_objs:
+                setattr(new, key, value.copy())
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        return new
 
     @timing.timed
     def run(self, mol):
@@ -78,7 +95,8 @@ class Scf:
         pymol.verbose = self.verbose
         
         #print standard header 
-        output.print_scf_header(self)
+        if self.verbose > 0:
+            output.print_scf_header(self)
 
         # set the file names based on class label
         # save integrals -- tie them to the scf object for
@@ -139,7 +157,8 @@ class Scf:
         self.ao_to_mo(pymol, self.orbs)
 
         # print the summary of the output to file
-        output.print_scf_summary(self)
+        if self.verbose > 0:
+            output.print_scf_summary(self)
 
         # write the Molden file if requested
         if self.print_orbitals:
@@ -164,13 +183,15 @@ class Scf:
         pymol.verbose = self.verbose
 
         # print header info even on a restart
-        output.print_scf_header(self)
+        if self.verbose > 0:
+            output.print_scf_header(self)
 
         # perform AO -> MO transformation
         self.ao_to_mo(pymol, self.orbs)
 
         # print the summary of the output to file
-        output.print_scf_summary(self)
+        if self.verbose > 0:
+            output.print_scf_summary(self)
 
         # write the Molden file if requested
         if self.print_orbitals:
@@ -307,4 +328,24 @@ class Scf:
             f['hcore_mo'] = h1_mo
 
         return
+
+    #
+    def mo_overlaps(self, other):
+        """
+        returns the overlaps with the MOs of another CI
+        class object, 'other'
+        """
+
+        # mol objects
+        mol0 = other.mol.pymol().copy()
+        mol  = self.mol.pymol().copy()
+
+        # AO overlaps
+        smo  = gto.intor_cross('int1e_ovlp', mol0, mol)
+
+        # AO-to-MO transformation
+        smo  = np.matmul(np.matmul(other.orbs.T, smo), self.orbs)
+
+        return smo
+
 
