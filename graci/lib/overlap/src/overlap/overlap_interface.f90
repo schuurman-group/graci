@@ -3,7 +3,8 @@
 !######################################################################
 subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
      nrootsB1,nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
-     icore,lfrzcore,npairs,Sij,ipairs) bind(c,name="overlap_c")
+     icore,lfrzcore,npairs,Sij,ipairs,verbose1) &
+     bind(c,name="overlap_c")
 
   use constants
   use global
@@ -51,11 +52,14 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
   integer(is), intent(in) :: ipairs(npairs,2)
 
   ! Wave function overlaps
-  real(dp), intent(inout)   :: Sij(npairs)
+  real(dp), intent(inout) :: Sij(npairs)
 
+  ! Verbosity flag
+  logical, intent(in)     :: verbose1
+  
   call overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
        nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
-       icore,lfrzcore,npairs,Sij,ipairs)
+       icore,lfrzcore,npairs,Sij,ipairs,verbose1)
   
   return
   
@@ -66,7 +70,7 @@ end subroutine overlap_c
 !######################################################################
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
-     lfrzcore,npairs,Sij,ipairs)
+     lfrzcore,npairs,Sij,ipairs,verbose1)
 
   use constants
   use global
@@ -117,6 +121,9 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Wave function overlaps
   real(dp), intent(out)   :: Sij(npairs)
 
+  ! Verbosity flag
+  logical, intent(in)     :: verbose1
+  
   ! Timing variables
   real(dp)                :: tcpu_start,tcpu_end,twall_start,twall_end
 
@@ -170,6 +177,9 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
   call get_nel(n_intK,detK1(:,:,1),nelK,nel_alphaK,nel_betaK)
 
+  ! Verbosity flag
+  verbose=verbose1
+  
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
@@ -182,16 +192,18 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
        normthrsh,ndetK,detK,vecK)
 
   ! Ouput the numbers of determinants
-  write(6,'(/,x,a,x,i0)') &
-       'No. bra determinants before truncation:',ndetB1
-  write(6,'(x,a,x,i0)') &
-       'No. ket determinants before truncation:',ndetK1
-  write(6,'(/,x,a,x,F10.7)') 'Truncation threshold:',normthrsh
-  write(6,'(/,x,a,x,i0)') &
-       'No. bra determinants after truncation:',ndetB
-  write(6,'(x,a,x,i0)') &
-       'No. ket determinants after truncation:',ndetK
-
+  if (verbose) then
+     write(6,'(/,x,a,x,i0)') &
+          'No. bra determinants before truncation:',ndetB1
+     write(6,'(x,a,x,i0)') &
+          'No. ket determinants before truncation:',ndetK1
+     write(6,'(/,x,a,x,F10.7)') 'Truncation threshold:',normthrsh
+     write(6,'(/,x,a,x,i0)') &
+          'No. bra determinants after truncation:',ndetB
+     write(6,'(x,a,x,i0)') &
+          'No. ket determinants after truncation:',ndetK
+  endif
+     
 !----------------------------------------------------------------------
 ! Optional freezing/removal of the core MOs
 !----------------------------------------------------------------------
@@ -204,7 +216,8 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   if (lfrzcore) then
 
-     write(6,'(/,2(x,a,x,i0))') 'Freezing MOs',1,'to',ncore
+     if (verbose) &
+          write(6,'(/,2(x,a,x,i0))') 'Freezing MOs',1,'to',ncore
      
      do i=1,ncore
         smo(i,:)=0.0d0
@@ -236,11 +249,13 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
        alphaK,betaK,offsetK,det2betaK)
 
   ! Ouput the number of unique alpha and beta strings
-  write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&
-       nalphaB,'/',nbetaB
-  write(6,'(x,a,x,i0,a,i0)')   'No. ket alpha/beta strings:',&
-       nalphaK,'/',nbetaK
-    
+  if (verbose) then
+     write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&
+          nalphaB,'/',nbetaB
+     write(6,'(x,a,x,i0,a,i0)')   'No. ket alpha/beta strings:',&
+          nalphaK,'/',nbetaK
+  endif
+     
 !----------------------------------------------------------------------
 ! Pre-computation of the unique beta factors
 !----------------------------------------------------------------------
@@ -258,7 +273,8 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
-  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+  if (verbose) &
+       call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
        'overlap')
   
 !----------------------------------------------------------------------

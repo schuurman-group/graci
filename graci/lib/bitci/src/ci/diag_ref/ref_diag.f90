@@ -96,16 +96,19 @@ subroutine ref_diag_mrci(irrep,nroots,confscr,nconf,vecscr)
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,72a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'Reference space diagonalisation in the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(72a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,72a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'Reference space diagonalisation in the',&
+          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(72a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Return if there are no configurations for the current irrep
 !----------------------------------------------------------------------
   if (nconf(irrep) == 0) then
-     write(6,'(/,x,a)') 'No reference space configurations of '&
+     if (verbose) &
+          write(6,'(/,x,a)') 'No reference space configurations of '&
           //trim(irreplbl(irrep,ipg))//' symmetry'
      nroots=0
      return
@@ -298,13 +301,15 @@ subroutine basis_dimensions(hdim,offset,sop,n_int_I,nconf)
 !----------------------------------------------------------------------
 ! Output the reference space dimensions
 !----------------------------------------------------------------------
-  write(6,'(/,x,a,x,i0)') &
-       'Number of configurations in the reference space:',nconf
-  write(6,'(x,a,x,i0)') &
-       'Number of CSFs in the reference space:',hdim
-  write(6,'(x,a,x,i0)') &
-       'Number of determinants in the reference space:',ndet
-
+  if (verbose) then
+     write(6,'(/,x,a,x,i0)') &
+          'Number of configurations in the reference space:',nconf
+     write(6,'(x,a,x,i0)') &
+          'Number of CSFs in the reference space:',hdim
+     write(6,'(x,a,x,i0)') &
+          'Number of determinants in the reference space:',ndet
+  endif
+     
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------

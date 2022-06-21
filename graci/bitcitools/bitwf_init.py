@@ -8,7 +8,7 @@ from pyscf import gto
 import graci.core.libs as libs
 
 #
-def init(bra, ket, calctype):
+def init(bra, ket, calctype, verbose):
     """Initialise the bitwf library"""
 
     # check on |Nel_bra - Nel_ket|
@@ -42,7 +42,7 @@ def init(bra, ket, calctype):
     
     # call to bitwf_initialise
     args = (multBra, multKet, nelBra, nelKet, nmoBra, nmoKet, smat,
-            pgrp, calctype)
+            pgrp, calctype, verbose)
     libs.lib_func('bitwf_initialise', args)
     
     return

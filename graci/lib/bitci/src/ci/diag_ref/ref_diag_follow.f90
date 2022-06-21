@@ -139,12 +139,14 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,72a)') ('-',i=1,52)
-  write(6,'(x,a,/,2(x,a))') &
-       'Root-following reference space diagonalisation in',&
-       'the '//trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(72a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,72a)') ('-',i=1,52)
+     write(6,'(x,a,/,2(x,a))') &
+          'Root-following reference space diagonalisation in',&
+          'the '//trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(72a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Sanity check on the requested number of roots
 !----------------------------------------------------------------------
@@ -158,7 +160,8 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
 ! Return if there are no configurations for the current irrep
 !----------------------------------------------------------------------
   if (nconf(irrep) == 0) then
-     write(6,'(/,x,a)') 'No reference space configurations of '&
+     if (verbose) &
+          write(6,'(/,x,a)') 'No reference space configurations of '&
           //trim(irreplbl(irrep,ipg))//' symmetry'
      nroots=0
      return
@@ -304,7 +307,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ! Compute the overlaps
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nsave,&
        detR0,det,vecR0,vec_det,smat,normthrsh,ncore,icore,lfrzcore,&
-       npairs,Sij,ipairs)
+       npairs,Sij,ipairs,.false.)
 
 !----------------------------------------------------------------------
 ! Determine the reference eigenfunctions of interest

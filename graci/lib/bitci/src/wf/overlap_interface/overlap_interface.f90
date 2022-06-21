@@ -62,12 +62,14 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(2(x,a))') &
-       'Wave function overlap calculation for the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(2(x,a))') &
+          'Wave function overlap calculation for the',&
+          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Get the number of bra and ket determinants
 !----------------------------------------------------------------------
@@ -152,7 +154,7 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
   call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
        detB,detK,vecB,vecK,smo,norm_thresh,ncore,icore,lfrzcore,&
-       npairs,Sij,iroots)
+       npairs,Sij,iroots,verbose)
 
   return
   

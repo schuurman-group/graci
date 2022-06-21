@@ -41,7 +41,7 @@ class Interaction:
         self.symmetries   = {}
         # spin info for the states in group
         self.spins        = {}
-        self.verbose      = 1
+        self.verbose      = True
 
 
     def same_obj(self, obj1, obj2):

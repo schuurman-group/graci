@@ -88,10 +88,12 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,72a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'MRCI configuration generation for all irreps'
-  write(6,'(72a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,72a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'MRCI configuration generation for all irreps'
+     write(6,'(72a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Allocate the MRCI configuraytion derived types
 !----------------------------------------------------------------------
@@ -287,28 +289,32 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Output the various configuration subspace dimensions
 !----------------------------------------------------------------------
-  ! Loop over irreps
-  do irrep=0,nirrep-1
+  if (verbose) then
+     
+     ! Loop over irreps
+     do irrep=0,nirrep-1
 
-     ! Table of subspace dimensions
-     write(6,'(/,x,20a)') ('-',i=1,20)
-     write(6,'(2x,a)') 'Irrep: '//trim(irreplbl(irrep,ipg))
-     write(6,'(x,20a)') ('-',i=1,20)
-     write(6,'(2x,a)') 'Class | Nconf'
-     write(6,'(x,20a)') ('-',i=1,20)
-     write(6,'(2x,a,x,i0)') '1H    |',cfgM(irrep)%n1h
-     write(6,'(2x,a,x,i0)') '2H    |',cfgM(irrep)%n2h
-     write(6,'(2x,a,x,i0)') ' R    |',cfgM(irrep)%n0h
-     write(6,'(2x,a,x,i0)') ' I    |',cfgM(irrep)%n1I
-     write(6,'(2x,a,x,i0)') ' E    |',cfgM(irrep)%n1E
-     write(6,'(2x,a,x,i0)') 'II    |',cfgM(irrep)%n2I
-     write(6,'(2x,a,x,i0)') 'IE    |',cfgM(irrep)%n1I1E
-     write(6,'(2x,a,x,i0)') 'EE    |',cfgM(irrep)%n2E
-     write(6,'(x,20a)') ('-',i=1,20)
-     write(6,'(2x,a,x,i0)') 'Total |',ntotal(irrep)
-     write(6,'(x,20a)') ('-',i=1,20)
+        ! Table of subspace dimensions
+        write(6,'(/,x,20a)') ('-',i=1,20)
+        write(6,'(2x,a)') 'Irrep: '//trim(irreplbl(irrep,ipg))
+        write(6,'(x,20a)') ('-',i=1,20)
+        write(6,'(2x,a)') 'Class | Nconf'
+        write(6,'(x,20a)') ('-',i=1,20)
+        write(6,'(2x,a,x,i0)') '1H    |',cfgM(irrep)%n1h
+        write(6,'(2x,a,x,i0)') '2H    |',cfgM(irrep)%n2h
+        write(6,'(2x,a,x,i0)') ' R    |',cfgM(irrep)%n0h
+        write(6,'(2x,a,x,i0)') ' I    |',cfgM(irrep)%n1I
+        write(6,'(2x,a,x,i0)') ' E    |',cfgM(irrep)%n1E
+        write(6,'(2x,a,x,i0)') 'II    |',cfgM(irrep)%n2I
+        write(6,'(2x,a,x,i0)') 'IE    |',cfgM(irrep)%n1I1E
+        write(6,'(2x,a,x,i0)') 'EE    |',cfgM(irrep)%n2E
+        write(6,'(x,20a)') ('-',i=1,20)
+        write(6,'(2x,a,x,i0)') 'Total |',ntotal(irrep)
+        write(6,'(x,20a)') ('-',i=1,20)
+        
+     enddo
 
-  enddo
+  endif
      
 !----------------------------------------------------------------------
 ! Debugging: check for duplicate configurations
@@ -350,13 +356,15 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   enddo
      
   ! Output the no. active MOs
-  write(6,'(/,x,a,x,i0)') 'Total number of active MOs:',nactive
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'Total number of active MOs:',nactive
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
-  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+  if (verbose) &
+       call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
        'generate_mrci_confs')
 
 !----------------------------------------------------------------------

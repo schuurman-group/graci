@@ -155,7 +155,7 @@ class Transition(interaction.Interaction):
                     pair_type = 'full'
                 
                 # initialize the bitsi library for the calculation of 1-TDMs
-                bitsi_init.init(bra_ci, ket_ci, 'tdm')
+                bitsi_init.init(bra_ci, ket_ci, 'tdm', self.verbose)
         
                 # this is main transition_list: stored by adiabatic label
                 blks      = self.build_pair_list(b_lbl,
@@ -196,7 +196,7 @@ class Transition(interaction.Interaction):
 
 
         # print the summary output
-        if self.verbose > 0:
+        if self.verbose:
             self.print_log()
 
         return

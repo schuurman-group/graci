@@ -40,7 +40,7 @@ class Cimethod:
         self.ref_state      = -1
         self.ddci           = True
         self.guess_label    = None
-        self.verbose        = 1 
+        self.verbose        = True
         self.hparam         = None
 
         # class variables
@@ -321,7 +321,7 @@ class Cimethod:
                                            thresh=0.01, basis='mo')
             pd[i], pa[i] = orbitals.promotion_numbers(wt, ndo)
 
-        if self.verbose > 0:
+        if self.verbose:
             output.print_promotion(refstate, states, syms, pd, pa)
         
         return
@@ -348,7 +348,7 @@ class Cimethod:
         syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
                   for i in range(n_tot)]
 
-        if self.verbose > 0:
+        if self.verbose:
             output.print_moments(states, syms, momts)
 
         return

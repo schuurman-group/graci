@@ -19,7 +19,7 @@ molecule_kword =     {'xyz_file' : str,
 scf_kword      = {'xc'             : str,
                   'restart'        : bool,
                   'print_orbitals' : bool,
-                  'verbose'        : int,
+                  'verbose'        : bool,
                   'charge'         : int,
                   'mult'           : int,
                   'grid_level'     : int,
@@ -55,7 +55,7 @@ dftmrci_kword  = {'mult'           : int,
                   'save_wf'        : bool,
                   'ddci'           : bool,
                   'ref_state'      : int,
-                  'verbose'        : int,
+                  'verbose'        : bool,
                   'label'          : str
                   }
 
@@ -83,7 +83,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'ddci'           : bool,
                    'ref_state'      : int,
                    'nbuffer'        : int,
-                   'verbose'        : int,
+                   'verbose'        : bool,
                    'label'          : str
 }
 
@@ -94,7 +94,7 @@ spinorbit_kword = {'couple_groups'     : str,
                    'couple_states'     : int,
                    'print_thresh'      : float,
                    'mf2e'              : str,
-                   'verbose'           : int,
+                   'verbose'           : bool,
                    'label'             : str
                    }
 
@@ -105,17 +105,17 @@ transition_kword = {'init_states'      : int,
                     'final_label'      : str,
                     'all_final_states' : bool,
                     'print_orbitals'   : bool,
-                    'verbose'          : int,
+                    'verbose'          : bool,
                     'label'            : str
                    }
 
-overlap_kword   = {'init_states'       : int,
-                   'init_label'        : str,
-                   'final_states'      : int,
-                   'final_label'       : str,
+overlap_kword   = {'bra_states'        : int,
+                   'bra_label'         : str,
+                   'ket_states'        : int,
+                   'ket_label'         : str,
                    'calc'              : str,
                    'norm_thresh'       : float,
-                   'verbose'           : int,
+                   'verbose'           : bool,
                    'label'             : str,
                   } 
 
@@ -126,7 +126,7 @@ parameterize_kword = {'algorithm'      : str,
                       'label'          : str,
                       'target_file'    : str,
                       'graci_ref_file' : str,
-                      'verbose'        : int,
+                      'verbose'        : bool,
                       'hamiltonian'    : str}
 
 ######################################################################

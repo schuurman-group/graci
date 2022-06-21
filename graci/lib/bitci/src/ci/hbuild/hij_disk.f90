@@ -143,7 +143,8 @@ contains
 !----------------------------------------------------------------------
 ! Number of saved Hamiltonian matrix elements
 !----------------------------------------------------------------------
-    write(6,'(/,x,a,x,i0)') 'Number of saved matrix elements:', &
+    if (verbose) &
+         write(6,'(/,x,a,x,i0)') 'Number of saved matrix elements:', &
          nrec*bufsize+nbuf
     
 !----------------------------------------------------------------------
@@ -170,7 +171,8 @@ contains
 ! Stop timing and print report
 !----------------------------------------------------------------------
     call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'save_hij')
 
     return

@@ -23,7 +23,7 @@ class Scf:
         self.xc             = 'hf'
         self.print_orbitals = False
         self.label          = 'Scf'
-        self.verbose        = 1 
+        self.verbose        = True 
         self.restart        = False
         self.mult           = 0
         self.charge         = 0
@@ -92,10 +92,13 @@ class Scf:
         pymol = self.mol.pymol()
 
         # set the verbosity of the output
-        pymol.verbose = self.verbose
-        
-        #print standard header 
-        if self.verbose > 0:
+        if self.verbose:
+            pymol.verbose = 4
+        else:
+            pymol.verbose = 0
+            
+        # print standard header 
+        if self.verbose:
             output.print_scf_header(self)
 
         # set the file names based on class label
@@ -157,7 +160,7 @@ class Scf:
         self.ao_to_mo(pymol, self.orbs)
 
         # print the summary of the output to file
-        if self.verbose > 0:
+        if self.verbose:
             output.print_scf_summary(self)
 
         # write the Molden file if requested
@@ -180,17 +183,20 @@ class Scf:
         pymol = self.mol.pymol()
 
         # seit the verbosity of the output
-        pymol.verbose = self.verbose
+        if self.verbose:
+            pymol.verbose = 4
+        else:
+            pymol.verbose = 0
 
         # print header info even on a restart
-        if self.verbose > 0:
+        if self.verbose:
             output.print_scf_header(self)
 
         # perform AO -> MO transformation
         self.ao_to_mo(pymol, self.orbs)
 
         # print the summary of the output to file
-        if self.verbose > 0:
+        if self.verbose:
             output.print_scf_summary(self)
 
         # write the Molden file if requested

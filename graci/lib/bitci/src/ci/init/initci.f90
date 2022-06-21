@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,ham1,label1) bind(c,name="bitci_initialise")
+     escf1,ham1,label1,verbose1) bind(c,name="bitci_initialise")
 #else
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,ham1,label1)
+     escf1,ham1,label1,verbose1)
 #endif
 
   use constants
@@ -29,8 +29,8 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   integer(ib), intent(in)            :: mosym1(nmo1)
   real(dp), intent(in)               :: moen1(nmo1)
   real(dp), intent(in)               :: escf1
+  logical, intent(in)                :: verbose1
   real(dp)                           :: s,smax
-  logical                            :: verbose
 
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: label1(*),ham1(*)
@@ -98,6 +98,11 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
      write(errmsg,'(a,1x,a)') 'Unrecognised Hamiltonian:',trim(ham)
      call error_control
   endif
+
+!----------------------------------------------------------------------
+! Set the verbosity logical flag
+!----------------------------------------------------------------------
+  verbose=verbose1
   
 !----------------------------------------------------------------------
 ! Set the spin multiplicity
@@ -178,7 +183,6 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 ! Generate the CSFs for the given spin multiplicity up to the maximum
 ! number of open shells
 !----------------------------------------------------------------------
-  verbose=.true.
   call generate_csfs(imult,nocase2,ncsfs,ndets,maxcsf,maxdet,&
        csfcoe,detvec,verbose)
 
@@ -186,7 +190,6 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 ! Generate the spin coupling coefficients for the given spin
 ! multiplicity
 !----------------------------------------------------------------------
-  verbose=.true.
   call generate_coupling_coefficients(imult1,nocase1,nocase2,maxcsf,&
        maxdet,ncsfs,ndets,csfcoe,detvec,nspincp,N1s,verbose,spincp,&
        patmap,offspincp)

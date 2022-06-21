@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
-     calctype_in) bind(c,name='bitsi_initialise')
+     calctype_in,verbose1) bind(c,name='bitsi_initialise')
 #else
 subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
-     calctype_in)
+     calctype_in,verbose1)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -41,6 +41,9 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
 
   ! Point group index
   integer(is), intent(in) :: ipg1
+
+  ! Verbosity flag
+  logical, intent(in)     :: verbose1
   
   ! Calculation type
   logical                 :: samemult
@@ -48,7 +51,6 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   ! Everything else
   real(dp)                :: s,smax,sb,sk
   real(dp)                :: tiny=1e-10_dp
-  logical                 :: verbose
 
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the calculation type character
@@ -113,6 +115,11 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
      write(errmsg,'(a,1x,i0)') 'Illegal point group index:',ipg1
      call error_control
   endif
+
+!----------------------------------------------------------------------
+! Set the verbosity flag
+!----------------------------------------------------------------------
+  verbose=verbose1
   
 !----------------------------------------------------------------------
 ! Set the bra and ket spin multiplicities
@@ -220,25 +227,23 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
 
   case('tdm')
      ! 1-TDM calculation: equal bra and ket spin multiplicities
-     verbose=.false.
      call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,maxdet,&
-          csfcoe,detvec,verbose)
+          csfcoe,detvec,.false.)
 
   case('soc')
      ! SOC calculation: potentially non-equal bra and ket spin
      !                  multiplicities
-     verbose=.false.
      if (imultB /= imultK) then
         ! Bra CSFs
         call generate_csfs(imultB,nocase2,ncsfsB,ndetsB,maxcsfB,&
-             maxdetB,csfcoeB,detvecB,verbose)
+             maxdetB,csfcoeB,detvecB,.false.)
         ! Ket CSFs
         call generate_csfs(imultK,nocase2,ncsfsK,ndetsK,maxcsfK,&
-             maxdetK,csfcoeK,detvecK,verbose)
+             maxdetK,csfcoeK,detvecK,.false.)
      else
         ! Equal bra and ket CSFs
         call generate_csfs(imultB,nocase2,ncsfs,ndets,maxcsf,&
-             maxdet,csfcoe,detvec,verbose)
+             maxdet,csfcoe,detvec,.false.)
      endif
      
   end select
@@ -251,16 +256,14 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   case('tdm')
      ! 1-TDM calculation: calculation of spin-coupling coefficients
      !                    over the singlet excitation operators E_pq
-     verbose=.false.
      call generate_coupling_coefficients(imultB,nocase1,nocase2,&
           maxcsf,maxdet,ncsfs,ndets,csfcoe,detvec,nspincp,N1s,&
-          verbose,spincp,patmap,offspincp)
+          .false.,spincp,patmap,offspincp)
 
   case('soc')
      ! SOC calculation: calculation of spin-coupling coefficients for
      !                  the triplet excitation operators
      !                  T_pq^(1,k), k = 0 or +1
-     verbose=.true.
      if (imultB == imultK) then
         ! Same spin multiplicities: compute spin-coupling coefficients
         ! for T_pq^(1,k=0)

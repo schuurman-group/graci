@@ -70,10 +70,12 @@ subroutine redmat_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'Triplet transition density matrix calculation'
-  write(6,'(52a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'Triplet transition density matrix calculation'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the MRCI configuration and
 ! eigenvector file names from the C char type to the Fortran character
@@ -109,10 +111,12 @@ subroutine redmat_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 !----------------------------------------------------------------------
   call cfgB%initialise(irrepB,confscrB)
   call cfgK%initialise(irrepK,confscrK)
-  
-  write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
-  write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
-  
+
+  if (verbose) then
+     write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
+     write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
+  endif
+     
 !----------------------------------------------------------------------
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------
