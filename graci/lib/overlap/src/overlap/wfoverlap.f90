@@ -47,7 +47,7 @@ contains
     ! Everything else
     integer(is)              :: n,isB,isK,iaB,iaK,ibB,ibK,idB,idK
     real(dp)                 :: afac,bfac
-    
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -78,22 +78,22 @@ contains
 !----------------------------------------------------------------------
     vecTB=transpose(vecB)
     vecTK=transpose(vecK)
-
+    
 !----------------------------------------------------------------------
 ! Compute the wave function overlaps
 !----------------------------------------------------------------------
     ! Initialisation
     Sij=0.0d0
-
+    
     ! Loop over ket alpha strings
     do iaK=1,nalphaK
-
+    
        ! Get the ket occupied MO indices
        call mo_occ_string(n_intK,alphaK(:,iaK),nel_alphaK,noccK,occK)
        
        ! Loop over bra alpha strings
        do iaB=1,nalphaB
-
+    
           ! Get the ket occupied MO indices
           call mo_occ_string(n_intB,alphaB(:,iaB),nel_alphaB,&
                noccB,occB)
@@ -101,47 +101,47 @@ contains
           ! Compute the alpha factor for this pair of strings
           call get_one_factor(nel_alphaB,alphaB(:,iaB),alphaK(:,iaK),&
                occB,occK,fwork,iwork,afac)
-
+    
           ! Cycle if the alpha factor is below threshold
           if (abs(afac) < fthrsh) cycle
-
+    
           ! Loop over determinants in the ket block
           do idK=offsetK(iaK),offsetK(iaK+1)-1
-
+    
              ! Ket beta string index
              ibK=det2betaK(idK)
              
              ! Loop over determinants in the bra block
              do idB=offsetB(iaB),offsetB(iaB+1)-1
-
+    
                 ! Bra beta string index
                 ibB=det2betaB(idB)
                 
                 ! Beta factor
                 bfac=betafac(ibB,ibK)
-
+    
                 ! Cycle if the beta factor is below threshold
                 if (abs(bfac) < fthrsh) cycle
                 
                 ! Loop over bra-ket state pairs
                 do n=1,npairs
-
+    
                    ! Bra and ket state indices
                    isB=ipairs(n,1)
                    isK=ipairs(n,2)
-
+    
                    ! Contributions to the overlap
                    Sij(n)=Sij(n) &
                         +afac*bfac*vecTB(isB,idB)*vecTK(isK,idK)
                    
                 enddo
-                
+    
              enddo
                 
           enddo
              
        enddo
-
+    
     enddo
 
 !----------------------------------------------------------------------

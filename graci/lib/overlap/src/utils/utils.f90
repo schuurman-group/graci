@@ -13,11 +13,11 @@ contains
     implicit none
 
     character(1), intent(in) :: order
-    integer, intent(in) :: ndim
+    integer(is), intent(in) :: ndim
     real(dp), dimension(ndim), intent(in)   :: arrin
-    integer, dimension(ndim), intent(inout) :: indx
+    integer(is), dimension(ndim), intent(inout) :: indx
     
-    integer :: i,l,ir,indxt,j
+    integer(is) :: i,l,ir,indxt,j
     real(dp) :: q
 !!$ The subroutine is taken from the NR p233, employs heapsort.
 

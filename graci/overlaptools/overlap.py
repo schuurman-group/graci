@@ -15,14 +15,11 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh):
     wave functions specified in the pairs list for a single
     irrep
 
-    pairs is an numpy array of dimension (npairs,2)
+    pairs is an numpy array of dimension (npairs,2):
+
     pairs[n,1] <-> n'th bra state index
     pairs[n,2] <-> n'th ket state index
     """
-
-    # TEST
-    Sij=0
-    # TEST
 
     # number of bra-ket wave function pairs
     npairs = pairs.shape[0]

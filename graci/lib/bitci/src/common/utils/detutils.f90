@@ -290,6 +290,79 @@ contains
   end subroutine get_unocc
 
 !######################################################################
+! nbefore_det: Given a determinant bit string, det, determines the
+!              number of electrons preceding each spin orbital in each
+!              of the alpha and beta strings
+!######################################################################
+  subroutine nbefore_det(ld,det,list)
+
+    use constants
+    use bitglobal
+
+    implicit none
+
+    integer(is), intent(in)  :: ld
+    integer(ib), intent(in)  :: det(ld,2)
+    integer(is), intent(out) :: list(nmo,2)
+
+    integer(ib)              :: h
+    integer(is)              :: k,ipos,imo,count,ilast,ispin
+    
+!----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    list=0
+
+!----------------------------------------------------------------------
+! Determine the numbers of electrons before each orbital
+! in the alpha and beta strings
+!----------------------------------------------------------------------
+    ! Loop over spins
+    do ispin=1,2
+
+       ! Counters
+       count=0
+       ilast=1
+       
+       ! Loop over blocks
+       do k=1,ld
+
+          ! Initialise the work array
+          h=det(k,ispin)
+
+          ! Loop over all singly-occupied orbital indices
+          do while (h /= 0_ib)
+          
+             ! Number of trailing zeros left in h
+             ipos=trailz(h)
+             
+             ! Index of the next singly-occupied orbital
+             imo=1+ipos+(k-1)*n_bits
+
+             ! Fill in the array
+             list(ilast:imo,ispin)=count
+          
+             ! Update the counters
+             count=count+1
+             ilast=imo+1
+             
+             ! Clear the bits up to the current singly-occupied orbital
+             h=ibclr(h,ipos)
+             
+          enddo
+       
+       enddo
+
+       ! Remaining MOs
+       list(ilast:nmo,ispin)=count
+
+    enddo
+    
+    return
+    
+  end subroutine nbefore_det
+  
+!######################################################################
 ! det_hash: hash of the bit string representation of a determinant
 !           using the MurmerHash3 32-bit hash function
 !######################################################################

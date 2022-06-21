@@ -68,7 +68,7 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   real(dp), parameter      :: tiny=5e-12_dp
   character(len=60)        :: wffile
   character(len=2)         :: amult,airrep
-  
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -184,24 +184,28 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
 !----------------------------------------------------------------------
   call read_all_eigenpairs(vecscr,vec_csf,ener,cfg%csfdim,nroots)
 
-!----------------------------------------------------------------------
-! Get the determinant bit strings
-!----------------------------------------------------------------------
-  call bitstrings_detbas(cfg,detdim,det)
+  
+  ! TEST
+  call freeunit(iscratch)
+  open(iscratch,file='c2m_'//trim(bkstr),form='unformatted',&
+       status='unknown')
+  write(iscratch) cfg%c2m
+  close(iscratch)
+  ! TEST
 
+  
+!----------------------------------------------------------------------
+! Compute the determinant representation of the wave functions
+!----------------------------------------------------------------------
+  call det_trans(cfg,nroots,cfg%csfdim,detdim,vec_csf,vec_det,det)
+  
 !----------------------------------------------------------------------
 ! Put the determinant bit strings into the 'canonical' MO ordering
 ! (the reorder_conf subroutine is used for this as the det bit strings
 ! have the same structure as conf bit strings)
 !----------------------------------------------------------------------
-  call reorder_confs(cfg%m2c,det,detdim)
+  !call reorder_confs(cfg%m2c,det,detdim)
   
-!----------------------------------------------------------------------
-! Compute the eigenvectors in the determinant basis
-!----------------------------------------------------------------------
-  call eigenvectors_detbas(cfg,nroots,cfg%csfdim,detdim,vec_csf,&
-       vec_det)
-
 !----------------------------------------------------------------------
 ! Write the determinant representation of the wave functions to disk
 !----------------------------------------------------------------------

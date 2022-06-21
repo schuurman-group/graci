@@ -46,8 +46,9 @@ contains
     
     ! Everything else
     integer(is)              :: i,k,n
-    real(dp)                 :: normsq,targ
-    
+    real(dp)                 :: normsq,targ,diff
+    real(dp), parameter      :: epsilon=1e-6_dp
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -83,8 +84,11 @@ contains
           ! Flag the determinant for survival
           idet(indx(k))=1
 
-          ! Exit if we have hit the target squared norm
-          if (normsq >= targ) exit
+          ! Exit if:
+          ! (1) we have hit the target squared norm, and;
+          ! (2) this determinant is not degenerate with the next one
+          diff=abs(vec(indx(k),i)-vec(indx(k+1),i))
+          if (normsq >= targ .and. diff > epsilon) exit
 
        enddo
        

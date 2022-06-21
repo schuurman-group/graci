@@ -121,7 +121,7 @@ class Dftmrci2(cimethod.Cimethod):
         else:
             n_ref_conf, ref_conf_units, ref_conf_files = \
                 ref_space.generate(self)
-
+        
         # set the number of configurations and scratch file numbers
         # and names
         self.ref_wfn.set_nconf(n_ref_conf)
@@ -143,7 +143,7 @@ class Dftmrci2(cimethod.Cimethod):
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
             output.print_refdiag_summary(self)
-
+            
             # optional removal of deadwood from the
             # guess reference space
             if self.ref_prune and self.niter == 0 \
@@ -178,7 +178,7 @@ class Dftmrci2(cimethod.Cimethod):
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units, n_conf_new = \
                         gvvpt2.diag_heff(self)
-
+            
             # set the new number of mrci confs if wave function
             # truncation is being used
             if self.truncate:

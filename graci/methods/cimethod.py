@@ -243,7 +243,7 @@ class Cimethod:
 
         # AO-to-MO transformation
         smo  = np.matmul(np.matmul(other.scf.orbs.T, smo), self.scf.orbs)
-
+        
         return smo
     
 #########################################################################

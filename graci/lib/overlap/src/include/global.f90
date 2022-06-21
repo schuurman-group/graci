@@ -46,5 +46,5 @@ module global
   ! Determinant thresholds
   real(dp), parameter      :: hthrsh=1e-6_dp
   real(dp), parameter      :: fthrsh=1e-6_dp
-  
+
 end module global
