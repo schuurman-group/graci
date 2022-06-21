@@ -270,10 +270,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   call read_all_eigenpairs(vecscr,vec_csf,ener,ncsf,nsave)
   
   ! Compute the determinant representation of the wave functions
-  call det_trans(cfg,nsave,ncsf,ndet,vec_csf,vec_det,det)
-  
-  ! Put the determinant bit strings into the 'canonical' MO ordering
-  call reorder_confs(m2c,det,ndet)
+  call det_trans(cfg,cfg%m2c,nsave,ncsf,ndet,vec_csf,vec_det,det)
   
 !----------------------------------------------------------------------
 ! Compute the overlaps with the input/target wave functions

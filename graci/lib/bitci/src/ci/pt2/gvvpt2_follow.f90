@@ -262,10 +262,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   Avec_det=0.0d0
 
   ! Compute the determinant representation of the wave functions
-  call det_trans(cfg,nvec,cfg%csfdim,ndet,Avec,Avec_det,det)
-  
-  ! Put the determinant bit strings into the 'canonical' MO ordering
-  call reorder_confs(cfg%m2c,det,ndet)
+  call det_trans(cfg,cfg%m2c,nvec,cfg%csfdim,ndet,Avec,Avec_det,det)
   
 !----------------------------------------------------------------------
 ! Compute the overlaps with the input/target wave functions

@@ -184,27 +184,11 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
 !----------------------------------------------------------------------
   call read_all_eigenpairs(vecscr,vec_csf,ener,cfg%csfdim,nroots)
 
-  
-  ! TEST
-  call freeunit(iscratch)
-  open(iscratch,file='c2m_'//trim(bkstr),form='unformatted',&
-       status='unknown')
-  write(iscratch) cfg%c2m
-  close(iscratch)
-  ! TEST
-
-  
 !----------------------------------------------------------------------
 ! Compute the determinant representation of the wave functions
 !----------------------------------------------------------------------
-  call det_trans(cfg,nroots,cfg%csfdim,detdim,vec_csf,vec_det,det)
-  
-!----------------------------------------------------------------------
-! Put the determinant bit strings into the 'canonical' MO ordering
-! (the reorder_conf subroutine is used for this as the det bit strings
-! have the same structure as conf bit strings)
-!----------------------------------------------------------------------
-  !call reorder_confs(cfg%m2c,det,detdim)
+  call det_trans(cfg,cfg%m2c,nroots,cfg%csfdim,detdim,vec_csf,&
+       vec_det,det)
   
 !----------------------------------------------------------------------
 ! Write the determinant representation of the wave functions to disk
