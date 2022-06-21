@@ -9,6 +9,7 @@ import graci.core.orbitals as orbitals
 import graci.utils.timing as timing
 import graci.io.output as output
 import graci.properties.moments as moments
+from pyscf import gto
 
 # Allowed MRCI and DFT/MRCI Hamiltonian labels
 # (not sure if this is the correct home for this, but we
@@ -34,9 +35,11 @@ class Cimethod:
         self.nstates        = []
         self.print_orbitals = False
         self.save_wf        = False
+        self.wf_thresh      = 1.
         self.ref_state      = -1
         self.ddci           = True
-        self.label          = ''
+        self.guess_label    = None
+        
 
         # class variables
         # total number of electrons
@@ -61,7 +64,17 @@ class Cimethod:
         self.natorb_ao      = None
         # symmetry of the natural orbitals
         self.natorb_sym     = None
-
+        # List of determinant bit strings (one per irrep)
+        self.det_strings    = None
+        # List of eigenvectors in the determinant basis (one per irrep)
+        self.vec_det        = None
+        # R_n-1 - R_n MO overlaps
+        self.smo            = None
+        # ADT matrices (one per irrep)
+        self.adt            = None
+        # Diabatic potential matrices (one per irrep)
+        self.diabpot        = None
+        
 
 # Required functions #############################################################
 
@@ -212,6 +225,27 @@ class Cimethod:
 
         return self.natorb_sym[istate, :]
 
+    #
+    def mo_overlaps(self, other):
+        """
+        returns the overlaps with the MOs of another CI
+        class object, 'other'
+        """
+
+        # mol objects
+        mol0 = other.scf.mol.mol_obj.copy()
+
+        mol  = self.scf.mol.mol_obj.copy()
+
+        # AO overlaps
+        smo  = gto.intor_cross('int1e_ovlp', other.scf.mol.mol_obj,
+                               self.scf.mol.mol_obj)
+
+        # AO-to-MO transformation
+        smo  = np.matmul(np.matmul(other.scf.orbs.T, smo), self.scf.orbs)
+        
+        return smo
+    
 #########################################################################
     #
     def build_nos(self):
@@ -362,4 +396,34 @@ class Cimethod:
             n_srt        += 1
             istate[iirr] += 1
 
+        return
+
+    #
+    def diabatize(self):
+        """
+        Constructs the diabatic potential matrix using
+        a prior-calculated ADT matrix
+        """
+
+        # number of irreps
+        nirr = self.n_irrep()
+
+        # initialise the list of diabatic potentials
+        self.diabpot = []
+
+        # loop over irreps
+        for irr in range(nirr):
+
+            # no. states
+            nstates = self.n_states_sym(irr)
+
+            # adiabatic potential matrix
+            vmat = np.zeros((nstates, nstates), dtype=float)
+            np.fill_diagonal(vmat, self.energies_sym[irr][0:nstates-1])
+
+            # diabatic potential matrix
+            wmat = np.matmul(self.adt[irr].T,
+                             np.matmul(vmat, self.adt[irr]))
+            self.diabpot.append(wmat)
+            
         return

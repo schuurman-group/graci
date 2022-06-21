@@ -1,6 +1,68 @@
 !**********************************************************************
-! Public-facing interface to the overlap library
+! Public-facing interfaces to the overlap library
 !**********************************************************************
+
+!######################################################################
+! overlap_c: overlap interface with C bindings
+!######################################################################
+subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
+     nrootsB1,nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
+     icore,lfrzcore,npairs,Sij,ipairs) bind(c,name="overlap_c")
+
+  use constants
+  
+  implicit none
+
+  ! No. MOs
+  integer(is), intent(in) :: nmoB1,nmoK1
+
+  ! No. (n_bits)-bit integers needed to represent each alpha/beta
+  ! string
+  integer(is), intent(in) :: n_intB1,n_intK1
+  
+  ! No. determinants
+  integer(is), intent(in) :: ndetB1,ndetK1
+
+  ! No. roots
+  integer(is), intent(in) :: nrootsB1,nrootsK1
+  
+  ! Untruncated determinant bit strings
+  integer(ib), intent(in) :: detB1(n_intB1,2,ndetB1)
+  integer(ib), intent(in) :: detK1(n_intK1,2,ndetK1)
+
+  ! Untruncated eigenvectors
+  real(dp), intent(in)    :: vecB1(ndetB1,nrootsB1)
+  real(dp), intent(in)    :: vecK1(ndetK1,nrootsK1)
+
+  ! Matrix of bra-ket MO overlaps
+  real(dp), intent(in)    :: smo1(nmoB1,nmoK1)
+  
+  ! Norm-based truncation threshold
+  real(dp), intent(in)    :: normthrsh
+
+  ! Frozen/deleted core MOs
+  integer(is), intent(in) :: ncore
+  integer(is), intent(in) :: icore(ncore)
+  logical(is), intent(in) :: lfrzcore
+  
+  ! Indices of the pairs of states for which overlaps are requested
+  integer(is), intent(in) :: npairs
+  integer(is), intent(in) :: ipairs(npairs,2)
+
+  ! Wave function overlaps
+  real(dp), intent(out)   :: Sij(npairs)
+
+  call overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
+       nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
+       icore,lfrzcore,npairs,Sij,ipairs)
+  
+  return
+  
+end subroutine overlap_c
+  
+!######################################################################
+! overlap: overlap interface with Fortran bindings
+!######################################################################
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
      lfrzcore,npairs,Sij,ipairs)
@@ -58,8 +120,8 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   real(dp)                :: tcpu_start,tcpu_end,twall_start,twall_end
 
   ! Everything else
-  integer(is)             :: i
-  
+  integer(is)             :: i,ic,j
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -102,11 +164,11 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra-ket overlaps
   allocate(smo(nmoB,nmoK))
   smo=smo1
-  
+
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
   call get_nel(n_intK,detK1(:,:,1),nelK,nel_alphaK,nel_betaK)
-
+  
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
@@ -140,13 +202,14 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! computational cost
 !----------------------------------------------------------------------
   if (lfrzcore) then
-
+  
      write(6,'(/,2(x,a,x,i0))') 'Freezing MOs',1,'to',ncore
      
      do i=1,ncore
-        smo(i,:)=0.0d0
-        smo(:,i)=0.0d0
-        smo(i,i)=1.0d0
+        ic=icore(i)
+        smo(ic,:)=0.0d0
+        smo(:,ic)=0.0d0
+        smo(ic,ic)=1.0d0
      enddo
      
   endif
@@ -156,7 +219,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   ! Bra
   call symm_ortho(n_intB,ndetB,nrootsB,vecB)
-
+  
   ! Ket
   call symm_ortho(n_intK,ndetK,nrootsK,vecK)
   
@@ -167,11 +230,11 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra
   call det_sorting(n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
        alphaB,betaB,offsetB,det2betaB)
-
+  
   ! Ket
   call det_sorting(n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
        alphaK,betaK,offsetK,det2betaK)
-
+  
   ! Ouput the number of unique alpha and beta strings
   write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&
        nalphaB,'/',nbetaB
@@ -185,12 +248,12 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   betafac=0.0d0
 
   call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
-
+  
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------
   call get_overlaps(npairs,ipairs,Sij)
-
+  
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------

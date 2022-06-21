@@ -1,14 +1,16 @@
 !######################################################################
 ! Top-level routine to compute the 2nd-order generalised van Vleck
 ! perturbation theory energies and wave functions using the Epstein-
-! Nesbet Hamiltonian partitioning
+! Nesbet Hamiltonian partitioning ***with root following***
 !######################################################################
 #ifdef CBINDING
-subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
-     Qscr,dspscr) bind(c,name="gvvpt2")
+subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
+     nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,confscr,&
+     vecscr,vec0scr,Qscr,dspscr) bind(c,name="gvvpt2_follow")
 #else
-subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
-       Qscr,dspscr)
+subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
+     nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,confscr,&
+     vecscr,vec0scr,Qscr,dspscr)
 #endif
 
   use constants
@@ -16,6 +18,8 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   use conftype
   use hii
   use heff
+  use csf2det
+  use mrciutils
   use utils
   use iomod
   use timing
@@ -33,6 +37,20 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 
   ! ISA shift
   real(dp), intent(in)     :: shift
+
+  ! Eigenvectors to follow, expressed in a Slater determinant basis
+  integer(is), intent(in)  :: n_intR0,ndetR0,nrootsR0
+  integer(ib), intent(in)  :: detR0(n_intR0,2,ndetR0)
+  real(dp), intent(in)     :: vecR0(ndetR0,nrootsR0)
+
+   ! MO overlaps
+  integer(is), intent(in)  :: nmoR0
+  real(dp), intent(in)     :: smoR0(nmoR0,nmo)
+
+  ! Frozen core orbital info
+  integer(is), intent(in)  :: ncore
+  integer(is), intent(in)  :: icore(ncore)
+  logical(is), intent(in)  :: lfrzcore
   
   ! Array of MRCI configuration scratch file numbers
   integer(is), intent(in)  :: confscr(0:nirrep-1)
@@ -60,7 +78,7 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   real(dp), allocatable    :: averageii(:)
   
   ! ENPT2 energy and wavefunction corrections
-  real(dp), allocatable    :: Avec(:,:),Avec_ortho(:,:)
+  real(dp), allocatable    :: Avec(:,:)
   real(dp), allocatable    :: E2(:)
 
   ! Zeroth-order eigenpairs
@@ -68,11 +86,25 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   real(dp), allocatable    :: E0(:)
   real(dp), allocatable    :: vec0(:,:)
 
-  ! 2nd-order corrected energies
-  real(dp), allocatable    :: EPT2(:)
-
   ! QDPT2 energies and mixing coefficients
   real(dp), allocatable    :: EQD(:),mix(:,:),work(:,:)
+
+  ! Determinant representation of the 1st-order corrected
+  ! wave functions
+  integer(is)              :: ndet
+  integer(ib), allocatable :: det(:,:,:)
+  real(dp), allocatable    :: Avec_det(:,:)
+
+  ! Wave function overlaps
+  integer(is)              :: npairs
+  integer(is), allocatable :: ipairs(:,:)
+  real(dp), allocatable    :: Sij(:)
+  real(dp)                 :: normthrsh
+
+  ! Wave function selection
+  integer(is)              :: imin(1),imax(1)
+  integer(is), allocatable :: isel(:)
+  real(dp), allocatable    :: Sij1(:,:),maxSij(:)
   
   ! I/O variables
   integer(is)              :: iscratch
@@ -80,12 +112,9 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   character(len=2)         :: amult,airrep
   
   ! Everything else
-  integer(is)              :: i,j
+  integer(is)              :: i,j,n
   integer(is)              :: nvec
-  integer(is), allocatable :: indx(:)
-  real(dp)                 :: norm
-  real(dp), allocatable    :: Smat(:,:),Sinvsq(:,:)
-  real(dp), allocatable    :: Elow(:)
+  real(dp), allocatable    :: selarr(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:)
   
   ! Timing variables
@@ -102,11 +131,19 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 !----------------------------------------------------------------------
   ! Section header
   write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'GVVPT2 calculation for the',&
-       trim(irreplbl(irrep,ipg)),&
-       'subspace'
+  write(6,'(x,a,/,x,a)') 'Root-following GVVPT2 calculation for the ' &
+       //trim(irreplbl(irrep,ipg)),'subspace'
   write(6,'(52a)') ('-',i=1,52)
 
+!----------------------------------------------------------------------
+! For now, we will only support nroots = nrootsR0
+! i.e., same numbers of roots and roots to follow
+!----------------------------------------------------------------------
+  if (nroots /= nrootsR0) then
+     errmsg='Error in gvvpt2_follow: nroots != nrootsR0'
+     call error_control
+  endif
+  
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
@@ -133,9 +170,6 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   allocate(Avec(cfg%csfdim,nvec))
   Avec=0.0d0
 
-  allocate(Avec_ortho(cfg%csfdim,nroots))
-  Avec_ortho=0.0d0
-  
   allocate(E0(nvec))
   E0=0.0d0
 
@@ -145,32 +179,23 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   allocate(E2(nvec))
   E2=0.0d0
 
-  allocate(EPT2(nvec))
-  EPT2=0.0d0
-
-  allocate(Elow(nroots))
-  Elow=0.0d0
-
-  allocate(Qnorm(nroots))
+  allocate(Qnorm(nvec))
   Qnorm=0.0d0
 
-  allocate(Qener(nroots))
+  allocate(Qener(nvec))
   Qener=0.0d0
   
-  allocate(indx(nvec))
-  indx=0
-
-  allocate(Smat(nroots,nroots))
-  Smat=0.0d0
-
-  allocate(Sinvsq(nroots,nroots))
-  Sinvsq=0.0d0
-
   allocate(EQD(nvec))
-
+  EQD=0.0d0
+  
   allocate(mix(nvec,nvec))
-
+  mix=0.0d0
+  
   allocate(work(cfg%csfdim,nvec))
+  work=0.0d0
+
+  allocate(selarr(nroots))
+  selarr=0.0d0
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
@@ -196,42 +221,117 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   do i=1,nvec
      Avec(1:refdim,i)=vec0(:,i)
   enddo
-  
+
 !----------------------------------------------------------------------
 ! Compute the 1st-order wave functions
 !----------------------------------------------------------------------
   work=Avec
   Avec=matmul(work,mix)
+
+!----------------------------------------------------------------------
+! Q-space information for ***all*** states
+!----------------------------------------------------------------------
+  ! Norms of the 1st-order wave functions projected onto the Q-space
+  do i=1,nvec
+     Qnorm(i)=sqrt(dot_product(Avec(refdim:cfg%csfdim,i),&
+          Avec(refdim:cfg%csfdim,i)))
+  enddo
+
+  ! ENPT2 energy corrections
+  do i=1,nvec
+     Qener(i)=E2(i)
+  enddo
   
 !----------------------------------------------------------------------
-! Sort the 2nd-order energies
+! Lowdin's symmetric orthonormalisation of the 1st-order corrected
+! wave functions
 !----------------------------------------------------------------------
-  ! Eigenvalues of the effective Hamiltonian
-  EPT2=EQD
-    
-  ! Sorting
-  call dsortindxa1('A',nvec,EPT2,indx)
+  call symm_ortho(cfg%csfdim,nvec,Avec)
 
-  ! Lowest-lying energies
+!----------------------------------------------------------------------
+! Get the determinant representation of the 1st-order corrected
+! wave functions
+!----------------------------------------------------------------------
+  ! Determine the dimension of the determinant basis
+  call get_detdim(cfg,ndet)
+
+  ! Allocate arrays
+  allocate(det(n_int,2,ndet))
+  allocate(Avec_det(ndet,nvec))
+  det=0_ib
+  Avec_det=0.0d0
+
+  ! Compute the determinant representation of the wave functions
+  call det_trans(cfg,cfg%m2c,nvec,cfg%csfdim,ndet,Avec,Avec_det,det)
+  
+!----------------------------------------------------------------------
+! Compute the overlaps with the input/target wave functions
+!----------------------------------------------------------------------
+  ! Allocate arrays
+  npairs=nrootsR0*nvec
+  allocate(Sij(npairs))
+  allocate(ipairs(npairs,2))
+  Sij=0.0d0
+  ipairs=0
+
+  ! Truncation threshold
+  normthrsh=0.99d0
+
+  ! Fill in the array of bra-ket overlaps required
+  n=0
+  do i=1,nrootsR0
+     do j=1,nvec
+        n=n+1
+        ipairs(n,1)=i
+        ipairs(n,2)=j
+     enddo
+  enddo
+
+  ! Compute the overlaps
+  call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nvec,&
+       detR0,det,vecR0,Avec_det,smoR0,normthrsh,ncore,icore,lfrzcore,&
+       npairs,Sij,ipairs)
+
+!----------------------------------------------------------------------
+! Determine the 1st-order corrected wave functions of interest
+!----------------------------------------------------------------------
+  ! Allocate arrays
+  allocate(isel(nroots))
+  allocate(maxSij(nroots))
+  allocate(Sij1(nrootsR0,nvec))
+  isel=0
+  maxSij=0.0d0
+  Sij1=0.0d0
+
+  ! Reshape the wave function overlap matrix into a more useful
+  ! form
+  do n=1,npairs
+     i=ipairs(n,1)
+     j=ipairs(n,2)
+     Sij1(i,j)=Sij(n)
+  enddo
+
+  ! Select the reference space eigenfunctions with the greatest
+  ! overlaps with the input wave functions
+  do i=1,nrootsR0
+     imax=maxloc(abs(Sij1(i,:)))
+     isel(i)=imax(1)
+     maxSij(i)=Sij1(i,imax(1))
+     Sij1(:,imax(1))=0.0d0
+  enddo
+
+!----------------------------------------------------------------------
+! Re-phasing of the states of interest
+!----------------------------------------------------------------------
   do i=1,nroots
-     Elow(i)=EPT2(indx(i))
+     if (maxSij(i) < 0.0d0) then
+        Avec(:,isel(i))=-Avec(:,isel(i))
+     endif
   enddo
 
 !----------------------------------------------------------------------
 ! Write the Q-space information to disk
 !----------------------------------------------------------------------
-  ! Norms of the 1st-order wave functions projected onto the Q-space
-  do i=1,nroots
-     Qnorm(i)=sqrt(dot_product(Avec(refdim:cfg%csfdim,indx(i)),&
-          Avec(refdim:cfg%csfdim,indx(i))))
-  enddo
-
-  ! ENPT2 energy corrections
-  ! (do we still need these?)
-  do i=1,nroots
-     Qener(i)=E2(indx(i))
-  enddo
-  
   ! Register the scratch file
   write(amult,'(i0)') imult
   write(airrep,'(i0)') irrep
@@ -248,86 +348,56 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   write(iscratch) nroots
   
   ! Norms of the wave function corrections
-  write(iscratch) Qnorm
+  selarr=0.0d0
+  do i=1,nroots
+     selarr(i)=Qnorm(isel(i))
+  enddo
+  write(iscratch) selarr
 
   ! Energy corrections
-  write(iscratch) Qener
-  
+  selarr=0.0d0
+  do i=1,nroots
+     selarr(i)=Qener(isel(i))
+  enddo
+  write(iscratch) selarr
+
   ! Close the scratch file
   close(iscratch)
   
 !----------------------------------------------------------------------
-! 1st-order wave functions for the nroots lowest energy roots only
-!----------------------------------------------------------------------
-  do i=1,nroots
-     Avec_ortho(:,i)=Avec(:,indx(i))
-  enddo
-  
-!----------------------------------------------------------------------
-! Normalisation
-!----------------------------------------------------------------------
-  do i=1,nroots
-     norm=dot_product(Avec_ortho(:,i),Avec_ortho(:,i))
-     norm=sqrt(norm)
-     Avec_ortho(:,i)=Avec_ortho(:,i)/norm
-  enddo
-  
-!----------------------------------------------------------------------
-! Orthonogonalise using Lowdin's symmetric orthogonalisation scheme
-!----------------------------------------------------------------------
-! Note that this ensures that the resulting vectors are the closest
-! possible in the least squares sense to the original ones
-!----------------------------------------------------------------------
-  ! Overlap matrix: this should be replaced with a BLAS level operation
-  ! in the future
-  do i=1,nroots
-     Smat(i,i)=1.0d0
-  enddo
-  do i=1,nroots-1
-     do j=i+1,nroots
-        Smat(i,j)=dot_product(Avec_ortho(:,i),Avec_ortho(:,j))
-        Smat(j,i)=Smat(i,j)
-     enddo
-  enddo
-
-  ! Inverse square root of the overlap matrix
-  call invsqrt_matrix(Smat,Sinvsq,nroots)
-
-  ! Orthogonalise
-  Avec(:,1:nroots)=Avec_ortho
-  Avec_ortho=matmul(Avec(:,1:nroots),Sinvsq)
-
-!----------------------------------------------------------------------
 ! Write the 2nd-order energies and 1st-order wave functions to disk
 !----------------------------------------------------------------------
   ! Register the scratch file
-   write(amult,'(i0)') imult
-   write(airrep,'(i0)') irrep
-   call scratch_name('mrenpt2vec'//'.mult'//trim(amult)//&
-        '.sym'//trim(airrep),vecfile)
-   call register_scratch_file(vecscr,vecfile)
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('mrenpt2vec'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),vecfile)
+  call register_scratch_file(vecscr,vecfile)
 
-   ! Open the scratch file
-   iscratch=scrunit(vecscr)
-   open(iscratch,file=scrname(vecscr),form='unformatted',&
-        status='unknown')
+  ! Open the scratch file
+  iscratch=scrunit(vecscr)
+  open(iscratch,file=scrname(vecscr),form='unformatted',&
+       status='unknown')
    
-   ! No. CSFs
-   write(iscratch) cfg%csfdim
+  ! No. CSFs
+  write(iscratch) cfg%csfdim
     
-   ! No. roots
-   write(iscratch) nroots
+  ! No. roots
+  write(iscratch) nroots
     
-   ! 2nd-order energies
-   write(iscratch) Elow
+  ! 2nd-order energies
+  do i=1,nroots
+     selarr(i)=EQD(isel(i))
+  enddo
+  write(iscratch) selarr
     
-   ! 1st-order wave functions
-   do i=1,nroots
-      write(iscratch) Avec_ortho(:,i)
-   enddo
+  ! 1st-order wave functions
+  do i=1,nroots
+     write(iscratch) Avec(:,isel(i))
+  enddo
 
-   ! Close the scratch file
-   close(iscratch)
+  ! Close the scratch file
+  close(iscratch)
 
 !----------------------------------------------------------------------
 ! Deallocate arrays
@@ -335,20 +405,22 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   deallocate(hdiag)
   deallocate(averageii)
   deallocate(Avec)
-  deallocate(Avec_ortho)
   deallocate(E0)
   deallocate(vec0)
   deallocate(E2)
-  deallocate(EPT2)
-  deallocate(Elow)
   deallocate(Qnorm)
   deallocate(Qener)
-  deallocate(indx)
-  deallocate(Smat)
-  deallocate(Sinvsq)
-  if (allocated(EQD)) deallocate(EQD)
-  if (allocated(mix)) deallocate(mix)
-  if (allocated(work)) deallocate(work)
+  deallocate(EQD)
+  deallocate(mix)
+  deallocate(work)
+  deallocate(selarr)
+  deallocate(det)
+  deallocate(Avec_det)
+  deallocate(Sij)
+  deallocate(ipairs)
+  deallocate(isel)
+  deallocate(maxSij)
+  deallocate(Sij1)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
@@ -364,5 +436,5 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
     
   return
   
-end subroutine gvvpt2
+end subroutine gvvpt2_follow
 

@@ -454,5 +454,64 @@ contains
   end subroutine invsqrt_matrix
 
 !######################################################################
+! symm_ortho: Orthonormalisation of a set of inpur vectors using
+!             Lowdin's symmetric orthogonalisation
+!######################################################################
+  subroutine symm_ortho(dim1,dim2,vec)
+
+    use constants
+    
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in) :: dim1,dim2
+
+    ! Eigenvectors
+    real(dp), intent(inout) :: vec(dim1,dim2)
+
+    ! Everything else
+    integer(is)             :: i,j
+    real(dp)                :: norm
+    real(dp), allocatable   :: Smat(:,:),Sinvsq(:,:),vec_ortho(:,:)
+        
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(Smat(dim2,dim2), Sinvsq(dim2,dim2), vec_ortho(dim1,dim2))
+    Smat=0.0d0; Sinvsq=0.0d0; vec_ortho=0.0d0
+    
+!----------------------------------------------------------------------
+! Normalisation
+!----------------------------------------------------------------------
+    do i=1,dim2
+       norm=dot_product(vec(:,i),vec(:,i))
+       norm=sqrt(norm)
+       vec(:,i)=vec(:,i)/norm
+    enddo
+    
+!----------------------------------------------------------------------
+! Overlap matrix
+!----------------------------------------------------------------------
+    call dgemm('T','N',dim2,dim2,dim1,1.0d0,vec,dim1,vec,dim1,0.0d0,&
+         Smat,dim2)
+
+!----------------------------------------------------------------------
+! Inverse square root of the overlap matrix
+!----------------------------------------------------------------------
+    call invsqrt_matrix(Smat,Sinvsq,dim2)
+
+!----------------------------------------------------------------------
+! Orthogonalisation
+!----------------------------------------------------------------------
+    call dgemm('N','N',dim1,dim2,dim2,1.0d0,vec,dim1,Sinvsq,dim2,&
+         0.0d0,vec_ortho,dim1)
+    
+    vec=vec_ortho
+
+    return
+    
+  end subroutine symm_ortho
+
+!######################################################################
   
 end module utils

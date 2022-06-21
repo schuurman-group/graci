@@ -21,7 +21,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 
   use constants
   use bitglobal
-  use iowf
   use iomod
 
   implicit none
@@ -59,6 +58,10 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   integer(is)              :: nvecB,nvecK
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
+
+  ! TEST
+  integer(is) :: iscratch
+  ! TEST
   
 !----------------------------------------------------------------------
 ! Output what we are doing

@@ -86,7 +86,8 @@ target_link_libraries(bitci -lhdf5_fortran)
 target_link_libraries(bitsi -lhdf5_fortran)
 target_link_libraries(bitwf -lhdf5_fortran)
 
-# Link the bitwf target to the overlap library
+# Link the bitci and bitwf target to the overlap library
+target_link_libraries(bitci -loverlap)
 target_link_libraries(bitwf -loverlap)
 
 #

@@ -25,6 +25,7 @@ class Dftmrci(cimethod.Cimethod):
 
         # user defined quanties
         self.hamiltonian    = 'heil17_standard'
+        self.hparam         = None
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
@@ -34,7 +35,6 @@ class Dftmrci(cimethod.Cimethod):
         self.icvs           = []
         self.refiter        = 3
         self.ref_prune      = True
-        self.guess_label    = None
         self.prune          = False
         self.prune_thresh   = 0.9
         self.prune_qcorr    = True
@@ -73,9 +73,14 @@ class Dftmrci(cimethod.Cimethod):
 
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
-
+            
         # write the output logfile header for this run
         output.print_dftmrci_header(self.label)
+
+        # if a guess CI object has been passed, compute the
+        # MO overlaps
+        if guess is not None:
+            self.smo = self.mo_overlaps(guess)
         
         # initialize bitci
         bitci_init.init(self)
@@ -88,7 +93,7 @@ class Dftmrci(cimethod.Cimethod):
         self.nextra = ref_diag.n_extra(self)
 
         # generate the initial reference space configurations
-        if self.guess_label is not None:
+        if guess is not None:
             n_ref_conf, ref_conf_units, ref_conf_files = \
                 ref_space.propagate(self, guess)
         else:
@@ -116,7 +121,7 @@ class Dftmrci(cimethod.Cimethod):
             # optional removal of deadwood from the
             # guess reference space
             if self.ref_prune and self.niter == 0 \
-               and self.guess_label is not None:
+               and guess is None:
                 # remove the deadwood
                 n_ref_conf = ref_prune.prune(self)
                 # set the new no. ref confs

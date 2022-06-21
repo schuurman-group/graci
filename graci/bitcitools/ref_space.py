@@ -9,7 +9,6 @@ import graci.utils.timing as timing
 import graci.core.libs as libs
 import graci.io.output as output
 import graci.io.convert as convert
-from pyscf import gto
 
 @timing.timed
 def generate(ci_method):
@@ -252,14 +251,9 @@ def propagate(ci_method, ci_method0):
     nvec   = np.array((nroots+nextra), dtype=int)
 
     # MO overlaps
-    mol0 = ci_method0.scf.mol.mol_obj.copy()
-    mol  = ci_method.scf.mol.mol_obj.copy()
-    smat = gto.intor_cross('int1e_ovlp', ci_method0.scf.mol.mol_obj,
-                           ci_method.scf.mol.mol_obj)
-    smat = np.matmul(np.matmul(ci_method0.scf.orbs.T, smat), ci_method.scf.orbs)
     nmo0 = ci_method0.scf.nmo
     nmo  = ci_method.scf.nmo
-    smat = np.reshape(smat, (nmo0 * nmo), order='F')
+    smat = np.reshape(ci_method.smo, (nmo0 * nmo), order='F')
     
     # Create the reference spaces for this calculation
     args = (nvec, nmo0, nmo, smat, confnames0, ref_nconf, confunits)

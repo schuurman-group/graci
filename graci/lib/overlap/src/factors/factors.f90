@@ -129,6 +129,8 @@ contains
     use detfuncs
     use timing
 
+    implicit none
+    
     ! Number of electrons in string
     integer(is), intent(in)  :: nelX
     
@@ -170,7 +172,7 @@ contains
 ! Determinant of the matrix of MO overlaps
 !----------------------------------------------------------------------    
     fac=ludet(nelX,work,ipiv)
-    
+
     return
     
   end subroutine get_one_factor

@@ -40,10 +40,12 @@ class Driver:
                 
         # Load required libraries
         #-----------------------------------------------------
-        # for now, assume postscf will require bitci
+        # for now, assume postscf will require the bitci and
+        # overlap libraries
         if len(ci_objs) > 0:
             libs.lib_load('bitci')
-
+            libs.lib_load('overlap')
+            
         if len(si_objs) or len(postci_objs) > 0:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')

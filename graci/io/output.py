@@ -605,7 +605,9 @@ def print_overlap_header(label):
 
 def print_overlaps(trans_list, overlaps, bra_label, ket_label,
                    irreplbl, bra_state_sym, ket_state_sym):
-    """Prints the table of wave function overlaps"""
+    """
+    Prints the table of wave function overlaps
+    """
 
     # max bra/ket label length
     llen = max(len(bra_label), len(ket_label))
@@ -658,4 +660,47 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     # table footer
     print(delim)
         
+    return
+
+#
+def print_bdd_header():
+    """print the block diagonalisation diabatisation header"""
+    global file_names
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Block Diagonalisation Diabatisation\n')
+        outfile.write(' -----------------------------------')
+        outfile.flush()
+
+    return
+
+def print_diabpot(diabpot, nroots, nirr, irrlbl):
+    """
+    Prints the table of diabatic potential matrix elements for each irrep
+    """
+
+    delim = ' '+'-'*(36)
+
+    fstr = '{:4d} {:4d}     {:10.6f}'
+
+    # table header
+    print('\n'+delim)
+    print('  Diabatic potential matrix elements')
+    
+    # loop over irreps
+    for irr in range(nirr):
+    
+        # sub-table header
+        print(delim)
+        print('  '+irrlbl[irr]+' block')
+        print(delim)
+
+        # matrix elements for this irrep
+        for i in range(nroots[irr]):
+            for j in range(i,nroots[irr]):
+                print(fstr.format(i+1, j+1, diabpot[irr][i,j]))
+                
+    # table footer
+    print(delim)
+
     return
