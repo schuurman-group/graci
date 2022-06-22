@@ -419,7 +419,7 @@ class Cimethod:
 
             # adiabatic potential matrix
             vmat = np.zeros((nstates, nstates), dtype=float)
-            np.fill_diagonal(vmat, self.energies_sym[irr][0:nstates-1])
+            np.fill_diagonal(vmat, self.energies_sym[irr][:nstates])
 
             # diabatic potential matrix
             wmat = np.matmul(self.adt[irr].T,

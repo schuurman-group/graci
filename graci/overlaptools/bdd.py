@@ -58,11 +58,11 @@ def adt(ref_obj, disp_obj):
         # get the overlaps
         Sij = overlap.overlap(ref_obj, disp_obj, disp_obj.smo,
                               pairs, irr, norm_thresh)
-        
+
         # reshape the wave function overlaps into a more
         # useful form
         Sij = np.reshape(Sij, (nstates, nstates))
-        
+
         # transform using the ref ADT matrix
         Sij = np.matmul(adt_ref.T, Sij)
         
@@ -71,7 +71,7 @@ def adt(ref_obj, disp_obj):
         SST      = np.matmul(Sij, Sij.T)
         SST_sqrt = sp.linalg.sqrtm(SST)
         adt      = np.matmul(S_inv, SST_sqrt)
-        
+
         # save the disp ADT matrix
         disp_obj.adt.append(adt)
         
