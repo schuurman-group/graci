@@ -415,6 +415,7 @@ class Cimethod:
             # diabatic potential matrix
             wmat = np.matmul(self.adt[irr].T,
                              np.matmul(vmat, self.adt[irr]))
+
             self.diabpot.append(wmat)
             
         return

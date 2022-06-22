@@ -118,7 +118,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   integer(is)              :: nvec
   integer(is), allocatable :: indx(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:),Qnorm1(:),Qener1(:)
-
+  logical                  :: lprint
   
   ! Timing variables
   real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
@@ -246,8 +246,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 !----------------------------------------------------------------------
   ! Norms of the 1st-order wave functions projected onto the Q-space
   do i=1,nvec
-     Qnorm(i)=sqrt(dot_product(Avec(refdim:cfg%csfdim,i),&
-          Avec(refdim:cfg%csfdim,i)))
+     Qnorm(i)=sqrt(dot_product(Avec(refdim+1:cfg%csfdim,i),&
+          Avec(refdim+1:cfg%csfdim,i)))
   enddo
 
   ! ENPT2 energy corrections
@@ -301,9 +301,10 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   enddo
 
   ! Compute the overlaps
+  lprint=.false.
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nvec,&
        detR0,det,vecR0,Avec_det,smoR0,normthrsh,ncore,icore,lfrzcore,&
-       npairs,Sij,ipairs,.false.)
+       npairs,Sij,ipairs,lprint)
 
 !----------------------------------------------------------------------
 ! Deallocate the Avec_det array now that it is no longer needed
@@ -395,7 +396,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   ! just to be on the safe side
   deallocate(Avec)
   deallocate(EQD)
-  
+
 !----------------------------------------------------------------------
 ! Write the Q-space information to disk
 !----------------------------------------------------------------------

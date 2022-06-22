@@ -196,7 +196,7 @@ class Dftmrci2(cimethod.Cimethod):
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units, n_conf_new = \
                         gvvpt2.diag_heff(self)
-            
+                
             # set the new number of mrci confs if wave function
             # truncation is being used
             if self.truncate:

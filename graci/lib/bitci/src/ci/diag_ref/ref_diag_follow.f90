@@ -135,7 +135,8 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   integer(is)                :: i,j,n,nsave
   integer(is)                :: iscratch
   integer(is)                :: isigma(3)
-
+  logical                    :: lprint
+  
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -299,9 +300,10 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   enddo
 
   ! Compute the overlaps
+  lprint=.false.
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nsave,&
        detR0,det,vecR0,vec_det,smat,normthrsh,ncore,icore,lfrzcore,&
-       npairs,Sij,ipairs,.false.)
+       npairs,Sij,ipairs,lprint)
 
 !----------------------------------------------------------------------
 ! Determine the reference eigenfunctions of interest
@@ -396,7 +398,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   do i=1,nroots
      ener1(i)=ener(isel(i))
   enddo
-  write(iscratch) ener(1:nroots)
+  write(iscratch) ener1(1:nroots)
   
   ! Eigenvectors
   do i=1,nroots

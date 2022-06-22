@@ -147,7 +147,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   if (allocated(det2betaB)) deallocate(det2betaB)
   if (allocated(det2betaK)) deallocate(det2betaK)
   if (allocated(betafac))   deallocate(betafac)
-  
+
 !----------------------------------------------------------------------
 ! Set some globally accessible variables
 !----------------------------------------------------------------------
@@ -166,14 +166,14 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra-ket overlaps
   allocate(smo(nmoB,nmoK))
   smo=smo1
-
+  
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
   call get_nel(n_intK,detK1(:,:,1),nelK,nel_alphaK,nel_betaK)
-
+  
   ! Verbosity flag
   verbose=verbose1
-  
+
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
