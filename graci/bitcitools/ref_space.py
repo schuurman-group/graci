@@ -207,20 +207,22 @@ def autoras(ci_method):
     # Fill in the RAS arrays
     ci_method.ras1 = np.array(ras1, dtype=int)
     ci_method.ras3 = np.array(ras3, dtype=int)
-    
+
     # Output the selected RAS1 & RAS3 spaces
     if ci_method.verbose:
         print('\n Selected RAS MOs:', flush=True)
         print('\n RAS1',[n for n in ci_method.ras1], flush=True)
         print(' RAS3',[n for n in ci_method.ras3], flush=True)
 
-        # Force nhole1 = nelec3 = 2
-        if ci_method.nhole1 != 2:
+    # Force nhole1 = nelec3 = 2
+    if ci_method.nhole1 != 2:
+        if ci_method.verbose:
             print('\n Setting nhole1 = 2', flush=True) 
-            ci_method.nhole1 = 2
-        if ci_method.nelec3 != 2:
+        ci_method.nhole1 = 2
+    if ci_method.nelec3 != 2:
+        if ci_method.verbose:
             print('\n Setting nelec3 = 2', flush=True) 
-            ci_method.nelec3 = 2
+        ci_method.nelec3 = 2
     
     return
 
