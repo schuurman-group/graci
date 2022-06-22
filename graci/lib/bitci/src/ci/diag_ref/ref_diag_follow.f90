@@ -269,15 +269,9 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ! Read in the reference space eigenvectors in the CSF basis
   call read_all_eigenpairs(vecscr,vec_csf,ener,ncsf,nsave)
   
-  ! Get the determinant bit strings
-  call bitstrings_detbas(cfg,ndet,det)
-
-  ! Put the determinant bit strings into the 'canonical' MO ordering
-  call reorder_confs(m2c,det,ndet)
-
-  ! Compute the eigenvectors in the determinant basis
-  call eigenvectors_detbas(cfg,nsave,ncsf,ndet,vec_csf,vec_det)
-
+  ! Compute the determinant representation of the wave functions
+  call det_trans(cfg,m2c,nsave,ncsf,ndet,vec_csf,vec_det,det)
+  
 !----------------------------------------------------------------------
 ! Compute the overlaps with the input/target wave functions
 !----------------------------------------------------------------------

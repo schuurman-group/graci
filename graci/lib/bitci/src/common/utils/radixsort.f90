@@ -31,7 +31,8 @@ module radixsort
       ! NOTE: future optimization would discard the the unused bits in the 'last' ib integer
       ! in the n_int tuple
       allocate(indx_table(0:255, 0:n_int*n_b-1))           ! table for mapping radix indices
-
+      indx_table=0
+      
       ptra => det_list
       ptrb => scr
       

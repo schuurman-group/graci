@@ -20,7 +20,8 @@ def init(bra, ket, calctype):
     # bra-ket MO overlaps
     molBra = bra.scf.mol.mol_obj.copy()
     molKet = ket.scf.mol.mol_obj.copy()
-    smat   = gto.intor_cross('int1e_ovlp', bra.scf.mol.mol_obj,
+    smat   = gto.intor_cross('int1e_ovlp',
+                             bra.scf.mol.mol_obj,
                              ket.scf.mol.mol_obj)
     smat   = np.matmul(np.matmul(bra.scf.orbs.T, smat), ket.scf.orbs)
 
@@ -39,7 +40,7 @@ def init(bra, ket, calctype):
     nmoBra  = bra.scf.nmo
     nmoKet  = ket.scf.nmo
     smat    = np.reshape(smat, (nmoBra * nmoKet), order='F')
-    
+
     # call to bitwf_initialise
     args = (multBra, multKet, nelBra, nelKet, nmoBra, nmoKet, smat,
             pgrp, calctype)

@@ -119,23 +119,11 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,ndet,wfscr)
        nroots,iroots)
 
 !----------------------------------------------------------------------
-! Get the determinant bit strings
+! Compute the determinant representation of the wave functions
 !----------------------------------------------------------------------
-  call bitstrings_detbas(cfg,detdim,det)
-
-!----------------------------------------------------------------------
-! Put the determinant bit strings into the 'canonical' MO ordering
-! (the reorder_conf subroutine is used for this as the det bit strings
-! have the same structure as conf bit strings)
-!----------------------------------------------------------------------
-  call reorder_confs(cfg%m2c,det,detdim)
+  call det_trans(cfg,cfg%m2c,nroots,cfg%csfdim,detdim,vec_csf,&
+       vec_det,det)
   
-!----------------------------------------------------------------------
-! Compute the eigenvectors in the determinant basis
-!----------------------------------------------------------------------
-  call eigenvectors_detbas(cfg,nroots,cfg%csfdim,detdim,vec_csf,&
-       vec_det)
-
 !----------------------------------------------------------------------
 ! Debugging: check that the determinant expansions are spin
 ! eigenfunctions

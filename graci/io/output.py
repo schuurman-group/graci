@@ -152,7 +152,7 @@ def print_scf_summary(scf):
         for iorb in range(scf.nmo):
             sym_indx = scf.orb_sym[iorb]
             orb_cnt[sym_indx] += 1
-            outfile.write(' {:5d}  {:>4d}({:>3})  {:10.5f}  {:8.4}\n'.
+            outfile.write(' {:5d}  {:>4d}({:>3})  {:10.5f}  {:8.4f}\n'.
                   format(iorb+1,
                          orb_cnt[sym_indx],
                          scf.orb_irrep[iorb],
