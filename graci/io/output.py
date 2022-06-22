@@ -693,13 +693,47 @@ def print_param_header(target_data, ci_objs, ci_states, hparams):
     return
     
 #
-def print_param_results(fitp, info):
+def print_param_results(res, target, init_ener, final_ener):
     """
     print result of a parameterization run
     """
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n Results -------------------------\n\n')
+        outfile.write('\n Results')
+        outfile.write(' -----------------------------------------\n')
+        odata = [res['message'], res['fun'], res['nfev']]
+
+        outfile(' Status:                 {<20s}'.format(odata[0]))
+        outfile(' Norm of Error function: {:10.8f}'.format(odata[1]))
+        outfile(' Number of Evaluations:  {:4d}'.format(odata[2]))
+
+        outfile.write('\n Final Parameter Values')
+        outfile.write(' -----------------------------------------\n')
+        fstr = ' '.join(['{:10.8f} ']*len(res['x']))
+        outfile.write(fstr.format(list(res['x'])))
+
+        outfile.write('\n Reference Data')
+        outfile.write(' -----------------------------------------\n')
+
+        tstr = '{>:30s} {>:10s} {>:10s}'+(' '.join(['{:10sf}']*4))
+        fstr = '{>:30s} {>:10s} {>:10s}'+(' '.join(['{:10.5f}']*4))
+
+        outfile.write(tstr.format('Molecule', 'istate', 'fstate', 
+                                  'Reference', 'Initial', 'Final', 
+                                  '|Change|'))
+
+        for molecule, states in target.items():
+            for trans, ener in target[molecule].items():
+                init, final  = trans.strip().split()
+                exc_init     = init_ener[molecule][final] - \
+                               init_ener[molecule][init]
+                exc_final    = final_ener[molecule][final] - \
+                               final_ener[molecule][final]
+                outfile.write(fstr.format([molecule, init, final, ener, 
+                                           exc_init, exc_final, 
+                                           abs(exc_final-ener) - 
+                                           abs(exc_init-ener)]))
+
         outfile.flush()
 
     return

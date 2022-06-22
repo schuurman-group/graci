@@ -136,7 +136,7 @@ def write(graci_obj, file_name=None, file_handle=None,
 
         # if this is a list, replace complex objects with links
         if isinstance(obj, list):
-            obj_write = [None]*len(list) 
+            obj_write = [None]*len(obj) 
             for indx in range(len(obj)):
                 lname = str(name)+'.'+str(indx)
                 value = obj[indx]

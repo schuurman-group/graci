@@ -36,6 +36,7 @@ class Parameterize:
         self.ref_states     = {}
         self.ndata          = 0
         self.iter           = 0
+        self.current_h      = 0
 
     def run(self):
         """re-parameterize the Hamiltonian"""
@@ -52,6 +53,7 @@ class Parameterize:
         # reference checkpoint file
         p0 = np.asarray([0.500779, 0.356986, 0.573523, 1.9266], 
                                             dtype=float)
+
         output.print_param_header(target_data, ci_data, 
                                             self.ref_states, p0)
 
@@ -64,17 +66,22 @@ class Parameterize:
                 os.mkdir(target)
 
         # run the first pass
-        self.eval_energies(p0, target_data, scf_data, ci_data, 
-                                           run_scf=True)
+        ener_init = self.eval_energies(p0, target_data, scf_data, 
+                                           ci_data, run_scf=True)
 
+        self.iter      = 1
+        self.current_h = p0
         res = sp_opt.minimize(self.err_func, p0, 
                               args = (target_data, scf_data, ci_data),
                               method = 'Nelder-Mead',
                               tol = self.pthresh, 
                               callback = self.status_func)
-        print('res='+str(res))
 
-        output.print_param_results(res.x, res.success)
+        ener_final = self.eval_energies(res.x, target_data, scf_data, 
+                                               ci_data, run_scf=True)
+
+        output.print_param_results(res, target_data, 
+                                   ener_init, ener_final )
 
         return
 
@@ -96,20 +103,16 @@ class Parameterize:
                                          scf_data, ci_data)
         dif_vec   = np.zeros(self.ndata, dtype=float)
 
-        print('iter_ener='+str(iter_ener))
         # this approach assumes dict is ordered! Only true from Python
         # 3.6 onwards...
         ide = 0
         for molecule, states in target_data.items():
             for trans, ener in target_data[molecule].items():
                 init, final  = trans.strip().split()
-                print('init, final='+str(init)+','+str(final))
                 de_iter      = iter_ener[molecule][final] - \
                                iter_ener[molecule][init]
                 dif_vec[ide] = de_iter*constants.au2ev - ener
                 ide         += 1
-
-        print('current values of params='+str(hparams)+' error='+str(np.linalg.norm(dif_vec)))
 
         return np.linalg.norm(dif_vec)
 
@@ -119,7 +122,19 @@ class Parameterize:
         Give status of optimization
         """
 
-        print(' ITERATION '+str(self.iter)+' params='+str(xk))
+        nparam = xk.size
+        fstr   = ' parameters: ' + ' '.join(['{:10.8f}']*nparam)
+        fstr   += ' |dif.| = {:10.8f}'
+        dif    = np.linalg.norm(xk - self.current_h)
+        self.current_h = xk
+ 
+        print('fstr=|'+fstr+'|')
+
+        print(' ITERATION '+str(self.iter))
+        print(' ----------------------------------------------')
+        print('xk+dif='+str(list(xk)+[dif]))
+        print(fstr.format(list(xk) + [dif]))
+
         self.iter += 1
         
         return
@@ -209,10 +224,11 @@ class Parameterize:
         smo    = np.identity(ref_ci[0].scf.nmo, dtype=float)
         # iterate over the reference states
         for iobj in range(len(ref_ci)):
-            bra_st  = []
             bra_lbl = ref_ci[iobj].label
+            st_dict = self.ref_states[molecule][bra_lbl]
+            bra_st.extend(list(st_dict.keys()))
 
-            for lbl, indx in self.ref_states[molecule][bra_lbl].items():
+            for lbl, indx in st_dict.items():
                 ipairs = np.asarray([[indx, st] for st in 
                             range(new_ci[iobj].n_states())], dtype=int)
                 Sij = overlap.overlap(ref_ci[iobj], new_ci[iobj],
@@ -221,9 +237,10 @@ class Parameterize:
                     st = np.argmax(np.absolute(Sij))
                     eners[lbl] = new_ci[iobj].energies[st]
 
-        #if list(eners.keys()).sort() != list(ref_det.keys()).sort():
-        #    sys.exit('Could not identify states: ' + str(ci_objs) + 
-        #             ' lbl:'+str(states))
+        
+        if list(eners.keys()).sort() != bra_st.sort():
+            sys.exit('Molecule: ' + str(molecule) + 
+                     ' -- Could not identify states: ' + str(bra_st))
 
         return eners
 
