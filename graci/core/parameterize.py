@@ -122,21 +122,11 @@ class Parameterize:
         Give status of optimization
         """
 
-        nparam = xk.size
-        fstr   = ' parameters: ' + ' '.join(['{:10.8f}']*nparam)
-        fstr   += ' |dif.| = {:10.8f}'
-        dif    = np.linalg.norm(xk - self.current_h)
+        output.print_param_iter(self.iter, list(xk), dif)
+
+        self.iter     += 1
         self.current_h = xk
- 
-        print('fstr=|'+fstr+'|')
 
-        print(' ITERATION '+str(self.iter))
-        print(' ----------------------------------------------')
-        print('xk+dif='+str(list(xk)+[dif]))
-        print(fstr.format(list(xk) + [dif]))
-
-        self.iter += 1
-        
         return
 
     #

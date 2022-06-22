@@ -691,7 +691,26 @@ def print_param_header(target_data, ci_objs, ci_states, hparams):
         outfile.flush()
 
     return
-    
+
+#
+def print_param_iter(cur_iter, params, dif):
+    """
+    Print results of current parameterization iterations
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+
+        nparam = len(params)
+        args   = params + [dif]
+        fstr   = ' parameters: ' + ' '.join(['{:10.8f}']*nparam)
+        fstr   += ' |dif.| = {:10.8f}'
+
+        outfile.write(' ITERATION '+str(cur_iter))
+        outfile.write(' ----------------------------------------------')
+        outfile.write(fstr.format(*args))
+
+    return
+
 #
 def print_param_results(res, target, init_ener, final_ener):
     """
