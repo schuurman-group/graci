@@ -28,7 +28,7 @@ class Parameterize:
         self.hamiltonian    = ''
         self.graci_ref_file = ''
         self.target_file    = ''
-        self.pthresh        = 1.e-5
+        self.pthresh        = 1.e-4
         self.verbose        = True
 
         # -------------------------------
@@ -74,7 +74,7 @@ class Parameterize:
         res = sp_opt.minimize(self.err_func, p0, 
                               args = (target_data, scf_data, ci_data),
                               method = 'Nelder-Mead',
-                              tol = self.pthresh, 
+                              tol = self.pthresh,
                               callback = self.status_func)
 
         ener_final = self.eval_energies(res.x, target_data, scf_data, 
@@ -122,6 +122,7 @@ class Parameterize:
         Give status of optimization
         """
 
+        dif = np.linalg.norm(xk - self.current_h)
         output.print_param_iter(self.iter, list(xk), dif)
 
         self.iter     += 1
@@ -227,7 +228,6 @@ class Parameterize:
                     st = np.argmax(np.absolute(Sij))
                     eners[lbl] = new_ci[iobj].energies[st]
 
-        
         if list(eners.keys()).sort() != bra_st.sort():
             sys.exit('Molecule: ' + str(molecule) + 
                      ' -- Could not identify states: ' + str(bra_st))

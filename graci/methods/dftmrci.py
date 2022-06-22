@@ -181,7 +181,7 @@ class Dftmrci(cimethod.Cimethod):
             self.ref_wfn.set_confunits(ref_conf_units)
 
             # break if the reference space is converged
-            if min_norm > 0.9025 and self.niter > 0:
+            if min_norm > 0.9025 and self.niter > 0 and self.verbose:
                 print('\n * Reference Space Converged *', flush=True)
                 break
 

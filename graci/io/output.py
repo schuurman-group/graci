@@ -703,11 +703,12 @@ def print_param_iter(cur_iter, params, dif):
         nparam = len(params)
         args   = params + [dif]
         fstr   = ' parameters: ' + ' '.join(['{:10.8f}']*nparam)
-        fstr   += ' |dif.| = {:10.8f}'
+        fstr   += ' |dif.| = {:10.8f}\n'
 
-        outfile.write(' ITERATION '+str(cur_iter))
-        outfile.write(' ----------------------------------------------')
+        outfile.write('\n ITERATION '+str(cur_iter))
+        outfile.write('\n ------------------------------------------\n')
         outfile.write(fstr.format(*args))
+        outfile.flush()
 
     return
 
@@ -718,24 +719,24 @@ def print_param_results(res, target, init_ener, final_ener):
     """
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('\n Results')
-        outfile.write(' -----------------------------------------\n')
-        odata = [res['message'], res['fun'], res['nfev']]
+        outfile.write('\n\n Results\n')
+        outfile.write(' -----------------------------------------')
+        outs = [str(res['message']), res['fun'], res['nfev']]
 
-        outfile(' Status:                 {<20s}'.format(odata[0]))
-        outfile(' Norm of Error function: {:10.8f}'.format(odata[1]))
-        outfile(' Number of Evaluations:  {:4d}'.format(odata[2]))
+        outfile.write('\n Status:            {:>50s}'.format(outs[0]))
+        outfile.write('\n Norm of Error:     {:50.8f}'.format(outs[1]))
+        outfile.write('\n # of Evaluations:  {:50d}'.format(outs[2]))
 
-        outfile.write('\n Final Parameter Values')
-        outfile.write(' -----------------------------------------\n')
-        fstr = ' '.join(['{:10.8f} ']*len(res['x']))
-        outfile.write(fstr.format(list(res['x'])))
+        outfile.write('\n\n Final Parameter Values')
+        outfile.write('\n -----------------------------------------')
+        fstr = '\n '+' '.join(['{:10.8f} ']*len(res['x']))
+        outfile.write(fstr.format(*list(res['x'])))
 
-        outfile.write('\n Reference Data')
-        outfile.write(' -----------------------------------------\n')
+        outfile.write('\n\n Reference Data')
+        outfile.write('\n -----------------------------------------')
 
-        tstr = '{>:30s} {>:10s} {>:10s}'+(' '.join(['{:10sf}']*4))
-        fstr = '{>:30s} {>:10s} {>:10s}'+(' '.join(['{:10.5f}']*4))
+        tstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:>10s}']*4)+'\n'
+        fstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:10.5f}']*4)
 
         outfile.write(tstr.format('Molecule', 'istate', 'fstate', 
                                   'Reference', 'Initial', 'Final', 
@@ -747,11 +748,12 @@ def print_param_results(res, target, init_ener, final_ener):
                 exc_init     = init_ener[molecule][final] - \
                                init_ener[molecule][init]
                 exc_final    = final_ener[molecule][final] - \
-                               final_ener[molecule][final]
-                outfile.write(fstr.format([molecule, init, final, ener, 
-                                           exc_init, exc_final, 
+                               final_ener[molecule][init]
+                outfile.write(fstr.format(molecule, init, final, ener, 
+                                           exc_init*constants.au2ev, 
+                                           exc_final*constants.au2ev, 
                                            abs(exc_final-ener) - 
-                                           abs(exc_init-ener)]))
+                                           abs(exc_init-ener)))
 
         outfile.flush()
 

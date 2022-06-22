@@ -24,7 +24,8 @@ def diag(ci_method):
     ref_wfn = ci_method.bitci_ref()
 
     # Print the section header
-    output.print_refdiag_header()
+    if ci_method.verbose:
+        output.print_refdiag_header()
     
     # Bitci reference configuration scratch file numbers
     confunits = np.array(ref_wfn.conf_units, dtype=int)
@@ -141,7 +142,8 @@ def diag_follow(ci_method, ci_method0):
     ref_wfn = ci_method.bitci_ref()
 
     # Print the section header
-    output.print_refdiag_header()
+    if ci_method.verbose:
+        output.print_refdiag_header()
     
     # Bitci reference configuration scratch file numbers
     confunits = np.array(ref_wfn.conf_units, dtype=int)

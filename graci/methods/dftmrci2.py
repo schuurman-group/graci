@@ -158,7 +158,7 @@ class Dftmrci2(cimethod.Cimethod):
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
 
-            if self.verbose > 0:
+            if self.verbose:
                 output.print_refdiag_summary(self)
 
             # optional removal of deadwood from the
@@ -220,7 +220,7 @@ class Dftmrci2(cimethod.Cimethod):
             self.ref_wfn.set_confunits(ref_conf_units)
 
             # break if the reference space is converged
-            if min_norm > 0.9025 and self.niter > 0:
+            if min_norm > 0.9025 and self.niter > 0 and self.verbose:
                 print('\n * Reference Space Converged *', flush=True)
                 break
 

@@ -25,7 +25,8 @@ def generate(ci_method):
     ref_wfn = ci_method.bitci_ref()
 
     # Print the section header
-    output.print_mrcispace_header()
+    if ci_method.verbose:
+        output.print_mrcispace_header()
     
     # Bitci reference configuration scratch file numbers
     ref_confunits = np.array(ref_wfn.conf_units, dtype=int)

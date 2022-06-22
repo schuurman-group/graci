@@ -97,7 +97,8 @@ def autoras(ci_method):
     DFT/CIS calculations"""
 
     # Print the section header
-    output.print_autoras_header()
+    if ci_method.verbose:
+        output.print_autoras_header()
    
     # number of irreps
     nirr = ci_method.n_irrep()
@@ -208,17 +209,18 @@ def autoras(ci_method):
     ci_method.ras3 = np.array(ras3, dtype=int)
     
     # Output the selected RAS1 & RAS3 spaces
-    print('\n Selected RAS MOs:', flush=True)
-    print('\n RAS1',[n for n in ci_method.ras1], flush=True)
-    print(' RAS3',[n for n in ci_method.ras3], flush=True)
+    if ci_method.verbose:
+        print('\n Selected RAS MOs:', flush=True)
+        print('\n RAS1',[n for n in ci_method.ras1], flush=True)
+        print(' RAS3',[n for n in ci_method.ras3], flush=True)
 
-    # Force nhole1 = nelec3 = 2
-    if ci_method.nhole1 != 2:
-        print('\n Setting nhole1 = 2', flush=True) 
-        ci_method.nhole1 = 2
-    if ci_method.nelec3 != 2:
-        print('\n Setting nelec3 = 2', flush=True) 
-        ci_method.nelec3 = 2
+        # Force nhole1 = nelec3 = 2
+        if ci_method.nhole1 != 2:
+            print('\n Setting nhole1 = 2', flush=True) 
+            ci_method.nhole1 = 2
+        if ci_method.nelec3 != 2:
+            print('\n Setting nelec3 = 2', flush=True) 
+            ci_method.nelec3 = 2
     
     return
 
