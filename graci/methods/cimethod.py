@@ -5,6 +5,7 @@ import os as os
 import sys as sys
 import numpy as np
 import copy as copy
+import graci.core.params as params
 import graci.core.orbitals as orbitals
 import graci.utils.timing as timing
 import graci.io.output as output
@@ -39,7 +40,8 @@ class Cimethod:
         self.ref_state      = -1
         self.ddci           = True
         self.guess_label    = None
-        
+        self.verbose        = True
+        self.hparam         = None
 
         # class variables
         # total number of electrons
@@ -226,26 +228,12 @@ class Cimethod:
         return self.natorb_sym[istate, :]
 
     #
-    def mo_overlaps(self, other):
-        """
-        returns the overlaps with the MOs of another CI
-        class object, 'other'
-        """
+    def update_hparam(self, hparams):
+        """update the values of the Hamiltonian parameters"""
 
-        # mol objects
-        mol0 = other.scf.mol.mol_obj.copy()
+        self.hparam = hparams
+        return
 
-        mol  = self.scf.mol.mol_obj.copy()
-
-        # AO overlaps
-        smo  = gto.intor_cross('int1e_ovlp', other.scf.mol.mol_obj,
-                               self.scf.mol.mol_obj)
-
-        # AO-to-MO transformation
-        smo  = np.matmul(np.matmul(other.scf.orbs.T, smo), self.scf.orbs)
-        
-        return smo
-    
 #########################################################################
     #
     def build_nos(self):
@@ -333,7 +321,8 @@ class Cimethod:
                                            thresh=0.01, basis='mo')
             pd[i], pa[i] = orbitals.promotion_numbers(wt, ndo)
 
-        output.print_promotion(refstate, states, syms, pd, pa)
+        if self.verbose:
+            output.print_promotion(refstate, states, syms, pd, pa)
         
         return
 
@@ -358,7 +347,9 @@ class Cimethod:
         states = [i for i in range(n_tot)]
         syms   = [self.scf.mol.irreplbl[self.state_sym(i)[0]]
                   for i in range(n_tot)]
-        output.print_moments(states, syms, momts)
+
+        if self.verbose:
+            output.print_moments(states, syms, momts)
 
         return
 

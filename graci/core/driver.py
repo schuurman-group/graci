@@ -15,7 +15,7 @@ class Driver:
            will be needed to be passed to the driver at the moment"""
         self.label = 'default'
 
-    def run(self, calc_array):
+    def run(self, calc_array, save_to_chkpt=True):
         """Determine how to run the calculation given the array
            of postscf objects in the array argument"""
 
@@ -25,6 +25,7 @@ class Driver:
         ci_objs     = []
         postci_objs = []
         si_objs     = []
+        param_objs  = []
         for obj in calc_array:
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
@@ -37,16 +38,18 @@ class Driver:
                 postci_objs.append(obj)
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
-                
+            elif type(obj).__name__ == 'Parameterize':
+                param_objs.append(obj)
+
         # Load required libraries
         #-----------------------------------------------------
         # for now, assume postscf will require the bitci and
         # overlap libraries
-        if len(ci_objs) > 0:
+        if len(ci_objs) or len(param_objs) > 0:
             libs.lib_load('bitci')
             libs.lib_load('overlap')
             
-        if len(si_objs) or len(postci_objs) > 0:
+        if len(si_objs) or len(postci_objs) or len(param_objs) > 0:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')
 
@@ -56,7 +59,8 @@ class Driver:
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
             mol_obj.run()
-            chkpt.write(mol_obj)
+            if save_to_chkpt:
+                chkpt.write(mol_obj)
 
         # print output file header
         output.print_header(calc_array)
@@ -110,7 +114,8 @@ class Driver:
                     sys.exit(1)
 
                 scf_obj.run(mol_obj)
-                chkpt.write(scf_obj)
+                if save_to_chkpt:
+                    chkpt.write(scf_obj)
 
             # initialize the MO integrals following the SCF run, but
             # finalise previous integrals if they exist. Not sure if this
@@ -130,6 +135,7 @@ class Driver:
             # run all the post-scf routines that map to the current
             # scf object.
 
+            ci_lbls = [ci.label for ci in ci_objs]
             for ci_obj in ci_objs:
 
                 # if labels match -- set the geometry
@@ -137,14 +143,13 @@ class Driver:
                 if ci_obj.label == scf_obj.label or len(scf_objs)==1:
 
                     # guess CI object
-                    guess_obj = None
-                    if ci_obj.guess_label is not None:
-                        for ci_obj2 in ci_objs:
-                            if ci_obj2.label == ci_obj.guess_label:
-                                guess_obj = ci_obj2
-                                continue
-                    
-                    ci_obj.run(scf_obj, guess_obj)
+                    g_lbl = ci_obj.guess_label
+                    if g_lbl in ci_lbls:
+                        ci_guess = ci_objs[ci_lbls.index(g_lbl)]
+                    else:
+                        ci_guess = None
+                       
+                    ci_obj.run(scf_obj, ci_guess)
                     chkpt.write(ci_obj)
 
         # All SCF + CI objects are created and run() called before 
@@ -157,7 +162,8 @@ class Driver:
             arg_list = self.get_postscf_objs(postci_obj, ci_objs)
 
             postci_obj.run(arg_list)
-            chkpt.write(postci_obj)
+            if save_to_chkpt:
+                chkpt.write(postci_obj)
 
         # State Interaction sections
         # -- these can take ci_objects or postci_objects as arguments
@@ -166,7 +172,14 @@ class Driver:
             arg_list = self.get_postscf_objs(si_obj, 
                                              ci_objs + postci_objs)            
             si_obj.run(arg_list)
-            chkpt.write(si_obj)
+            if save_to_chkpt:
+                chkpt.write(si_obj)
+
+        # Hamiltonian Parameterization
+        # -- this is a special case for now
+        #-------------------------------------------------------------
+        for param_obj in param_objs:
+            param_obj.run()
 
         return
 
@@ -180,7 +193,14 @@ class Driver:
         if type(run_obj).__name__ in params.postci_objs:
             lbls = list(run_obj.couple_groups)
         elif type(run_obj).__name__ in params.si_objs:
-            lbls = [run_obj.final_label, run_obj.init_label]
+            if hasattr(run_obj, 'final_label'):
+                lbls = [run_obj.final_label, run_obj.init_label]
+            elif hasattr(run_obj, 'bra_label'):
+                lbls = [run_obj.bra_label, run_obj.ket_label]
+            else:
+                print('Cannot find init/ket, final/bra states in '+
+                      'state interaction object: '+str(run_obj.label))
+                sys.exit(1)
         else:
             print('Cannot construct argument list for run() '+
                   ' method for object: '+str(run_obj.label))

@@ -95,12 +95,14 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(4(x,a))') &
-       trim(bkstr),'CSF-to-det conversion for the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-  
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(4(x,a))') &
+          trim(bkstr),'CSF-to-det conversion for the',&
+          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Check on the bra/ket string
 !----------------------------------------------------------------------
@@ -167,9 +169,11 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
 !----------------------------------------------------------------------  
 ! Output the basis dimensions
 !----------------------------------------------------------------------
-  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
-  write(6,'(x,a,x,i0)') 'Determinant basis dimension:',detdim
-
+  if (verbose) then
+     write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
+     write(6,'(x,a,x,i0)') 'Determinant basis dimension:',detdim
+  endif
+     
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -272,7 +276,9 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
-  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,'detwf')
+  if (verbose) &
+       call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+       'detwf')
   
 !----------------------------------------------------------------------
 ! Flush stdout

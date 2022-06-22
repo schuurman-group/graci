@@ -9,7 +9,6 @@ import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
-import graci.io.output as output
 
 @timing.timed
 def extract_wf(ci_method):
@@ -39,16 +38,6 @@ def extract_wf(ci_method):
 
         # No. states
         nstates = states.size
-
-        # state labeling of stored wfn (adiabatic label)
-        state_lbls = np.array([ci_method.state_index(irr, states[n]-1) 
-                                for n in range(nstates)], dtype=int)
-
-        # Name of the HDF5 output file
-        outfile = output.file_names['chkpt_file'] 
-       
-        # method label into which we store wfn datasets
-        grp_name = type(ci_method).__name__ + '.' + str(ci_method.label)
 
         # No. determinants
         ndet = 0
@@ -86,7 +75,7 @@ def extract_wf(ci_method):
         # Reshaping
         det = np.reshape(det, (n_int,2,ndet_trunc), order='F')
         vec = np.reshape(vec, (ndet_trunc,nstates), order='F')
-        
+       
         # Save the determinant bit strings and eigenvectors
         # for this irrep
         ci_method.det_strings.append(det)

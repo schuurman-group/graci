@@ -66,9 +66,16 @@ def contents(file_name=None, file_handle=None, grp_name=None):
     return grp_lst
 
 #
-def write(graci_obj, file_name=None, file_handle=None, grp_name=None):
+def write(graci_obj, file_name=None, file_handle=None, 
+                                 grp_name=None, label_suffix=None):
     """write the graci_obj to the checkpoint file"""
     global sub_objs, comp_objs
+
+    # if new_label is not none, update the object label
+    l_suffix=''
+    if label_suffix is not None:
+        graci_obj.label += label_suffix
+        l_suffix = label_suffix
 
     # by default, the group name will by the class type + object label
     if grp_name is None:
@@ -97,20 +104,13 @@ def write(graci_obj, file_name=None, file_handle=None, grp_name=None):
 
     for name, obj in objs.items():
 
-        # if object is a numpy array, save
-        # as a distinct dataset
-        if isinstance(obj, np.ndarray):
-            dset_name = link_name(obj, suffix=str(name)) 
-            obj_grp.attrs[name] = dumps(dset_name)
-            write_dataset(chkpt, grp_name+'/'+dset_name, obj)
-            continue
-
         # if the object is a graci computation class object, save
         # the name of the object as a string -- this
         # is preferable to storing the same object
         # repeatedly
         if isinstance(obj, comp_objs):
-            obj_grp.attrs[name] = dumps(link_name(obj))
+            obj_grp.attrs[name] = dumps(link_name(obj, 
+                                        suffix=l_suffix))
             continue
 
         # if this is a class object, create a subgroup and write it there
@@ -118,6 +118,14 @@ def write(graci_obj, file_name=None, file_handle=None, grp_name=None):
             dset_name = link_name(obj, suffix=str(name))
             obj_grp.attrs[name] = dumps(dset_name)
             write(obj, file_handle=chkpt, grp_name=grp_name+'/'+dset_name)
+            continue
+
+        # if object is a numpy array, save
+        # as a distinct dataset
+        if isinstance(obj, np.ndarray):
+            dset_name = link_name(obj, suffix=str(name))
+            obj_grp.attrs[name] = dumps(dset_name)
+            write_dataset(chkpt, grp_name+'/'+dset_name, obj)
             continue
 
         # if this is a pyscf object, simply save as 'None', this will
@@ -128,22 +136,24 @@ def write(graci_obj, file_name=None, file_handle=None, grp_name=None):
 
         # if this is a list, replace complex objects with links
         if isinstance(obj, list):
-            obj_write = obj.copy()
+            obj_write = [None]*len(obj) 
             for indx in range(len(obj)):
                 lname = str(name)+'.'+str(indx)
                 value = obj[indx]
-                if isinstance(value, np.ndarray):
-                    dset_name = link_name(value, suffix=lname)
-                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
-                    obj_write[indx] = dset_name
-                elif isinstance(value, comp_objs):
-                    dset_name = link_name(value)
+                if isinstance(value, comp_objs):
+                    dset_name = link_name(value, suffix=l_suffix)
                     obj_write[indx] = dset_name
                 elif isinstance(value, sub_objs):
                     dset_name = link_name(value, suffix=lname)
                     write(obj[indx], file_handle=chkpt,
                                    grp_name=grp_name+'/'+dset_name)
                     obj_write[indx] = dset_name
+                elif isinstance(value, np.ndarray):
+                    dset_name = link_name(value, suffix=lname)
+                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
+                    obj_write[indx] = dset_name
+                else:
+                    obj_write[indx] = obj[indx]
 
             # the list has been rendered safe for writing
             try:
@@ -160,29 +170,27 @@ def write(graci_obj, file_name=None, file_handle=None, grp_name=None):
             obj_write = obj.copy()
             for key,value in obj_write.items():
                 lname = str(name)+'.'+str(key)
-                if isinstance(value, np.ndarray):
-                    dset_name = link_name(value, suffix=lname)
-                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
-                    obj_write[key] = dset_name
-                elif isinstance(value, comp_objs):
-                    dset_name = link_name(value)
+                if isinstance(value, comp_objs):
+                    dset_name = link_name(value, suffix=l_suffix)
                     obj_write[key] = dset_name
                 elif isinstance(value, sub_objs):
                     dset_name = link_name(value, suffix=lname)
                     write(value, file_handle=chkpt, 
                                  grp_name=grp_name+'/'+dset_name)
                     obj_write[key] = dset_name
+                elif isinstance(value, np.ndarray):
+                    dset_name = link_name(value, suffix=lname)
+                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
+                    obj_write[key] = dset_name
 
             # the dictionary has been rendered safe for writing
             try:
-                attr_str = dumps(obj_write)
-                obj_grp.attrs[name] = attr_str
+                obj_grp.attrs[name] = dumps(obj_write)
             except:
                 sys.exit('Could not write dictionary: '+str(name))
             continue
 
         # everything else should be handled by json
-        
         try:
             attr_str = dumps(obj)
             obj_grp.attrs[name] = attr_str
@@ -251,20 +259,16 @@ def read(grp_name, build_subobj=True, make_mol=True,
             for indx in range(len(list_obj)):
                 # this is a link to a top level object
                 value = list_obj[indx]
-                if '.OBJ' in str(value):
-                    if '.OBJC' in str(value):
-                        sub_name = grp_name+'/'+value
-                    else:
-                        sub_name = value.replace('.OBJ','')
-                    obj = read(sub_name,
+                gobj, sub_name = data_name(grp_name, value)
+                if sub_name is not None:
+                    if gobj:
+                        obj = read(sub_name,
                                build_subobj = build_subobj,
                                make_mol = make_mol,
                                file_handle = chkpt)
-                    list_obj[indx] = obj
-                # or this is a numpy dataset
-                if 'NUMPY' in str(value):
-                    sub_name = grp_name+'/'+value
-                    list_obj[indx] = np.array(chkpt[sub_name])
+                        list_obj[indx] = obj
+                    else:
+                        list_obj[indx] = np.array(chkpt[sub_name])
             continue
 
         # if this is a dictionary, run through the keys and load
@@ -272,43 +276,32 @@ def read(grp_name, build_subobj=True, make_mol=True,
         if isinstance(getattr(Chkpt_obj, name), dict):
             dict_obj = getattr(Chkpt_obj, name)
             for key, value in dict_obj.items():
-                # this is a link to a top level object
-                if '.OBJ' in str(value):
-                    if '.OBJC' in str(value):
-                        sub_name = grp_name+'/'+value
-                    else:
-                        sub_name = value.replace('.OBJ','')
-                    obj = read(sub_name,
+                gobj, sub_name = data_name(grp_name, value)
+                if sub_name is not None:
+                    if gobj:
+                        obj = read(sub_name,
                                build_subobj = build_subobj,
                                make_mol = make_mol,
                                file_handle = chkpt)
-                    dict_obj[key] = obj
-                # or this is a numpy dataset
-                if 'NUMPY' in str(value):
-                    sub_name = grp_name+'/'+value
-                    dict_obj[key] = np.array(chkpt[sub_name])
+                        dict_obj[key] = obj
+                    else:
+                        dict_obj[key] = np.array(chkpt[sub_name])
             continue
 
         # check the for links to complex objects
         name_str = str(getattr(Chkpt_obj, name))
 
         # attribute holds a link to a complex object
-        if '.OBJ' in name_str:
-            if '.OBJC' in name_str:
-                obj_name = grp_name+'/'+name_str
-            else:
-                obj_name = name_str.replace('.OBJ','')
-            obj = read(obj_name, 
-                       build_subobj = build_subobj,
-                       make_mol = make_mol,
-                       file_handle = chkpt)
-            setattr(Chkpt_obj, name, obj)
-            continue
+        gobj, sub_name = data_name(grp_name, name_str)
 
-        # attribute holds a link to a complex object
-        if 'NUMPY' in name_str:
-            obj_name = grp_name+'/'+name_str
-            obj = np.array(chkpt[obj_name])
+        if sub_name is not None:
+            if gobj:
+                obj = read(sub_name,
+                           build_subobj = build_subobj,
+                           make_mol = make_mol,
+                           file_handle = chkpt)
+            else:
+                obj = np.array(chkpt[sub_name])
             setattr(Chkpt_obj, name, obj)
             continue
 
@@ -447,6 +440,96 @@ def write_dataset(chkpt_handle, dset_name, dset):
 
     return
 
+#
+def read_dataset(chkpt_handle, dset_name):
+    """
+    Read a dataset from chkpt_handle
+
+    Arguments;
+    chkpt_handle:   file handle for the chkpt file
+    dset_name:      name of the dataset (str)
+
+    Returns:
+    dset:           a numpy array with same shape as dset_name
+    """
+
+    if dset_name not in chkpt_handle:
+        sys.exit('Could not locate '+str(dset_name)+' in chkpt file')
+
+    try:
+        dset = np.ndarray(chkpt_handle[dset_name])
+    except TypeError:
+        sys.exit('Could not read '+str(dset_name)+' as numpy array')
+
+    return dset
+
+# 
+def write_attribute(chkpt_handle, obj_name, name, value):
+    """
+    Write an attribute to a dataset or group
+
+    Arguments:
+    chkpt_handle:   file handle for the chkpt file
+    obj_name:       group or dataset name
+    name:           name of attribute
+    value:           attribute to write. attribute will be run through
+                    overloaded json method dumps()
+    """
+
+    if obj_name not in chkpt_handle:
+        sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
+
+    try:
+        chkpt_handle[obj_name].attrs[name] = dumps(value)
+    except:
+        sys.exit('Could not write attribute: '+str(name))
+
+    return
+
+#
+def read_attribute(chkpt_handle, obj_name, name):
+    """
+    Read an attribute from a dataset or group
+
+    Arguments:
+    chkpt_handle:   file handle for the chkpt file
+    obj_name:       group or dataset name
+    name:           name of attribute
+
+    Returns
+    value:           attribute to write. attribute will be run through
+                     overloaded json method dumps()
+    """
+
+    if obj_name not in chkpt_handle:
+        sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
+
+    try:
+        value = loads(chkpt_handle[obj_name].attrs[name])
+    except:
+        value = None
+
+    return value
+
+#
+def data_name(grp, link_name):
+    """
+    Generate the group name given the link string
+    """
+
+    lstr      = str(link_name)
+    gobj      = False
+    data_name = None
+    if '.OBJ' in lstr:
+        gobj = True
+        if '.OBJC' in lstr:
+            data_name = grp + '/'+lstr
+        else:
+            data_name = lstr.replace('.OBJ','')
+    elif 'NUMPY' in lstr:
+        data_name = grp + '/' + lstr
+
+    return gobj, data_name
 
 #
 def link_name(obj, suffix=''):
@@ -456,7 +539,8 @@ def link_name(obj, suffix=''):
     global comp_objs, sub_objs
 
     if isinstance(obj, comp_objs):
-        return str(type(obj).__name__)+'.'+str(obj.label)+'.OBJ'
+        lstr = '.' + str(obj.label) + str(suffix) + '.OBJ'
+        return str(type(obj).__name__) + lstr 
 
     if isinstance(obj, sub_objs):
         return str(type(obj).__name__)+'.'+str(suffix)+'.OBJC'
@@ -464,6 +548,7 @@ def link_name(obj, suffix=''):
     if isinstance(obj, np.ndarray):
         return 'NUMPY.'+str(suffix)
 
+    return None
 
 #
 class GraciEncoder(json.JSONEncoder):

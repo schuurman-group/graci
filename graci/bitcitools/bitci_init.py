@@ -28,8 +28,11 @@ def init(ci_method):
         
     label = ci_method.label
 
+    verbose = ci_method.verbose
+    
     # call to bitci_initialise
-    args = (imult, nel, nmo, mosym, moen, pgrp, escf, ham, label)
+    args = (imult, nel, nmo, mosym, moen, pgrp, escf, ham, label,
+            verbose)
     libs.lib_func('bitci_initialise', args)
 
     # optional overriding of the Hamiltonian parameters

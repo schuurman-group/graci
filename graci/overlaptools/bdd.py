@@ -57,8 +57,9 @@ def adt(ref_obj, disp_obj):
 
         # get the overlaps
         Sij = overlap.overlap(ref_obj, disp_obj, disp_obj.smo,
-                              pairs, irr, norm_thresh)
-        
+                              pairs, irr, norm_thresh,
+                              disp_obj.verbose)
+
         # reshape the wave function overlaps into a more
         # useful form
         Sij = np.reshape(Sij, (nstates, nstates))

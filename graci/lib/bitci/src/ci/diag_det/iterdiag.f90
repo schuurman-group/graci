@@ -68,7 +68,8 @@ subroutine hdiag_spinpure(irrep,detscr,vecscr,nroots)
 ! Return if there are no determinants for the current irrep
 !----------------------------------------------------------------------
   if (nsym(irrep) == 0) then
-     write(6,'(/,x,a)') 'No MRCI determinants of '&
+     if (verbose) &
+          write(6,'(/,x,a)') 'No MRCI determinants of '&
           //trim(irreplbl(irrep,ipg))//' symmetry'
      vecscr=-1
      deallocate(da)

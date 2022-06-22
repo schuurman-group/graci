@@ -52,6 +52,7 @@ def print_header(run_list):
              " -----------------------------------------------------\n")
     
     inp_key =" Input Parameters \n"
+    calc_types = [type(calc_obj).__name__ for calc_obj in run_list]
 
     # Read input file. Small enough to gulp the whole thing
     with output_file(file_names['out_file'], 'w') as outfile:
@@ -82,19 +83,20 @@ def print_header(run_list):
                         ' = '+str(getattr(calc_obj,kword))+'\n'
             outfile.write(ostr)
 
-        outfile.write('\n Symmetry Information\n ---------------\n')
-        for calc_obj in run_list:
-            # pull out the molecule objets and print symmetry
-            # information for each molecule
-            if type(calc_obj).__name__ == 'Molecule':
+        if 'Molecule' in calc_types:
+            outfile.write('\n Symmetry Information\n ---------------\n')
+            for calc_obj in run_list:
+                # pull out the molecule objets and print symmetry
+                # information for each molecule
+                if type(calc_obj).__name__ == 'Molecule':
 
-                outfile.write(' $molecule '+str(calc_obj.label)+'\n')
-                outfile.write(' Full symmetry:     '+
-                        str(calc_obj.full_sym)+'\n')
-                outfile.write(' Abelian sub-group: '+
-                        str(calc_obj.comp_sym)+'\n')
-                outfile.write('\n')
-                outfile.flush()
+                    outfile.write(' $molecule '+str(calc_obj.label)+'\n')
+                    outfile.write(' Full symmetry:     '+
+                             str(calc_obj.full_sym)+'\n')
+                    outfile.write(' Abelian sub-group: '+
+                           str(calc_obj.comp_sym)+'\n')
+                    outfile.write('\n')
+                    outfile.flush()
         
     return
 
@@ -661,6 +663,102 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     print(delim)
         
     return
+
+#
+def print_param_header(target_data, ci_objs, ci_states, hparams):
+    """
+    print header for reparameterization run
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Parameterization Optimization Run\n')
+        outfile.write(' -----------------------------------\n\n')
+
+        outfile.write(' Reference Data -------------\n\n')
+        for molecule, states in target_data.items():
+            outfile.write(str(molecule)+': '+str(states)+'\n')
+
+        outfile.write('\n Found Reference States -----\n\n')
+        for molecule, sections in ci_objs.items():
+            if molecule in ci_objs.keys():
+                outfile.write(str(molecule) + ': ' + 
+                              str(ci_objs[molecule]) + ': ' + 
+                              str(ci_states[molecule])+'\n')
+
+        outfile.write('\n Initial Parameter Values -----\n')
+        outfile.write(str(hparams)+'\n\n')
+
+        outfile.flush()
+
+    return
+
+#
+def print_param_iter(cur_iter, params, dif):
+    """
+    Print results of current parameterization iterations
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+
+        nparam = len(params)
+        args   = params + [dif]
+        fstr   = ' parameters: ' + ' '.join(['{:10.8f}']*nparam)
+        fstr   += ' |dif.| = {:10.8f}\n'
+
+        outfile.write('\n ITERATION '+str(cur_iter))
+        outfile.write('\n ------------------------------------------\n')
+        outfile.write(fstr.format(*args))
+        outfile.flush()
+
+    return
+
+#
+def print_param_results(res, target, init_ener, final_ener):
+    """
+    print result of a parameterization run
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n Results\n')
+        outfile.write(' -----------------------------------------')
+        outs = [str(res['message']), res['fun'], res['nfev']]
+
+        outfile.write('\n Status:            {:>50s}'.format(outs[0]))
+        outfile.write('\n Norm of Error:     {:50.8f}'.format(outs[1]))
+        outfile.write('\n # of Evaluations:  {:50d}'.format(outs[2]))
+
+        outfile.write('\n\n Final Parameter Values')
+        outfile.write('\n -----------------------------------------')
+        fstr = '\n '+' '.join(['{:10.8f} ']*len(res['x']))
+        outfile.write(fstr.format(*list(res['x'])))
+
+        outfile.write('\n\n Reference Data')
+        outfile.write('\n -----------------------------------------')
+
+        tstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:>10s}']*4)+'\n'
+        fstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:10.5f}']*4)
+
+        outfile.write(tstr.format('Molecule', 'istate', 'fstate', 
+                                  'Reference', 'Initial', 'Final', 
+                                  '|Change|'))
+
+        for molecule, states in target.items():
+            for trans, ener in target[molecule].items():
+                init, final  = trans.strip().split()
+                exc_init     = init_ener[molecule][final] - \
+                               init_ener[molecule][init]
+                exc_final    = final_ener[molecule][final] - \
+                               final_ener[molecule][init]
+                outfile.write(fstr.format(molecule, init, final, ener, 
+                                           exc_init*constants.au2ev, 
+                                           exc_final*constants.au2ev, 
+                                           abs(exc_final-ener) - 
+                                           abs(exc_init-ener)))
+
+        outfile.flush()
+
+    return
+
 
 #
 def print_bdd_header():

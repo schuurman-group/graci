@@ -376,10 +376,7 @@ contains
        call wrtable(k,nstates_curr,blocksize,norm,reigval,tol)
 
        ! Exit if we have converged all roots
-       if (nconv.eq.nstates) then
-          write(6,'(/,2x,a,/)') 'All roots converged'
-          exit
-       endif
+       if (nconv.eq.nstates) exit
 
        ! Expand the subspace
        call subspace_expansion(matdim,maxvec,blocksize,&
@@ -751,30 +748,35 @@ contains
 ! Table header
 !----------------------------------------------------------------------
     if (k.eq.1) then
-       write(6,'(53a)') ('*',j=1,53)
-       write(6,'(4(a,6x))') &
-            'Iteration','Energies','Residuals','Converged'
-       write(6,'(53a)') ('*',j=1,53)
+       if (verbose) then
+          write(6,'(53a)') ('*',j=1,53)
+          write(6,'(4(a,6x))') &
+               'Iteration','Energies','Residuals','Converged'
+          write(6,'(53a)') ('*',j=1,53)
+       endif
     endif
 
 !----------------------------------------------------------------------
 ! Information from the current iteration
 !----------------------------------------------------------------------
-    write(6,*)
+    if (verbose) write(6,*)
     do i=1,nstates_curr
        if (norm(i).lt.tol) then
           aconv='y'
        else
           aconv='n'
        endif
-       
-       if (i.eq.1) then
-          write(6,'(i4,10x,F12.7,3x,E13.7,2x,a1)') &
-               k,reigval(i)+escf,norm(i),aconv
-       else
-          write(6,'(14x,F12.7,3x,E13.7,2x,a1)') &
+
+       if (verbose) then
+          if (i.eq.1) then
+             write(6,'(i4,10x,F12.7,3x,E13.7,2x,a1)') &
+                  k,reigval(i)+escf,norm(i),aconv
+          else
+             write(6,'(14x,F12.7,3x,E13.7,2x,a1)') &
                reigval(i)+escf,norm(i),aconv
+          endif
        endif
+          
     enddo
 
 !----------------------------------------------------------------------

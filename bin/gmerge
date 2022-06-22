@@ -63,16 +63,17 @@ def merge_chkpt(out_file, input_file):
 
         # chkpt library names groups via Class_name.label
         # so, reset the label to label.in_stub
-        in_obj.label = in_obj.label+'.'+in_stub
+        merge_label = in_obj.label+'.'+in_stub
 
-        # just to be safe, confirm this object isn't already
-        chk_label = str(type(in_obj).__name__)+'.'+str(in_obj.label)
+        # just to be safe, confirm this object doesn't already exist
+        chk_label = str(type(in_obj).__name__)+'.'+str(merge_label)
         if chk_label in chkpt_contents:
             sys.exit('gmerge failed: '+str(chk_label)+
                      ' already in chkpt file')
 
         # write the object to the checkpoint file
-        chkpt.write(in_obj, file_handle=out_file)
+        chkpt.write(in_obj, file_handle=out_file, 
+                            label_suffix='.'+in_stub)
 
     in_chkpt.close()
 

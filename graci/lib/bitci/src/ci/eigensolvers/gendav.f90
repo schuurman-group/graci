@@ -156,17 +156,21 @@ contains
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
-    ! Individual timers
-    call report_times(times(1,1),times(2,1),'sigma_vectors')
-    call report_times(times(1,2),times(2,2),'subspace_hamiltonian')
-    call report_times(times(1,3),times(2,3),'residual_vectors')
-    call report_times(times(1,4),times(2,4),'subspace_vectors')
-    
-    ! Total times
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'generalised_davidson')
+    if (verbose) then
 
+       ! Individual timers
+       call report_times(times(1,1),times(2,1),'sigma_vectors')
+       call report_times(times(1,2),times(2,2),'subspace_hamiltonian')
+       call report_times(times(1,3),times(2,3),'residual_vectors')
+       call report_times(times(1,4),times(2,4),'subspace_vectors')
+       
+       ! Total times
+       call get_times(twall_end,tcpu_end)
+       call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+            'generalised_davidson')
+
+    endif
+    
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------
@@ -368,6 +372,7 @@ contains
        tol,hdiag,ipre)
 
     use constants
+    use bitglobal, only: verbose
     use iomod
     
     implicit none
@@ -463,9 +468,11 @@ contains
     enddo
     
     ! If we are here then convergence has been achieved
-    write(6,'(/,x,a)') 'All roots converged'
-    write(6,'(/,x,a,x,i0)') 'N_sigma:',nsigma
-    
+    if (verbose) then
+       write(6,'(/,x,a)') 'All roots converged'
+       write(6,'(/,x,a,x,i0)') 'N_sigma:',nsigma
+    endif
+       
     return
     
   end subroutine run_gendav
@@ -1099,22 +1106,24 @@ contains
 ! Table header
 !----------------------------------------------------------------------
     if (k == 1) then
-       write(6,'(/,43a)') ('*',i=1,43)
-       write(6,'(x,a,2x,a,3x,a,7x,a)') &
-            'Iteration','Nvec','Max rnorm','Nconv'
-       write(6,'(43a)') ('*',i=1,43)
+       if (verbose) then
+          write(6,'(/,43a)') ('*',i=1,43)
+          write(6,'(x,a,2x,a,3x,a,7x,a)') &
+               'Iteration','Nvec','Max rnorm','Nconv'
+          write(6,'(43a)') ('*',i=1,43)
+       endif
     endif
     
 !----------------------------------------------------------------------
 ! Information for the current iteration
 !----------------------------------------------------------------------
-    write(6,'(x,i4,7x,i4,3x,E13.7,3x,i4)') &
+    if (verbose) write(6,'(x,i4,7x,i4,3x,E13.7,3x,i4)') &
          k,currdim,maxval(rnorm(1:nstates)),sum(iconv(1:nstates))
 
 !----------------------------------------------------------------------    
 ! Table footer
 !----------------------------------------------------------------------
-    if (sum(iconv(1:nstates)) == nstates) &
+    if (verbose .and. sum(iconv(1:nstates)) == nstates) &
          write(6,'(43a)') ('*',i=1,43)
     
 !----------------------------------------------------------------------

@@ -2,6 +2,7 @@
 module for compute moments of the dipole operator
 for a given electronic state
 """
+import copy as copy
 import numpy as np
 import graci.utils.timing as timing
 
@@ -21,10 +22,21 @@ class Moments:
         self.second_momt = None
         self.label       = 'Moments'
 
-    #
-    def name(self):
-        """ return the name of the class object as a string"""
-        return 'moments'
+    def copy(self):
+        """create of deepcopy of self"""
+        new = Moments(self.mol.copy(), copy.deepcopy(self.natocc), 
+                                       copy.deepcopy(self.natorb))
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if type(value).__name__ in params.valid_objs:
+                setattr(new, key, value.copy())
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        return new
 
     #
     @timing.timed

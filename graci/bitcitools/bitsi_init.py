@@ -7,8 +7,8 @@ import numpy as np
 import graci.core.libs as libs
 
 #
-def init(bra, ket, calctype):
-    """Initialize the bitci library"""
+def init(bra, ket, calctype, verbose):
+    """Initialize the bitsi library"""
 
     # if the number of mos is different between bra and ket, end
     if bra.scf.nmo != ket.scf.nmo:
@@ -21,7 +21,7 @@ def init(bra, ket, calctype):
     nelBra  = bra.nel
     nelKet  = ket.nel
     nmo     = bra.scf.nmo
-    
+
     # catch instances of C1 symmetry
     if bra.scf.mol.sym_indx <= 0:
         pgrp = 1
@@ -29,7 +29,8 @@ def init(bra, ket, calctype):
         pgrp = bra.scf.mol.sym_indx + 1
 
     # call to bitsi_initialise
-    args = (multBra, multKet, nelBra, nelKet, nmo, pgrp, calctype)
+    args = (multBra, multKet, nelBra, nelKet, nmo, pgrp, calctype,
+            verbose)
     libs.lib_func('bitsi_initialise', args)
 
     return

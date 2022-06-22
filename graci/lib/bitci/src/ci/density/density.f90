@@ -45,17 +45,20 @@ subroutine density_mrci(irrep,nroots,iroots,dmat,confscr,vecscr)
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'Density matrix calculation for the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-  
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'Density matrix calculation for the',&
+          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
   call cfg%initialise(irrep,confscr(irrep))
 
-  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
 
 !----------------------------------------------------------------------
 ! Read in the eigenvectors
