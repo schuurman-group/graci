@@ -109,7 +109,7 @@ class Dftmrci2(cimethod.Cimethod):
             self.smo = self.scf.mo_overlaps(guess.scf)
             
         # write the output logfile header for this run
-        if self.verbose > 0:
+        if self.verbose:
             output.print_dftmrci2_header(self.label)
 
         # initialize bitci
@@ -174,7 +174,7 @@ class Dftmrci2(cimethod.Cimethod):
                 # set the ci files and reference energies
                 self.ref_wfn.set_ciunits(ref_ci_units)
                 self.ref_ener = ref_ener
-                if self.verbose > 0:
+                if self.verbose:
                     output.print_refdiag_summary(self)
 
             # generate the MRCI configurations
@@ -235,7 +235,7 @@ class Dftmrci2(cimethod.Cimethod):
             self.diabatize()
             nroots = [self.n_states_sym(irr)
                       for irr in range(self.n_irrep())]
-            if self.verbose > 0:
+            if self.verbose:
                 output.print_diabpot(self.diabpot, nroots,
                                      self.n_irrep(),
                                      self.scf.mol.irreplbl)

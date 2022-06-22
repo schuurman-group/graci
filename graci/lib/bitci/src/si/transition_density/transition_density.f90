@@ -68,13 +68,15 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') &
-       'Transition density matrix calculation for the',&
-       trim(irreplbl(irrepB,ipg)),' &',trim(irreplbl(irrepK,ipg)),&
-       'subspaces'
-  write(6,'(52a)') ('-',i=1,52)
-  
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') &
+          'Transition density matrix calculation for the',&
+          trim(irreplbl(irrepB,ipg)),' &',trim(irreplbl(irrepK,ipg)),&
+          'subspaces'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the MRCI configuration and
 ! eigenvector file names from the C char type to the Fortran character
@@ -110,10 +112,12 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
 !----------------------------------------------------------------------
   call cfgB%initialise(irrepB,confscrB)
   call cfgK%initialise(irrepK,confscrK)
-  
-  write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
-  write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
 
+  if (verbose) then
+     write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
+     write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
+  endif
+     
 !----------------------------------------------------------------------
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------

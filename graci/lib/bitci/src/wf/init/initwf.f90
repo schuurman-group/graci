@@ -6,10 +6,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
-     smo1,ipg1,calctype_in) bind(c,name='bitwf_initialise')
+     smo1,ipg1,calctype_in,verbose1) bind(c,name='bitwf_initialise')
 #else
 subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
-     smo1,ipg1,calctype_in)
+     smo1,ipg1,calctype_in,verbose1)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -42,11 +42,13 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
 
   ! Point group indice
   integer(is), intent(in) :: ipg1
+
+  ! Verbosity flag
+  logical, intent(in)     :: verbose1
   
   ! Everything else
   integer(is)             :: i,j
   real(dp)                :: s,smax
-  logical                 :: verbose
   
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the calculation type character

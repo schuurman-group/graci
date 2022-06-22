@@ -29,7 +29,7 @@ class Parameterize:
         self.graci_ref_file = ''
         self.target_file    = ''
         self.pthresh        = 1.e-5
-        self.verbose        = 1
+        self.verbose        = True
 
         # -------------------------------
         self.target_data    = {}
@@ -170,7 +170,7 @@ class Parameterize:
             # run the scf (and generate integral files if need be)
             if run_scf:
                 # run silent
-                scf_run.verbose = 0
+                scf_run.verbose = False
                 scf_run.load()
 
             # initialize the integrals
@@ -184,7 +184,7 @@ class Parameterize:
             # run all the CI objects 
             for ci_run in ci_runs:
                 # run silent
-                ci_run.verbose = 0
+                ci_run.verbose = False
                 ci_run.update_hparam(np.asarray(hparams))
                 ci_run.run(scf_run, None)
 
@@ -222,7 +222,7 @@ class Parameterize:
                 ipairs = np.asarray([[indx, st] for st in 
                             range(new_ci[iobj].n_states())], dtype=int)
                 Sij = overlap.overlap(ref_ci[iobj], new_ci[iobj],
-                            smo, ipairs, 0, 0.95)
+                                      smo, ipairs, 0, 0.95, False)
                 if np.amax(np.absolute(Sij)) >= 0.9:
                     st = np.argmax(np.absolute(Sij))
                     eners[lbl] = new_ci[iobj].energies[st]

@@ -9,7 +9,8 @@ import graci.utils.timing as timing
 import graci.core.molecule as molecule
 
 @timing.timed
-def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh):
+def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
+            verbose):
     """
     Computes the overlaps between the pairs of bra and ket
     wave functions specified in the pairs list for a single
@@ -75,7 +76,7 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh):
             ndet_bra, ndet_ket, nroots_bra, nroots_ket,
             det_bra, det_ket, vec_bra, vec_ket, smo1,
             norm_thresh, ncore, icore, delete_core, npairs,
-            Sij, pairs1)
+            Sij, pairs1, verbose)
     Sij  = libs.lib_func('overlap_c', args)
     
     return Sij

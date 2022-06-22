@@ -90,7 +90,7 @@ class Dftmrci(cimethod.Cimethod):
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
             
         # write the output logfile header for this run
-        if self.verbose > 0:
+        if self.verbose:
             output.print_dftmrci_header(self.label)
 
         # if a guess CI object has been passed, compute the
@@ -133,7 +133,7 @@ class Dftmrci(cimethod.Cimethod):
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
-            if self.verbose > 0:
+            if self.verbose:
                 output.print_refdiag_summary(self)
             
             # optional removal of deadwood from the
@@ -149,7 +149,7 @@ class Dftmrci(cimethod.Cimethod):
                 # set the ci files and reference energies
                 self.ref_wfn.set_ciunits(ref_ci_units)
                 self.ref_ener = ref_ener
-                if self.verbose > 0:
+                if self.verbose:
                     output.print_refdiag_summary(self)
                 
             # generate the MRCI configurations

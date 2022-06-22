@@ -79,11 +79,13 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,ndet,wfscr)
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'Wave function extraction for the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-  
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'Wave function extraction for the',&
+          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
@@ -99,9 +101,11 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,ndet,wfscr)
 !----------------------------------------------------------------------  
 ! Output the basis dimensions
 !----------------------------------------------------------------------
-  write(6,'(/,x,a,9x,i0)') 'CSF basis dimension:',cfg%csfdim
-  write(6,'(x,a,x,i0)') 'Determinant basis dimension:',detdim
-
+  if (verbose) then
+     write(6,'(/,x,a,9x,i0)') 'CSF basis dimension:',cfg%csfdim
+     write(6,'(x,a,x,i0)') 'Determinant basis dimension:',detdim
+  endif
+     
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -193,7 +197,8 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,ndet,wfscr)
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
-  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+  if (verbose) &
+       call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
        'wf_mrci')
   
 !----------------------------------------------------------------------

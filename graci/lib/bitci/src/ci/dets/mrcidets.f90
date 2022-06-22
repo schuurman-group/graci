@@ -69,7 +69,8 @@ subroutine generate_mrci_dets(refscr,mrciscr,ndet,order)
 ! Number of MRCI determinants
 !----------------------------------------------------------------------
   ndet=h%n_keys_stored
-  write(6,'(/,x,a,x,i0)') 'Total no. MRCI determinants:',ndet  
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'Total no. MRCI determinants:',ndet  
 
 !----------------------------------------------------------------------
 ! Allocate the MRCI determinant arrays

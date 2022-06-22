@@ -64,14 +64,15 @@ class Overlap(interaction.Interaction):
         self.bra_obj, self.ket_obj = self.set_objs(obj_list)
 
         # section header
-        if self.verbose > 0:
+        if self.verbose:
             output.print_overlap_header(self.label)
         
         # check on the calculation type
         self.check_calc()
         
         # initialise the bitwf library
-        bitwf_init.init(self.bra_obj, self.ket_obj, self.calc)
+        bitwf_init.init(self.bra_obj, self.ket_obj, self.calc,
+                        self.verbose)
 
         # if bra and ket are the same object, only compute the unique
         # overlaps
@@ -100,7 +101,7 @@ class Overlap(interaction.Interaction):
         ket_state_sym = [self.ket_obj.state_sym(n)
                          for n in range(self.ket_obj.n_states())]
 
-        if self.verbose > 0:
+        if self.verbose:
             output.print_overlaps(self.trans_list, self.overlaps,
                                   self.ket_label, self.bra_label,
                                   self.bra_obj.scf.mol.irreplbl,

@@ -72,7 +72,7 @@ class Spinorbit(interaction.Interaction):
         """
 
         # section header
-        if self.verbose > 0:
+        if self.verbose:
             output.print_spinorbit_header(self.label)
 
         # check on the MF 2e integral scheme
@@ -142,7 +142,7 @@ class Spinorbit(interaction.Interaction):
 
                 # initialize the bitsi library for the calculation of
                 # spin-orbit matrix elements
-                bitsi_init.init(bra, ket, 'soc')
+                bitsi_init.init(bra, ket, 'soc', self.verbose)
 
                 # get the reduced matrix elements
                 # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
@@ -617,12 +617,12 @@ class Spinorbit(interaction.Interaction):
         stlbl = self.create_stlbl()
 
         # output the SOC matrix elements
-        if self.verbose > 0:
+        if self.verbose:
             output.print_spinorbit_table(hsoc, hsoc.shape[0], stlbl,
                                          self.print_thresh)
 
         # output the eigenvectors of H_SOC
-        if self.verbose > 0:
+        if self.verbose:
             output.print_hsoc_eig(self.so_ener, self.so_vec, 
                                          hsoc.shape[0], stlbl)
         
