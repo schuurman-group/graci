@@ -96,24 +96,26 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
+  call get_times(twall_start,tcpu_start)
     
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
   ! Section header
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'Pruning of the',trim(irreplbl(irrep,ipg)),&
-       'subspace'
-  write(6,'(52a)') ('-',i=1,52)
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'Pruning of the',trim(irreplbl(irrep,ipg)),&
+          'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+     
+     ! Configuration selection threshold
+     write(6,'(/,x,a,x,ES10.4)') 'Selection theshold:',Athrsh
 
-  ! Configuration selection threshold
-  write(6,'(/,x,a,x,ES10.4)') 'Selection theshold:',Athrsh
-
-  ! Original no. configurations
-  write(6,'(/,x,a,x,i0)') 'Original number of MRCI configurations:',&
-       nconf(irrep)
-  
+     ! Original no. configurations
+     write(6,'(/,x,a,x,i0)') 'Original number of MRCI configurations:',&
+          nconf(irrep)
+  endif
+     
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
@@ -207,7 +209,8 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 !----------------------------------------------------------------------
 ! Output the new no. configurations
 !----------------------------------------------------------------------
-  write(6,'(/,x,a,x,i0)') 'New number of MRCI configurations:',&
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'New number of MRCI configurations:',&
        nconf(irrep)
 
 !----------------------------------------------------------------------
@@ -215,18 +218,21 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 !----------------------------------------------------------------------
   call get_active_mos(cfg,nactive,active)
 
-  write(6,'(/,x,a,x,i0)') 'New number of active MOs:',nactive
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'New number of active MOs:',nactive
   
 !----------------------------------------------------------------------
 ! Output the ENPT2 2nd-order corrected excitation energies
 !----------------------------------------------------------------------
   ! Q-space contributions to the ENPT2 energies
-  write(6,'(/,x,a,/)') 'Q-space energy corrections:'
-  do i=1,nroots(irrep)
-     write(6,'(3x,a,x,i3,a,2x,F12.6)') &
-          'State' ,i,':',E2Q(indx(i))
-  enddo
-  
+  if (verbose) then
+     write(6,'(/,x,a,/)') 'Q-space energy corrections:'
+     do i=1,nroots(irrep)
+        write(6,'(3x,a,x,i3,a,2x,F12.6)') &
+             'State' ,i,':',E2Q(indx(i))
+     enddo
+  endif
+     
 !----------------------------------------------------------------------
 ! Write the Q-space contributions to the ENPT2 energies to disk
 !----------------------------------------------------------------------
@@ -267,7 +273,8 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 ! Stop timing and print report
 !----------------------------------------------------------------------
     call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'mrci_prune')
   
 !----------------------------------------------------------------------

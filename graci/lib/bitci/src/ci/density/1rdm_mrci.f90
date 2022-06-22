@@ -109,7 +109,8 @@ contains
 ! Stop timing and print report
 !----------------------------------------------------------------------
     call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'rdm_mrci')
     
     return

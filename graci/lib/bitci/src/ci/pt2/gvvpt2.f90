@@ -101,18 +101,21 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 ! Output what we are doing
 !----------------------------------------------------------------------
   ! Section header
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'GVVPT2 calculation for the',&
-       trim(irreplbl(irrep,ipg)),&
-       'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'GVVPT2 calculation for the',&
+          trim(irreplbl(irrep,ipg)),&
+          'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
   call cfg%initialise(irrep,confscr(irrep))
 
-  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
   
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -354,7 +357,8 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
-  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+  if (verbose) &
+       call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
        'gvvpt2')
 
 !----------------------------------------------------------------------

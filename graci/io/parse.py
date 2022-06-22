@@ -9,6 +9,7 @@ import graci.io.output as output
 
 import graci.core.molecule as molecule
 import graci.core.scf as scf
+import graci.core.parameterize as parameterize
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
 import graci.interaction.transition as transition
@@ -321,8 +322,7 @@ def check_input(run_list):
 
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
-        if (type(obj).__name__ == 'Transition'
-            or type(obj).__name__ == 'Overlap'):
+        if type(obj).__name__ == 'Transition':
             if obj.init_states is not None:
                 if not isinstance(obj.init_states, (list, np.ndarray)):
                     obj.init_states = np.array([obj.init_states])
@@ -332,6 +332,17 @@ def check_input(run_list):
             # shift statesby 1 to internal/C ordering
             obj.init_states  -= 1
             obj.final_states -= 1            
+
+        if type(obj).__name__ == 'Overlap':
+            if obj.bra_states is not None:
+                if not isinstance(obj.bra_states, (list, np.ndarray)):
+                    obj.bra_states = np.array([obj.bra_states])
+            if obj.ket_states is not None:
+                if not isinstance(obj.ket_states, (list, np.ndarray)):
+                    obj.ket_states = np.array([obj.ket_states])
+            # shift statesby 1 to internal/C ordering
+            obj.bra_states -= 1
+            obj.ket_states -= 1
             
     return
     

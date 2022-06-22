@@ -46,7 +46,7 @@ contains
 !----------------------------------------------------------------------
     ! Lists of occupied alpha and beta orbitals
     call get_occ(det0,ablist)
-    
+
     ! MO occupations
     iocc=0
     do i=1,nmo

@@ -17,7 +17,7 @@ contains
        fac)
 
     use constants
-    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh
+    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose
     use detfuncs
     use timing
     
@@ -109,7 +109,8 @@ contains
 ! Stop timing and print report
 !----------------------------------------------------------------------
     call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'get_factors')
     
     return

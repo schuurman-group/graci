@@ -47,6 +47,21 @@ class Spinorbit(interaction.Interaction):
         # vector to hold spin-orbit energies
         self.so_ener      = None
 
+    def copy(self):
+        """create of deepcopy of self"""
+        new = self.Spinorbit()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if type(value).__name__ in params.valid_objs:
+                setattr(new, key, value.copy())
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        return new
+
     #
     @timing.timed
     def run(self, obj_list):
@@ -57,7 +72,8 @@ class Spinorbit(interaction.Interaction):
         """
 
         # section header
-        output.print_spinorbit_header(self.label)
+        if self.verbose:
+            output.print_spinorbit_header(self.label)
 
         # check on the MF 2e integral scheme
         if self.mf2e not in self.allowed_mf2e:
@@ -126,7 +142,7 @@ class Spinorbit(interaction.Interaction):
 
                 # initialize the bitsi library for the calculation of
                 # spin-orbit matrix elements
-                bitsi_init.init(bra, ket, 'soc')
+                bitsi_init.init(bra, ket, 'soc', self.verbose)
 
                 # get the reduced matrix elements
                 # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
@@ -601,11 +617,13 @@ class Spinorbit(interaction.Interaction):
         stlbl = self.create_stlbl()
 
         # output the SOC matrix elements
-        output.print_spinorbit_table(hsoc, hsoc.shape[0], stlbl,
-                                     self.print_thresh)
+        if self.verbose:
+            output.print_spinorbit_table(hsoc, hsoc.shape[0], stlbl,
+                                         self.print_thresh)
 
         # output the eigenvectors of H_SOC
-        output.print_hsoc_eig(self.so_ener, self.so_vec, hsoc.shape[0], 
-                                     stlbl)
+        if self.verbose:
+            output.print_hsoc_eig(self.so_ener, self.so_vec, 
+                                         hsoc.shape[0], stlbl)
         
         return

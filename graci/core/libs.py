@@ -27,7 +27,7 @@ libraries      = ['bitci','bitsi','bitwf','overlap']
 bitci_registry = {
     'bitci_initialise'        : ['int32','int32','int32','int64',
                                  'double','int32','double','string',
-                                 'string'],
+                                 'string','logical'],
     'bitci_finalise'         : [],
     'bitci_int_initialize'   : ['string', 'string', 'string', 'string'],
     'bitci_int_finalize'     : [],
@@ -89,7 +89,7 @@ bitci_registry = {
 
 bitci_intent = {
     'bitci_initialise'       : ['in','in','in','in','in','in','in',
-                                'in','in','in'],
+                                'in','in','in','in'],
     'bitci_finalise'         : [],
     'bitci_int_initialize'   : ['in','in','in','in'],
     'bitci_int_finalize'     : [],
@@ -138,7 +138,7 @@ bitci_intent = {
 # registry of bitsi functions
 bitsi_registry = {
     'bitsi_initialise'        : ['int32','int32','int32','int32','int32',
-                                  'int32','string'],
+                                  'int32','string','logical'],
     'bitsi_finalise'          : [],
     'transition_density_mrci' : ['int32','int32','int32','int32','int32',
                                  'int32','double','string','string',
@@ -150,7 +150,7 @@ bitsi_registry = {
 }
 
 bitsi_intent   = {
-    'bitsi_initialise'        : ['in','in','in','in','in','in','in'],
+    'bitsi_initialise'        : ['in','in','in','in','in','in','in','in'],
     'bitsi_finalise'          : [],
     'transition_density_mrci' : ['in','in','in','in','in','in','out',
                                  'in','in','in','in'],
@@ -162,7 +162,7 @@ bitsi_intent   = {
 # registry of bitwf functions
 bitwf_registry = {
     'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
-                          'double','int32','string'],
+                          'double','int32','string','logical'],
     'bitwf_finalise'   : [],
     'detwf'            : ['int32','string','string','int32','string',
                           'int32'],
@@ -172,7 +172,8 @@ bitwf_registry = {
 }
 
 bitwf_intent = {
-    'bitwf_initialise' : ['in','in','in','in','in','in','in','in','in'],
+    'bitwf_initialise' : ['in','in','in','in','in','in','in','in',
+                          'in','in'],
     'bitwf_finalise'   : [],
     'detwf'            : ['in','in','in','in','in','out'],
     'detoverlap'       : ['in','in','in','in','in','in','in','in',
@@ -184,12 +185,13 @@ overlap_registry = {
     'overlap_c' : ['int32','int32','int32','int32','int32','int32',
                    'int32','int32','int64','int64','double','double',
                    'double','double','int32','int32','logical','int32',
-                   'double','int32']
+                   'double','int32','logical']
 }
 
 overlap_intent = {
     'overlap_c' : ['in','in','in','in','in','in','in','in','in','in',
-                   'in','in','in','in','in','in','in','in','out','in']
+                   'in','in','in','in','in','in','in','in','out','in',
+                   'in']
 }
 
 # list of existing library objects

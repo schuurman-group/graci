@@ -41,6 +41,8 @@ class Interaction:
         self.symmetries   = {}
         # spin info for the states in group
         self.spins        = {}
+        self.verbose      = True
+
 
     def same_obj(self, obj1, obj2):
         """return true if the bra and ket objects are the same"""

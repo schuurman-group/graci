@@ -94,30 +94,35 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'MRCI space diagonalisation in the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'MRCI space diagonalisation in the',&
+          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
   call cfg%initialise(irrep,confscr(irrep))
 
-  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:     ',cfg%csfdim
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'CSF basis dimension:     ',cfg%csfdim
   
 !----------------------------------------------------------------------
 ! Memory required to store the configuration bit strings
 !----------------------------------------------------------------------
-  mem=32*n_int*cfg%confdim/1024.0d0**2
-  if (mem < 1000.0d0) then
-     write(6,'(/,x,a,x,F7.2,x,a)') &
-          'Configuration bit strings require',mem,'MB'
-  else
-     write(6,'(/,x,a,x,F7.2,x,a)') &
-          'Configuration bit strings require',mem/1024.0d0,'GB'
+  if (verbose) then
+     mem=32*n_int*cfg%confdim/1024.0d0**2
+     if (mem < 1000.0d0) then
+        write(6,'(/,x,a,x,F7.2,x,a)') &
+             'Configuration bit strings require',mem,'MB'
+     else
+        write(6,'(/,x,a,x,F7.2,x,a)') &
+             'Configuration bit strings require',mem/1024.0d0,'GB'
+     endif
   endif
-
+     
 !----------------------------------------------------------------------
 ! Determine whether or not this will be a direct-mode calculation
 ! For now, we will just use a hard-wired limit on the CSF basis
@@ -125,10 +130,12 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
 !----------------------------------------------------------------------
   if (cfg%csfdim > disk_lim) then
      direct=.true.
-     write(6,'(/,x,a)') 'Using direct sigma-vector builds'
+     if (verbose) write(6,'(/,x,a)') &
+          'Using direct sigma-vector builds'
   else
      direct=.false.
-     write(6,'(/,x,a)') 'Using disk-based sigma-vector builds'
+     if (verbose) &
+          write(6,'(/,x,a)') 'Using disk-based sigma-vector builds'
   endif
 
 !----------------------------------------------------------------------

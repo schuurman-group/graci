@@ -88,7 +88,8 @@ subroutine ref_diag(irrep,detscr,vecscr,nroots)
 ! Return if there are no determinants for the current irrep
 !----------------------------------------------------------------------
   if (nsym(irrep) == 0) then
-     write(6,'(/,x,a)') 'No reference space determinants of '&
+     if (verbose) &
+          write(6,'(/,x,a)') 'No reference space determinants of '&
           //trim(irreplbl(irrep,ipg))//' symmetry'
      nroots=0
      vecscr=-1
@@ -195,7 +196,8 @@ subroutine ref_diag(irrep,detscr,vecscr,nroots)
 !----------------------------------------------------------------------
   ! Decrease nroots if it is greater than the number of CSFs
   if (nroots > ncsf) then
-     write(6,'(/,x,a,x,i0)') 'Adjusting the number of reference '&
+     if (verbose) &
+          write(6,'(/,x,a,x,i0)') 'Adjusting the number of reference '&
           //'space roots of '//trim(irreplbl(irrep,ipg))&
           //' symmetry to',ncsf
      nroots=ncsf

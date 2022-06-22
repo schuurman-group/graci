@@ -6,6 +6,7 @@ import numpy as np
 import copy as copy
 import graci.utils.timing as timing
 import graci.methods.cimethod as cimethod
+import graci.core.params as params
 import graci.core.bitciwfn as bitciwfn
 import graci.io.output as output
 import graci.bitcitools.bitci_init as bitci_init
@@ -41,7 +42,6 @@ class Dftmrci2(cimethod.Cimethod):
         self.truncate_thresh = 0.9
         self.shift           = 0.005
         self.hamiltonian     = 'heil17_standard'
-        self.hparam          = None
         self.ras1            = []
         self.ras2            = []
         self.ras3            = []
@@ -74,6 +74,20 @@ class Dftmrci2(cimethod.Cimethod):
         self.bitciwfns      = {}
         
 # Required functions #############################################################
+    def copy(self):
+        """create of deepcopy of self"""
+        new = Dftmrci2()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            if type(value).__name__ in params.valid_objs:
+                setattr(new, key, value.copy())
+            else:
+                setattr(new, key, copy.deepcopy(value))
+
+        return new
 
     @timing.timed
     def run(self, scf, guess):
@@ -92,10 +106,11 @@ class Dftmrci2(cimethod.Cimethod):
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
-            self.smo = self.mo_overlaps(guess)
+            self.smo = self.scf.mo_overlaps(guess.scf)
             
         # write the output logfile header for this run
-        output.print_dftmrci2_header(self.label)
+        if self.verbose:
+            output.print_dftmrci2_header(self.label)
 
         # initialize bitci
         bitci_init.init(self)
@@ -142,8 +157,10 @@ class Dftmrci2(cimethod.Cimethod):
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
-            output.print_refdiag_summary(self)
-            
+
+            if self.verbose:
+                output.print_refdiag_summary(self)
+
             # optional removal of deadwood from the
             # guess reference space
             if self.ref_prune and self.niter == 0 \
@@ -157,7 +174,8 @@ class Dftmrci2(cimethod.Cimethod):
                 # set the ci files and reference energies
                 self.ref_wfn.set_ciunits(ref_ci_units)
                 self.ref_ener = ref_ener
-                output.print_refdiag_summary(self)
+                if self.verbose:
+                    output.print_refdiag_summary(self)
 
             # generate the MRCI configurations
             n_mrci_conf, mrci_conf_units, mrci_conf_files, dummy = \
@@ -203,7 +221,8 @@ class Dftmrci2(cimethod.Cimethod):
 
             # break if the reference space is converged
             if min_norm > 0.9025 and self.niter > 0:
-                print('\n * Reference Space Converged *', flush=True)
+                if self.verbose:
+                    print('\n * Reference Space Converged *', flush=True)
                 break
 
         # save the determinant expansions of the wave functions
@@ -217,9 +236,10 @@ class Dftmrci2(cimethod.Cimethod):
             self.diabatize()
             nroots = [self.n_states_sym(irr)
                       for irr in range(self.n_irrep())]
-            output.print_diabpot(self.diabpot, nroots,
-                                 self.n_irrep(),
-                                 self.scf.mol.irreplbl)
+            if self.verbose:
+                output.print_diabpot(self.diabpot, nroots,
+                                     self.n_irrep(),
+                                     self.scf.mol.irreplbl)
             
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)

@@ -88,11 +88,13 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(3(x,a))') 'DFT/CIS calculation in the',&
-       trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(3(x,a))') 'DFT/CIS calculation in the',&
+          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! Checks on the no. open shells/multiplicity
 !----------------------------------------------------------------------
@@ -124,7 +126,7 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
 !----------------------------------------------------------------------
   call generate_cis_confs(irrep,ncsf,icvs,iph)
   
-  write(6,'(/,x,a,x,i0)') 'N_CSF:',ncsf
+  if (verbose) write(6,'(/,x,a,x,i0)') 'N_CSF:',ncsf
   
 !----------------------------------------------------------------------
 ! Allocate arrays

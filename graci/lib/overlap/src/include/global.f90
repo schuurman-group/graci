@@ -9,6 +9,9 @@ module global
 
   save
 
+  ! Verbose output
+  logical     :: verbose
+  
   ! Number of bra and ket MOs
   integer(is) :: nmoB,nmoK
 

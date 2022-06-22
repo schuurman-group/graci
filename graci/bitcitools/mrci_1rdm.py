@@ -9,7 +9,6 @@ import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.io.convert as convert
-import graci.io.output as output
 
 @timing.timed
 def rdm(ci_method):

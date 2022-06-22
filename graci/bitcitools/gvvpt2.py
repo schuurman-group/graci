@@ -100,7 +100,9 @@ def diag_heff(ci_method):
             nconf[irrep] = nconf_new
     
     # Print the report of the DFT/MRCI(2) states 
-    output.print_dftmrci2_states_header()
+    if ci_method.verbose:
+        output.print_dftmrci2_states_header()
+
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states_sym()
     args = (ci_confunits, ciunits, nstates)
@@ -228,7 +230,9 @@ def diag_heff_follow(ci_method, ci_method0):
             nconf[irrep] = nconf_new
     
     # Print the report of the DFT/MRCI(2) states 
-    output.print_dftmrci2_states_header()
+    if ci_method.verbose:
+        output.print_dftmrci2_states_header()
+
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states_sym()
     args = (ci_confunits, ciunits, nstates)

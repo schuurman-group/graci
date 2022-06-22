@@ -133,11 +133,14 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 ! Output what we are doing
 !----------------------------------------------------------------------
   ! Section header
-  write(6,'(/,52a)') ('-',i=1,52)
-  write(6,'(x,a,/,x,a)') 'Root-following GVVPT2 calculation for the ' &
-       //trim(irreplbl(irrep,ipg)),'subspace'
-  write(6,'(52a)') ('-',i=1,52)
-
+  if (verbose) then
+     write(6,'(/,52a)') ('-',i=1,52)
+     write(6,'(x,a,/,x,a)') &
+          'Root-following GVVPT2 calculation for the ' &
+          //trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(52a)') ('-',i=1,52)
+  endif
+     
 !----------------------------------------------------------------------
 ! For now, we will only support nroots = nrootsR0
 ! i.e., same numbers of roots and roots to follow
@@ -152,7 +155,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 !----------------------------------------------------------------------
   call cfg%initialise(irrep,confscr(irrep))
 
-  write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
+  if (verbose) &
+       write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
   
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -299,7 +303,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   ! Compute the overlaps
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nvec,&
        detR0,det,vecR0,Avec_det,smoR0,normthrsh,ncore,icore,lfrzcore,&
-       npairs,Sij,ipairs)
+       npairs,Sij,ipairs,.false.)
 
 !----------------------------------------------------------------------
 ! Deallocate the Avec_det array now that it is no longer needed
@@ -479,7 +483,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 ! Stop timing and print report
 !----------------------------------------------------------------------
   call get_times(twall_end,tcpu_end)
-  call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+  if (verbose) &
+       call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
        'gvvpt2')
 
 !----------------------------------------------------------------------

@@ -3,6 +3,7 @@ The Molecule object and its associated functions.
 """
 import os as os
 import numpy as np
+import copy as copy
 
 atom_name = ['X' ,'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' , 'O' , 'F' ,
              'Ne','Na', 'Mg', 'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar', 'K' ,
@@ -60,6 +61,18 @@ class Geometry:
         self.cartesian = None
         self.asym      = None
         self.masses    = None
+
+    def copy(self):
+        """create of deepcopy of self"""
+        new = Geometry()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            setattr(new, key, copy.deepcopy(value))
+
+        return new
 
     #
     def read_xyz():

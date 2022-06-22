@@ -2,6 +2,7 @@
 Class object to hold information germane to bitci 
 wavefunctions
 """
+import copy as copy
 
 class Bitciwfn:
     """Class Bitciwfn holds configuration and file name
@@ -24,7 +25,19 @@ class Bitciwfn:
         self.eq_units    = None
         # class label
         self.label       = 'Bitciwfn'
-        
+
+    def copy(self):
+        """create of deepcopy of self"""
+        new = Bitciwfn()
+
+        var_dict = {key:value for key,value in self.__dict__.items()
+                   if not key.startswith('__') and not callable(key)}
+
+        for key, value in var_dict.items():
+            setattr(new, key, copy.deepcopy(value))
+
+        return new
+
     #
     def set_nconf(self, nconf):
         """Sets the numbers of configurations"""

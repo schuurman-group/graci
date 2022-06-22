@@ -7,7 +7,6 @@ import ctypes as ctypes
 import numpy as np
 import graci.utils.timing as timing
 import graci.core.libs as libs
-import graci.io.output as output
 import graci.io.convert as convert
 
 @timing.timed
