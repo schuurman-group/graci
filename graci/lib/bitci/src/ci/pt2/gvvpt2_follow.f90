@@ -105,6 +105,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   integer(is)              :: imin(1),imax(1)
   integer(is), allocatable :: isel(:)
   real(dp), allocatable    :: Sij1(:,:),maxSij(:)
+  real(dp), allocatable    :: Avec_sel(:,:)
+  real(dp), allocatable    :: EQD_sel(:)
   
   ! I/O variables
   integer(is)              :: iscratch
@@ -114,8 +116,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   ! Everything else
   integer(is)              :: i,j,n
   integer(is)              :: nvec
-  real(dp), allocatable    :: selarr(:)
-  real(dp), allocatable    :: Qnorm(:),Qener(:)
+  integer(is), allocatable :: indx(:)
+  real(dp), allocatable    :: Qnorm(:),Qener(:),Qnorm1(:),Qener1(:)
+
   
   ! Timing variables
   real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
@@ -184,6 +187,12 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 
   allocate(Qener(nvec))
   Qener=0.0d0
+
+  allocate(Qnorm1(nvec))
+  Qnorm=0.0d0
+
+  allocate(Qener1(nvec))
+  Qener=0.0d0
   
   allocate(EQD(nvec))
   EQD=0.0d0
@@ -194,8 +203,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   allocate(work(cfg%csfdim,nvec))
   work=0.0d0
 
-  allocate(selarr(nroots))
-  selarr=0.0d0
+  allocate(indx(nroots))
+  indx=0.0d0
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
@@ -293,6 +302,11 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
        npairs,Sij,ipairs)
 
 !----------------------------------------------------------------------
+! Deallocate the Avec_det array now that it is no longer needed
+!----------------------------------------------------------------------
+  deallocate(Avec_det)
+  
+!----------------------------------------------------------------------
 ! Determine the 1st-order corrected wave functions of interest
 !----------------------------------------------------------------------
   ! Allocate arrays
@@ -321,14 +335,63 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   enddo
 
 !----------------------------------------------------------------------
-! Re-phasing of the states of interest
+! Fill in the selected states
+! We will also fix the phases of the states in this step
 !----------------------------------------------------------------------
+  ! Allocate arrays
+  allocate(Avec_sel(cfg%csfdim,nroots), EQD_sel(nroots))
+  Avec_sel=0.0d0
+  EQD_sel=0.0d0
+
+  ! Fill in the selected states, re-phasing as we go
   do i=1,nroots
-     if (maxSij(i) < 0.0d0) then
-        Avec(:,isel(i))=-Avec(:,isel(i))
-     endif
+
+     ! First-order corrected wave function
+     Avec_sel(:,i)=Avec(:,isel(i))
+
+     ! Fix the phase
+     if (maxSij(i) < 0.0d0) Avec_sel(:,i)=-Avec_sel(:,i)
+
+     ! Energy
+     EQD_sel(i)=EQD(isel(i))
+     
   enddo
 
+  ! Rearrange the Q-space info arrays
+  Qnorm1=Qnorm
+  Qener1=Qener
+  Qnorm=0.0d0
+  Qener=0.0d0
+  do i=1,nroots
+     Qnorm(i)=Qnorm1(isel(i))
+     Qener(i)=Qener1(isel(i))
+  enddo
+  
+!----------------------------------------------------------------------
+! Sort the selected states by energy
+!----------------------------------------------------------------------
+  ! Sort by energy
+  call dsortindxa1('A',nroots,EQD_sel,indx)
+
+  ! Re-order the states, energies and Q-space information arrays
+  ! We will use Avec and EQD arrays as work arrays here
+  do i=1,nroots
+     Avec(:,i)=Avec_sel(:,indx(i))
+     EQD(i)=EQD_sel(indx(i))
+     Qnorm1(i)=Qnorm(indx(i))
+     Qener1(i)=Qener(indx(i))
+  enddo
+
+  Avec_sel(:,1:nroots)=Avec(:,1:nroots)
+  EQD_sel(1:nroots)=EQD(1:nroots)
+  Qnorm(1:nroots)=Qnorm1(1:nroots)
+  Qener(1:nroots)=Qener1(1:nroots)
+  
+  ! Deallocate the Avec and EQD now that they have been 'violated',
+  ! just to be on the safe side
+  deallocate(Avec)
+  deallocate(EQD)
+  
 !----------------------------------------------------------------------
 ! Write the Q-space information to disk
 !----------------------------------------------------------------------
@@ -348,18 +411,10 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   write(iscratch) nroots
   
   ! Norms of the wave function corrections
-  selarr=0.0d0
-  do i=1,nroots
-     selarr(i)=Qnorm(isel(i))
-  enddo
-  write(iscratch) selarr
+  write(iscratch) Qnorm(1:nroots)
 
   ! Energy corrections
-  selarr=0.0d0
-  do i=1,nroots
-     selarr(i)=Qener(isel(i))
-  enddo
-  write(iscratch) selarr
+  write(iscratch) Qener(1:nroots)
 
   ! Close the scratch file
   close(iscratch)
@@ -386,14 +441,11 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   write(iscratch) nroots
     
   ! 2nd-order energies
-  do i=1,nroots
-     selarr(i)=EQD(isel(i))
-  enddo
-  write(iscratch) selarr
+  write(iscratch) EQD_sel(1:nroots)
     
   ! 1st-order wave functions
   do i=1,nroots
-     write(iscratch) Avec(:,isel(i))
+     write(iscratch) Avec_sel(:,i)
   enddo
 
   ! Close the scratch file
@@ -404,23 +456,24 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 !----------------------------------------------------------------------
   deallocate(hdiag)
   deallocate(averageii)
-  deallocate(Avec)
+  deallocate(Avec_sel)
   deallocate(E0)
   deallocate(vec0)
   deallocate(E2)
   deallocate(Qnorm)
   deallocate(Qener)
-  deallocate(EQD)
+  deallocate(Qnorm1)
+  deallocate(Qener1)
+  deallocate(EQD_sel)
   deallocate(mix)
   deallocate(work)
-  deallocate(selarr)
   deallocate(det)
-  deallocate(Avec_det)
   deallocate(Sij)
   deallocate(ipairs)
   deallocate(isel)
   deallocate(maxSij)
   deallocate(Sij1)
+  deallocate(indx)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
