@@ -125,8 +125,8 @@ contains
        if (lcvs .and. icvs(i) == 0) cycle
        
        ! Loop over unoccupied MOs
-       do a=nocc+1,nmo
-
+       do a=nocc+1,lastvirt
+       
           ! Conf/SOP
           conf=annihilate_electron(conf0,n_int,i)
           conf=create_electron(conf,n_int,a)

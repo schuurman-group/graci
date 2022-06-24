@@ -223,7 +223,7 @@ def autoras(ci_method):
         if ci_method.verbose:
             print('\n Setting nelec3 = 2', flush=True) 
         ci_method.nelec3 = 2
-    
+        
     return
 
 @timing.timed

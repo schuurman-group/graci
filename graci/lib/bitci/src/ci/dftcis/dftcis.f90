@@ -280,7 +280,7 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
 ! Read in the eigenpairs
 !----------------------------------------------------------------------
   call read_all_eigenpairs(vecscr,vec,ener,ncsf,nroots)
-
+  
 !----------------------------------------------------------------------
 ! Determine the particle/hole indices for the dominant CSFs
 !----------------------------------------------------------------------
