@@ -52,6 +52,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.refiter         = 3
         self.ref_prune       = True
         self.diabatic        = False
+        self.adt_method      = 'bdd'
         self.nbuffer         = []
         self.label           = 'Dftmrci2'
 
