@@ -263,10 +263,23 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 ! Output the Q-space norms
 !----------------------------------------------------------------------
   if (verbose) then
-     write(6,'(/,x,a)') 'Q-space norms:'
+
+     ! Table header
+     write(6,'(/,x,19a)') ('-',i=1,19)
+     write(6,'(4x,a)') 'Q-space info'
+     write(6,'(x,19a)') ('-',i=1,19)
+     write(6,'(2x,a)') 'State   ||psi_Q||'
+     write(6,'(x,19a)') ('-',i=1,19)
+
+     ! A-vector norms
      do i=1,nroots
-        write(6,'(x,i2,x,F10.7)') i,Qnorm(i)
+        write(6,'(2x,i4,3x,F9.6)') &
+             i,Qnorm(i)
      enddo
+
+     ! Table footer
+     write(6,'(x,19a)') ('-',i=1,19)
+     
   endif
      
 !----------------------------------------------------------------------

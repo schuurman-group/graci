@@ -97,7 +97,7 @@ contains
 !----------------------------------------------------------------------
 ! Output the base conf
 !----------------------------------------------------------------------
-    if(verbose) call print_base_conf
+    if (verbose) call print_base_conf
     
 !----------------------------------------------------------------------
 ! Output the energies and dominant CSFs for each state
@@ -127,8 +127,8 @@ contains
 ! Minimum reference space norm
 !----------------------------------------------------------------------
     if (verbose) then
-        write(6,'(/,2x,a,x,F6.4)') &
-             'Minimum norm in the reference space:',minrnorm
+       write(6,'(/,2x,a,x,F6.4)') &
+            'Minimum norm in the reference space:',minrnorm
     endif
 
 !----------------------------------------------------------------------
@@ -223,15 +223,15 @@ contains
 ! Header
 !----------------------------------------------------------------------
     if (verbose) then
-      write(6,'(/,2x,50a)') ('-',i=1,50)
-      write(6,'(3x,a,x,i0,a,x,i0,a3,2(2x,F12.6),x,a)') &
-         'State' ,n,':',k,irreplbl(irrep,ipg),ener,(ener-emin)*eh2ev,&
-         'eV'
-      write(6,'(2x,50a)') ('-',i=1,50)
-      write(6,'(3x,a,x,F6.4)') '||Psi_R|| = ',rnorm
-      write(6,'(2x,50a)') ('-',i=1,50)
-      write(6,'(4x,a)') 'Coeff        omega     Delta w'
-      write(6,'(2x,50a)') ('-',i=1,50)
+       write(6,'(/,2x,50a)') ('-',i=1,50)
+       write(6,'(3x,a,x,i0,a,x,i0,a3,2(2x,F12.6),x,a)') &
+            'State' ,n,':',k,irreplbl(irrep,ipg),ener,&
+            (ener-emin)*eh2ev,'eV'
+       write(6,'(2x,50a)') ('-',i=1,50)
+       write(6,'(3x,a,x,F6.4)') '||Psi_R|| = ',rnorm
+       write(6,'(2x,50a)') ('-',i=1,50)
+       write(6,'(4x,a)') 'Coeff        omega     Delta w'
+       write(6,'(2x,50a)') ('-',i=1,50)
     endif
 
 !----------------------------------------------------------------------
@@ -252,7 +252,8 @@ contains
        
        ! Output the CSF coefficient, spin-coupling and spatial
        ! configuration
-       if (verbose) write(6,'(3x,F10.7,6x,i0,6x,a)') dcoe(i),domega(i),string
+       if (verbose) &
+            write(6,'(3x,F10.7,6x,i0,6x,a)') dcoe(i),domega(i),string
        
     enddo
 

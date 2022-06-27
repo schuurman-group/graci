@@ -101,10 +101,13 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   
 !----------------------------------------------------------------------
 ! Subtract E_SCF from the highest reference space energy to obtain the
-! true MRCI Hamiltonian eigenvalue
+! true Hamiltonian eigenvalue
 !----------------------------------------------------------------------
   E0max=E0max1-Escf
 
+  if (verbose) write(6,'(/,x,a,x,F10.7,x,a)') &
+       'Max ref space eigenvalue:',E0max*eh2ev,'eV'
+  
 !----------------------------------------------------------------------
 ! Read the reference configurations for all irreps from disk
 !----------------------------------------------------------------------
