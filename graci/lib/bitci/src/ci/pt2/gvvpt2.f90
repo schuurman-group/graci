@@ -225,8 +225,8 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 !----------------------------------------------------------------------
   ! Norms of the 1st-order wave functions projected onto the Q-space
   do i=1,nroots
-     Qnorm(i)=sqrt(dot_product(Avec(refdim:cfg%csfdim,indx(i)),&
-          Avec(refdim:cfg%csfdim,indx(i))))
+     Qnorm(i)=sqrt(dot_product(Avec(refdim+1:cfg%csfdim,indx(i)),&
+          Avec(refdim+1:cfg%csfdim,indx(i))))
   enddo
 
   ! ENPT2 energy corrections
