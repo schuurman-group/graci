@@ -1,5 +1,5 @@
 !**********************************************************************
-! Refinement of the MRCI or MR-ENPT2 reference space
+! Refinement of the MRCI or GVVPT2 reference space
 !**********************************************************************
 module ref_refine
 
@@ -267,7 +267,7 @@ contains
 
 !######################################################################
 ! refine_ref_space_pt2: refinement of the reference space based on the
-!                       dominant configurations of the MR-ENPT2
+!                       dominant configurations of the GVVPT2
 !                       eigenvectors
 !######################################################################
 #ifdef CBINDING
@@ -477,12 +477,12 @@ contains
        sumd=sum(id)
        ndconf(irrep)=sumd-old       
        old=sumd
-              
+       
        ! Update the starting point in the id array
        start=start+cfg(irrep)%confdim
        
     enddo
-
+    
 !----------------------------------------------------------------------
 ! Get the above threshold configuration bit strings
 !----------------------------------------------------------------------
@@ -884,7 +884,7 @@ contains
 !                           absolute coefficient values above the
 !                           threshold cthrsh as well as any strong
 !                           perturbers that were damped out of the
-!                           ENPT2 calculation
+!                           QVVPT2 calculation
 !######################################################################
   subroutine fill_above_threshold_pt2(id,nconf,cfg,start,vecscr,&
        dspscr,sindx,cthrsh)
@@ -955,7 +955,7 @@ contains
     read(iscratch) ndsp
     read(iscratch) idsp
     close(iscratch)
-    
+
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
@@ -1145,7 +1145,7 @@ contains
        enddo
 
     endif
-    
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------

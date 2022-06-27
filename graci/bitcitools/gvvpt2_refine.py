@@ -45,7 +45,7 @@ def refine_ref_space(ci_method):
     cmin  = 0.015
     alpha = 0.055
     beta  = 3.300
-    
+
     # Minimum reference space norm
     min_norm = 0.
 

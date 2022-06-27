@@ -258,6 +258,14 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   
   ! Close the scratch file
   close(iscratch)
+
+!----------------------------------------------------------------------
+! Output the Q-space norms
+!----------------------------------------------------------------------
+  write(6,'(/,x,a)') 'Q-space norms:'
+  do i=1,nroots
+     write(6,'(x,i2,x,F10.7)') i,Qnorm(i)
+  enddo
   
 !----------------------------------------------------------------------
 ! 1st-order wave functions for the nroots lowest energy roots only

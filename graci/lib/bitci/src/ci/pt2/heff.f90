@@ -13,8 +13,8 @@ contains
 !              Hamiltonian as well as the first-order perturbed
 !              model functions
 !######################################################################
-  subroutine gvvpt2_heff(irrep,cfg,hdiag,averageii,csfdim,confdim,vec0scr,&
-       Avec,E2,nroots,shift,dspscr,EQD,mix)
+  subroutine gvvpt2_heff(irrep,cfg,hdiag,averageii,csfdim,confdim,&
+       vec0scr,Avec,E2,nroots,shift,dspscr,EQD,mix)
 
     use constants
     use bitglobal
@@ -138,9 +138,9 @@ contains
 !----------------------------------------------------------------------
 ! Compute the first-order perturbed model states
 !----------------------------------------------------------------------
-    call model_states1(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim,&
-         shift,idsp)
-
+   call model_states1(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim,&
+        shift,idsp)
+   
 !----------------------------------------------------------------------
 ! Write the damped strong perturber array to disk
 !----------------------------------------------------------------------
@@ -165,6 +165,12 @@ contains
     
     ! Close scratch file
     close(iscratch)
+
+!----------------------------------------------------------------------
+! Output the number of damped strong perturbers
+!----------------------------------------------------------------------
+   if (verbose) write(6,'(/,x,a,x,i0)') &
+        'Number of damped strong perurbers:',ndsp
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
