@@ -51,7 +51,7 @@ class Parameterize:
                 sys.exit('When running in parallel, invoke with: '+
                           'mpirun -n 1 -- children with be spawned')
 
-            for i in range(params.nproc+1):
+            for i in range(params.nproc):
                 rfile = self.graci_ref_file
                 shutil.copyfile(rfile, rfile+'.'+str(i))
 

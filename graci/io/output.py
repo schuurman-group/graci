@@ -672,9 +672,20 @@ def print_param_header(target_data, ci_objs, ci_states, hparams):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Parameterization Optimization Run\n')
-        outfile.write(' -----------------------------------\n\n')
+        outfile.write(' -----------------------------------\n')
 
-        outfile.write(' Reference Data -------------\n\n')
+        try:
+            n_omp = os.environ['OMP_NUM_THREADS']
+        except KeyError:
+            n_omp = 1
+        outfile.write('\n Maximum number of parallel processes:  '+ 
+                                 str(params.nproc))
+        outfile.write('\n Number of threads requested:           '+ 
+                                 str(n_omp))
+        outfile.write('\n N_proc x N_thread:                     '+
+                                 str(int(params.nproc)*int(n_omp)))
+
+        outfile.write('\n\n Reference Data -------------\n\n')
         for molecule, states in target_data.items():
             outfile.write(str(molecule)+': '+str(states)+'\n')
 
