@@ -80,3 +80,43 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
     Sij  = libs.lib_func('overlap_c', args)
     
     return Sij
+
+@timing.timed
+def overlap_st(bra_obj, ket_obj, bra_st, ket_st, smo, norm_thresh,
+               verbose):
+    """
+    call overlap by constructing pair list and iterating over irreps
+    """
+
+    if bra_obj.n_irrep() != ket_obj.n_irrep():
+        sys.exit('ERROR: bra.nirrep != ket.nireep in overlap_st')
+  
+    nirr = bra_obj.n_irrep()
+    bsym = [[] for irr in range(nirr)]
+    ksym = [[] for irr in range(nirr)]
+    olap = np.zeros((len(bra_st), len(ket_st)), dtype=float)
+
+    for bst in bra_st:
+        irr, st = bra_obj.state_sym(bst)
+        bsym[irr].append(st)
+
+    for kst in ket_st:
+        irr, st = ket_obj.state_sym(kst)
+        ksym[irr].append(st)
+
+    for irr in range(nirr):
+        pairs = [[bst,kst] for bst in bsym[irr] for kst in ksym[irr]]
+        Sij   = overlap(bra_obj, ket_obj, smo, 
+                        np.asarray(pairs, dtype=int), 
+                        irr, norm_thresh, verbose)
+        for pindx in range(len(pairs)):
+            badia = bra_obj.state_index(irr, pairs[pindx][0])
+            bindx = bra_st.index(badia)
+            kadia = ket_obj.state_index(irr, pairs[pindx][1])
+            kindx = ket_st.index(kadia)
+            olap[bindx, kindx] = Sij[pindx]
+
+    return olap
+
+
+

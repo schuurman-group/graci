@@ -151,6 +151,25 @@ class Overlap(interaction.Interaction):
         return
 
     #
+    def get_overlap(bra_st=None, ket_st=None):
+        """
+        Return requested overlaps
+        """
+
+        if bra_st is None and ket_st is None:
+            return self.overlaps
+        else:
+            if bra_st is None:
+                chk_st  = ket_st
+                chk_ind = 1
+            else:
+                chk_st  = bra_st
+                chk_ind = 0
+            lst = [self.trans_list.index(pair) 
+                  for pair in self.trans_list if pair[chk_ind]==chk_st]
+            return self.overlaps[lst]
+
+    #
     def build_overlaps(self, bra, ket, trans_list, trans_list_sym):
         """
         grab the wave function overlaps from bitwf and then reshape the
@@ -166,7 +185,6 @@ class Overlap(interaction.Interaction):
                                           self.ket_wfunit,
                                           trans_list_sym,
                                           self.norm_thresh)
-
         # make the overlap list
         npairs   = len(trans_list)
         overlaps = np.zeros((npairs), dtype=float)
