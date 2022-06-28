@@ -84,6 +84,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'ref_state'      : int,
                    'nbuffer'        : int,
                    'verbose'        : bool,
+                   'refsel'         : str,
                    'label'          : str
 }
 

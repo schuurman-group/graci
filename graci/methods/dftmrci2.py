@@ -53,6 +53,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.ref_prune       = True
         self.diabatic        = False
         self.nbuffer         = []
+        self.refsel          = 'dynamic'
         self.label           = 'Dftmrci2'
 
         # class variables
@@ -95,7 +96,7 @@ class Dftmrci2(cimethod.Cimethod):
 
         # set the scf object
         self.set_scf(scf)
-
+        
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci2')
 
@@ -107,6 +108,13 @@ class Dftmrci2(cimethod.Cimethod):
         # MO overlaps
         if guess is not None:
             self.smo = self.scf.mo_overlaps(guess.scf)
+
+        # check on the ref conf selection algorithm
+        allowed = ['dynamic', 'static']
+        if self.refsel not in allowed:
+            sys.exit('\n ERROR: unrecognised value of refsel: '
+                     +self.refsel + '\n allowed values: '
+                     +str(allowed))
             
         # write the output logfile header for this run
         if self.verbose:
