@@ -702,7 +702,7 @@ def print_param_iter(cur_iter, params, error):
 
         nparam = len(params)
         args   = [cur_iter] + params + [error]
-        fstr   =  ' iteration {:>4d} |'
+        fstr   =  ' iteration {:>5d} |'
         fstr   += ' parameters: ' + ' '.join(['{:10.8f}']*nparam)
         fstr   += ' |error| = {:10.8f}\n'
 

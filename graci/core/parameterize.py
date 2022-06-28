@@ -5,10 +5,10 @@ import sys as sys
 import scipy.optimize as sp_opt
 import numpy as np
 import h5py as h5py
-import mpi4py as mpi4py
+import mpi4py.MPI as mpi
 import os as os
+import shutil 
 import graci.core.libs as libs
-import graci.core.driver as driver
 import graci.core.params as params
 import graci.io.chkpt as chkpt
 import graci.io.parse as parse
@@ -39,9 +39,27 @@ class Parameterize:
         self.current_h      = 0
         self.error          = 0
 
+        self.comm            = None
+        self.evaluate_energy = None
+
     def run(self):
         """re-parameterize the Hamiltonian"""
- 
+
+        if params.nproc > 1:
+            self.comm  = mpi.COMM_WORLD
+            if self.comm.Get_size() > 1:
+                sys.exit('When running in parallel, invoke with: '+
+                          'mpirun -n 1 -- children with be spawned')
+
+            for i in range(params.nproc+1):
+                rfile = self.graci_ref_file
+                shutil.copyfile(rfile, rfile+'.'+str(i))
+
+            # function name points to mpi energy evaluation function
+            self.evaluate_energy = self.eval_energies_mpi
+        else:
+            self.evaluate_energy = self.eval_energies
+
         # parse the target data file
         target_data = self.parse_target_file()
 
@@ -56,7 +74,7 @@ class Parameterize:
                                             dtype=float)
 
         output.print_param_header(target_data, ci_data, 
-                                            self.ref_states, p0)
+                                        self.ref_states, p0)
 
         # set up the directory structure
         for target in target_data.keys():
@@ -65,9 +83,9 @@ class Parameterize:
             except FileExistsError:
                 os.rmdir(target)
                 os.mkdir(target)
-
+         
         # the first pass sets up the reference object
-        ener_init = self.eval_energies(p0, target_data, scf_data, 
+        ener_init = self.evaluate_energy(p0, target_data, scf_data, 
                                          ci_data, reference=True)
 
         self.iter      = 1
@@ -78,11 +96,11 @@ class Parameterize:
                               tol = self.pthresh,
                               callback = self.status_func)
 
-        ener_final = self.eval_energies(res.x, target_data, scf_data, 
+        ener_final = self.evaluate_energy(res.x, target_data, scf_data, 
                                           ci_data)
-
-        output.print_param_results(res, target_data, 
-                                   ener_init, ener_final )
+        if self.rank == 0:
+            output.print_param_results(res, target_data, 
+                                   ener_init, ener_final)
 
         return
 
@@ -100,8 +118,8 @@ class Parameterize:
         norm of the different between target and current values
         """
 
-        iter_ener = self.eval_energies(hparams, target_data, 
-                                         scf_data, ci_data)
+        iter_ener = self.evaluate_energy(hparams, target_data, 
+                                            scf_data, ci_data)
         dif_vec   = np.zeros(self.ndata, dtype=float)
 
         # this approach assumes dict is ordered! Only true from Python
@@ -134,8 +152,46 @@ class Parameterize:
         return
 
     #
-    def eval_energies(self, hparams, target_data, scf_names, ci_names, 
+    def eval_energies_mpi(self, hparams, target, scf_names, ci_names, 
                                                      reference=False):
+        """
+        evaluate all the energies in the graci data set
+        """
+ 
+        wscript = str(os.getenv('GRACI'))+'/graci/core/param_worker.py'
+        comm = mpi.COMM_SELF.Spawn(sys.executable,
+                                   args=[wscript],
+                                   maxprocs=2)
+
+        molecules = list(target.keys())
+        molecules.sort()
+        ref_file = self.graci_ref_file
+
+        comm.bcast(hparams, root=mpi.ROOT)
+        comm.bcast(ref_file, root=mpi.ROOT)
+        comm.bcast(reference, root=mpi.ROOT)
+        comm.bcast(molecules, root=mpi.ROOT)
+        comm.bcast(self.ref_states, root=mpi.ROOT)
+        comm.bcast(scf_names, root=mpi.ROOT)
+        comm.bcast(ci_names, root=mpi.ROOT)
+
+        #comm.bcast([hparams, ref_file, reference, molecules,
+        #            self.ref_states, scf_names, ci_names], 
+        #            root=mpi.ROOT)
+ 
+        energies = {}
+        ener_lst = comm.gather(energies, root=mpi.ROOT)
+
+        for edict in ener_lst:
+            energies.update(edict)
+
+        comm.Disconnect()
+
+        return energies
+
+    #
+    def eval_energies(self, hparams, target, scf_names, ci_names, 
+                                                  reference=False):
         """
         evaluate all the energies in the graci data set
 
@@ -150,11 +206,10 @@ class Parameterize:
                   ' Exiting...')
             sys.exit(1)
 
-        topdir = os.getcwd()
-        energies = {}
-
+        topdir     = os.getcwd()
+        energies   = {}
         # run through all the reference data objects
-        for molecule, states in target_data.items():
+        for molecule, states in target.items():
 
             # pull the reference SCF and CI objects
             scf_name = scf_names[molecule]

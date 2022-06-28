@@ -142,6 +142,11 @@ support_objs = ['Bitciwfn','Moments','SpinInfo']
 valid_objs   = ['Molecule', 'Scf', 'Parameterize'] + \
                ci_objs + postci_objs + si_objs
 
+# maximum number of processors: we set this as a distinct variable, since
+# we can't depend on mpirun/mpiexec -n X, since spawn-based parallelism
+# expects -n 1 in these cases
+nproc        = 1
+
 ##############################################
 kwords = {'Molecule'     : molecule_kword,
           'Parameterize' : parameterize_kword,
@@ -152,4 +157,5 @@ kwords = {'Molecule'     : molecule_kword,
           'Transition'   : transition_kword,
           'Overlap'      : overlap_kword
          }
+
 
