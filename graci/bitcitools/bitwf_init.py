@@ -45,7 +45,6 @@ def init(bra, ket, calctype, verbose):
     args = (multBra, multKet, nelBra, nelKet, nmoBra, nmoKet, smat,
             pgrp, calctype, verbose)
     libs.lib_func('bitwf_initialise', args)
-    
     return
 
 def finalize():

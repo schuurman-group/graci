@@ -5,10 +5,10 @@ import sys as sys
 import scipy.optimize as sp_opt
 import numpy as np
 import h5py as h5py
-import mpi4py as mpi4py
+import mpi4py.MPI as mpi
 import os as os
+import shutil 
 import graci.core.libs as libs
-import graci.core.driver as driver
 import graci.core.params as params
 import graci.io.chkpt as chkpt
 import graci.io.parse as parse
@@ -37,10 +37,29 @@ class Parameterize:
         self.ndata          = 0
         self.iter           = 0
         self.current_h      = 0
+        self.error          = 0
+
+        self.comm            = None
+        self.evaluate_energy = None
 
     def run(self):
         """re-parameterize the Hamiltonian"""
- 
+
+        if params.nproc > 1:
+            self.comm  = mpi.COMM_WORLD
+            if self.comm.Get_size() > 1:
+                sys.exit('When running in parallel, invoke with: '+
+                          'mpirun -n 1 -- children with be spawned')
+
+            for i in range(params.nproc):
+                rfile = self.graci_ref_file
+                shutil.copyfile(rfile, rfile+'.'+str(i))
+
+            # function name points to mpi energy evaluation function
+            self.evaluate_energy = self.eval_energies_mpi
+        else:
+            self.evaluate_energy = self.eval_energies
+
         # parse the target data file
         target_data = self.parse_target_file()
 
@@ -55,7 +74,7 @@ class Parameterize:
                                             dtype=float)
 
         output.print_param_header(target_data, ci_data, 
-                                            self.ref_states, p0)
+                                        self.ref_states, p0)
 
         # set up the directory structure
         for target in target_data.keys():
@@ -64,10 +83,10 @@ class Parameterize:
             except FileExistsError:
                 os.rmdir(target)
                 os.mkdir(target)
-
-        # run the first pass
-        ener_init = self.eval_energies(p0, target_data, scf_data, 
-                                           ci_data, run_scf=True)
+         
+        # the first pass sets up the reference object
+        ener_init = self.evaluate_energy(p0, target_data, scf_data, 
+                                         ci_data, reference=True)
 
         self.iter      = 1
         self.current_h = p0
@@ -77,11 +96,11 @@ class Parameterize:
                               tol = self.pthresh,
                               callback = self.status_func)
 
-        ener_final = self.eval_energies(res.x, target_data, scf_data, 
-                                               ci_data, run_scf=True)
-
-        output.print_param_results(res, target_data, 
-                                   ener_init, ener_final )
+        ener_final = self.evaluate_energy(res.x, target_data, scf_data, 
+                                          ci_data)
+        if self.rank == 0:
+            output.print_param_results(res, target_data, 
+                                   ener_init, ener_final)
 
         return
 
@@ -99,8 +118,8 @@ class Parameterize:
         norm of the different between target and current values
         """
 
-        iter_ener = self.eval_energies(hparams, target_data, 
-                                         scf_data, ci_data)
+        iter_ener = self.evaluate_energy(hparams, target_data, 
+                                            scf_data, ci_data)
         dif_vec   = np.zeros(self.ndata, dtype=float)
 
         # this approach assumes dict is ordered! Only true from Python
@@ -113,8 +132,10 @@ class Parameterize:
                                iter_ener[molecule][init]
                 dif_vec[ide] = de_iter*constants.au2ev - ener
                 ide         += 1
+ 
+        self.error = np.linalg.norm(dif_vec)
 
-        return np.linalg.norm(dif_vec)
+        return self.error
 
     #
     def status_func(self, xk):
@@ -123,7 +144,7 @@ class Parameterize:
         """
 
         dif = np.linalg.norm(xk - self.current_h)
-        output.print_param_iter(self.iter, list(xk), dif)
+        output.print_param_iter(self.iter, list(xk), self.error)
 
         self.iter     += 1
         self.current_h = xk
@@ -131,8 +152,46 @@ class Parameterize:
         return
 
     #
-    def eval_energies(self, hparams, target_data, scf_names, ci_names, 
-                                                       run_scf=False):
+    def eval_energies_mpi(self, hparams, target, scf_names, ci_names, 
+                                                     reference=False):
+        """
+        evaluate all the energies in the graci data set
+        """
+ 
+        wscript = str(os.getenv('GRACI'))+'/graci/core/param_worker.py'
+        comm = mpi.COMM_SELF.Spawn(sys.executable,
+                                   args=[wscript],
+                                   maxprocs=2)
+
+        molecules = list(target.keys())
+        molecules.sort()
+        ref_file = self.graci_ref_file
+
+        comm.bcast(hparams, root=mpi.ROOT)
+        comm.bcast(ref_file, root=mpi.ROOT)
+        comm.bcast(reference, root=mpi.ROOT)
+        comm.bcast(molecules, root=mpi.ROOT)
+        comm.bcast(self.ref_states, root=mpi.ROOT)
+        comm.bcast(scf_names, root=mpi.ROOT)
+        comm.bcast(ci_names, root=mpi.ROOT)
+
+        #comm.bcast([hparams, ref_file, reference, molecules,
+        #            self.ref_states, scf_names, ci_names], 
+        #            root=mpi.ROOT)
+ 
+        energies = {}
+        ener_lst = comm.gather(energies, root=mpi.ROOT)
+
+        for edict in ener_lst:
+            energies.update(edict)
+
+        comm.Disconnect()
+
+        return energies
+
+    #
+    def eval_energies(self, hparams, target, scf_names, ci_names, 
+                                                  reference=False):
         """
         evaluate all the energies in the graci data set
 
@@ -147,53 +206,51 @@ class Parameterize:
                   ' Exiting...')
             sys.exit(1)
 
-        topdir = os.getcwd()
-        energies = {}
-
+        topdir     = os.getcwd()
+        energies   = {}
         # run through all the reference data objects
-        for molecule, states in target_data.items():
+        for molecule, states in target.items():
 
             # pull the reference SCF and CI objects
             scf_name = scf_names[molecule]
             scf_obj  = chkpt.read(scf_name, file_handle=ref_chkpt)
 
-            ci_name = ci_names[molecule]
-            ci_objs  = [chkpt.read(ci, file_handle=ref_chkpt) 
+            ci_name  = ci_names[molecule]
+            ci_refs  = [chkpt.read(ci, file_handle=ref_chkpt) 
                                                 for ci in ci_name]
 
-            # copy the scf and CI objects and re-run them
-            scf_run = scf_obj.copy()
-            ci_runs = [ci_obj.copy() for ci_obj in ci_objs]
-         
             # change to the appropriate sub-directory
             os.chdir(topdir+'/'+str(molecule))
 
             # run the scf (and generate integral files if need be)
-            if run_scf:
+            if reference:
                 # run silent
-                scf_run.verbose = False
-                scf_run.load()
+                scf_obj.verbose = False
+                scf_obj.load()
 
             # initialize the integrals
-            if scf_run.mol.use_df:
+            if scf_obj.mol.use_df:
                 type_str = 'df'
             else:
                 type_str = 'exact'
             libs.lib_func('bitci_int_initialize', ['pyscf', type_str, 
-                            scf_run.moint_1e, scf_run.moint_2e_eri])
+                            scf_obj.moint_1e, scf_obj.moint_2e_eri])
+
+            # copy the CI objects and re-run them
+            ci_runs = [ci_ref.copy() for ci_ref in ci_refs]
 
             # run all the CI objects 
             for ci_run in ci_runs:
                 # run silent
                 ci_run.verbose = False
                 ci_run.update_hparam(np.asarray(hparams))
-                ci_run.run(scf_run, None)
+                ci_run.run(scf_obj, None)
 
             # deallocate the integral arrays
             libs.lib_func('bitci_int_finalize', [])
 
             # use overlap with ref states to identify relevant states
-            ener_match = self.identify_states(molecule, ci_objs, ci_runs) 
+            ener_match = self.identify_states(molecule, ci_refs, ci_runs) 
 
             energies[molecule] = {}
             for state, ener in ener_match.items():
@@ -211,27 +268,26 @@ class Parameterize:
         """
 
         eners  = {}
-        bra_st = []
         smo    = np.identity(ref_ci[0].scf.nmo, dtype=float)
         # iterate over the reference states
         for iobj in range(len(ref_ci)):
             bra_lbl = ref_ci[iobj].label
             st_dict = self.ref_states[molecule][bra_lbl]
-            bra_st.extend(list(st_dict.keys()))
+ 
+            bra_st  = list(st_dict.values())
+            ket_st  = list(range(new_ci[iobj].n_states()))
+            Smat = overlap.overlap_st(ref_ci[iobj], new_ci[iobj], 
+                                    bra_st, ket_st, smo, 0.95, False)
 
-            for lbl, indx in st_dict.items():
-                ipairs = np.asarray([[indx, st] for st in 
-                            range(new_ci[iobj].n_states())], dtype=int)
-                Sij = overlap.overlap(ref_ci[iobj], new_ci[iobj],
-                                      smo, ipairs, 0, 0.95, False)
-                if np.amax(np.absolute(Sij)) >= 0.9:
-                    st = np.argmax(np.absolute(Sij))
-                    eners[lbl] = new_ci[iobj].energies[st]
-
-        if list(eners.keys()).sort() != bra_st.sort():
-            sys.exit('Molecule: ' + str(molecule) + 
-                     ' -- Could not identify states: ' + str(bra_st))
-
+            for lbl, ref_st in st_dict.items():
+                Sij = np.absolute(Smat[bra_st.index(ref_st),:])
+                if np.amax(Sij) <= 0.9:
+                    output.print_message('MAX overlap for molecule=' +
+                            str(molecule) + ' state=' + str(lbl) +
+                            ' is ' + str(np.amax(Sij)))
+                st = ket_st[np.argmax(Sij)]
+                eners[lbl] = new_ci[iobj].energies[st]
+                
         return eners
 
     #

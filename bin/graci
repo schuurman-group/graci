@@ -6,6 +6,7 @@ import os
 import sys as sys
 import graci.utils.timing as timing
 import graci.core.driver as driver
+import graci.core.params as params
 import graci.io.parse as parse
 import graci.io.output as output
 
@@ -50,6 +51,10 @@ def read_cmdline():
         out_file   = None 
         #out_file  = job_stub+'.out'
 
+    if '-nproc' in sys.argv:
+        params.nproc = int(sys.argv[sys.argv.index('-nproc')+1].strip())
+    else:
+        params.nproc = 1
 
     output.file_names['out_file']   = out_file
     output.file_names['pyscf_out']  = pyscf_out
