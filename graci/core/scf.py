@@ -254,14 +254,14 @@ class Scf:
         # if self.xc='hf', use canonical hf orbitals
         if self.xc == 'hf':
             if self.mol.use_df:
-                if self.mol.mult == 0.:
+                if self.mol.mult == 1:
                     mf = scf.RHF(pymol).density_fit( auxbasis =
                                             self.mol.ri_basis)
                 else:
                     mf = scf.ROHF(pymol).density_fit( auxbasis =
                                             self.mol.ri_basis)
             else:
-                if self.mol.mult == 0.:
+                if self.mol.mult == 1:
                     mf = scf.RHF(pymol)
                 else:
                     mf = scf.ROHF(pymol)
@@ -269,14 +269,14 @@ class Scf:
         # this is a DFT computation
         else:
             if self.mol.use_df:
-                if self.mol.mult == 0.:
+                if self.mol.mult == 1:
                     mf = dft.RKS(pymol).density_fit( auxbasis =
                                                self.mol.ri_basis)
                 else:
                     mf = dft.ROKS(pymol).density_fit( 
                                    auxbasis = self.mol.ri_basis)
             else:
-                if self.mol.mult == 0.:
+                if self.mol.mult == 1:
                     mf = dft.RKS(pymol)
                 else:
                     mf = dft.ROKS(pymol)
