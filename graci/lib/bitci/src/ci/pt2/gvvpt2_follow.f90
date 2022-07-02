@@ -486,7 +486,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   call get_times(twall_end,tcpu_end)
   if (verbose) &
        call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-       'gvvpt2')
+       'gvvpt2_follow')
 
 !----------------------------------------------------------------------
 ! Flush stdout
