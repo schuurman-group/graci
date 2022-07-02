@@ -23,6 +23,8 @@ scf_kword      = {'xc'             : str,
                   'charge'         : int,
                   'mult'           : int,
                   'grid_level'     : int,
+                  'cosmo'          : bool,
+                  'solvent'        : str,
                   'label'          : str}
 
 # MRCI section input keywords and data types
@@ -85,6 +87,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'ref_state'      : int,
                    'nbuffer'        : int,
                    'verbose'        : bool,
+                   'refsel'         : str,
                    'label'          : str
 }
 
@@ -143,6 +146,11 @@ support_objs = ['Bitciwfn','Moments','SpinInfo']
 valid_objs   = ['Molecule', 'Scf', 'Parameterize'] + \
                ci_objs + postci_objs + si_objs
 
+# maximum number of processors: we set this as a distinct variable, since
+# we can't depend on mpirun/mpiexec -n X, since spawn-based parallelism
+# expects -n 1 in these cases
+nproc        = 1
+
 ##############################################
 kwords = {'Molecule'     : molecule_kword,
           'Parameterize' : parameterize_kword,
@@ -153,4 +161,5 @@ kwords = {'Molecule'     : molecule_kword,
           'Transition'   : transition_kword,
           'Overlap'      : overlap_kword
          }
+
 

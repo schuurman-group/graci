@@ -41,10 +41,18 @@ def refine_ref_space(ci_method):
     # No. extra roots per irrep
     nextra = np.array(ci_method.nextra['max'])
 
-    # Dynamical configuration selection parameters
-    cmin  = 0.015
-    alpha = 0.055
-    beta  = 3.300
+    # Configuration selection
+    if ci_method.refsel == 'dynamic':
+        # Dynamical configuration selection parameters
+        cmin  = 0.015
+        alpha = 0.055
+        beta  = 3.300
+    elif ci_method.refsel == 'static':
+        # Static configuration selection: can be achieved
+        # by setting cmin = alpha
+        cmin  = 0.055
+        alpha = 0.055
+        beta  = 3.300
     
     # Minimum reference space norm
     min_norm = 0.

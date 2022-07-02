@@ -225,8 +225,8 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 !----------------------------------------------------------------------
   ! Norms of the 1st-order wave functions projected onto the Q-space
   do i=1,nroots
-     Qnorm(i)=sqrt(dot_product(Avec(refdim:cfg%csfdim,indx(i)),&
-          Avec(refdim:cfg%csfdim,indx(i))))
+     Qnorm(i)=sqrt(dot_product(Avec(refdim+1:cfg%csfdim,indx(i)),&
+          Avec(refdim+1:cfg%csfdim,indx(i))))
   enddo
 
   ! ENPT2 energy corrections
@@ -258,7 +258,30 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   
   ! Close the scratch file
   close(iscratch)
-  
+
+!----------------------------------------------------------------------
+! Output the Q-space norms
+!----------------------------------------------------------------------
+  if (verbose) then
+
+     ! Table header
+     write(6,'(/,x,19a)') ('-',i=1,19)
+     write(6,'(4x,a)') 'Q-space info'
+     write(6,'(x,19a)') ('-',i=1,19)
+     write(6,'(2x,a)') 'State   ||psi_Q||'
+     write(6,'(x,19a)') ('-',i=1,19)
+
+     ! A-vector norms
+     do i=1,nroots
+        write(6,'(2x,i4,3x,F9.6)') &
+             i,Qnorm(i)
+     enddo
+
+     ! Table footer
+     write(6,'(x,19a)') ('-',i=1,19)
+     
+  endif
+     
 !----------------------------------------------------------------------
 ! 1st-order wave functions for the nroots lowest energy roots only
 !----------------------------------------------------------------------

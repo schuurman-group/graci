@@ -12,6 +12,7 @@ import graci.core.params as params
 import graci.core.orbitals as orbitals
 import graci.io.output as output
 import graci.utils.timing as timing
+import graci.core.solvents as solvents
 from pyscf import gto, scf, dft, symm, ao2mo, df
 from pyscf.tools import molden
 
@@ -28,6 +29,8 @@ class Scf:
         self.mult           = 0
         self.charge         = 0
         self.grid_level     = 2
+        self.cosmo          = False
+        self.solvent        = None
         
         # computed quantities
         self.mol          = None 
@@ -117,12 +120,14 @@ class Scf:
                 self.auxbasis = dict()
                 for atm in bname.keys():
                     if bname[atm] in df.addons.DEFAULT_AUXBASIS.keys():
-                        self.auxbasis[atm] = df.addons.DEFAULT_AUXBASIS[bname[atm]][0]
+                        self.auxbasis[atm] = \
+                            df.addons.DEFAULT_AUXBASIS[bname[atm]][0]
                     else:
                         self.auxbasis[atm] = 'even-tempered'
 
+        # run the SCF calculation
         scf_pyscf = self.run_pyscf(pymol)
-
+        
         # extract orbitals, occupations and energies
         self.orbs      = scf_pyscf.mo_coeff
         # orb_occ are the MO occupation numbers
@@ -135,7 +140,7 @@ class Scf:
         self.nmo       = len(scf_pyscf.mo_occ)
         # number of auxiliary AOs
         if (self.mol.use_df and hasattr(scf_pyscf, 'with_df')):
-            self.naux      = int(scf_pyscf.with_df.auxmol.nao_nr())
+            self.naux  = int(scf_pyscf.with_df.auxmol.nao_nr())
 
         # orb_sym are the symmetry labels 
         if pymol.symmetry:
@@ -249,60 +254,61 @@ class Scf:
     #
     @timing.timed
     def run_pyscf(self, pymol):
-        """run a PYSCF HF/KSDFT computation"""
+        """run a PySCF HF/KSDFT computation"""
 
-        # if self.xc='hf', use canonical hf orbitals
+        # function handle string
         if self.xc == 'hf':
-            if self.mol.use_df:
-                if self.mol.mult == 0.:
-                    mf = scf.RHF(pymol).density_fit( auxbasis =
-                                            self.mol.ri_basis)
-                else:
-                    mf = scf.ROHF(pymol).density_fit( auxbasis =
-                                            self.mol.ri_basis)
-            else:
-                if self.mol.mult == 0.:
-                    mf = scf.RHF(pymol)
-                else:
-                    mf = scf.ROHF(pymol)
-
-        # this is a DFT computation
+            class_str  = 'scf'
+            method_str = 'HF'
         else:
-            if self.mol.use_df:
-                if self.mol.mult == 0.:
-                    mf = dft.RKS(pymol).density_fit( auxbasis =
-                                               self.mol.ri_basis)
-                else:
-                    mf = dft.ROKS(pymol).density_fit( 
-                                   auxbasis = self.mol.ri_basis)
-            else:
-                if self.mol.mult == 0.:
-                    mf = dft.RKS(pymol)
-                else:
-                    mf = dft.ROKS(pymol)
-            # set the XC functional to BHLYP
-            mf.xc = self.xc
+            class_str  = 'dft'
+            method_str = 'KS'
+        if self.mol.mult == 1:
+            method_str = 'R'+method_str
+        else:
+            method_str = 'RO'+method_str
+        if self.mol.use_df:
+            df_str = '.density_fit(auxbasis = self.mol.ri_basis)'
+        else:
+            df_str=''
+        if self.cosmo:
+            func_str = 'pymol.'+method_str+'(xc=\''+self.xc+'\')' \
+                +df_str+ '.DDCOSMO()'
+        else:
+            func_str = class_str+'.'+method_str \
+                +'(pymol)'+df_str
 
-            # set the DFT quadrature grids
+        # instantiate the scf/dft class object        
+        mf = eval(func_str)
+
+        # COSMO solvent dielectric constant
+        if self.cosmo:
+            mf.with_solvent.eps = solvents.dielectric[self.solvent]
+            
+        if self.xc != 'hf':
+            # set the XC functional
+            mf.xc = self.xc
+        
+            # set the quadrature grids
             mf.grids.level = self.grid_level
             mf.grids.prune = dft.sg1_prune
-            
-        # if using density-fitting, set the name of the DF-tensor
+
+        # set the name of the DF-tensor
         if hasattr(mf, 'with_df'):
-             if self.mol.use_df:
-                 mf.with_df._cderi_to_save = self.moint_2e_eri
-             else:
-                 mf.with_df = None
-
-        # run the dft computation
+            if self.mol.use_df:
+                mf.with_df._cderi_to_save = self.moint_2e_eri
+            else:
+                mf.with_df = None
+            
+        # run the scf computation
         self.energy = mf.kernel()
-
+        
         # if not converged, kill things
         if not mf.converged:
             sys.exit('Reference SCF computation did not converge.')
 
         return mf
-
+        
     #
     @timing.timed
     def ao_to_mo(self, pymol, orbs):

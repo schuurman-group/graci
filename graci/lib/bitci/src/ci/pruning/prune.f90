@@ -68,6 +68,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   real(dp), allocatable      :: Avec(:,:)
   real(dp), allocatable      :: E2(:)
   real(dp), allocatable      :: E2Q(:)
+  real(dp), allocatable      :: Qnorm(:)
   
   ! Zeroth-order energies
   real(dp), allocatable      :: E0(:)
@@ -148,6 +149,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 
   allocate(E2Q(nvec))
   E2Q=0.0d0
+
+  allocate(Qnorm(nvec))
+  Qnorm=0.0d0
   
   allocate(indx(nvec))
   indx=0
@@ -176,6 +180,13 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
        vec0scr(irrep),Avec,E2,nvec)
 
+!----------------------------------------------------------------------
+! Norms of the A-vectors
+!----------------------------------------------------------------------
+  do i=1,nvec
+     Qnorm(i)=sqrt(dot_product(Avec(:,i),Avec(:,i)))
+  enddo
+  
 !----------------------------------------------------------------------
 ! Sort the 2nd-order corrected energies
 !----------------------------------------------------------------------
@@ -222,15 +233,26 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
        write(6,'(/,x,a,x,i0)') 'New number of active MOs:',nactive
   
 !----------------------------------------------------------------------
-! Output the ENPT2 2nd-order corrected excitation energies
+! Output the Q-space energy corrections and the norms of the A-vectors
 !----------------------------------------------------------------------
-  ! Q-space contributions to the ENPT2 energies
   if (verbose) then
-     write(6,'(/,x,a,/)') 'Q-space energy corrections:'
+
+     ! Table header
+     write(6,'(/,x,30a)') ('-',i=1,30)
+     write(6,'(10x,a)') 'Q-space info'
+     write(6,'(x,30a)') ('-',i=1,30)
+     write(6,'(2x,a)') 'State   E2Q        ||psi_Q||'
+     write(6,'(x,30a)') ('-',i=1,30)
+
+     ! Energy corrections and A-vector norms
      do i=1,nroots(irrep)
-        write(6,'(3x,a,x,i3,a,2x,F12.6)') &
-             'State' ,i,':',E2Q(indx(i))
+        write(6,'(2x,i4,3x,F9.6,2x,F9.6)') &
+             i,E2Q(indx(i)),Qnorm(indx(i))
      enddo
+
+     ! Table footer
+     write(6,'(x,30a)') ('-',i=1,30)
+     
   endif
      
 !----------------------------------------------------------------------
@@ -266,6 +288,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   deallocate(E0)
   deallocate(E2)
   deallocate(EPT2)
+  deallocate(Qnorm)
   deallocate(indx)
   deallocate(i1I, i2I, i1E, i2E, i1I1E)
 
