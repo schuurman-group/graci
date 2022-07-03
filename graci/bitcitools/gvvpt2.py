@@ -271,6 +271,9 @@ def heff_diab(ci_method, ci_method0):
     dspunit  = 0
     dspunits = []
 
+    # Initialise the ADT list
+    adt_matrices = []
+    
     # Number of configurations per irrep (this can change if wave
     # function truncation is being used)
     nconf = np.array(ci_method.mrci_wfn.nconf, dtype=int)
@@ -320,13 +323,17 @@ def heff_diab(ci_method, ci_method0):
         else:
             adt0   = np.reshape(ci_method0.adt[irrep],
                                 (n_vec0**2), order='F')
-        
+
+        # ADT matrix for this geometry
+        adt        = np.zeros((nroots**2), dtype=float)
+            
         args = (irrep, nroots, nextra, shift,
                 n_int0, n_det0, n_vec0, dets0, vec0, nmo0, smat,
                 adt0, ncore, icore, delete_core,
-                ci_confunits,ciunit, ref_ciunits, qunit, dspunit)
+                ci_confunits,ciunit, ref_ciunits, qunit, dspunit,
+                adt)
 
-        ciunit, qunit, dspunit = libs.lib_func('gvvpt2_diab', args)
+        ciunit, qunit, dspunit, adt = libs.lib_func('gvvpt2_diab', args)
 
         # Bitci eigenvector, Q-space, and intruder state
         # scratch numbers
@@ -334,6 +341,9 @@ def heff_diab(ci_method, ci_method0):
         qunits.append(qunit)
         dspunits.append(dspunit)
 
+        # ADT matrix
+        adt_matrices.append(np.reshape(adt, (nroots,nroots), order='F'))
+        
     # Retrieve the DFT/MRCI(2) energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
@@ -376,4 +386,4 @@ def heff_diab(ci_method, ci_method0):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
     
-    return ciunits, ciname, ener, qunits, dspunits, nconf
+    return ciunits, ciname, ener, qunits, dspunits, nconf, adt_matrices

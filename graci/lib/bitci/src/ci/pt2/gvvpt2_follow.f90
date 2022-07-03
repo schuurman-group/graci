@@ -17,7 +17,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   use bitglobal
   use conftype
   use hii
-  use heff
+  use gvvpt2_hamiltonian
   use csf2det
   use mrciutils
   use utils
@@ -118,6 +118,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   integer(is)              :: nvec
   integer(is), allocatable :: indx(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:),Qnorm1(:),Qener1(:)
+  real(dp), allocatable    :: mcoeff(:,:)
   logical                  :: lprint
   
   ! Timing variables
@@ -209,6 +210,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 
   allocate(indx(nroots))
   indx=0.0d0
+
+  allocate(mcoeff(nvec,nvec))
+  mcoeff=0.0d0
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
@@ -225,8 +229,16 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 ! Also returns the 1st-order perturbed model functions in the Avec
 ! array
 !----------------------------------------------------------------------
+  ! We are using the ref space eigenstates as model functions, so
+  ! set the model space transformation to the unit matrix
+  mcoeff=0.0d0
+  do i=1,nvec
+     mcoeff(i,i)=1.0d0
+  enddo
+  
+  ! H_eff and Psi^(1) calculation
   call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec,shift,dspscr,EQD,mix)
+       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix)
 
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
@@ -430,7 +442,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   ! Register the scratch file
   write(amult,'(i0)') imult
   write(airrep,'(i0)') irrep
-  call scratch_name('mrenpt2vec'//'.mult'//trim(amult)//&
+  call scratch_name('gvvpt2vec'//'.mult'//trim(amult)//&
        '.sym'//trim(airrep),vecfile)
   call register_scratch_file(vecscr,vecfile)
 
@@ -479,6 +491,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   deallocate(maxSij)
   deallocate(Sij1)
   deallocate(indx)
+  deallocate(mcoeff)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
