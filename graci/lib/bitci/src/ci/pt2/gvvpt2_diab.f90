@@ -405,12 +405,10 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
        lfrzcore,npairs,Sij,ipairs,lprint)
 
   ! Put the overlaps into a more computationally useful form
-  n=0
-  do i=1,nrootsR0
-     do j=1,nroots
-        n=n+1
-        Smat(j,i)=Sij(n)
-     enddo
+  do n=1,npairs
+     i=ipairs(n,1)
+     j=ipairs(n,2)
+     Smat(i,j)=Sij(n)
   enddo
 
   ! Transform the matrix of overlaps using the previous geometry ADT
@@ -418,7 +416,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   Smat=matmul(transpose(adtR0),Smat)
   
 !----------------------------------------------------------------------
-! Rephasing
+! Re-phasing
 !----------------------------------------------------------------------
   ! Get the phase factors
   do i=1,nroots
@@ -432,9 +430,9 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
      Smat(:,j)=0.0d0
   enddo
 
-  ! Re-phasing
+  ! Re-phasing of the ADT matrix
   do i=1,nroots
-     adt(:,i)=iphase(i)*adt(:,i)
+     adt(i,:)=iphase(i)*adt(i,:)
   enddo
   
 !----------------------------------------------------------------------
