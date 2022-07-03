@@ -70,7 +70,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   integer(is), intent(out) :: dspscr
   
   ! MRCI configuration derived type
-  type(mrcfg)              :: cfg,cfg0
+  type(mrcfg)              :: cfg,cfg_ref
 
   ! On-diagonal Hamiltonian matrix elements
   real(dp), allocatable    :: hdiag(:)
@@ -85,9 +85,11 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 
   ! Zeroth-order eigenpairs
   integer(is)              :: refdim
-  real(dp), allocatable    :: E0(:)
-  real(dp), allocatable    :: vec0(:,:)
-
+  real(dp), allocatable    :: E_ref(:)
+  real(dp), allocatable    :: vec_ref(:,:)
+  integer(ib), allocatable :: det_ref(:,:,:)
+  real(dp), allocatable    :: vec_ref_det(:,:)
+  
   ! QDPT2 energies and mixing coefficients
   real(dp), allocatable    :: EQD(:),mix(:,:),work(:,:)
 
@@ -103,6 +105,14 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   real(dp), allocatable    :: Sij(:)
   real(dp)                 :: normthrsh
 
+  ! Representation of the prototype diabatic states in the basis
+  ! of the ref space eigenfunctions
+  real(dp), allocatable    :: Cmat(:,:)
+
+  ! Representation of the prototype diabatic states in the basis
+  ! of the ref space eigenfunctions
+  real(dp), allocatable    :: vec_proto(:,:)
+  
   ! Wave function selection
   integer(is)              :: imin(1),imax(1)
   integer(is), allocatable :: isel(:)
@@ -117,6 +127,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   
   ! Everything else
   integer(is)              :: i,j,n
+  integer(is)              :: n_int_I,nconf_ref,ndet_ref
   integer(is)              :: nvec
   integer(is), allocatable :: indx(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:),Qnorm1(:),Qener1(:)
@@ -179,11 +190,11 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   allocate(Avec(cfg%csfdim,nvec))
   Avec=0.0d0
 
-  allocate(E0(nvec))
-  E0=0.0d0
+  allocate(E_ref(nvec))
+  E_ref=0.0d0
 
-  allocate(vec0(refdim,nvec))
-  vec0=0.0d0
+  allocate(vec_ref(refdim,nvec))
+  vec_ref=0.0d0
   
   allocate(E2(nvec))
   E2=0.0d0
@@ -215,57 +226,144 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
 !----------------------------------------------------------------------
-  call read_all_eigenpairs(vec0scr(irrep),vec0,E0,refdim,nvec)
+  call read_all_eigenpairs(vec0scr(irrep),vec_ref,E_ref,refdim,nvec)
 
 !----------------------------------------------------------------------
 ! Get the determinant representation of the zeroth-order eigenstates
 !----------------------------------------------------------------------
-  ! Read in the ref confs from file
-
-  print*,''
-  print*,'We first need to pass the ref conf scratch file number to this routine...'
-  stop
-  
-  !call read_ref_confs(conf0scr,nconf0,n_int_I,nmoI,nmoE,conf0,&
-  !     sop0,m2c,c2m)
-  
   ! Set up a dummy MRCI configuration derived data type to hold
   ! the ref conf info
-  !allocate(cfg0%conf0h(n_int_I,2,nconf1))
-  !allocate(cfg0%sop0h(n_int_I,2,nconf1))
-  !cfg0%n0h=nconf1
-  !cfg0%n_int_I=n_int_I
-  !cfg0%n1I=0
-  !cfg0%n2I=0
-  !cfg0%n1E=0
-  !cfg0%n2E=0
-  !cfg0%n1I1E=0  
-  !cfg0%conf0h=conf
-  !cfg0%sop0h=sop
+  n_int_I=cfg%n_int_I
+  nconf_ref=cfg%n0h
+  allocate(cfg_ref%conf0h(n_int_I,2,nconf_ref))
+  allocate(cfg_ref%sop0h(n_int_I,2,nconf_ref))
+  cfg_ref%n0h=nconf_ref
+  cfg_ref%n_int_I=n_int_I
+  cfg_ref%n1I=0
+  cfg_ref%n2I=0
+  cfg_ref%n1E=0
+  cfg_ref%n2E=0
+  cfg_ref%n1I1E=0  
+  cfg_ref%conf0h=cfg%conf0h
+  cfg_ref%sop0h=cfg%sop0h
+
+  ! Determine the dimension of the determinant basis
+  call get_detdim(cfg_ref,ndet_ref)
+
+  ! Allocate arrays
+  allocate(det_ref(n_int,2,ndet_ref))
+  allocate(vec_ref_det(ndet_ref,nvec))
+  det_ref=0_ib
+  vec_ref_det=0.0d0
+
+  ! Compute the determinant representation of the wave functions
+  call det_trans(cfg_ref,cfg%m2c,nvec,refdim,ndet_ref,vec_ref,&
+       vec_ref_det,det_ref)
   
 !----------------------------------------------------------------------
 ! Compute the overlaps of the quasi-diabatic states from the
 ! previous geometry with the zeroth-order eigenstates at the current
 ! geometry
 !----------------------------------------------------------------------
+  ! Allocate arrays
+  npairs=nrootsR0*nvec
+  allocate(Sij(npairs))
+  allocate(ipairs(npairs,2))
+  allocate(Cmat(nvec,nrootsR0))
+  Sij=0.0d0
+  ipairs=0
+  Cmat=0.0d0
+
+  ! Truncation threshold
+  normthrsh=0.999d0
+
+  ! Fill in the array of required bra-ket overlaps
+  n=0
+  do i=1,nrootsR0
+     do j=1,nvec
+        n=n+1
+        ipairs(n,1)=i
+        ipairs(n,2)=j
+     enddo
+  enddo
+
+  ! Compute the overlaps
+  lprint=.false.
+  call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet_ref,nrootsR0,nvec,&
+       detR0,det_ref,vecR0,vec_ref_det,smoR0,normthrsh,ncore,icore,&
+       lfrzcore,npairs,Sij,ipairs,lprint)
+
+  ! Put the overlaps into a more computationally useful form
+  n=0
+  do i=1,nrootsR0
+     do j=1,nvec
+        n=n+1
+        Cmat(j,i)=Sij(n)
+     enddo
+  enddo
+
+!----------------------------------------------------------------------
+! Construct the prototype diabatic states
+!----------------------------------------------------------------------
+  ! Transform using the previous geometry ADT matrix to yield
+  ! the prototype diabatic states in the basis of the current geometry
+  ! ref space eigenstates
+  Cmat=matmul(Cmat,adtR0)
+
+  ! Lowdin's symmetric orthonormalisation of the prototype diabatic
+  ! states
+  call symm_ortho(nvec,nrootsR0,Cmat)
+
+  ! Prototype diabatic states in the basis of the ref space CSFs
+  allocate(vec_proto(refdim,nrootsR0))
+  vec_proto=matmul(vec_ref,Cmat)
+
+!----------------------------------------------------------------------
+! Compute the on-diagonal Hamiltonian matrix elements
+!----------------------------------------------------------------------
+  call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
+  
+!----------------------------------------------------------------------
+! Construct the GVVPT2 effective Hamiltonian and determine its
+! eigenpairs
+! Also returns the 1st-order perturbed model functions in the Avec
+! array
+!----------------------------------------------------------------------
+
+  !
+  ! Currently, gvvpt2_heff assumes that the model states are identical
+  ! to the ref space eigenstates
+  !
+  ! We need to generalise this by passing a ref-state-to-model-state
+  ! transformation matrix
+  !
+  ! For a normal GVVPT2 calculation, this will simply be the identity
+  ! matrix
+  !
+  ! For a diabatisation calculation, this will be the Cmat array,
+  ! i.e., the representation of the prototype diabatic states in the
+  ! basis of the ref states
+  !
+  ! We are also going to have to pass H0, i.e., the model state
+  ! representation of the zeroth-order Hamiltonian
+  !
+  ! In a normal run, this will just be the diagonal matrix of
+  ! ref state energies
+  !
+  ! In a diabatisation run, this will be the transformation of this
+  ! matrix using Cmat
+  !
+  ! We might as well also modify gvvpt2 to take as input the
+  ! model space vectors directly rather than the ref space eigenvector
+  ! scratch file number
+  !
   
   
+  !call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+  !     vec0scr(irrep),Avec,E2,nvec,shift,dspscr,EQD,mix)
 
   STOP
   
-!!----------------------------------------------------------------------
-!! Compute the on-diagonal Hamiltonian matrix elements
-!!----------------------------------------------------------------------
-!  call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
-!
-!!----------------------------------------------------------------------
-!! Compute the eigenpairs of the GVVPT2 effective Hamiltonian
-!! Also returns the 1st-order perturbed model functions in the Avec
-!! array
-!!----------------------------------------------------------------------
-!  call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-!       vec0scr(irrep),Avec,E2,nvec,shift,dspscr,EQD,mix)
-!
 !!----------------------------------------------------------------------
 !! Add in the zeroth-order wave functions
 !!----------------------------------------------------------------------
