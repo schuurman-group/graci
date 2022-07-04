@@ -130,6 +130,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   integer(is), allocatable :: indx(:),iphase(:)
   real(dp), allocatable    :: Esort(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:)
+  real(dp)                 :: norm
   logical                  :: lprint
   
   ! Timing variables
@@ -352,12 +353,6 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   enddo
 
 !----------------------------------------------------------------------
-! Lowdin's symmetric orthonormalisation of the 1st-order diabatic
-! wave functions
-!----------------------------------------------------------------------
-  call symm_ortho(cfg%csfdim,nroots,Avec)
-
-!----------------------------------------------------------------------
 ! Get the determinant representation of the 1st-order diabatic
 ! wave functions
 !----------------------------------------------------------------------
@@ -372,6 +367,13 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 
   ! Compute the determinant representation of the wave functions
   call det_trans(cfg,cfg%m2c,nroots,cfg%csfdim,ndet,Avec,Avec_det,det)
+
+  ! Normalisation (we will let the overlap routine do the
+  ! orthogonalisation)
+  do i=1,nroots
+     norm=sqrt(dot_product(Avec_det(:,i),Avec_det(:,i)))
+     Avec_det(:,i)=Avec_det(:,i)/norm
+  enddo
   
 !----------------------------------------------------------------------
 ! Get the overlaps of the diabatic states with those from the previous
@@ -414,7 +416,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   ! Transform the matrix of overlaps using the previous geometry ADT
   ! matrix to get the overlaps between diabatic states
   Smat=matmul(transpose(adtR0),Smat)
-  
+
 !----------------------------------------------------------------------
 ! Re-phasing
 !----------------------------------------------------------------------
@@ -492,6 +494,12 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   close(iscratch)
 
 !----------------------------------------------------------------------
+! Lowdin's symmetric orthonormalisation of the 1st-order corrected
+! adiabatic wave functions
+!----------------------------------------------------------------------
+  call symm_ortho(cfg%csfdim,nroots,Avec)
+  
+!----------------------------------------------------------------------
 ! Output the Q-space norms
 !----------------------------------------------------------------------
   if (verbose) then
@@ -552,6 +560,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   deallocate(hdiag)
   deallocate(averageii)
   deallocate(Avec)
+  deallocate(Avec_det)
   deallocate(E_ref)
   deallocate(vec_ref)
   deallocate(E2)
@@ -568,7 +577,6 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   deallocate(Cmat)
   deallocate(vec_proto)
   deallocate(det)
-  deallocate(Avec_det)
   deallocate(Sij)
   deallocate(ipairs)
   deallocate(iphase)
