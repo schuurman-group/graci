@@ -52,6 +52,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.refiter         = 3
         self.ref_prune       = True
         self.diabatic        = False
+        self.adt_method      = 'bdd'
         self.nbuffer         = []
         self.refsel          = 'dynamic'
         self.label           = 'Dftmrci2'
@@ -196,10 +197,14 @@ class Dftmrci2(cimethod.Cimethod):
             self.mrci_wfn.set_confname(mrci_conf_files)
 
             # DFT/MRCI(2) calculation
-            if self.diabatic:
+            if self.diabatic and self.adt_method == 'bdd':
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units, n_conf_new = \
                         gvvpt2.diag_heff_follow(self, guess)
+            elif self.diabatic and self.adt_method == 'qdpt': 
+                mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
+                    q_units, dsp_units, n_conf_new, adt_matrices = \
+                        gvvpt2.heff_diab(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units, n_conf_new = \
@@ -217,10 +222,15 @@ class Dftmrci2(cimethod.Cimethod):
             self.energies_sym = mrci_ener_sym
             self.qunits       = q_units
             self.dspunits     = dsp_units
+
+            # set the ADT matrices
+            if self.diabatic and self.adt_method == 'qdpt': 
+                self.adt = adt_matrices
+            
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
-                
+            
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
                     gvvpt2_refine.refine_ref_space(self)
@@ -238,9 +248,11 @@ class Dftmrci2(cimethod.Cimethod):
         if self.save_wf or self.diabatic:
             mrci_wf.extract_wf(self)
 
-        # ADT matrix
         if self.diabatic:
-            bdd.adt(guess, self)
+            # ADT matrix
+            if self.adt_method == 'bdd':
+                bdd.adt(guess, self)
+            # Diabatic potential
             self.diabatize()
             nroots = [self.n_states_sym(irr)
                       for irr in range(self.n_irrep())]

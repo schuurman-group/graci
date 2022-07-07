@@ -23,6 +23,8 @@ scf_kword      = {'xc'             : str,
                   'charge'         : int,
                   'mult'           : int,
                   'grid_level'     : int,
+                  'cosmo'          : bool,
+                  'solvent'        : str,
                   'label'          : str}
 
 # MRCI section input keywords and data types
@@ -78,6 +80,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'ref_prune'      : bool,
                    'guess_label'    : str,
                    'diabatic'       : bool,
+                   'adt_method'     : str,
                    'print_orbitals' : bool,
                    'save_wf'        : bool,
                    'ddci'           : bool,

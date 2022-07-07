@@ -95,8 +95,8 @@ def parse_section(class_name, input_file):
                         if correct_type(val, expected):
                             setattr(sec_obj, kword, val)
                         else:
-                            print(kword+" is wrong type, expected: "
-                                  +str(expected), flush=True)
+                            sys.exit(kword+" is wrong type, expected: "
+                                  +str(expected))
                     else:
                         sys.exit('Invalid keyword found in a $' \
                                  +mod_name+' section'': '+kword)

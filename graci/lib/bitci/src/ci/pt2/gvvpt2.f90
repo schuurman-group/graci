@@ -15,7 +15,7 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   use bitglobal
   use conftype
   use hii
-  use heff
+  use gvvpt2_hamiltonian
   use utils
   use iomod
   use timing
@@ -87,6 +87,7 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   real(dp), allocatable    :: Smat(:,:),Sinvsq(:,:)
   real(dp), allocatable    :: Elow(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:)
+  real(dp), allocatable    :: mcoeff(:,:)
   
   ! Timing variables
   real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
@@ -174,7 +175,10 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   allocate(mix(nvec,nvec))
 
   allocate(work(cfg%csfdim,nvec))
-  
+
+  allocate(mcoeff(nvec,nvec))
+  mcoeff=0.0d0
+
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
 !----------------------------------------------------------------------
@@ -190,8 +194,16 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 ! Also returns the 1st-order perturbed model functions in the Avec
 ! array
 !----------------------------------------------------------------------
+  ! We are using the ref space eigenstates as model functions, so
+  ! set the model space transformation to the unit matrix
+  mcoeff=0.0d0
+  do i=1,nvec
+     mcoeff(i,i)=1.0d0
+  enddo
+  
+  ! H_eff and Psi^(1) calculation
   call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec,shift,dspscr,EQD,mix)
+       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix)
 
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
@@ -329,7 +341,7 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   ! Register the scratch file
    write(amult,'(i0)') imult
    write(airrep,'(i0)') irrep
-   call scratch_name('mrenpt2vec'//'.mult'//trim(amult)//&
+   call scratch_name('gvvpt2vec'//'.mult'//trim(amult)//&
         '.sym'//trim(airrep),vecfile)
    call register_scratch_file(vecscr,vecfile)
 
@@ -372,9 +384,10 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   deallocate(indx)
   deallocate(Smat)
   deallocate(Sinvsq)
-  if (allocated(EQD)) deallocate(EQD)
-  if (allocated(mix)) deallocate(mix)
-  if (allocated(work)) deallocate(work)
+  deallocate(EQD)
+  deallocate(mix)
+  deallocate(work)
+  deallocate(mcoeff)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
