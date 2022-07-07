@@ -5,8 +5,9 @@ import sys as sys
 import numpy as np
 import copy as copy
 import graci.io.output as output
+import graci.utils.basis as basis
 from pyscf.lib import logger
-from pyscf import gto
+from pyscf import gto, df
 
 atom_name = ['X' ,'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' , 'O' , 'F' ,
              'Ne','Na', 'Mg', 'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar', 'K' ,
@@ -69,18 +70,19 @@ class Molecule:
 
         # the following are determined based on user
         # input
-        self.charge   = 0
-        self.mult     = 1
-        self.asym     = []
-        self.crds     = None 
-        self.masses   = []
-        self.full_sym = ''
-        self.comp_sym = ''
-        self.sym_indx = -1
-        self.irreplbl = None
-        self.enuc     = 0.
-        self.mol_obj  = None
-        self.nao      = None
+        self.charge    = 0
+        self.mult      = 1
+        self.asym      = []
+        self.crds      = None 
+        self.masses    = []
+        self.full_sym  = ''
+        self.comp_sym  = ''
+        self.sym_indx  = -1
+        self.irreplbl  = None
+        self.enuc      = 0.
+        self.mol_obj   = None
+        self.nao       = None
+        self.basis_obj = None
 
     def copy(self):
         """create of deepcopy of self"""
@@ -124,6 +126,9 @@ class Molecule:
         self.asym  = atm_strip
         self.masses = np.array([atom_mass[atom_name.index(atm_strip[i])]
                           for i in range(len(self.asym))], dtype=float)
+ 
+        # make the basis set objects from the string alias basis names
+        self.make_basis_obj()
 
         self.mol_obj = gto.M(
                      dump_input = False,
@@ -134,7 +139,7 @@ class Molecule:
                      spin       = self.mult-1,
                      output     = None,
                      cart       = self.ao_cart,
-                     basis      = self.basis,
+                     basis      = self.basis_obj,
                      symmetry   = self.use_sym,
                      unit       = self.units)
 
@@ -164,6 +169,38 @@ class Molecule:
             self.irreplbl = ['A']
 
         return
+
+    #
+    def make_basis_obj(self):
+        """make basis set objects using alias names"""
+
+        # check the basis set exists in pyscf library
+        self.basis_obj = {}
+        for atom, bname in self.basis.items():
+            alias = bname.lower().replace('-','').replace('_','')
+
+            # if alias if found in PySCF library, use those
+            if alias in gto.basis.ALIAS.keys():
+                self.basis_obj[atom] = gto.basis.load(bname, atom)
+                continue
+
+            # if not in pyscf, check if in supplemental library
+            if alias in basis.local_basis_sets():
+                self.basis_obj[atom] = basis.load_basis(atom,bname)
+            else:
+                sys.exit('Basis: ' + str(bname) + ' for atom ' +
+                          atom + ' not found.')
+
+        if self.ri_basis is None and self.use_df:
+            bname = {atm :
+                    gto.basis._format_basis_name(self.basis[atm])
+                                    for atm in self.basis.keys()}
+            self.ri_basis = dict()
+            for atm in bname.keys():
+                if bname[atm] in df.addons.DEFAULT_AUXBASIS.keys():
+                    self.ri_basis[atm] = df.addons.DEFAULT_AUXBASIS[bname[atm]][0]
+                else:
+                    self.ri_basis[atm] = 'even-tempered'
 
     #
     def read_xyz(self):

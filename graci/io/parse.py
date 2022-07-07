@@ -7,6 +7,7 @@ import graci.utils.constants as constants
 import graci.core.params as params
 import graci.io.output as output
 
+import graci.utils.basis as basis
 import graci.core.molecule as molecule
 import graci.core.scf as scf
 import graci.core.parameterize as parameterize
