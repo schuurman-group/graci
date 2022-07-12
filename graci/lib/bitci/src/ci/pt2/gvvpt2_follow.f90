@@ -81,6 +81,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   real(dp), allocatable    :: Avec(:,:)
   real(dp), allocatable    :: E2(:)
 
+  ! GVVPT2 effective Hamiltonian
+  real(dp), allocatable    :: heff(:,:)
+  
   ! Zeroth-order eigenpairs
   integer(is)              :: refdim
   real(dp), allocatable    :: E0(:)
@@ -213,6 +216,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 
   allocate(mcoeff(nvec,nvec))
   mcoeff=0.0d0
+
+  allocate(heff(nvec,nvec))
+  heff=0.0d0
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
@@ -238,7 +244,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   
   ! H_eff and Psi^(1) calculation
   call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix)
+       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix,&
+       heff)
 
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
@@ -492,6 +499,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   deallocate(Sij1)
   deallocate(indx)
   deallocate(mcoeff)
+  deallocate(heff)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report

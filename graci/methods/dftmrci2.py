@@ -52,7 +52,6 @@ class Dftmrci2(cimethod.Cimethod):
         self.refiter         = 3
         self.ref_prune       = True
         self.diabatic        = False
-        self.adt_method      = 'bdd'
         self.nbuffer         = []
         self.refsel          = 'dynamic'
         self.label           = 'Dftmrci2'
@@ -197,14 +196,10 @@ class Dftmrci2(cimethod.Cimethod):
             self.mrci_wfn.set_confname(mrci_conf_files)
 
             # DFT/MRCI(2) calculation
-            if self.diabatic and self.adt_method == 'bdd':
+            if self.diabatic:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units, n_conf_new = \
                         gvvpt2.diag_heff_follow(self, guess)
-            elif self.diabatic and self.adt_method == 'qdpt': 
-                mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units, n_conf_new, adt_matrices = \
-                        gvvpt2.heff_diab(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units, n_conf_new = \
@@ -223,10 +218,6 @@ class Dftmrci2(cimethod.Cimethod):
             self.qunits       = q_units
             self.dspunits     = dsp_units
 
-            # set the ADT matrices
-            if self.diabatic and self.adt_method == 'qdpt': 
-                self.adt = adt_matrices
-            
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
@@ -250,8 +241,7 @@ class Dftmrci2(cimethod.Cimethod):
 
         if self.diabatic:
             # ADT matrix
-            if self.adt_method == 'bdd':
-                bdd.adt(guess, self)
+            bdd.adt(guess, self)
             # Diabatic potential
             self.diabatize()
             nroots = [self.n_states_sym(irr)

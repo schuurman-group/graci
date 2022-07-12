@@ -14,7 +14,7 @@ contains
 !              model functions
 !######################################################################
   subroutine gvvpt2_heff(irrep,cfg,hdiag,averageii,csfdim,confdim,&
-       vec0scr,mcoeff,Avec,E2,nroots,nref,shift,dspscr,EQD,mix)
+       vec0scr,mcoeff,Avec,E2,nroots,nref,shift,dspscr,EQD,mix,heff)
 
     use constants
     use bitglobal
@@ -63,6 +63,9 @@ contains
     ! Eigenpairs of the effective Hamiltonian
     real(dp), intent(out)    :: EQD(nroots),mix(nroots,nroots)
 
+    ! Effective Hamiltonian matrix
+    real(dp), intent(out)    :: heff(nroots,nroots)
+    
     ! Reference space eigenpairs
     integer(is)              :: refdim
     integer(is), allocatable :: iroots(:)
@@ -143,7 +146,7 @@ contains
 !----------------------------------------------------------------------
     call avec_1h(cfg,Avec,averageii,mvec,csfdim,confdim,refdim,nroots,&
          harr2,harr2dim)
-    
+
 !----------------------------------------------------------------------
 ! (2) 2-hole configurations -> 2I, 2E and 1I1E configurations
 !----------------------------------------------------------------------
@@ -154,7 +157,7 @@ contains
 ! Construct and diagonalise the GVVPT2 effective Hamiltonian
 !----------------------------------------------------------------------
     call diag_heff(cfg,Avec,hdiag,e0,mcoeff,EQD,mix,csfdim,&
-         nroots,nref,refdim,shift)
+         nroots,nref,refdim,shift,heff)
     
 !----------------------------------------------------------------------
 ! Compute the first-order perturbed model states
@@ -325,7 +328,7 @@ contains
 !            Hamiltonian using the ENPT2 Hamiltonian partitioning  
 !######################################################################
   subroutine diag_heff(cfg,Avec,hdiag,e0,mcoeff,EQD,mix,csfdim,&
-       nroots,nref,refdim,shift)
+       nroots,nref,refdim,shift,heff)
 
     use constants
     use bitglobal
@@ -360,8 +363,11 @@ contains
     ! ISA shift
     real(dp), intent(in)    :: shift
     
-    ! Effective Hamiltonian matrix
-    real(dp), allocatable   :: href(:,:),heff0(:,:),heff(:,:)
+    ! Effective Hamiltonian
+    real(dp), intent(out)   :: heff(nroots,nroots)
+
+    ! Zeroth-order Hamiltonian
+    real(dp), allocatable   :: href(:,:),heff0(:,:)
 
     ! Everything else
     integer(is)             :: i,j,icsf
@@ -376,9 +382,6 @@ contains
     allocate(heff0(nroots,nroots))
     heff0=0.0d0
 
-    allocate(heff(nroots,nroots))
-    heff=0.0d0
-    
 !----------------------------------------------------------------------
 ! Zeroth-order contribution to the GVVPT2 effective Hamiltonian
 !----------------------------------------------------------------------
@@ -395,7 +398,7 @@ contains
 !----------------------------------------------------------------------
     ! Initialisation
     heff=heff0
-    
+
     ! Loop over pairs of roots
     do i=1,nroots
        do j=i,nroots
