@@ -98,9 +98,8 @@ class Parameterize:
 
         ener_final = self.evaluate_energy(res.x, target_data, scf_data, 
                                           ci_data)
-        if self.rank == 0:
-            output.print_param_results(res, target_data, 
-                                   ener_init, ener_final)
+        output.print_param_results(res, target_data, ener_init, 
+                                          ener_final)
 
         return
 
@@ -161,7 +160,7 @@ class Parameterize:
         wscript = str(os.getenv('GRACI'))+'/graci/core/param_worker.py'
         comm = mpi.COMM_SELF.Spawn(sys.executable,
                                    args=[wscript],
-                                   maxprocs=2)
+                                   maxprocs=params.nproc)
 
         molecules = list(target.keys())
         molecules.sort()

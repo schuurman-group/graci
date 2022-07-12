@@ -752,18 +752,19 @@ def print_param_results(res, target, init_ener, final_ener):
                                   'Reference', 'Initial', 'Final', 
                                   '|Change|'))
 
+        au_ev = constants.au2ev
+
         for molecule, states in target.items():
             for trans, ener in target[molecule].items():
                 init, final  = trans.strip().split()
-                exc_init     = init_ener[molecule][final] - \
-                               init_ener[molecule][init]
-                exc_final    = final_ener[molecule][final] - \
-                               final_ener[molecule][init]
+                exc_init     = (init_ener[molecule][final] - 
+                               init_ener[molecule][init]) * au_ev
+                exc_final    = (final_ener[molecule][final] - 
+                               final_ener[molecule][init]) * au_ev
+                err_init     = abs(exc_init - ener)
+                err_final    = abs(exc_final - ener)
                 outfile.write(fstr.format(molecule, init, final, ener, 
-                                           exc_init*constants.au2ev, 
-                                           exc_final*constants.au2ev, 
-                                           abs(exc_final-ener) - 
-                                           abs(exc_init-ener)))
+                           exc_init, exc_final, err_final - err_init ))
 
         outfile.flush()
 

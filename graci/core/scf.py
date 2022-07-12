@@ -113,17 +113,6 @@ class Scf:
         if self.mol.use_df:
             # tell user what RI basis if ri_basis is not set
             self.auxbasis = self.mol.ri_basis
-            if self.auxbasis is None:
-                bname = {atm :
-                        gto.basis._format_basis_name(self.mol.basis[atm])
-                                        for atm in self.mol.basis.keys()}
-                self.auxbasis = dict()
-                for atm in bname.keys():
-                    if bname[atm] in df.addons.DEFAULT_AUXBASIS.keys():
-                        self.auxbasis[atm] = \
-                            df.addons.DEFAULT_AUXBASIS[bname[atm]][0]
-                    else:
-                        self.auxbasis[atm] = 'even-tempered'
 
         # run the SCF calculation
         scf_pyscf = self.run_pyscf(pymol)
