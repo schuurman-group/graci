@@ -73,6 +73,9 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 
   ! QDPT2 energies and mixing coefficients
   real(dp), allocatable    :: EQD(:),mix(:,:),work(:,:)
+
+  ! GVVPT2 effective Hamiltonian
+  real(dp), allocatable    :: heff(:,:)
   
   ! I/O variables
   integer(is)              :: iscratch
@@ -179,6 +182,9 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   allocate(mcoeff(nvec,nvec))
   mcoeff=0.0d0
 
+  allocate(heff(nvec,nvec))
+  heff=0.0d0
+  
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
 !----------------------------------------------------------------------
@@ -203,7 +209,8 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   
   ! H_eff and Psi^(1) calculation
   call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix)
+       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix,&
+       heff)
 
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
@@ -388,6 +395,7 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   deallocate(mix)
   deallocate(work)
   deallocate(mcoeff)
+  deallocate(heff)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
