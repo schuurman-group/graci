@@ -23,24 +23,28 @@ class Parameterize:
         # the following is determined from user input 
         # (or subject to user input) -- these are keywords
         # in params module
-        self.algorithm   = None
-        self.label       = 'parameterize'
+        self.algorithm      = 'Nelder-Mead'
+        self.label          = 'parameterize'
 
         self.hamiltonian    = ''
         self.graci_ref_file = ''
         self.target_file    = ''
         self.pthresh        = 1.e-4
         self.verbose        = True
+        self.max_iter       = 1000
 
         # -------------------------------
         self.ndata          = 0
-        self.iter           = 0
+        self.iiter          = 0
         self.current_h      = 0
         self.error          = 0
 
     #
     def run(self):
         """re-parameterize the Hamiltonian"""
+
+        # sanity check the input
+        self.sanity_check()
 
         # parse the target data file
         target_data = self.parse_target_file()
@@ -82,7 +86,7 @@ class Parameterize:
         res = sp_opt.minimize(self.err_func, p0, 
                               args = (target_data, ref_states, 
                                                   scf_data, ci_data),
-                              method = 'Nelder-Mead',
+                              method = self.algorithm,
                               tol = self.pthresh,
                               callback = self.status_func)
 
@@ -90,6 +94,29 @@ class Parameterize:
                                       ref_states, scf_data, ci_data)
         output.print_param_results(res, target_data, ener_init, 
                                                        ener_final)
+
+        return
+
+    #
+    def sanity_check(self):
+        """
+        sanity check the input
+        """
+
+        algos = ['Nelder-Mead', 'TNC', 'CG', 'COBYLA']
+        if self.algorithm not in algos:
+            sys.exit(str(self.algorithm)+' not in '+str(algos))
+
+
+        if not os.path.isfile(self.graci_ref_file):
+            print('graci_ref_file: ' + str(self.graci_ref_file) + 
+                                             ' not found. Exiting')
+            sys.exit(1)
+
+        if not os.path.isfile(self.target_file):
+            print('target_file: ' + str(self.target_file) +
+                                             ' not found. Exiting')
+            sys.exit(1)
 
         return
 
@@ -137,8 +164,12 @@ class Parameterize:
         dif = np.linalg.norm(xk - self.current_h)
         output.print_param_iter(self.iter, list(xk), self.error)
 
-        self.iter     += 1
+        self.iiter     += 1
         self.current_h = xk
+
+        if self.iiter >= self.max_iter:
+            output.print_message('Max. number of iterations reached.')
+            sys.exit(1)
 
         return
 
