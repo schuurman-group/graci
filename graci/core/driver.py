@@ -68,6 +68,9 @@ class Driver:
         # SCF Sections 
         # -----------------------------------------------------
 
+        # list of all scf labels
+        scf_lbls = [scf.label for scf in scf_objs]
+        
         # match scf objects to molecule objects
         for scf_obj in scf_objs:
 
@@ -113,7 +116,15 @@ class Driver:
                             ' has no molecule section. Please check input')
                     sys.exit(1)
 
-                scf_obj.run(mol_obj)
+                # guess SCF object
+                if scf_obj.guess_label is None:
+                    scf_guess = None
+                else:
+                    scf_guess = scf_objs[scf_lbls.index(scf_obj.guess_label)]
+
+                # run the SCF calculation
+                scf_obj.run(mol_obj, scf_guess)
+                
                 if save_to_chkpt:
                     chkpt.write(scf_obj)
 

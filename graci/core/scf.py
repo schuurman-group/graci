@@ -29,8 +29,10 @@ class Scf:
         self.mult           = 0
         self.charge         = 0
         self.grid_level     = 2
+        self.conv_tol       = 1e-8
         self.cosmo          = False
         self.solvent        = None
+        self.guess_label    = None
         
         # computed quantities
         self.mol          = None 
@@ -68,12 +70,12 @@ class Scf:
         return new
 
     @timing.timed
-    def run(self, mol):
+    def run(self, mol, guess):
         """compute the DFT energy and KS orbitals"""
 
         # set the GRaCI mol object
         self.mol = mol
-
+        
         # the charge and multiplity of the scf sections
         # overwrites the mult/charge of the mol object
         #----------------------------------------------------
@@ -115,7 +117,7 @@ class Scf:
             self.auxbasis = self.mol.ri_basis
 
         # run the SCF calculation
-        scf_pyscf = self.run_pyscf(pymol)
+        scf_pyscf = self.run_pyscf(pymol, guess)
         
         # extract orbitals, occupations and energies
         self.orbs      = scf_pyscf.mo_coeff
@@ -242,7 +244,7 @@ class Scf:
 
     #
     @timing.timed
-    def run_pyscf(self, pymol):
+    def run_pyscf(self, pymol, guess):
         """run a PySCF HF/KSDFT computation"""
 
         # function handle string
@@ -282,21 +284,64 @@ class Scf:
             mf.grids.level = self.grid_level
             mf.grids.prune = dft.sg1_prune
 
+        # convergence threshold
+        mf.conv_tol = self.conv_tol
+            
         # set the name of the DF-tensor
         if hasattr(mf, 'with_df'):
             if self.mol.use_df:
                 mf.with_df._cderi_to_save = self.moint_2e_eri
             else:
                 mf.with_df = None
-            
+
+        # optional: override the initial density matrix with
+        # that of a previous SCF calculation
+        if guess is None:
+            dm = None
+        else:
+            dm = self.guess_dm(guess)
+        
         # run the scf computation
-        self.energy = mf.kernel()
+        self.energy = mf.kernel(dm0=dm)
         
         # if not converged, kill things
         if not mf.converged:
             sys.exit('Reference SCF computation did not converge.')
 
         return mf
+
+    #
+    def guess_dm(self, guess):
+        """
+        returns the density matrix of the guess scf object
+        projected onto the current AO basis
+        
+        adapted from the PySCF uhf.init_guess_by_chkfile function
+        """
+
+        # PySCF mol objects
+        mol  = self.mol.mol_obj
+        mol0 = guess.mol.mol_obj
+        
+        # current AO overlaps
+        s = mol.intor_symmetric('int1e_ovlp')
+        
+        # guess MOs and occupations
+        mo0  = guess.orbs
+        occ0 = guess.orb_occ
+
+        # projection
+        mo       = scf.addons.project_mo_nr2nr(mol0, mo0, mol)
+        norm     = np.einsum('pi,pi->i', mo.conj(), s.dot(mo))
+        mo_coeff = mo / np.sqrt(norm)
+
+        # construct the density matrix
+        mo_occa = (occ0 > 1e-8).astype(np.double)
+        mo_occb = occ0 - mo_occa
+        dm      = scf.uhf.make_rdm1([mo_coeff, mo_coeff],
+                                    [mo_occa, mo_occb])
+
+        return dm[0] + dm[1]
         
     #
     @timing.timed
