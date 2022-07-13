@@ -11,7 +11,7 @@ import struct as struct
 import json as json
 import graci.core.params as params
 import graci.core.molecule as molecule
-import graci.core.parameterize as parameterize
+import graci.tools.parameterize as parameterize
 import graci.core.scf as scf
 import graci.core.bitciwfn as bitciwfn
 import graci.methods.dftmrci as dftmrci
