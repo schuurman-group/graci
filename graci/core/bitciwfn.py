@@ -23,9 +23,6 @@ class Bitciwfn:
         # List of bitci Q-space energy correction scratch file numbers
         # (one per irrep)
         self.eq_units    = None
-        # List of bitci damped strong perturber scratch file numbers
-        # (one per irrep)
-        self.dsp_units   = None
         # class label
         self.label       = 'Bitciwfn'
 
@@ -77,11 +74,3 @@ class Bitciwfn:
         file numbers"""
         self.eq_units = equnits
         return
-
-    #
-    def set_dspunits(self, dspunits):
-        """Adds the list of bitci damped strong perturber scratch
-        file numbers"""
-        self.dsp_units = dspunits
-        return
-    

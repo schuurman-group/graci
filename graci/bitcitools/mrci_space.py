@@ -54,9 +54,6 @@ def generate(ci_method):
     # Pruning: bitci Q-space energy correction scracth file numbers
     eq_units = np.zeros(nirr, dtype=int)
 
-    # Pruning: bitci damped strong perturber scracth file numbers
-    dsp_units = np.zeros(nirr, dtype=int)
-    
     # Generate the MRCI configurations for all irreps
     args = (nroots, ref_confunits, ci_confunits, nconf, emax, cvs_flag,
             ddci_flag)
@@ -74,9 +71,8 @@ def generate(ci_method):
                 nextra = ci_method.nextra['prune'][irrep]
                 shift  = 0.005
                 args = (thrsh, irrep, nroots, nextra, shift,
-                        ci_confunits, ref_ciunits, nconf,
-                        eq_units, dsp_units)
-                (nconf, eq_units, dsp_units) = libs.lib_func('mrci_prune', args)
+                        ci_confunits, ref_ciunits, nconf, eq_units)
+                (nconf, eq_units) = libs.lib_func('mrci_prune', args)
         except AttributeError:
             pass
     
@@ -88,5 +84,4 @@ def generate(ci_method):
         name = libs.lib_func('retrieve_filename', args)
         confname.append(name)
 
-    return nconf, ci_confunits, confname, eq_units, dsp_units
-
+    return nconf, ci_confunits, confname, eq_units

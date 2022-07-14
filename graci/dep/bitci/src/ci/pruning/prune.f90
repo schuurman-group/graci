@@ -10,10 +10,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
-     vec0scr,nconf,eqscr,dspscr) bind(c,name="mrci_prune")
+     vec0scr,nconf,eqscr) bind(c,name="mrci_prune")
 #else
 subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
-     vec0scr,nconf,eqscr,dspscr)
+     vec0scr,nconf,eqscr)
 #endif
     
   use constants
@@ -56,9 +56,6 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
 
   ! Q-space energy correction scratch file numbers
   integer(is), intent(out)   :: eqscr(0:nirrep-1)
-
-  ! Damped strong perturber scratch file numbers
-  integer(is), intent(out)   :: dspscr(0:nirrep-1)
   
   ! MRCI configuration derived types
   type(mrcfg)                :: cfg,cfg_new
@@ -81,6 +78,10 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
 
   ! 2nd-order corrected energies
   real(dp), allocatable      :: EPT2(:)
+
+  ! Damped strong perturbers
+  integer(is)                :: ndsp
+  integer(is), allocatable   :: idsp(:)
   
   ! Surviving configuration flags
   integer(is), allocatable   :: i1I(:),i2I(:),i1E(:),i2E(:),i1I1E(:)
@@ -166,6 +167,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
        i1I1E(cfg%n1I1E))
   i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
 
+  allocate(idsp(cfg%csfdim))
+  idsp=0
+  
 !----------------------------------------------------------------------
 ! Read in the zeroth-order (i.e., ref space) energies
 !----------------------------------------------------------------------
@@ -184,7 +188,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !----------------------------------------------------------------------
   call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec,shift,dspscr(irrep))
+       vec0scr(irrep),Avec,E2,nvec,shift,ndsp,idsp)
 
 !----------------------------------------------------------------------
 ! Norms of the A-vectors
@@ -197,7 +201,6 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
 ! Sort the 2nd-order corrected energies
 !----------------------------------------------------------------------
   EPT2=E0+E2
-  
   call dsortindxa1('A',nvec,EPT2,indx)
 
 !----------------------------------------------------------------------
@@ -206,7 +209,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
 !----------------------------------------------------------------------
   call pspace_conf_indices(cfg,Athrsh,Avec,cfg%csfdim,cfg%confdim,&
        nroots(irrep),nvec,indx(1:nroots(irrep)),i1I,i2I,i1E,i2E,i1I1E,&
-       cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E)
+       cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,ndsp,idsp)
 
 !----------------------------------------------------------------------
 ! Calculate the contributions of the discarded CSFs to the 2nd-order

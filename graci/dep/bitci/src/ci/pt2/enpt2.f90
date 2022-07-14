@@ -18,7 +18,7 @@ contains
 ! enpt2: Computes a batch of ENPT2 energy and wave function corrections
 !######################################################################
   subroutine enpt2(irrep,cfg,hdiag,averageii,csfdim,confdim,vec0scr,&
-       Avec,E2,nroots,shift,dspscr)
+       Avec,E2,nroots,shift,ndsp,idsp)
 
     use constants
     use bitglobal
@@ -54,8 +54,9 @@ contains
     ! ISA shift
     real(dp), intent(in)            :: shift
 
-    ! Damped strong perturber scratch file number
-    integer, intent(out)            :: dspscr
+    ! Damped strong perturbers
+    integer(is), intent(out)         :: ndsp
+    integer(is), intent(out)         :: idsp(csfdim)
     
     ! Reference space eigenpairs
     integer(is)                     :: refdim
@@ -65,10 +66,6 @@ contains
     ! Temporary Hij array
     integer(is)                     :: harr2dim
     real(dp), allocatable           :: harr2(:)
-
-    ! Damped strong perturbers
-    integer(is)                     :: ndsp
-    integer(is), allocatable        :: idsp(:)
 
     ! I/O
     integer(is)                     :: iscratch
@@ -98,10 +95,6 @@ contains
     harr2dim=maxval(ncsfs(0:nomax))**2    
     allocate(harr2(harr2dim))
 
-    ! Indices of the damped strong perturbers
-    allocate(idsp(csfdim))
-    idsp=0
-    
 !----------------------------------------------------------------------
 ! Reference space eigenpairs
 !----------------------------------------------------------------------
@@ -138,33 +131,10 @@ contains
          shift,idsp)
 
 !----------------------------------------------------------------------
-! Write the damped strong perturber array to disk
+! Number of damped strong perturbers
 !----------------------------------------------------------------------
-    ! Register the scratch file
-    write(amult,'(i0)') imult
-    write(airrep,'(i0)') irrep
-    call scratch_name('dsp'//'.mult'//trim(amult)//&
-         '.sym'//trim(airrep),dspfile)
-    call register_scratch_file(dspscr,dspfile)
-
-    ! Open scratch file
-    iscratch=scrunit(dspscr)
-    open(iscratch,file=scrname(dspscr),form='unformatted',&
-         status='unknown')
-
-    ! Number of damped strong perturbers
     ndsp=sum(idsp)
-    write(iscratch) ndsp
-
-    ! Damped strong perturber flags
-    write(iscratch) idsp
     
-    ! Close scratch file
-    close(iscratch)
-
-!----------------------------------------------------------------------
-! Output the number of damped strong perturbers
-!----------------------------------------------------------------------
     if (verbose) write(6,'(/,x,a,x,i0)') &
          'Number of damped strong perurbers:',ndsp
     

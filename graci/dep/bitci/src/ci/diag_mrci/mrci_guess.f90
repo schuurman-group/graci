@@ -940,8 +940,9 @@ contains
     ! ISA shift
     real(dp), parameter      :: shift=0.0d0
 
-    ! Damped strong perturber scratch file number
-    integer(is)              :: dspscr
+    ! Damped strong perturbers
+    integer(is)                :: ndsp
+    integer(is), allocatable   :: idsp(:)
     
     ! I/O variables
     integer(is)              :: iscratch
@@ -978,12 +979,15 @@ contains
 
     allocate(tau(nguess))
     tau=0.0d0
+
+    allocate(idsp(dim))
+    idsp=0
     
 !----------------------------------------------------------------------
 ! Compute the ENPT2 wave function corrections
 !----------------------------------------------------------------------
     call enpt2(irrep,cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,&
-         nguess,shift,dspscr)
+         nguess,shift,ndsp,idsp)
 
 !----------------------------------------------------------------------
 ! Read in the reference space eigenpairs

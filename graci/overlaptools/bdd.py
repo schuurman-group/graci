@@ -28,7 +28,7 @@ def adt(ref_obj, disp_obj):
     nirr = ref_obj.n_irrep()
 
     # initialise the list of disp ADT matrices
-    disp_obj.adt = []
+    adt_matrices = []
     
     # loop over irreps
     for irr in range(nirr):
@@ -74,6 +74,6 @@ def adt(ref_obj, disp_obj):
         adt      = np.matmul(S_inv, SST_sqrt)
 
         # save the disp ADT matrix
-        disp_obj.adt.append(adt)
+        adt_matrices.append(adt)
         
-    return
+    return adt_matrices

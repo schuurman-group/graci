@@ -241,7 +241,8 @@ class Dftmrci2(cimethod.Cimethod):
 
         if self.diabatic:
             # ADT matrix
-            bdd.adt(guess, self)
+            adt_matrices = bdd.adt(guess, self)
+            self.adt = adt_matrices
             # Diabatic potential
             self.diabatize()
             nroots = [self.n_states_sym(irr)
