@@ -937,6 +937,12 @@ contains
     real(dp), allocatable    :: Avec(:,:)
     real(dp), allocatable    :: E2(:)
 
+    ! ISA shift
+    real(dp), parameter      :: shift=0.0d0
+
+    ! Damped strong perturber scratch file number
+    integer(is)              :: dspscr
+    
     ! I/O variables
     integer(is)              :: iscratch
     character(len=60)        :: guessfile
@@ -977,7 +983,7 @@ contains
 ! Compute the ENPT2 wave function corrections
 !----------------------------------------------------------------------
     call enpt2(irrep,cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,&
-         nguess)
+         nguess,shift,dspscr)
 
 !----------------------------------------------------------------------
 ! Read in the reference space eigenpairs

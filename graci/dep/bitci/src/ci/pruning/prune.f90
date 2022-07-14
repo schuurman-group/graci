@@ -9,11 +9,11 @@
 !             the pruning metric.
 !######################################################################
 #ifdef CBINDING
-subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
-     nconf,eqscr) bind(c,name="mrci_prune")
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
+     vec0scr,nconf,eqscr,dspscr) bind(c,name="mrci_prune")
 #else
-subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
-     nconf,eqscr)
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
+     vec0scr,nconf,eqscr,dspscr)
 #endif
     
   use constants
@@ -41,7 +41,10 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 
   ! Number of extra roots to include in the ENPT2 calculation
   integer(is), intent(in)    :: nextra
-    
+
+  ! ISA shift parameter 
+  real(dp), intent(in)       :: shift
+  
   ! MRCI space configuration scratch file numbers
   integer(is), intent(in)    :: confscr(0:nirrep-1)
 
@@ -53,6 +56,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 
   ! Q-space energy correction scratch file numbers
   integer(is), intent(out)   :: eqscr(0:nirrep-1)
+
+  ! Damped strong perturber scratch file numbers
+  integer(is), intent(out)   :: dspscr(0:nirrep-1)
   
   ! MRCI configuration derived types
   type(mrcfg)                :: cfg,cfg_new
@@ -93,7 +99,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   ! Timing variables
   real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
-  
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -178,7 +184,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !----------------------------------------------------------------------
   call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec)
+       vec0scr(irrep),Avec,E2,nvec,shift,dspscr(irrep))
 
 !----------------------------------------------------------------------
 ! Norms of the A-vectors
