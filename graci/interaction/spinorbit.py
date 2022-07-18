@@ -8,8 +8,8 @@ import numpy as np
 import copy as copy
 import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
-import graci.bitcitools.bitsi_init as bitsi_init
-import graci.bitcitools.mrci_soc as mrci_soc
+import graci.interfaces.bitcitools.bitsi_init as bitsi_init
+import graci.interfaces.bitcitools.mrci_soc as mrci_soc
 import graci.io.output as output
 import graci.utils.constants as constants
 
