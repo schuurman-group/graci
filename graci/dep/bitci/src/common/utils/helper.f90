@@ -312,3 +312,182 @@ subroutine retrieve_filename(scrnum,filename1)
   
 end subroutine retrieve_filename
 
+!######################################################################
+! retrieve_nhpar: given a Hamiltonian name, returns the corresponding
+!                   parameter values
+!######################################################################
+#ifdef CBINDING
+subroutine retrieve_nhpar(ham1,npar) &
+     bind(c,name="retrieve_nhpar")
+#else
+subroutine retrieve_nhpar(ham1,npar)
+#endif
+
+  use constants
+  use bitglobal
+  use hparam
+  use iomod
+  use iso_c_binding, only: C_CHAR, C_NULL_CHAR
+  
+  implicit none
+
+  ! Input: Hamiltonian name
+#ifdef CBINDING
+  character(kind=C_CHAR), intent(in) :: ham1(*)
+  character(len=255)                 :: ham
+  integer(is)                        :: length
+#else
+  character(len=*), intent(in)       :: ham1
+  character(len=255)                 :: ham
+#endif
+
+  ! Ouput: no. Hamiltonian parameters
+  integer(is), intent(out)           :: npar
+
+!----------------------------------------------------------------------
+! If C bindings are on, then convert the Hamiltonian and calculation
+! labels from the C char type to the Fortran character type
+!----------------------------------------------------------------------
+#ifdef CBINDING
+  length=cstrlen(ham1)
+  call c2fstr(ham1,ham,length)
+#else
+  ham=adjustl(trim(ham1))
+#endif
+
+!----------------------------------------------------------------------
+! Number of Hamiltonian parameters
+!----------------------------------------------------------------------
+  select case(trim(ham))
+  case('grimme_standard')
+     npar=size(grimme1_standard)
+  case('grimme_short')
+     npar=size(grimme1_short)
+  case('lyskov_standard')
+     npar=size(lyskov_standard)
+  case('lyskov_short')
+     npar=size(lyskov_short)
+  case('heil17_standard')
+     npar=size(heil17_standard)
+  case('heil17_short')
+     npar=size(heil17_short)
+  case('heil18_standard')
+     npar=size(heil18_standard)
+  case('heil18_short')
+     npar=size(heil18_short)
+  case('cvs_standard')
+     npar=size(cvs_standard)
+  case('cvs_short')
+     npar=size(cvs_short)
+  case default
+     errmsg='Error in retrieve_nhpar: unrecognised Hamiltonian name'
+     call error_control
+  end select
+     
+  return
+  
+end subroutine retrieve_nhpar
+
+!######################################################################
+! retrieve_hparams: given a Hamiltonian name, returns the corresponding
+!                   parameter values
+!######################################################################
+#ifdef CBINDING
+subroutine retrieve_hpar(ham1,dim,params) &
+     bind(c,name="retrieve_hpar")
+#else
+subroutine retrieve_hpar(ham1,dim,params)
+#endif
+
+  use constants
+  use bitglobal
+  use hparam
+  use iomod
+  use iso_c_binding, only: C_CHAR, C_NULL_CHAR
+  
+  implicit none
+
+  ! Input: Hamiltonian name
+#ifdef CBINDING
+  character(kind=C_CHAR), intent(in) :: ham1(*)
+  character(len=255)                 :: ham
+  integer(is)                        :: length
+#else
+  character(len=*), intent(in)       :: ham1
+  character(len=255)                 :: ham
+#endif
+
+  ! Ouput: Hamiltonian parameters
+  integer(is), intent(in)            :: dim
+  real(dp), intent(out)              :: params(dim)
+
+  ! Everything else
+  integer(is)                        :: npar
+  
+!----------------------------------------------------------------------
+! If C bindings are on, then convert the Hamiltonian and calculation
+! labels from the C char type to the Fortran character type
+!----------------------------------------------------------------------
+#ifdef CBINDING
+  length=cstrlen(ham1)
+  call c2fstr(ham1,ham,length)
+#else
+  ham=adjustl(trim(ham1))
+#endif
+
+!----------------------------------------------------------------------
+! Package up the Hamiltonian parameters
+!----------------------------------------------------------------------
+  select case(trim(ham))
+  case('grimme_standard')
+     npar=size(grimme1_standard)
+     if (npar > dim) goto 999
+     params(1:npar)=grimme1_standard
+  case('grimme_short')
+     npar=size(grimme1_short)
+     if (npar > dim) goto 999
+     params(1:npar)=grimme1_short
+  case('lyskov_standard')
+     npar=size(lyskov_standard)
+     if (npar > dim) goto 999
+     params(1:npar)=lyskov_standard
+  case('lyskov_short')
+     npar=size(lyskov_short)
+     if (npar > dim) goto 999
+     params(1:npar)=lyskov_short
+  case('heil17_standard')
+     npar=size(heil17_standard)
+     if (npar > dim) goto 999
+     params(1:npar)=heil17_standard
+  case('heil17_short')
+     npar=size(heil17_short)
+     if (npar > dim) goto 999
+     params(1:npar)=heil17_short
+  case('heil18_standard')
+     npar=size(heil18_standard)
+     if (npar > dim) goto 999
+     params(1:npar)=heil18_standard
+  case('heil18_short')
+     npar=size(heil18_short)
+     if (npar > dim) goto 999
+     params(1:npar)=heil18_short
+  case('cvs_standard')
+     npar=size(cvs_standard)
+     if (npar > dim) goto 999
+     params(1:npar)=cvs_standard
+  case('cvs_short')
+     npar=size(cvs_short)
+     if (npar > dim) goto 999
+     params(1:npar)=cvs_short
+  case default
+     errmsg='Error in retrieve_hpar: unrecognised Hamiltonian name'
+     call error_control
+  end select
+     
+  return
+
+999 continue
+  errmsg='Error in retrieve_hpar: size(hpar) < npar'
+  call error_control
+  
+end subroutine retrieve_hpar
