@@ -67,10 +67,11 @@ def generate(ci_method):
         # attributes)
         try:
             if ci_method.prune:
-                thrsh = ci_method.prune_thresh
-                nextra = ci_method.nextra['prune'][irrep]            
-                args = (thrsh, irrep, nroots, nextra, ci_confunits,
-                        ref_ciunits, nconf, eq_units)
+                thrsh  = ci_method.prune_thresh
+                nextra = ci_method.nextra['prune'][irrep]
+                shift  = 0.005
+                args = (thrsh, irrep, nroots, nextra, shift,
+                        ci_confunits, ref_ciunits, nconf, eq_units)
                 (nconf, eq_units) = libs.lib_func('mrci_prune', args)
         except AttributeError:
             pass
@@ -84,4 +85,3 @@ def generate(ci_method):
         confname.append(name)
 
     return nconf, ci_confunits, confname, eq_units
-

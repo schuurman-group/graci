@@ -937,6 +937,13 @@ contains
     real(dp), allocatable    :: Avec(:,:)
     real(dp), allocatable    :: E2(:)
 
+    ! ISA shift
+    real(dp), parameter      :: shift=0.0d0
+
+    ! Damped strong perturbers
+    integer(is)                :: ndsp
+    integer(is), allocatable   :: idsp(:)
+    
     ! I/O variables
     integer(is)              :: iscratch
     character(len=60)        :: guessfile
@@ -972,12 +979,15 @@ contains
 
     allocate(tau(nguess))
     tau=0.0d0
+
+    allocate(idsp(dim))
+    idsp=0
     
 !----------------------------------------------------------------------
 ! Compute the ENPT2 wave function corrections
 !----------------------------------------------------------------------
     call enpt2(irrep,cfg,hdiag,averageii,dim,confdim,vec0scr,Avec,E2,&
-         nguess)
+         nguess,shift,ndsp,idsp)
 
 !----------------------------------------------------------------------
 ! Read in the reference space eigenpairs

@@ -13,7 +13,8 @@ contains
 !                      above threshold A-vector elements
 !######################################################################
   subroutine pspace_conf_indices(cfg,Athrsh,Avec,csfdim,confdim,nroots,&
-       nvec,vecmap,i1I,i2I,i1E,i2E,i1I1E,n1I,n2I,n1E,n2E,n1I1E)
+       nvec,vecmap,i1I,i2I,i1E,i2E,i1I1E,n1I,n2I,n1E,n2E,n1I1E,&
+       nexplicit,iexplicit)
 
     use constants
     use bitglobal
@@ -42,6 +43,10 @@ contains
     integer(is), intent(out) :: i1I(n1I),i2I(n2I),i1E(n1E),i2E(n2E),&
                                 i1I1E(n1I1E)
 
+    ! Explicitly added CSFs
+    integer(is), intent(in)  :: nexplicit
+    integer(is), intent(in)  :: iexplicit(csfdim)
+    
     ! Working array
     real(dp), allocatable    :: work(:)
     
@@ -59,7 +64,7 @@ contains
     allocate(work(csfdim))
     
     i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
-    
+
 !----------------------------------------------------------------------
 ! Determine the indices of the dominant CSFs
 !----------------------------------------------------------------------
@@ -98,6 +103,13 @@ contains
        
     enddo
 
+!----------------------------------------------------------------------
+! Add in the explicitly included CSFs
+!----------------------------------------------------------------------
+    do i=1,nexplicit
+       if (iexplicit(i) == 1) iok(i)=1
+    enddo
+    
 !----------------------------------------------------------------------
 ! 1I configurations
 !----------------------------------------------------------------------

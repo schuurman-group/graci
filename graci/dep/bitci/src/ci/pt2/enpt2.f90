@@ -18,7 +18,7 @@ contains
 ! enpt2: Computes a batch of ENPT2 energy and wave function corrections
 !######################################################################
   subroutine enpt2(irrep,cfg,hdiag,averageii,csfdim,confdim,vec0scr,&
-       Avec,E2,nroots)
+       Avec,E2,nroots,shift,ndsp,idsp)
 
     use constants
     use bitglobal
@@ -51,6 +51,13 @@ contains
     real(dp), intent(out)           :: Avec(csfdim,nroots)
     real(dp), intent(out)           :: E2(nroots)
 
+    ! ISA shift
+    real(dp), intent(in)            :: shift
+
+    ! Damped strong perturbers
+    integer(is), intent(out)         :: ndsp
+    integer(is), intent(out)         :: idsp(csfdim)
+    
     ! Reference space eigenpairs
     integer(is)                     :: refdim
     integer(is), allocatable        :: iroots(:)
@@ -59,6 +66,11 @@ contains
     ! Temporary Hij array
     integer(is)                     :: harr2dim
     real(dp), allocatable           :: harr2(:)
+
+    ! I/O
+    integer(is)                     :: iscratch
+    character(len=60)               :: dspfile
+    character(len=2)                :: amult,airrep
     
     ! Everything else
     integer(is)                     :: i
@@ -115,8 +127,17 @@ contains
 !----------------------------------------------------------------------
 ! Divide by (H_nn - E^0_I)
 !----------------------------------------------------------------------
-    call apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim)
+    call apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim,&
+         shift,idsp)
 
+!----------------------------------------------------------------------
+! Number of damped strong perturbers
+!----------------------------------------------------------------------
+    ndsp=sum(idsp)
+    
+    if (verbose) write(6,'(/,x,a,x,i0)') &
+         'Number of damped strong perurbers:',ndsp
+    
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -134,7 +155,7 @@ contains
 !                    the A-vector element values
 !######################################################################
   subroutine apply_denominator(cfg,Avec,E2,hdiag,e0,csfdim,nroots,&
-       refdim)
+       refdim,shift,idsp)
 
     use constants
     use bitglobal
@@ -158,15 +179,23 @@ contains
     ! Reference space eigenvalues
     real(dp), intent(in)     :: e0(nroots)
 
+    ! ISA shift
+    real(dp), intent(in)     :: shift
+
+    ! Damped strong perturbers
+    integer(is), intent(out) :: idsp(csfdim)    
+    real(dp), parameter      :: cthrsh=0.055d0
+    
     ! Everything else
     integer(is)              :: j,icsf
-    real(dp)                 :: Aold,ediff
+    real(dp)                 :: Aold,ediff,dj
     
 !----------------------------------------------------------------------
 ! ENPT2 energy and wave function corrections
 !----------------------------------------------------------------------
     ! Initialisation
     E2=0.0d0
+    idsp=0
     
     ! Loop over roots
     do j=1,nroots
@@ -176,13 +205,35 @@ contains
 
           ! E^(0) - H_ii
           ediff=e0(j)-hdiag(icsf)
+
+          !
+          ! Old
+          !
+          !! Energy correction
+          !E2(j)=E2(j)+Avec(icsf,j)**2/ediff
+          !
+          !! A-vector element
+          !Avec(icsf,j)=Avec(icsf,j)/ediff
+
+          !
+          ! New
+          !
+          ! ISA factor
+          dj=shift/ediff
+          
+          ! Unshifted A-vector element
+          Aold=Avec(icsf,j)/ediff
           
           ! Energy correction
-          E2(j)=E2(j)+Avec(icsf,j)**2/ediff
+          E2(j)=E2(j)+Avec(icsf,j)**2/(ediff+dj)
           
           ! A-vector element
-          Avec(icsf,j)=Avec(icsf,j)/ediff
+          Avec(icsf,j)=Avec(icsf,j)/(ediff+dj)
 
+          ! Make sure that all strong perturbers are captured
+          if (abs(Aold) >= cthrsh &
+               .and. abs(Avec(icsf,j)) < cthrsh) idsp(icsf)=1
+          
        enddo
        
     enddo

@@ -9,11 +9,11 @@
 !             the pruning metric.
 !######################################################################
 #ifdef CBINDING
-subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
-     nconf,eqscr) bind(c,name="mrci_prune")
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
+     vec0scr,nconf,eqscr) bind(c,name="mrci_prune")
 #else
-subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
-     nconf,eqscr)
+subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
+     vec0scr,nconf,eqscr)
 #endif
     
   use constants
@@ -41,7 +41,10 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 
   ! Number of extra roots to include in the ENPT2 calculation
   integer(is), intent(in)    :: nextra
-    
+
+  ! ISA shift parameter 
+  real(dp), intent(in)       :: shift
+  
   ! MRCI space configuration scratch file numbers
   integer(is), intent(in)    :: confscr(0:nirrep-1)
 
@@ -75,6 +78,10 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 
   ! 2nd-order corrected energies
   real(dp), allocatable      :: EPT2(:)
+
+  ! Damped strong perturbers
+  integer(is)                :: ndsp
+  integer(is), allocatable   :: idsp(:)
   
   ! Surviving configuration flags
   integer(is), allocatable   :: i1I(:),i2I(:),i1E(:),i2E(:),i1I1E(:)
@@ -93,7 +100,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
   ! Timing variables
   real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
                                 twall_end
-  
+
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -160,6 +167,9 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
        i1I1E(cfg%n1I1E))
   i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
 
+  allocate(idsp(cfg%csfdim))
+  idsp=0
+  
 !----------------------------------------------------------------------
 ! Read in the zeroth-order (i.e., ref space) energies
 !----------------------------------------------------------------------
@@ -178,7 +188,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 ! where {|Psi^0_I>, E^0_I} is the set of reference space eigenpairs.
 !----------------------------------------------------------------------
   call enpt2(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec)
+       vec0scr(irrep),Avec,E2,nvec,shift,ndsp,idsp)
 
 !----------------------------------------------------------------------
 ! Norms of the A-vectors
@@ -191,7 +201,6 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 ! Sort the 2nd-order corrected energies
 !----------------------------------------------------------------------
   EPT2=E0+E2
-  
   call dsortindxa1('A',nvec,EPT2,indx)
 
 !----------------------------------------------------------------------
@@ -200,7 +209,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,confscr,vec0scr,&
 !----------------------------------------------------------------------
   call pspace_conf_indices(cfg,Athrsh,Avec,cfg%csfdim,cfg%confdim,&
        nroots(irrep),nvec,indx(1:nroots(irrep)),i1I,i2I,i1E,i2E,i1I1E,&
-       cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E)
+       cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,ndsp,idsp)
 
 !----------------------------------------------------------------------
 ! Calculate the contributions of the discarded CSFs to the 2nd-order

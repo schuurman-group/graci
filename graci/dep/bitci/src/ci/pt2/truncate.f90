@@ -52,6 +52,12 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
   ! Surviving configuration flags
   integer(is), allocatable :: i1I(:),i2I(:),i1E(:),i2E(:),i1I1E(:)
 
+  ! Array of CSFs to include in the new space regardless
+  ! of their contribution to the WFs
+  ! Needed by pspace_conf_indices, but won't be utilised here
+  integer(is)                :: nexplicit
+  integer(is), allocatable   :: iexplicit(:)
+  
   ! Everything else
   integer(is)              :: i,iscratch
   integer(is), allocatable :: iroots(:)
@@ -77,6 +83,9 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
   allocate(i1I(cfg%n1I), i2I(cfg%n2I), i1E(cfg%n1E), i2E(cfg%n2E),&
        i1I1E(cfg%n1I1E))
   i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
+
+  allocate(iexplicit(cfg%csfdim))
+  iexplicit=0
   
 !----------------------------------------------------------------------
 ! Read in the wave function vectors
@@ -93,9 +102,12 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
 ! Get the indices of the configurations that generate CSFs with
 ! coefficients above threshold
 !----------------------------------------------------------------------
+  ! Set the no. explicitly added CSFs to zero
+  nexplicit=0
+
   call pspace_conf_indices(cfg,thrsh,vec,cfg%csfdim,cfg%confdim,&
        nroots,nroots,iroots,i1I,i2I,i1E,i2E,i1I1E,cfg%n1I,cfg%n2I,&
-       cfg%n1E,cfg%n2E,cfg%n1I1E)
+       cfg%n1E,cfg%n2E,cfg%n1I1E,nexplicit,iexplicit)
 
 !----------------------------------------------------------------------
 ! Fill in the surviving configuration information
@@ -157,7 +169,7 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
-  deallocate(vec, ener, iroots, i1I, i2I, i1E, i2E, i1I1E)
+  deallocate(vec, ener, iroots, i1I, i2I, i1E, i2E, i1I1E, iexplicit)
     
   return
   

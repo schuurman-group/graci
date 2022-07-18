@@ -74,5 +74,3 @@ class Bitciwfn:
         file numbers"""
         self.eq_units = equnits
         return
-
-    

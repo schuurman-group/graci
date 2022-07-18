@@ -53,5 +53,4 @@ def refine_ref_space(ci_method):
     (confunits_ref, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space', args)
 
-    #return min_norm.value
     return min_norm, ref_nconf, ref_confunits
