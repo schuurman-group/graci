@@ -9,15 +9,15 @@ import graci.methods.cimethod as cimethod
 import graci.core.params as params
 import graci.core.bitciwfn as bitciwfn
 import graci.io.output as output
-import graci.bitcitools.bitci_init as bitci_init
-import graci.bitcitools.ref_space as ref_space
-import graci.bitcitools.ref_diag as ref_diag
-import graci.bitcitools.ref_prune as ref_prune
-import graci.bitcitools.mrci_space as mrci_space
-import graci.bitcitools.mrci_diag as mrci_diag
-import graci.bitcitools.mrci_refine as mrci_refine
-import graci.bitcitools.mrci_1rdm as mrci_1rdm
-import graci.bitcitools.mrci_wf as mrci_wf
+import graci.interfaces.bitci.bitci_init as bitci_init
+import graci.interfaces.bitci.ref_space as ref_space
+import graci.interfaces.bitci.ref_diag as ref_diag
+import graci.interfaces.bitci.ref_prune as ref_prune
+import graci.interfaces.bitci.mrci_space as mrci_space
+import graci.interfaces.bitci.mrci_diag as mrci_diag
+import graci.interfaces.bitci.mrci_refine as mrci_refine
+import graci.interfaces.bitci.mrci_1rdm as mrci_1rdm
+import graci.interfaces.bitci.mrci_wf as mrci_wf
 
 class Dftmrci(cimethod.Cimethod):
     """Class constructor for DFT/MRCI object"""
@@ -153,10 +153,11 @@ class Dftmrci(cimethod.Cimethod):
                     output.print_refdiag_summary(self)
                 
             # generate the MRCI configurations
-            n_mrci_conf, mrci_conf_units, mrci_conf_files, eq_units = \
-                    mrci_space.generate(self)
+            n_mrci_conf, mrci_conf_units, mrci_conf_files, \
+                eq_units = mrci_space.generate(self)
             # set the number of mrci config, the mrci unit numbers and
-            # unit names, and the Q-space energy correction unit numbers
+            # unit names, the Q-space energy correction unit numbers,
+            # and the damped strong perturber unit numbers
             self.mrci_wfn.set_nconf(n_mrci_conf)
             self.mrci_wfn.set_confunits(mrci_conf_units)
             self.mrci_wfn.set_confname(mrci_conf_files)
@@ -165,7 +166,7 @@ class Dftmrci(cimethod.Cimethod):
             # MRCI diagonalisation
             mrci_ci_units, mrci_ci_files, mrci_ener_sym = \
                     mrci_diag.diag(self)
-            # set the mrci wfn unit numbers, file names and mrci 
+            # set the mrci wfn unit numbers, file names, and mrci 
             # energies
             self.mrci_wfn.set_ciunits(mrci_ci_units)
             self.mrci_wfn.set_ciname(mrci_ci_files)
@@ -173,10 +174,10 @@ class Dftmrci(cimethod.Cimethod):
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
-
+            
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
-                    mrci_refine.refine_ref_space(self)
+                mrci_refine.refine_ref_space(self)
             self.ref_wfn.set_nconf(n_ref_conf)
             self.ref_wfn.set_confunits(ref_conf_units)
 

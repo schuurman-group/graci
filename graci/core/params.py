@@ -23,8 +23,10 @@ scf_kword      = {'xc'             : str,
                   'charge'         : int,
                   'mult'           : int,
                   'grid_level'     : int,
+                  'conv_tol'       : float,
                   'cosmo'          : bool,
                   'solvent'        : str,
+                  'guess_label'    : str,
                   'label'          : str}
 
 # MRCI section input keywords and data types

@@ -17,7 +17,7 @@ Compile using Intel ifort and MKL for optimal performance
 Note that both are now freely available through the Intel OneAPI suite
 
 ## Build
-(1) cd $TOPDIR/graci/lib
+(1) cd $TOPDIR/graci/dep
 
 (2) export FC=**fname** (**fname** \in {ifort, gfortran})
 
@@ -37,7 +37,7 @@ export PATH=$PATH:$GRACI/bin
 
 export PYTHONPATH=$GRACI
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GRACI/graci/lib/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GRACI/graci/dep/lib
 
 ## Running graci
 After setting the above environment variables, simply use the command

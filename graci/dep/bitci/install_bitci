@@ -1,0 +1,47 @@
+#!/bin/bash
+
+#
+# Conditional compilation flags
+#
+args=""
+for var in "$@"; do
+    args+=" $var"
+done
+
+#
+# Make the build directory
+#
+if [ -d build ]; then
+    rm -r build/*
+else
+    mkdir build
+fi
+
+#
+# Move into the build directory and build and install bitci
+#
+cd build
+cmake ../ -DCMAKE_INSTALL_PREFIX=../.. $args
+make
+make install
+cd ../
+
+#
+# Compile the documentation
+#
+#pdflatex_path=`which pdflatex`
+#if [ -z $pdflatex_path ]; then
+#    echo
+#    echo "pdflatex not found: skipping the documentation compilation"
+#    echo
+#else
+#    echo
+#    echo "Compiling the documentation..."
+#    cd doc
+#    pdflatex symmetry.tex &>/dev/null
+#    pdflatex implementation.tex &>/dev/null
+#    bibtex implementation.aux &>/dev/null
+#    pdflatex implementation.tex &>/dev/null
+#    pdflatex implementation.tex &>/dev/null
+#    cd ../
+#fi

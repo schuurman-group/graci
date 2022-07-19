@@ -9,16 +9,16 @@ import graci.methods.cimethod as cimethod
 import graci.core.params as params
 import graci.core.bitciwfn as bitciwfn
 import graci.io.output as output
-import graci.bitcitools.bitci_init as bitci_init
-import graci.bitcitools.ref_space as ref_space
-import graci.bitcitools.ref_diag as ref_diag
-import graci.bitcitools.ref_prune as ref_prune
-import graci.bitcitools.mrci_space as mrci_space
-import graci.bitcitools.gvvpt2 as gvvpt2
-import graci.bitcitools.gvvpt2_refine as gvvpt2_refine
-import graci.bitcitools.mrci_1rdm as mrci_1rdm
-import graci.bitcitools.mrci_wf as mrci_wf
-import graci.overlaptools.bdd as bdd
+import graci.interfaces.bitci.bitci_init as bitci_init
+import graci.interfaces.bitci.ref_space as ref_space
+import graci.interfaces.bitci.ref_diag as ref_diag
+import graci.interfaces.bitci.ref_prune as ref_prune
+import graci.interfaces.bitci.mrci_space as mrci_space
+import graci.interfaces.bitci.gvvpt2 as gvvpt2
+import graci.interfaces.bitci.gvvpt2_refine as gvvpt2_refine
+import graci.interfaces.bitci.mrci_1rdm as mrci_1rdm
+import graci.interfaces.bitci.mrci_wf as mrci_wf
+import graci.interfaces.overlap.bdd as bdd
 
 # MRCI and DFT/MRCI Hamiltonian labels
 hamiltonians   = ['canonical',
@@ -241,7 +241,8 @@ class Dftmrci2(cimethod.Cimethod):
 
         if self.diabatic:
             # ADT matrix
-            bdd.adt(guess, self)
+            adt_matrices = bdd.adt(guess, self)
+            self.adt = adt_matrices
             # Diabatic potential
             self.diabatize()
             nroots = [self.n_states_sym(irr)

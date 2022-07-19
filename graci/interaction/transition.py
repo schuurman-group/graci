@@ -9,8 +9,8 @@ import graci.core.params as params
 import graci.core.orbitals as orbitals
 import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
-import graci.bitcitools.bitsi_init as bitsi_init
-import graci.bitcitools.mrci_1tdm as mrci_1tdm
+import graci.interfaces.bitci.bitsi_init as bitsi_init
+import graci.interfaces.bitci.mrci_1tdm as mrci_1tdm
 import graci.io.output as output
 import graci.utils.constants as constants
 
