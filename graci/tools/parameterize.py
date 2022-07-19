@@ -26,7 +26,7 @@ class Parameterize:
         self.algorithm      = 'Nelder-Mead'
         self.label          = 'parameterize'
 
-        self.hamiltonian    = ''
+        self.hamiltonian    = 'heil17_short'
         self.graci_ref_file = ''
         self.target_file    = ''
         self.pthresh        = 1.e-4
@@ -56,8 +56,11 @@ class Parameterize:
         # print the parameterize header
         # show the mappings between the target data and the data in the
         # reference checkpoint file
-        p0 = np.asarray([0.500779, 0.356986, 0.573523, 1.9266], 
-                                            dtype=float)
+        np   = libs.lib_func('retrieve_nhpar', (self.hamiltonian, 0))
+
+        p0   = np.zeros(np, dtype=float)
+        args = (self.hamiltonian, np, p0)
+        p0   = libs.lib_func('retrieve_hpar', args)
 
         output.print_param_header(target_data, ci_data, ref_states, p0)
 
@@ -103,7 +106,7 @@ class Parameterize:
         sanity check the input
         """
 
-        algos = ['Nelder-Mead', 'TNC', 'CG', 'COBYLA']
+        algos = ['Nelder-Mead']
         if self.algorithm not in algos:
             sys.exit(str(self.algorithm)+' not in '+str(algos))
 
