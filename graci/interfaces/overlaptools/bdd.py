@@ -10,7 +10,7 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.core.molecule as molecule
 import graci.io.output as output
-import graci.overlaptools.overlap as overlap
+import graci.interfaces.overlaptools.overlap as overlap
 import scipy as sp
 
 @timing.timed
