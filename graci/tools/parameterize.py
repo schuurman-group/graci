@@ -15,7 +15,7 @@ import graci.io.chkpt as chkpt
 import graci.io.parse as parse
 import graci.io.output as output
 import graci.utils.constants as constants
-import graci.interfaces.overlaptools.overlap as overlap
+import graci.interfaces.overlap.overlap as overlap
 
 class Parameterize:
     """Class constructor for the Parameterize object."""

@@ -6,8 +6,8 @@ import sys as sys
 import numpy as np
 import graci.utils.timing as timing
 import graci.interaction.interaction as interaction
-import graci.interfaces.bitcitools.bitwf_init as bitwf_init
-import graci.interfaces.bitcitools.wf_overlap as wf_overlap
+import graci.interfaces.bitci.bitwf_init as bitwf_init
+import graci.interfaces.bitci.wf_overlap as wf_overlap
 import graci.io.output as output
 
 class Overlap(interaction.Interaction):
