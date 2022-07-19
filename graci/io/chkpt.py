@@ -21,7 +21,6 @@ import graci.interaction.interaction as spininfo # this makes me uncomfortable..
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
-import graci.utils.timing as timing
 import graci.io.output as output
 
 # top level computation objects: each will have own top-level group

@@ -15,9 +15,6 @@ import graci.io.output as output
 def main():
     """Runs a GRaCI computation."""
 
-    # start the global timer
-    #timing.start('global')
-
     # read command line options
     read_cmdline()
 

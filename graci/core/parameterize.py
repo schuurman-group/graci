@@ -15,6 +15,7 @@ import graci.io.chkpt as chkpt
 import graci.io.parse as parse
 import graci.io.output as output
 import graci.utils.constants as constants
+import graci.utils.timing as timing
 import graci.overlaptools.overlap as overlap
 
 class Parameterize:
@@ -81,12 +82,12 @@ class Parameterize:
         ener_init = self.evaluate_energies(p0, target_data, ref_states, 
                                     scf_data, ci_data, runscf=True)
 
-        self.iter      = 1
+        self.iiter     = 1
         self.current_h = p0
         res = sp_opt.minimize(self.err_func, p0, 
                               args = (target_data, ref_states, 
-                                                  scf_data, ci_data),
-                              method = self.algorithm,
+                                      scf_data, ci_data),
+                              method = 'Nelder-Mead',
                               tol = self.pthresh,
                               callback = self.status_func)
 
@@ -162,7 +163,7 @@ class Parameterize:
         """
 
         dif = np.linalg.norm(xk - self.current_h)
-        output.print_param_iter(self.iter, list(xk), self.error)
+        output.print_param_iter(self.iiter, list(xk), self.error)
 
         self.iiter     += 1
         self.current_h = xk
@@ -173,7 +174,7 @@ class Parameterize:
 
         return
 
-    #
+    @timing.timed
     def evaluate_energies(self, hparams, target, ref_states, scf_names,
                                               ci_names, runscf = False):
         """
@@ -210,7 +211,6 @@ class Parameterize:
 
         return energies
 
-    #
     def eval_energy(self, hparams, molecule, topdir, ref_file, ref_state, 
                             scf_name, ci_name, parallel, runscf):
         """
@@ -281,7 +281,7 @@ class Parameterize:
         return energies
 
 
-    #
+    @timing.timed
     def identify_states(self, molecule, ref_state, ref_ci, new_ci):
         """
         compute overlaps to identify states
