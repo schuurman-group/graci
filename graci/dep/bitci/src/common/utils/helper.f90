@@ -317,10 +317,10 @@ end subroutine retrieve_filename
 !                   parameter values
 !######################################################################
 #ifdef CBINDING
-subroutine retrieve_nhpar(ham1,npar) &
-     bind(c,name="retrieve_nhpar")
+  subroutine retrieve_nhpar(ham1,npar) &
+       bind(c,name="retrieve_nhpar")
 #else
-subroutine retrieve_nhpar(ham1,npar)
+    subroutine retrieve_nhpar(ham1,npar)
 #endif
 
   use constants
@@ -491,3 +491,4 @@ subroutine retrieve_hpar(ham1,dim,params)
   call error_control
   
 end subroutine retrieve_hpar
+
