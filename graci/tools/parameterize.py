@@ -56,10 +56,12 @@ class Parameterize:
         # print the parameterize header
         # show the mappings between the target data and the data in the
         # reference checkpoint file
-        np   = libs.lib_func('retrieve_nhpar', (self.hamiltonian, 0))
+        nparam   = 0
+        args     = (self.hamiltonian, nparam)
+        nparam   = libs.lib_func('retrieve_nhpar', args)
 
-        p0   = np.zeros(np, dtype=float)
-        args = (self.hamiltonian, np, p0)
+        p0   = np.zeros(nparam, dtype=float)
+        args = (self.hamiltonian, nparam, p0)
         p0   = libs.lib_func('retrieve_hpar', args)
 
         output.print_param_header(target_data, ci_data, ref_states, p0)
@@ -72,19 +74,11 @@ class Parameterize:
                 os.rmdir(target)
                 os.mkdir(target)
          
-        # for time being, we're going to copy a separate reference file 
-        # for each process. This is not optimal and could probably be
-        # improved at a later date.
-        if params.nproc > 1:
-            for i in range(params.nproc):
-                rfile = self.graci_ref_file
-                shutil.copyfile(rfile, rfile+'.'+str(i))
-
         # the first pass sets up the reference objects
         ener_init = self.evaluate_energies(p0, target_data, ref_states, 
                                     scf_data, ci_data, runscf=True)
 
-        self.iter      = 1
+        self.iiter      = 1
         self.current_h = p0
         res = sp_opt.minimize(self.err_func, p0, 
                               args = (target_data, ref_states, 
@@ -165,7 +159,7 @@ class Parameterize:
         """
 
         dif = np.linalg.norm(xk - self.current_h)
-        output.print_param_iter(self.iter, list(xk), self.error)
+        output.print_param_iter(self.iiter, list(xk), self.error)
 
         self.iiter     += 1
         self.current_h = xk
@@ -197,17 +191,18 @@ class Parameterize:
                             scf_names[molecule], ci_names[molecule], 
                             True, runscf) for molecule in target.keys())
 
-                    for results in executor.starmap(self.eval_energy, args):
+                    for results in executor.starmap(self.eval_energy, 
+                                                                  args):
                         energies.update(results)
 
         else:
             for molecule, states in target.items():
-                mol_results = self.eval_energy(hparams, molecule, 
+                mol_results = self.eval_energy(hparams, molecule,
                                   topdir, self.graci_ref_file, 
                                   ref_states[molecule], 
                                   scf_names[molecule], 
                                   ci_names[molecule], 
-                                  params.nproc, False, runscf)
+                                  False, runscf)
 
                 energies.update(mol_results)
 
@@ -224,17 +219,8 @@ class Parameterize:
         if parallel:
             libs.lib_load('bitci')
             libs.lib_load('overlap')
-            rank =  MPI.Comm.Get_parent().Get_rank()
-            local_file = ref_file + '.' + str(rank)
-        else:
-            local_file = ref_file
 
-        if os.path.isfile(local_file):
-            ref_chkpt  = h5py.File(local_file, 'r', libver='latest')
-        else:
-            print('File: '+str(local_file)+' not found in ' + 
-                                            str(topdir) + ' Exiting...')
-            sys.exit(1)
+        ref_chkpt  = h5py.File(local_file, 'r', libver='latest')
 
         # pull the reference SCF and CI objects
         scf_obj  = chkpt.read(scf_name, file_handle=ref_chkpt)
