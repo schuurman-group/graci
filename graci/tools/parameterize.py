@@ -220,7 +220,7 @@ class Parameterize:
             libs.lib_load('bitci')
             libs.lib_load('overlap')
 
-        ref_chkpt  = h5py.File(local_file, 'r', libver='latest')
+        ref_chkpt  = h5py.File(ref_file, 'r', libver='latest')
 
         # pull the reference SCF and CI objects
         scf_obj  = chkpt.read(scf_name, file_handle=ref_chkpt)
