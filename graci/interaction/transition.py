@@ -910,14 +910,14 @@ class Transition(interaction.Interaction):
         bra_states = self.get_states('bra')
 
         # get state symmetries. If not defined, use C1 sym labels
-        ket_syms = self.get_syms('ket_states')
+        ket_syms = self.get_syms('ket')
         if ket_syms is None:
             ket_syms = [0]*len(ket_states)
             ksym_lbl = ['A']*len(ket_states)
         else:
             ksym_lbl = self.scf.mol.irreplbl
 
-        bra_syms = self.get_syms('bra_states')
+        bra_syms = self.get_syms('bra')
         if bra_syms is None:
             bra_syms = [0]*len(bra_states)
             bsym_lbl = ['A']*len(bra_states)

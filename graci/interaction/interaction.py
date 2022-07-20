@@ -75,7 +75,6 @@ class Interaction:
         if issubclass(obj.__class__, cimethod.Cimethod):
             self.symmetries[lbl] = [obj.state_sym(i)[0] 
                                     for i in state_list]
- 
             self.spins[lbl]      = SpinInfo(obj)
        
         return
