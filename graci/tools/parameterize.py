@@ -8,7 +8,7 @@ import h5py as h5py
 from mpi4py import MPI
 from mpi4py.futures import MPIPoolExecutor
 import os as os
-import shutil 
+import shutil as shutil
 import graci.core.libs as libs
 import graci.core.params as params
 import graci.io.chkpt as chkpt
@@ -51,7 +51,7 @@ class Parameterize:
         target_data = self.parse_target_file()
 
         # parse the graci reference file
-        scf_data, ci_data, ref_states = \
+        scf_objs, ci_objs, ref_states = \
                                self.parse_graci_file(target_data)
 
         # print the parameterize header
@@ -65,31 +65,26 @@ class Parameterize:
         args = (self.hamiltonian, nparam, p0)
         p0   = libs.lib_func('retrieve_hpar', args)
 
-        output.print_param_header(target_data, ci_data, ref_states, p0)
+        output.print_param_header(target_data, ci_objs, ref_states, p0)
 
-        # set up the directory structure
-        for target in target_data.keys():
-            try:
-                os.mkdir(target)
-            except FileExistsError:
-                os.rmdir(target)
-                os.mkdir(target)
-         
+        # set up directory structure: each molecule gets a subdirectory
+        self.create_dirs(scf_objs)
+
         # the first pass sets up the reference objects
-        ener_init = self.evaluate_energies(p0, target_data, ref_states, 
-                                    scf_data, ci_data, runscf=True)
+        ener_init = self.evaluate_energies(p0, ref_states, scf_objs,
+                                                 ci_objs, runscf=True)
 
         self.iiter      = 1
         self.current_h = p0
         res = sp_opt.minimize(self.err_func, p0, 
                               args = (target_data, ref_states, 
-                                      scf_data, ci_data),
+                                      scf_objs, ci_objs),
                               method = 'Nelder-Mead',
                               tol = self.pthresh,
                               callback = self.status_func)
 
-        ener_final = self.evaluate_energies(res.x, target_data, 
-                                      ref_states, scf_data, ci_data)
+        ener_final = self.evaluate_energies(res.x, ref_states,
+                                                      scf_objs, ci_objs)
         output.print_param_results(res, target_data, ener_init, 
                                                        ener_final)
 
@@ -119,8 +114,8 @@ class Parameterize:
         return
 
     #
-    def err_func(self, hparams, target_data, ref_states, scf_data, 
-                                                         ci_data):
+    def err_func(self, hparams, target_data, ref_states, scf_objs, 
+                                                          ci_objs):
         """
         Evaluate the error function. In this case, simple RMSD
 
@@ -133,15 +128,14 @@ class Parameterize:
         norm of the different between target and current values
         """
 
-        iter_ener = self.evaluate_energies(hparams, 
-                                         target_data, ref_states,
-                                         scf_data, ci_data)
+        iter_ener = self.evaluate_energies(hparams, ref_states,
+                                           scf_objs, ci_objs)
         dif_vec   = np.zeros(self.ndata, dtype=float)
 
         # this approach assumes dict is ordered! Only true from Python
         # 3.6 onwards...
         ide = 0
-        for molecule, states in target_data.items():
+        for molecule in target_data.keys():
             for trans, ener in target_data[molecule].items():
                 init, final  = trans.strip().split()
                 de_iter      = iter_ener[molecule][final] - \
@@ -172,8 +166,8 @@ class Parameterize:
         return
 
     @timing.timed
-    def evaluate_energies(self, hparams, target, ref_states, scf_names,
-                                              ci_names, runscf = False):
+    def evaluate_energies(self, hparams, ref_states, scf_names,
+                                              ci_names, runscf=False):
         """
         evaluate all the energies in the graci data set
 
@@ -190,14 +184,14 @@ class Parameterize:
                     args = ((hparams, molecule, topdir, 
                             self.graci_ref_file, ref_states[molecule], 
                             scf_names[molecule], ci_names[molecule], 
-                            True, runscf) for molecule in target.keys())
+                            True, runscf) for molecule in ref_states.keys())
 
                     for results in executor.starmap(self.eval_energy, 
                                                                   args):
                         energies.update(results)
 
         else:
-            for molecule, states in target.items():
+            for molecule in ref_states.keys():
                 mol_results = self.eval_energy(hparams, molecule,
                                   topdir, self.graci_ref_file, 
                                   ref_states[molecule], 
@@ -223,48 +217,64 @@ class Parameterize:
         ref_chkpt  = h5py.File(ref_file, 'r', libver='latest')
 
         # pull the reference SCF and CI objects
-        scf_obj  = chkpt.read(scf_name, file_handle=ref_chkpt)
-        ci_refs  = [chkpt.read(ci, file_handle=ref_chkpt)
+        scf_objs = []
+        for iscf in range(len(scf_name)):
+            if iscf == 0 or scf_name[iscf] != scf_name[iscf-1]:
+                scf_objs.append(chkpt.read(scf_name[iscf], 
+                                           file_handle=ref_chkpt))
+ 
+        # these are reference ci objects: they don't change and
+        # are used for state comparison
+        ci_refs   = [chkpt.read(ci, file_handle=ref_chkpt)
                                                 for ci in ci_name]
+        # these are the ci objects that get run with the current
+        # values of the Hamiltonian parameters
+        ci_objs = [ci_ref.copy() for ci_ref in ci_refs]
+
         ref_chkpt.close()
 
         # change to the appropriate sub-directory
         os.chdir(topdir+'/'+str(molecule))
 
-        # run the scf (and generate integral files if need be)
-        if runscf:
-            # run silent
-            scf_obj.verbose = False
-            scf_obj.load()
+        curr_scf = ''
+        iscf     = -1
+        for i in range(len(ci_objs)):
+        
+            if curr_scf != scf_name[i]:
+                iscf += 1
+                os.chdir(topdir+'/'+str(molecule)+'/scf'+str(iscf))
+ 
+                if runscf:
+                    scf_objs[iscf].verbose = False
+                    scf_objs[iscf].load()
 
-        # initialize the integrals
-        if scf_obj.mol.use_df:
-            type_str = 'df'
-        else:
-            type_str = 'exact'
-        libs.lib_func('bitci_int_initialize', ['pyscf', type_str,
-                        scf_obj.moint_1e, scf_obj.moint_2e_eri])
+                if scf_objs[iscf].mol.use_df:
+                    type_str = 'df'
+                else:
+                    type_str = 'exact'
 
-        ci_runs = [ci_ref.copy() for ci_ref in ci_refs]
+                if i != 0:
+                    libs.lib_func('bitci_int_finalize', [])
+                libs.lib_func('bitci_int_initialize', ['pyscf', 
+                             type_str, scf_objs[iscf].moint_1e, 
+                             scf_objs[iscf].moint_2e_eri])
 
-        # run all the CI objects
-        for ci_run in ci_runs:
-            # run silent
-            ci_run.verbose = False
-            ci_run.update_hparam(np.asarray(hparams))
-            ci_run.run(scf_obj, None)
+                curr_scf = scf_name[i]
 
-        # deallocate the integral arrays
+            ci_objs[i].verbose = False
+            ci_objs[i].update_hparam(np.asarray(hparams))
+            ci_objs[i].run(scf_objs[iscf], None)
+
         libs.lib_func('bitci_int_finalize', [])
 
         # use overlap with ref states to identify relevant states
         ener_match = self.identify_states(molecule, ref_state, ci_refs, 
-                                                                ci_runs)
+                                                               ci_objs)
 
         energies = {molecule : {}}
         for state, ener in ener_match.items():
             energies[molecule][state] = ener
-       
+      
         os.chdir(topdir)
          
         return energies
@@ -280,24 +290,41 @@ class Parameterize:
         smo    = np.identity(ref_ci[0].scf.nmo, dtype=float)
         # iterate over the reference states
         for iobj in range(len(ref_ci)):
-            bra_lbl = ref_ci[iobj].label
-            st_dict = ref_state[bra_lbl]
- 
-            bra_st  = list(st_dict.values())
+            ref_st  = ref_state[iobj]
+
+            bra_st  = list(ref_st.values())
             ket_st  = list(range(new_ci[iobj].n_states()))
             Smat = overlap.overlap_st(ref_ci[iobj], new_ci[iobj], 
                                     bra_st, ket_st, smo, 0.95, False)
 
-            for lbl, ref_st in st_dict.items():
-                Sij = np.absolute(Smat[bra_st.index(ref_st),:])
+            for lbl, bst in ref_st.items():
+                Sij = np.absolute(Smat[bra_st.index(bst),:])
                 if np.amax(Sij) <= 0.9:
                     output.print_message('MAX overlap for molecule=' +
                             str(molecule) + ' state=' + str(lbl) +
                             ' is ' + str(np.amax(Sij)))
-                st = ket_st[np.argmax(Sij)]
-                eners[lbl] = new_ci[iobj].energies[st]
+                kst = ket_st[np.argmax(Sij)]
+                eners[lbl] = new_ci[iobj].energies[kst]
                 
         return eners
+
+    #
+    def create_dirs(self, scf_objs):
+        """
+        Create a directory structure for running computations
+        """
+        # set up the directory structure
+        for molecule in scf_objs.keys():
+            nscf = len(list(set(scf_objs[molecule])))
+
+            if os.path.isdir(molecule):
+                os.shutil.rmtree(molecule)
+
+            os.mkdir(molecule)
+            for iscf in range(nscf):
+                os.mkdir(molecule+'/scf'+str(iscf))
+
+        return
 
     #
     def parse_graci_file(self, target_vals):
@@ -313,66 +340,61 @@ class Parameterize:
                         objects
         """
 
-       # open the reference data file and get the contents
-        if os.path.isfile(self.graci_ref_file):
-            ref_chkpt = h5py.File(self.graci_ref_file, 'r',
-                                                   libver='latest')
-        else:
-            print('File: '+str(self.graci_ref_file)+' not found. '+
-                  ' Exiting...')
-            sys.exit(1)
+        # open the reference data file and get the contents
+        ref_file = h5py.File(self.graci_ref_file, 'r', libver='latest')
 
         # get the top-level contents of the checkpoint file
-        ref_contents = chkpt.contents(file_name = self.graci_ref_file)
+        ref_contents = chkpt.contents(file_handle = ref_file)
 
-        ci_objs  = {}
-        scf_objs = {}
-        st_indxs = {}
+        ci_objs    = {}
+        scf_objs   = {}
+        ref_states = {}
         for molecule in target_vals.keys():
-            ci_objs[molecule]  = []
-            scf_objs[molecule] = None
-            st_indxs[molecule] = {}
-            st_strs            = []
-            for key in target_vals[molecule].keys():
-                st_strs.extend(key.strip().split())
-            st_lst = list(set(st_strs))
+
+            # get the list of state labels we're looking for
+            target_lbls = []
+            for lbls,ener in target_vals[molecule].items():
+                target_lbls.extend(lbls.strip().split())            
+            target_lbls = list(set(target_lbls))
+            target_lbls.sort()
+
+            ci_objs[molecule]    = []
+            scf_objs[molecule]   = []
+            ref_states[molecule] = []
 
             # if the molecule string is in the reference 
             # object name, add it ref_objs dict
             for name in ref_contents:
-                ci_type = any([ci in name for ci in params.ci_objs])
-                if molecule in name:
-                    if ci_type:
-                        ci_objs[molecule].append(name)
-                        # parse energy array to find target lbls
-                        lbl, states = self.read_state_labels(ref_chkpt,
-                                                             name)
-                        st_indxs[molecule][lbl] = states
-                    elif 'Scf' in name:
-                        scf_objs[molecule] = name
+                is_ci  = any([ci in name for ci in params.ci_objs])
+                st_map = chkpt.read_attribute(ref_file, name, 
+                                                       'state_map')
+                 
+                if molecule in name and is_ci and st_map is not None:
+                    ci_objs[molecule].append(name)
+                    ref_states[molecule].append(st_map)
 
-        ref_chkpt.close()
+                    # get the name of corresponding scf object
+                    scf_link = chkpt.read_attribute(ref_file, name, 
+                                                             'scf')
+                    is_scf, scf_name = chkpt.data_name('', scf_link)
+                    if is_scf:
+                        scf_objs[molecule].append(scf_name)
 
-        return scf_objs, ci_objs, st_indxs
+            # check that we found all the reference states
+            states_found = []
+            for st_dic in ref_states[molecule]:
+                states_found.extend(list(st_dic.keys()))
+            states_found.sort()
 
-    #
-    def read_state_labels(self, ref_chkpt, ci_name):
-        """
-        Read state labels for checkpoint file
-        """
+            if target_lbls != states_found:
+                print('molecule: ' + str(molecule) + ' -- ' + 
+                       str(target_lbls) + ' != ' + str(states_found), 
+                       flush=True)
+                sys.exit(1)
+                    
+        ref_file.close()
 
-        ci_lbl = chkpt.read_attribute(ref_chkpt, ci_name, 'label')
-        dset_path = chkpt.read_attribute(ref_chkpt, ci_name, 'energies')
-
-        dset_name = ci_name+'/'+dset_path
-        lbl_dic = chkpt.read_attribute(ref_chkpt, dset_name, 'label')
-
-        # convert the values in the lbl_dic to integers
-        for lbl,indx in lbl_dic.items():
-            # convert from range 1,n to 0,n-1
-            lbl_dic[lbl] = parse.convert_value(indx) - 1
-
-        return ci_lbl, lbl_dic
+        return scf_objs, ci_objs, ref_states
 
     #
     def parse_target_file(self):

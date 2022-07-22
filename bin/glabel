@@ -3,6 +3,7 @@
 The main graci driver.
 """
 import os
+import json
 import sys as sys
 import h5py as h5py
 import graci.io.chkpt as chkpt
@@ -14,25 +15,25 @@ def main():
     """
 
     # read command line options
-    chkpt_file, show, section, label, var, attr_str = read_cmdline()
+    (chkpt_file, show, obj_name, attr_name, value) = read_cmdline()
 
     # open the checkpoint file
     chkpt_handle = h5py.File(chkpt_file, 'r+', libver='latest')
-    
+
+    if obj_name is not None and obj_name not in chkpt_handle:
+        print(str(obj_name) + ' not found in ' + str(chkpt_file))
+  
     if show:
-        print_contents(chkpt_handle)
+        print_contents(chkpt_handle, obj_name, attr_name)
 
     else:
-
-        # from section, label and variable name, generate full path to
-        # the dataset
-        dset = dset_name(chkpt_handle, section, label, var)
-
         # construct a dictionary from key value pairs
-        attr_dict = create_attr(attr_str)
+        attr = json.loads(value)
+        if type(attr).__name__ != 'dict':
+            print(' label written as type: '+str(type(attr).__name__))     
 
         # write attribute
-        chkpt.write_attribute(chkpt_handle, dset, 'label', attr_dict)
+        chkpt.write_attribute(chkpt_handle, obj_name, attr_name, attr)
 
         # close
         chkpt_handle.close()
@@ -40,16 +41,28 @@ def main():
     return
 
 #
-def print_contents(chkpt_handle):
+def print_contents(fhandle, obj_name=None, attr_name=None):
     """
     print the top level objs in chkpt_handle and the corresponding label
     """
-    grp_lst = chkpt.contents(file_handle = chkpt_handle)
+    obj_lst = chkpt.contents(file_handle = fhandle, 
+                                grp_name = obj_name)
 
-    for grp in grp_lst:
-        label = chkpt.read_attribute(chkpt_handle, grp, 'label')
-        sec_name = grp.strip().split('.')[0].lower()
-        print('Section: {:>20}  label: {:>20}'.format(sec_name, label))
+    if attr_name is not None:
+        aname = str(attr_name)
+    else:
+        aname = 'label'
+
+    if obj_name is None:
+        prefix = '/'
+    else:
+        prefix = '/' + obj_name + '/'
+
+    for obj in obj_lst:
+        attr = chkpt.read_attribute(fhandle, prefix+obj, aname)
+        if attr is None:
+            attr = '--'
+        print('Section: {:>30} {:>30}: {:>30}'.format(obj, aname, str(attr)))
 
     return
 
@@ -60,35 +73,32 @@ def read_cmdline():
     Set relevant global variables.
     """
 
-    arg_list = sys.argv[1:]
+    valid_args = ['-list', '-show', '-section', '-name', '-value']
+    arg_list   = sys.argv[1:]
 
-    file = arg_list[0]
-    if not os.path.isfile(file):
-        sys.exit(' Checkpoint file not found: '+str(file))
+    chk_file = arg_list[0]
+    if not os.path.isfile(chk_file):
+        sys.exit(' Checkpoint file not found: '+str(chk_file))
 
-    list_contents = False
-    section       = None
-    label         = None
-    var           = None
-    astr          = None
+    show      = False
+    obj_name  = None
+    attr_name = None
+    value     = None
     for arg in arg_list[1:]:
 
         if arg == '-list':
-            list_contents = True
+            show      = True
+              
+        elif arg == '-section':
+            obj_name  = get_next_arg(arg)
 
-        if arg == '-section':
-            section = get_next_arg(arg)
+        elif arg == '-name':
+            attr_name = get_next_arg(arg)
 
-        if arg == '-label':
-            label = get_next_arg(arg)
+        elif arg == '-value':
+            value     = get_next_arg(arg)
 
-        if arg == '-var':
-            var = get_next_arg(arg)
-
-        if arg == '-value':
-            astr = get_next_arg(arg)
-
-    return file, list_contents, section, label, var, astr
+    return (chk_file, show, obj_name, attr_name, value)
 
 #
 def get_next_arg(arg):
@@ -99,48 +109,6 @@ def get_next_arg(arg):
         return sys.argv[sys.argv.index(arg)+1].strip()
     else:
         return None
-
-#
-def dset_name(chkpt_handle, section, label, var):
-    """
-    find the name of the data set in the checkpoint file
-    """
-
-    chkpt_contents = chkpt.contents(file_handle = chkpt_handle)
-
-    d_name = ''
-    for grp in chkpt_contents:
-        if section in grp.lower():
-            grp_label = chkpt.read_attribute(chkpt_handle, grp, 'label')
-            if str(grp_label) == str(label):
-                dset_grp = grp
-                d_name   = chkpt.read_attribute(chkpt_handle, grp, var)
-                break
-
-    if d_name == '':
-        sys.exit(' SECTION: '+str(section)+
-                 ' LABEL:   '+str(label)+
-                 ' -- variable not found: '+str(var))
-
-    dset_path = dset_grp + '/' + d_name
-
-    return dset_path
-
-
-#
-def create_attr(d_str):
-    """
-    create dictonary from key,value string
-    """
-
-    adict = {}
-    str_arr = d_str.strip().split()
-
-    for i in range(0, len(str_arr), 2):
-        adict[str_arr[i]] = str_arr[i+1]
-
-    return adict
-
 
 #
 def get_next_arg(arg):

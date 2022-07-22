@@ -106,9 +106,11 @@ def overlap_st(bra_obj, ket_obj, bra_st, ket_st, smo, norm_thresh,
 
     for irr in range(nirr):
         pairs = [[bst,kst] for bst in bsym[irr] for kst in ksym[irr]]
-        Sij   = overlap(bra_obj, ket_obj, smo, 
-                        np.asarray(pairs, dtype=int), 
-                        irr, norm_thresh, verbose)
+        #print(str(bra_obj.label)+','+str(ket_obj.label)+' pairs='+str(pairs),flush=True)
+        if len(pairs) > 0:
+            Sij   = overlap(bra_obj, ket_obj, smo, 
+                            np.asarray(pairs, dtype=int), 
+                            irr, norm_thresh, verbose)
         for pindx in range(len(pairs)):
             badia = bra_obj.state_index(irr, pairs[pindx][0])
             bindx = bra_st.index(badia)

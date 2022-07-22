@@ -665,7 +665,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     return
 
 #
-def print_param_header(target_data, ci_objs, ci_states, hparams):
+def print_param_header(target_data, ci_objs, ref_states, hparams):
     """
     print header for reparameterization run
     """
@@ -690,11 +690,10 @@ def print_param_header(target_data, ci_objs, ci_states, hparams):
             outfile.write(str(molecule)+': '+str(states)+'\n')
 
         outfile.write('\n Found Reference States -----\n\n')
-        for molecule, sections in ci_objs.items():
-            if molecule in ci_objs.keys():
-                outfile.write(str(molecule) + ': ' + 
-                              str(ci_objs[molecule]) + ': ' + 
-                              str(ci_states[molecule])+'\n')
+        for molecule in ci_objs.keys():
+            outfile.write(str(molecule) + ': ' + 
+                          str(ci_objs[molecule]) + ': ' + 
+                          str(ref_states[molecule])+'\n')
 
         outfile.write('\n Initial Parameter Values -----\n')
         outfile.write(str(hparams)+'\n\n')
@@ -747,6 +746,7 @@ def print_param_results(res, target, init_ener, final_ener):
 
         tstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:>10s}']*4)+'\n'
         fstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:10.5f}']*4)
+        estr = '\n {:<53s} {:10.5f} {:20.5f}'
 
         outfile.write(tstr.format('Molecule', 'istate', 'fstate', 
                                   'Reference', 'Initial', 'Final', 
@@ -754,17 +754,32 @@ def print_param_results(res, target, init_ener, final_ener):
 
         au_ev = constants.au2ev
 
+        rmsd = np.asarray([0.,0.], dtype=float)
+        mae  = np.asarray([0.,0.], dtype=float)
+        n    = 0
         for molecule, states in target.items():
             for trans, ener in target[molecule].items():
                 init, final  = trans.strip().split()
-                exc_init     = (init_ener[molecule][final] - 
+                exc_i     = (init_ener[molecule][final] - 
                                init_ener[molecule][init]) * au_ev
-                exc_final    = (final_ener[molecule][final] - 
+                exc_f    = (final_ener[molecule][final] - 
                                final_ener[molecule][init]) * au_ev
-                err_init     = abs(exc_init - ener)
-                err_final    = abs(exc_final - ener)
+                err_i    = abs(exc_init - ener)
+                err_f    = abs(exc_final - ener)
+
+                mae     += np.asarray([err_i, err_f], dtype=float)
+                rmsd    += np.asarray([err_i**2, err_f**2], dtype=float)
+                n       += 1
                 outfile.write(fstr.format(molecule, init, final, ener, 
-                           exc_init, exc_final, err_final - err_init ))
+                                        exc_i, exc_f, err_f - err_i ))
+
+        mae  = mae / n
+        rmsd = np.sqrt(rmsd/n)
+
+        outfile.write('\n'+'-'*(86))
+        outfile.write(estr.format('RMSD', rmsd[0], rmsd[1]))
+        outfile.write(estr.format('MAE', mae[0], mae[1]))
+        outfile.write('\n')
 
         outfile.flush()
 

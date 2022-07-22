@@ -54,6 +54,10 @@ def contents(file_name=None, file_handle=None, grp_name=None):
     # object
     elif grp_name in list(chkpt.keys()):
         grp_lst = list(chkpt[grp_name].keys())
+    # if this is a dataset, just return the data set name
+    elif grp_name in chkpt:
+        grp_lst = [grp_name]
+    # if neither group nor dataset, return none
     else:
         grp_lst = None
 
@@ -243,8 +247,12 @@ def read(grp_name, build_subobj=True, make_mol=True,
     for name, attr in class_grp.attrs.items():
 
         if not hasattr(Chkpt_obj, name):
-            raise AttributeError(
-            'Class '+str(obj_class)+' has no attribute '+str(name))
+            # going to fail silently on this one for now, since
+            # users can set attributes that are not class variables
+            # using glabel
+            continue
+            #raise AttributeError(
+            #'Class '+str(obj_class)+' has no attribute '+str(name))
 
         # run the parser through JSON
         try:
@@ -314,104 +322,6 @@ def read(grp_name, build_subobj=True, make_mol=True,
         Chkpt_obj.run()
 
     return Chkpt_obj
-
-#
-def read_wfn(obj_name, wfn_indx, cutoff, file_name=None):
-    """reads the wfn object from the obj_name group. Returns
-       a numpy array with the determinant coefficients and a 
-       numpy array with the orbital occupations"""
-
-    # using 64-bit integers to store det occupations
-    STR_LEN = 64
-
-    f_name = file_name
-    if f_name is None:
-        f_name = output.file_names['chkpt_file']
-    try:
-        chkpt = h5py.File(f_name, 'r', libver='latest')
-    except:
-        return None
-
-    grp_name = '/'+str(obj_name)
-
-    cf_name  = 'wfn_cf'+str(wfn_indx)
-    det_name = 'wfn_dets'
-    
-    grp_dsets = list(chkpt[grp_name].keys())
-
-    if cf_name not in grp_dsets or det_name not in grp_dsets:
-        print(cf_name + ' and/or ' + det_name + 
-                            ' not found in group '+grp_name)
-        return None
-
-    cf_name  = grp_name + '/' + cf_name
-    det_name = grp_name + '/' + det_name
-    (ndet_cf,   dum)  = chkpt[cf_name].shape
-    (ndet_wfn, n_tot) = chkpt[det_name].shape
-
-    if ndet_wfn != ndet_cf:
-        print("WARNING: determinant and coefficient lists are not"+
-                " the same length: "+str(ndet_wfn)+"!="+str(ndet_cf))
-
-    # some preliminaries so we can allocated the output coefficient
-    # and det list arrays
-    ndet  = min(ndet_wfn, ndet_cf)
-    n_int = int(n_tot / 2)
-    nmo   = int(chkpt[det_name].attrs['nmo'])
-
-    cfs_raw  = np.array(chkpt[cf_name][:, 0], dtype=float)
-    det_ints = chkpt[det_name][...]
-
-    # next, we sort the coefficients, and only convert those dets
-    # corresponding to contributions > the cutoff.
-    # we flip array to get values in descending order
-    ordr = np.flip(np.argsort(np.absolute(cfs_raw)))
-
-    # now we step through the cf array 
-    cfs  = np.zeros((ndet,), dtype=float)
-    dets = np.zeros((nmo, ndet), dtype=np.short)
-
-    for idet in range(ndet):
-        
-        indx = ordr[idet]
-
-        if abs(cfs_raw[indx]) < cutoff:
-            break
-
-        cfs[idet] = cfs_raw[indx]
-        
-        alpha = []
-        beta  = []
-
-        # use numpy intrinsic binary_repr -- if width specified,
-        # returns two's complement value
-        for i_int in range(n_int):
-            alpha  += list(np.binary_repr(det_ints[indx, i_int], 
-                                           width=STR_LEN))[::-1]
-            beta   += list(np.binary_repr(det_ints[indx, n_int+i_int], 
-                                           width=STR_LEN))[::-1]
-
-        # only take first nmo entries -- the rest are padding
-        dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
-        rdet = np.array(dabs, dtype=np.short)
-        for i in range(nmo):
-            if int(alpha[i]) == 0:
-                rdet[i] = -dabs[i]
-
-        if idet == 0:
-            ecnt = sum(dabs)
-        elif sum(dabs) != ecnt:
-            print('Wrong number of electrons in determinant. '+
-                  '\nidet=' + str(idet) + 
-                  '\nints=' + str(det_ints[indx, :]) + 
-                  '\n alpha = '+str(alpha) + 
-                  '\n beta = '+str(beta) + 
-                  '\nrdet='+str(rdet))
-            sys.exit(1)
-
-        dets[:, idet] = rdet 
-
-    return cfs[:idet], dets[:,:idet]
 
 #----------------------------------------------------------------------------
 
@@ -572,3 +482,101 @@ def dumps(*args, **kwargs):
 def loads(*args, **kwargs):
     return json.loads(*args, **kwargs)
 
+#-----------------------------------------------------------
+# targeted for removal
+def read_wfn(obj_name, wfn_indx, cutoff, file_name=None):
+    """reads the wfn object from the obj_name group. Returns
+       a numpy array with the determinant coefficients and a 
+       numpy array with the orbital occupations"""
+
+    # using 64-bit integers to store det occupations
+    STR_LEN = 64
+
+    f_name = file_name
+    if f_name is None:
+        f_name = output.file_names['chkpt_file']
+    try:
+        chkpt = h5py.File(f_name, 'r', libver='latest')
+    except:
+        return None
+
+    grp_name = '/'+str(obj_name)
+
+    cf_name  = 'wfn_cf'+str(wfn_indx)
+    det_name = 'wfn_dets'
+
+    grp_dsets = list(chkpt[grp_name].keys())
+
+    if cf_name not in grp_dsets or det_name not in grp_dsets:
+        print(cf_name + ' and/or ' + det_name +
+                            ' not found in group '+grp_name)
+        return None
+
+    cf_name  = grp_name + '/' + cf_name
+    det_name = grp_name + '/' + det_name
+    (ndet_cf,   dum)  = chkpt[cf_name].shape
+    (ndet_wfn, n_tot) = chkpt[det_name].shape
+
+    if ndet_wfn != ndet_cf:
+        print("WARNING: determinant and coefficient lists are not"+
+                " the same length: "+str(ndet_wfn)+"!="+str(ndet_cf))
+
+    # some preliminaries so we can allocated the output coefficient
+    # and det list arrays
+    ndet  = min(ndet_wfn, ndet_cf)
+    n_int = int(n_tot / 2)
+    nmo   = int(chkpt[det_name].attrs['nmo'])
+
+    cfs_raw  = np.array(chkpt[cf_name][:, 0], dtype=float)
+    det_ints = chkpt[det_name][...]
+
+    # next, we sort the coefficients, and only convert those dets
+    # corresponding to contributions > the cutoff.
+    # we flip array to get values in descending order
+    ordr = np.flip(np.argsort(np.absolute(cfs_raw)))
+
+    # now we step through the cf array 
+    cfs  = np.zeros((ndet,), dtype=float)
+    dets = np.zeros((nmo, ndet), dtype=np.short)
+
+    for idet in range(ndet):
+
+        indx = ordr[idet]
+
+        if abs(cfs_raw[indx]) < cutoff:
+            break
+
+        cfs[idet] = cfs_raw[indx]
+
+        alpha = []
+        beta  = []
+
+        # use numpy intrinsic binary_repr -- if width specified,
+        # returns two's complement value
+        for i_int in range(n_int):
+            alpha  += list(np.binary_repr(det_ints[indx, i_int],
+                                           width=STR_LEN))[::-1]
+            beta   += list(np.binary_repr(det_ints[indx, n_int+i_int],
+                                           width=STR_LEN))[::-1]
+
+        # only take first nmo entries -- the rest are padding
+        dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
+        rdet = np.array(dabs, dtype=np.short)
+        for i in range(nmo):
+            if int(alpha[i]) == 0:
+                rdet[i] = -dabs[i]
+
+        if idet == 0:
+            ecnt = sum(dabs)
+        elif sum(dabs) != ecnt:
+            print('Wrong number of electrons in determinant. '+
+                  '\nidet=' + str(idet) +
+                  '\nints=' + str(det_ints[indx, :]) +
+                  '\n alpha = '+str(alpha) +
+                  '\n beta = '+str(beta) +
+                  '\nrdet='+str(rdet))
+            sys.exit(1)
+
+        dets[:, idet] = rdet
+
+    return cfs[:idet], dets[:,:idet]
