@@ -764,8 +764,8 @@ def print_param_results(res, target, init_ener, final_ener):
                                init_ener[molecule][init]) * au_ev
                 exc_f    = (final_ener[molecule][final] - 
                                final_ener[molecule][init]) * au_ev
-                err_i    = abs(exc_init - ener)
-                err_f    = abs(exc_final - ener)
+                err_i    = abs(exc_i - ener)
+                err_f    = abs(exc_f - ener)
 
                 mae     += np.asarray([err_i, err_f], dtype=float)
                 rmsd    += np.asarray([err_i**2, err_f**2], dtype=float)
