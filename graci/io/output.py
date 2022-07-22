@@ -746,7 +746,7 @@ def print_param_results(res, target, init_ener, final_ener):
 
         tstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:>10s}']*4)+'\n'
         fstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:10.5f}']*4)
-        estr = '\n {:<53s} {:10.5f} {:20.5f}'
+        estr = '\n {:<52s} {:10.5f} {:10.5f}'
 
         outfile.write(tstr.format('Molecule', 'istate', 'fstate', 
                                   'Reference', 'Initial', 'Final', 
