@@ -35,6 +35,8 @@ class Transition(interaction.Interaction):
         # init/final instead of ket/bra. Here we just say they
         # point to the same reference as the variables in the parent
         # class
+        # print threshold for NDOS and NTOs
+        self.print_thresh     = 0.01
         # list of initial states
         self.init_states      = None
         # label of section to get initial states
@@ -473,7 +475,8 @@ class Transition(interaction.Interaction):
             kst = self.trans_list[it][1]
 
             wt, ndo = orbitals.build_ndos(b_rdm(bst), k_rdm(kst),
-                            thresh=0.01, basis=basis, mos=self.scf.orbs)
+                                         thresh=self.print_thresh, 
+                                         basis=basis, mos=self.scf.orbs)
             ndos.append(ndo)
             wts.append(wt)
 
@@ -511,7 +514,8 @@ class Transition(interaction.Interaction):
             kst = self.trans_list[it][1]
 
             wt, nto = orbitals.build_ntos(self.tdm(bst, kst), 
-                          thresh=0.01, basis=basis, mos=self.scf.orbs)
+                          thresh=self.print_thresh, basis=basis, 
+                          mos=self.scf.orbs)
             ntos.append(nto)
             wts.append(wt)
 
