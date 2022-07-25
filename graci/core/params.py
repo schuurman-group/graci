@@ -97,7 +97,7 @@ dftmrci2_kword  = {'mult'           : int,
 # spinorbit section input keywords and data typess
 spinorbit_kword = {'couple_groups'     : str,
                    'couple_states'     : int,
-                   'print_thresh'      : float,
+                   'print_soc_thresh'  : float,
                    'mf2e'              : str,
                    'verbose'           : bool,
                    'label'             : str
@@ -110,6 +110,7 @@ transition_kword = {'init_states'      : int,
                     'final_label'      : str,
                     'all_final_states' : bool,
                     'print_orbitals'   : bool,
+                    'print_orb_thresh' : float,
                     'verbose'          : bool,
                     'label'            : str
                    }

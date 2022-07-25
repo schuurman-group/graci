@@ -24,7 +24,7 @@ class Spinorbit(interaction.Interaction):
         
         # user defined quanties 
         #-----------------------------------------------------------
-        self.print_thresh  = 1.
+        self.print_soc_thresh  = 1.
         self.mf2e          = 'atomic'
         # group of objects to couple
         self.couple_groups = [None]
@@ -167,7 +167,7 @@ class Spinorbit(interaction.Interaction):
         self.build_rdms()
  
         # print the H_SOC elements
-        if self.print_thresh >= 1:
+        if self.print_soc_thresh >= 1:
             self.print_hsoc(hsoc)
 
         del(redmat)
@@ -619,7 +619,7 @@ class Spinorbit(interaction.Interaction):
         # output the SOC matrix elements
         if self.verbose:
             output.print_spinorbit_table(hsoc, hsoc.shape[0], stlbl,
-                                         self.print_thresh)
+                                         self.print_soc_thresh)
 
         # output the eigenvectors of H_SOC
         if self.verbose:
