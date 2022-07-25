@@ -85,8 +85,9 @@ class Parameterize:
 
         ener_final = self.evaluate_energies(res.x, ref_states,
                                                       scf_objs, ci_objs)
-        output.print_param_results(res, target_data, ener_init, 
-                                                       ener_final)
+
+        output.print_param_results(res, target_data, ener_init,
+                                                             ener_final)
 
         return
 
