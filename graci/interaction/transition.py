@@ -64,8 +64,6 @@ class Transition(interaction.Interaction):
         # various orbital quantities (NDOs, NTOs, wts, etc.)
         self.ndos       = None
         self.ndo_wts    = None
-        self.ndos_mo    = None
-        self.ndo_wts_mo = None
         self.ntos       = None
         self.nto_wts    = None
         # electric/magnetic multipole tensors -- all guages
@@ -132,8 +130,8 @@ class Transition(interaction.Interaction):
 
         # initialize the transition density matrices
         # These will be complex for spin-orbit coupled states
-        self.tdms = np.zeros((self.scf.nmo, self.scf.nmo, 
-                              len(self.trans_list)), dtype=np.cdouble)
+        self.tdms = np.zeros((len(self.trans_list), self.scf.nmo,
+                                        self.scf.nmo), dtype=np.cdouble)
 
         # loop over all pairs of spin free states in both the bra
         # and ket objects. In the future, may be prudent to check
@@ -188,18 +186,16 @@ class Transition(interaction.Interaction):
         self.oscstr = self.build_osc_str()
 
         # build the NDOs and NTOS, print to file if print_orbitals=True
-        self.nto_wts, self.ntos = self.build_ntos(self.print_orbitals, 
-                                                  basis='ao')
-        self.ndo_wts, self.ndos = self.build_ndos(self.print_orbitals, 
-                                                  basis='ao')
-        self.ndo_wts_mo, self.ndos_mo = self.build_ndos(
-                                                  self.print_orbitals, 
-                                                  basis='mo')
-
+        if self.print_orbitals:
+            self.nto_wts, self.ntos = self.build_ntos(basis='ao', 
+                                                      print_orbs=True)
+            self.ndo_wts, self.ndos = self.build_ndos(basis='ao', 
+                                                      print_orbs=True)
 
         # print the summary output
         if self.verbose:
-            self.print_log()
+            ndo_wts_mo, ndo_mo = self.build_ndos(basis='mo')
+            self.print_log(ndo_wts_mo, ndo_mo)
 
         return
 
@@ -210,7 +206,7 @@ class Transition(interaction.Interaction):
         indx = self.trans_list.index([b_st, k_st])
 
         if indx is not None:
-            return self.tdms[:, :, indx]
+            return self.tdms[indx, :, :]
         else:
             return None
  
@@ -338,16 +334,17 @@ class Transition(interaction.Interaction):
         # make the tdm list
         nmo    = bra.scf.nmo
         npairs = len(trans_list)
-        tdms   = np.zeros((nmo, nmo, npairs), dtype=float)
+        tdm    = np.zeros((npairs, nmo, nmo), dtype=float)
 
         for indx in range(len(trans_list)):
             bk_st          = trans_list[indx]
             [birr, bst]    = bra.state_sym(bk_st[0])
             [kirr, kst]    = ket.state_sym(bk_st[1])
             sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
-            tdms[:,:,indx] = tdm_list[birr][kirr][:, :, sym_indx]
+            tdm[indx, :,:] = tdm_list[birr][kirr][:, :, sym_indx]
+            print('tdm_list[indx,:,:].shape='+str(tdm_list[birr][kirr][:,:,sym_indx].shape))
 
-        return tdms
+        return tdm
 
     @timing.timed
     def rotate_tdms(self, b_lbl, k_lbl, blk_lst, tdm_blk):
@@ -356,6 +353,7 @@ class Transition(interaction.Interaction):
         bra and/or ket object may be spin-free or spin-orbit
         coupled objects
         """
+        print('tdm_blk.shape='+str(tdm_blk.shape))
 
         # this will work for now, but feels inelegant
         if type(self.bra_obj).__name__ == 'Spinorbit':
@@ -375,7 +373,7 @@ class Transition(interaction.Interaction):
         # run through trans_list and contribute each #
         for blk_pair in blk_lst:
             blk_ind = blk_lst.index(blk_pair)
-            tdm     = tdm_blk[:, :, blk_ind]
+            tdm     = tdm_blk[blk_ind, :, :]
 
             for pair in self.trans_list:
                 ind = self.trans_list.index(pair)
@@ -411,7 +409,7 @@ class Transition(interaction.Interaction):
 
                 cf = sum( [bcf*kcf for kcf in k_cf for bcf in b_cf] )
                 if abs(cf) > 1.e-16:
-                    self.tdms[:, :, ind] += cf * tdm
+                    self.tdms[ind, :, :] += cf * tdm
 
         return
 
@@ -444,7 +442,7 @@ class Transition(interaction.Interaction):
         return {**oscstr_l, **oscstr_v}
 
     # 
-    def build_ndos(self, print_orbs, basis='ao'):
+    def build_ndos(self, basis='ao', print_orbs=False):
         """
         Construct the NDOS for the transitions in the trans_list
 
@@ -475,15 +473,28 @@ class Transition(interaction.Interaction):
             kst = self.trans_list[it][1]
 
             wt, ndo = orbitals.build_ndos(b_rdm(bst), k_rdm(kst),
-                                         thresh=self.print_orb_thresh, 
                                          basis=basis, mos=self.scf.orbs)
             ndos.append(ndo)
             wts.append(wt)
 
             if print_orbs and basis == 'ao':
+                nao   = ndo.shape[0]
+                nmo   = ndo.shape[1]
+ 
+                npair = min(sum(chk > self.print_orb_thresh 
+                                           for chk in wt), int(0.5*nmo))
+
+                orbs = np.zeros((nao, 2*npair), dtype=float)
+                occ  = np.zeros((2*npair), dtype=float)
+
+                orbs[:,0::2] = ndo[:,:npair]
+                orbs[:,1::2] = ndo[:,-1:-npair-1:-1]
+                occ[0::2]    = wt[:npair]
+                occ[1::2]    = wt[-1:-npair-1:-1]
+
                 fname ='ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
-                orbitals.export_orbitals(fname, self.scf.mol, ndo,
-                                orb_occ=wt, 
+                orbitals.export_orbitals(fname, self.scf.mol, orbs,
+                                orb_occ=occ, 
                                 orb_dir='Transition.'+str(self.label),
                                 fmt='molden')
 
@@ -491,7 +502,7 @@ class Transition(interaction.Interaction):
 
 
     #
-    def build_ntos(self, print_orbs, basis='ao'):
+    def build_ntos(self, basis='ao', print_orbs=False):
         """ contruct the NDOs and NTOs for the transitions in the 
             trans_list list
 
@@ -514,15 +525,29 @@ class Transition(interaction.Interaction):
             kst = self.trans_list[it][1]
 
             wt, nto = orbitals.build_ntos(self.tdm(bst, kst), 
-                          thresh=self.print_orb_thresh, basis=basis, 
-                          mos=self.scf.orbs)
+                          basis=basis, mos=self.scf.orbs)
             ntos.append(nto)
             wts.append(wt)
 
             if print_orbs and basis == 'ao':
+                nao   = nto.shape[1]
+                nmo   = nto.shape[2]
+
+                npair = sum(chk > self.print_orb_thresh 
+                                                     for chk in wt[1,:])
+
+                orbs = np.zeros((nao, 2*npair), dtype=float)
+                occ  = np.zeros((2*npair), dtype=float)
+
+                # save NTOs and weights (define hole wts as neg.)
+                orbs[:,0::2] =  nto[0,:,:npair].real
+                orbs[:,1::2] =  nto[1,:,:npair].real
+                occ[0::2]    =  wt[0,:npair].real
+                occ[1::2]    =  wt[1,:npair].real
+
                 fname = 'nto_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
-                orbitals.export_orbitals(fname, self.scf.mol, nto,
-                                orb_occ=wt, 
+                orbitals.export_orbitals(fname, self.scf.mol, orbs,
+                                orb_occ=occ, 
                                 orb_dir='Transition.'+str(self.label),
                                 fmt='molden')
 
@@ -896,13 +921,13 @@ class Transition(interaction.Interaction):
 
         for tpair in self.trans_list:
             indx = self.trans_list.index(tpair)
-            tdm = self.tdms[:, :, indx]
+            tdm = self.tdms[indx, :, :]
             tens[..., indx] = self.contract_tdm(mo_ints, tdm)
 
         return tens
 
     #
-    def print_log(self):
+    def print_log(self, ndo_wts, ndo_orbs):
         """print summary output to log file"""
         # for each initial state, write out a table of 
         # oscillator strenghts and transition dipole moments
@@ -962,9 +987,8 @@ class Transition(interaction.Interaction):
                 osc_str[4].append(self.oscstr['f0_v'][:,indx])
 
                 # this check on the NDOs could be made stronger..
-                pa, pd = orbitals.promotion_numbers(
-                                        self.ndo_wts_mo[indx], 
-                                        self.ndos_mo[indx])
+                pa, pd = orbitals.promotion_numbers(ndo_wts[indx],
+                                                    ndo_orbs[indx])
                 promo_num.append([pa,pd])
 
             # print a 'transition table' for each initial state

@@ -235,7 +235,7 @@ class Parameterize:
         ref_chkpt.close()
 
         # change to the appropriate sub-directory
-        os.chdir(topdir+'/'+str(molecule))
+        #os.chdir(topdir+'/'+str(molecule))
 
         curr_scf = ''
         iscf     = -1
@@ -243,6 +243,7 @@ class Parameterize:
         
             if curr_scf != scf_name[i]:
                 iscf += 1
+                # change to the appropriate sub-directory
                 os.chdir(topdir+'/'+str(molecule)+'/scf'+str(iscf))
  
                 if runscf:
@@ -275,7 +276,8 @@ class Parameterize:
         energies = {molecule : {}}
         for state, ener in ener_match.items():
             energies[molecule][state] = ener
-      
+
+        # always end in initial directory
         os.chdir(topdir)
          
         return energies
@@ -296,17 +298,19 @@ class Parameterize:
             bra_st  = list(ref_st.values())
             ket_st  = list(range(new_ci[iobj].n_states()))
             Smat = overlap.overlap_st(ref_ci[iobj], new_ci[iobj], 
-                                    bra_st, ket_st, smo, 0.95, False)
+                                    bra_st, ket_st, smo, 0.975, False)
 
             for lbl, bst in ref_st.items():
                 Sij = np.absolute(Smat[bra_st.index(bst),:])
-                if np.amax(Sij) <= 0.9:
+                if np.amax(Sij) <= 1./np.sqrt(2.):
                     output.print_message('MAX overlap for molecule=' +
                             str(molecule) + ' state=' + str(lbl) +
                             ' is ' + str(np.amax(Sij)))
+                    sys.exit(1)
                 kst = ket_st[np.argmax(Sij)]
                 eners[lbl] = new_ci[iobj].energies[kst]
-                
+
+                        
         return eners
 
     #

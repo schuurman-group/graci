@@ -49,14 +49,14 @@ def build_nos(rdm, basis='AO', mos=None):
 
 
 @timing.timed
-def build_ndos(rdm, rdm_ref, thresh=0.0, basis='mo', mos=None):
+def build_ndos(rdm, rdm_ref, basis='mo', mos=None):
     """ build natural difference orbitals"""
 
     # get dimensions of the NOs
     if mos is not None:
-        (dim1, dim2) = mos.shape
+        (nbas, nmo) = mos.shape
     else:
-        (dim1, dim2) = rdm.shape
+        (nbas, nmo) = rdm.shape
 
     # delta is the different 1RDM between ist and
     # reference state (likely the ground state)
@@ -71,31 +71,24 @@ def build_ndos(rdm, rdm_ref, thresh=0.0, basis='mo', mos=None):
 
     # sort NDO wts by increasing magnitude (hole 
     # orbitals to start, then particle
-    ordr    = np.argsort(wt)
-    orb_srt = orbs[:,ordr]
-    wt_srt  = wt[ordr]
+    ndos = np.zeros((nbas, nmo), dtype=complex)
+    wts  = np.zeros((nmo), dtype=complex)
 
-    npairs = min(sum(chk > thresh for chk in wt_srt), int(0.5*dim2))
-
-    ndos = np.zeros((dim1, 2*npairs), dtype=float)
-    wts  = np.zeros((2*npairs), dtype=float)
-
-    ndos[:,0::2] = orb_srt[:,:npairs]
-    ndos[:,1::2] = orb_srt[:,-1:-npairs-1:-1]
-    wts[0::2]    = wt_srt[:npairs]
-    wts[1::2]    = wt_srt[-1:-npairs-1:-1]
+    ordr = np.argsort(wt)
+    ndos = orbs[:,ordr]
+    wts  = wt[ordr]
 
     return wts, ndos
 
 @timing.timed
-def build_ntos(tdm, thresh=0.0, basis='ao', mos=None):
+def build_ntos(tdm, basis='ao', mos=None):
     """build the natural transition orbitals"""
 
     # get dimensions of the NOs
     if mos is not None:
-        (dim1, dim2) = mos.shape
+        (nbas, nmo) = mos.shape
     else:
-        (dim1, dim2) = tdm.shape
+        (nbas, nmo) = tdm.shape
 
     # first perform SVD of 1TDMs to get hole and
     # particle orbitals and weights and convert
@@ -110,24 +103,18 @@ def build_ntos(tdm, thresh=0.0, basis='ao', mos=None):
     s  = 0.5 * np.square(s)
 
     # sort the NTO amplitudes by decreasing magnitude
+    ntos = np.zeros((2, nbas, nmo), dtype=complex)
+    wts  = np.zeros((2, nmo), dtype=complex)
+
     ordr     = np.flip(np.argsort(s))
-    hole_srt = hole[:,ordr]
-    part_srt = part[:,ordr]
-    s_srt    = s[ordr]
 
-    # find the number of particle/hole pairs with weight
-    # greater than 0.01 (this should be a parameter),
-    # and only write these to file
-    npairs = min(sum(chk > thresh for chk in s_srt), int(0.5*dim2))
-
-    ntos = np.zeros((dim1, 2*npairs), dtype=float)
-    wts  = np.zeros((2*npairs), dtype=float)
-
-    # save NTOs and weights (define hole wts as neg.)
-    ntos[:,0::2] =  hole_srt[:,:npairs].real
-    ntos[:,1::2] =  part_srt[:,:npairs].real
-    wts[0::2]    = -s_srt[:npairs].real
-    wts[1::2]    =  s_srt[:npairs].real
+    # hole orbs
+    ntos[0,:,:] = hole[:,ordr]
+    wts[0,:]    = -s[ordr]
+  
+    # particle orbs
+    ntos[1,:,:] = part[:,ordr]
+    wts[1,:]    = s[ordr]     
 
     return wts, ntos 
 
@@ -144,7 +131,7 @@ def promotion_numbers(wts, ndos):
     d_mat    = ndos @ wt_mat @ ndos.transpose()
     p_attach = np.trace(d_mat)
 
-    return p_detach, p_attach
+    return p_detach.real, p_attach.real
 
 #
 def export_orbitals(fname, mol, orbs,
@@ -191,7 +178,7 @@ def export_orbitals(fname, mol, orbs,
         print('orbital format type='+fmt+' not found. exiting...')
         sys.exit(1)
 
-    orbmod.write_orbitals(orb_file, mol, orbs,
+    orbmod.write_orbitals(orb_file, mol, orbs.real,
                            occ=orb_occ, ener=orb_ener, 
                            sym_lbl=orb_sym, cart=cart)
 

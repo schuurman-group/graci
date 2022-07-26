@@ -60,12 +60,8 @@ class Cimethod:
         self.dmats          = None
         # natural orbital occupations (shape = (nirr, nmo, nstates)
         self.natocc         = None
-        # natural orbitals, MO basis (same shape as the density matrices)
-        self.natorb_mo      = None
         # natural orbitals, AO basis (same shape as the density matrices)
         self.natorb_ao      = None
-        # symmetry of the natural orbitals
-        self.natorb_sym     = None
         # List of determinant bit strings (one per irrep)
         self.det_strings    = None
         # List of eigenvectors in the determinant basis (one per irrep)
@@ -195,13 +191,13 @@ class Cimethod:
             return self.dmats
 
     # 
-    def natural_orb(self, istate, basis='ao'):
+    def natorbs(self, istate, basis='ao'):
         """return natural orbitals and occupations for state 'istate' """
 
         if basis == 'ao' and self.natorb_ao is None:
             return None
 
-        if basis == 'mo' and self.natorb_mo is None:
+        if basis == 'mo':
             return None
 
         (nst, nmo) = self.natocc.shape
@@ -210,22 +206,9 @@ class Cimethod:
 
         # always return the contents of the natorb/natocc arrays in wfn
         occ = self.natocc[istate, :]
-        if basis == 'ao':
-            nos = self.natorb_ao[istate, :, :]
-        else:
-            nos = self.natorb_mo[istate, :, :]
+        nos = self.natorb_ao[istate, :, :]
 
         return occ, nos
-
-    #
-    def natural_sym(self, istate):
-        """return the symmetry of the natural orbitals"""
-
-        # if natural orbitals haven't been generated, generate them now
-        if self.natorb_sym is None:
-            occ, nos = self.natural_orb(istate)
-
-        return self.natorb_sym[istate, :]
 
     #
     def update_hparam(self, hparams):
@@ -340,8 +323,8 @@ class Cimethod:
 
         # we'll also compute 1-electron properties by
         # default.
-        momts = moments.Moments(self.scf.mol, self.natocc, self.natorb_ao)
-        momts.run()
+        momts = moments.Moments()
+        momts.run(self.scf.mol, self.natocc, self.natorb_ao)
 
         n_tot  = self.n_states()
         states = [i for i in range(n_tot)]

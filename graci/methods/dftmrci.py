@@ -195,6 +195,9 @@ class Dftmrci(cimethod.Cimethod):
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
 
+        # Finalize the bitCI library
+        bitci_init.finalize()
+
         # store them in adiabatic energy order
         n_tot = self.n_states()
         (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
@@ -203,9 +206,6 @@ class Dftmrci(cimethod.Cimethod):
         for istate in range(n_tot):
             irr, st = self.state_sym(istate)
             self.dmats[istate, :, :] = dmat_sym[irr][:, :, st]
-
-        # Finalize the bitCI library
-        bitci_init.finalize()
 
         # build the natural orbitals in AO basis by default
         self.build_nos()

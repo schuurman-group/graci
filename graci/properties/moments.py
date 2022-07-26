@@ -10,12 +10,7 @@ class Moments:
     """Moment class for determing permanent and transition moments, right now
        it will only accept calculations for which the 'Molecule' and 'Scf' 
        objects are the same"""
-    def __init__(self, mol, natocc, natorb_ao):
-        # user defined quantities
-        self.mol         = mol
-        self.natocc      = natocc
-        self.natorb      = natorb_ao
-        
+    def __init__(self):
         # these variables are set internally
         self.dipole_vec  = None
         self.quad_tensor = None
@@ -24,8 +19,7 @@ class Moments:
 
     def copy(self):
         """create of deepcopy of self"""
-        new = Moments(self.mol.copy(), copy.deepcopy(self.natocc), 
-                                       copy.deepcopy(self.natorb))
+        new = Moments() 
 
         var_dict = {key:value for key,value in self.__dict__.items()
                    if not key.startswith('__') and not callable(key)}
@@ -40,25 +34,25 @@ class Moments:
 
     #
     @timing.timed
-    def run(self):
+    def run(self, mol, natocc, natorb):
         """return the dipole moments for states in 'states'"""
 
         # compute the dipole moment integrals dimensions = (3,nmo,nmo)
-        mu_ao = self.mol.pymol().intor('int1e_r')
+        mu_ao = mol.pymol().intor('int1e_r')
         # compute the quadrupole tensor, dimensions = (9, nmo, nmo)
-        q_ao  = self.mol.pymol().intor('int1e_rr')
+        q_ao  = mol.pymol().intor('int1e_rr')
         # compute the second moment
-        q2_ao = self.mol.pymol().intor('int1e_r2')
+        q2_ao = mol.pymol().intor('int1e_r2')
 
         # load the dipole vector and quadrupole arrays
-        (nst, nao, nmo)  = self.natorb.shape
+        (nst, nao, nmo)  = natorb.shape
         self.dipole_vec  = np.zeros((nst, 3), dtype=float)
         self.quad_tensor = np.zeros((nst, 3, 3), dtype=float)
         self.second_momt = np.zeros((nst,), dtype=float)
 
         for ist in range(nst):
-            no_ao = self.natorb[ist, :, :]
-            occ   = self.natocc[ist, :]
+            no_ao = natorb[ist, :, :]
+            occ   = natocc[ist, :]
             rdm_ao = np.matmul(np.matmul(no_ao, np.diag(occ)), no_ao.T)
 
             self.dipole_vec[ist,:] = np.einsum('xij,ij->x',mu_ao, rdm_ao)
