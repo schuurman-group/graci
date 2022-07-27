@@ -82,7 +82,7 @@ contains
 !----------------------------------------------------------------------
     call tdm_0h_1h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
          npairs,rhoij,Bmap,Kmap)
-    
+
 !----------------------------------------------------------------------
 ! (3) Ref - 2H contributions to the 1-TDMs
 !----------------------------------------------------------------------
@@ -866,7 +866,7 @@ contains
 
           ! Loop over ket 1E configurations
           do ikconf=cfgK%off1E(kn),cfgK%off1E(kn+1)-1
-
+             
              ! Ket 1E configuration
              kconf_full=cfgK%conf1E(:,:,ikconf)
              ksop_full=cfgK%sop1E(:,:,ikconf)

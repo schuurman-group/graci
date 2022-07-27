@@ -120,7 +120,7 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 
   if (verbose) &
        write(6,'(/,x,a,x,i0)') 'CSF basis dimension:',cfg%csfdim
-  
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------

@@ -342,7 +342,6 @@ class Transition(interaction.Interaction):
             [kirr, kst]    = ket.state_sym(bk_st[1])
             sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
             tdm[indx, :,:] = tdm_list[birr][kirr][:, :, sym_indx]
-            print('tdm_list[indx,:,:].shape='+str(tdm_list[birr][kirr][:,:,sym_indx].shape))
 
         return tdm
 
@@ -353,7 +352,6 @@ class Transition(interaction.Interaction):
         bra and/or ket object may be spin-free or spin-orbit
         coupled objects
         """
-        print('tdm_blk.shape='+str(tdm_blk.shape))
 
         # this will work for now, but feels inelegant
         if type(self.bra_obj).__name__ == 'Spinorbit':
