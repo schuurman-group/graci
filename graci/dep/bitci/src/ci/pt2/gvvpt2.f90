@@ -279,21 +279,21 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   close(iscratch)
 
 !----------------------------------------------------------------------
-! Output the Q-space norms
+! Output the reference space weights
 !----------------------------------------------------------------------
   if (verbose) then
 
-     ! Table header
      write(6,'(/,x,19a)') ('-',i=1,19)
-     write(6,'(4x,a)') 'Q-space info'
+     write(6,'(4x,a,/,7x,a)') 'Reference space','weights'
      write(6,'(x,19a)') ('-',i=1,19)
-     write(6,'(2x,a)') 'State   ||psi_Q||'
+     write(6,'(2x,a)') 'State     W(R)'
      write(6,'(x,19a)') ('-',i=1,19)
-
-     ! A-vector norms
+     
+     ! Reference space weights
      do i=1,nroots
         write(6,'(2x,i4,3x,F9.6)') &
-             i,Qnorm(i)
+             !i,Qnorm(i)
+             i,1.0d0/(1.0d0+Qnorm(i)**2)
      enddo
 
      ! Table footer
