@@ -49,8 +49,8 @@ class Scf:
         self.rdm_ao       = None
         self.moint_1e     = None
         self.moint_2e_eri = None
-        self.auxbasis     = None
- 
+        self.auxbasis     = None 
+        self.do_ao2mo     = True
 
 # Required functions #######################################################
 
@@ -153,7 +153,8 @@ class Scf:
                                                     self.orbs[:,i])
 
         # perform AO -> MO transformation
-        self.ao_to_mo(pymol, self.orbs)
+        if self.do_ao2mo:
+            self.ao_to_mo(pymol, self.orbs)
 
         # print the summary of the output to file
         if self.verbose:
@@ -288,7 +289,7 @@ class Scf:
         mf.conv_tol = self.conv_tol
             
         # set the name of the DF-tensor
-        if hasattr(mf, 'with_df'):
+        if hasattr(mf, 'with_df') and self.do_ao2mo:
             if self.mol.use_df:
                 mf.with_df._cderi_to_save = self.moint_2e_eri
             else:

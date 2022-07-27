@@ -55,7 +55,6 @@ class Driver:
 
         # Molecule sections 
         # ----------------------------------------------------
-
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
             mol_obj.run()
@@ -115,6 +114,33 @@ class Driver:
                             str(scf_obj.label)+
                             ' has no molecule section. Please check input')
                     sys.exit(1)
+
+                # check if we need to generate any additional basis 
+                # functions
+                if mol_obj.ano_file is not None:
+                    mol_obj.append_basis(fname=mol_obj.ano_file)
+                elif mol_obj.rydano is not None:
+                    # if this is a valid contraction, construct a default
+                    # rydano object
+                    carr = basis.str_to_contract(mol_obj.rydano)
+                    if carr is not None:
+                        ryd_basis = rydano.Rydano()
+                        ryd_basis.contract = mol_obj.rydano
+                        ryd_basis.run()
+                    # else, load the rydano object from the input file
+                    else:
+                        ryd_basis = None
+                        for obj in calc_array:
+                            if (type(obj).__name__  == 'Rydano' and 
+                                            obj.label == mol_obj.rydano):
+                                ryd_basis = obj
+                                break
+                        if ryd_basis is None:
+                            print('Molecule.rydano = ' + 
+                                   str(mol_obj.rydano) + ' not found.')
+                            sys.exit(1)
+                        ryd_basis.run()
+                    mol_obj.append_basis(obj=ryd_basis.basis_obj())
 
                 # guess SCF object
                 if scf_obj.guess_label is None:

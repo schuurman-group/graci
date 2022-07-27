@@ -8,8 +8,6 @@ molecule_kword =     {'xyz_file' : str,
                       'ao_cart'  : bool,
                       'use_sym'  : bool,
                       'use_df'   : bool,
-                      'mult'     : int,
-                      'charge'   : int,
                       'label'    : str
                      }
 

@@ -191,28 +191,42 @@ class Dftmrci(cimethod.Cimethod):
         # if requested
         if self.save_wf:
             mrci_wf.extract_wf(self)
+
+        print ('00', flush=True)
         
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
 
+        print('1',flush=True)
+
         # Finalize the bitCI library
         bitci_init.finalize()
+
+        print('2',flush=True)
 
         # store them in adiabatic energy order
         n_tot = self.n_states()
         (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
+
+        print('3',flush=True)
 
         self.dmats = np.zeros((n_tot, nmo1, nmo2), dtype=float)
         for istate in range(n_tot):
             irr, st = self.state_sym(istate)
             self.dmats[istate, :, :] = dmat_sym[irr][:, :, st]
 
+        print('4',flush=True)
+
         # build the natural orbitals in AO basis by default
         self.build_nos()
+
+        print('5',flush=True)
 
         # only print if user-requested
         if self.print_orbitals:
             self.print_nos()
+
+        print('6',flush=True)
 
         # determine promotion numbers if ref_state != -1
         if self.ref_state != -1:
@@ -220,6 +234,8 @@ class Dftmrci(cimethod.Cimethod):
 
         # print the moments
         self.print_moments()
+
+        print('7', flush=True)
 
         return
     

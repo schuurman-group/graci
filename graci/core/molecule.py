@@ -67,6 +67,8 @@ class Molecule:
         self.ao_cart  = False
         self.use_df   = False
         self.label    = 'Molecule'
+        self.rydano   = None
+        self.ano_file = None
 
         # the following are determined based on user
         # input
@@ -187,7 +189,13 @@ class Molecule:
             # if not in pyscf, check if in supplemental library
             if alias in basis.local_basis_sets():
                 self.basis_obj[atom] = basis.load_basis(atom,bname)
-            else:
+                continue
+
+            # lastly, try loading as a basis format string using
+            # pyscf basis loader
+            try:
+                self.basis_obj[atom] = gto.basis.parse(bname)
+            except:
                 sys.exit('Basis: ' + str(bname) + ' for atom ' +
                           atom + ' not found.')
 
@@ -302,4 +310,16 @@ class Molecule:
     def n_atoms(self):
         """returns the number of atoms in the molecule"""
         return len(self.asym)
+
+    #
+    def nuc_charge_center(self):
+        """
+        determine the center of nuclear charge
+        """
+
+        coc_xyz = np.sum(self.mol_obj.atom_charges() *
+                         self.mol_obj.atom_coords())
+
+        return coc_xyz / np.sum(self.mol_obj.atom_charges())
+
  

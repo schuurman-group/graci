@@ -169,6 +169,7 @@ class Transition(interaction.Interaction):
                                                  pairs=pair_type, 
                                                  sym_blk=True)
 
+                print('blks_sym='+str(blks_sym), flush=True)
                 # tdms is a vector of nmo x nmo transition densities
                 tdm_blk = self.build_tdms(bra_ci, ket_ci, blks, blks_sym)
 
@@ -342,7 +343,6 @@ class Transition(interaction.Interaction):
             [kirr, kst]    = ket.state_sym(bk_st[1])
             sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
             tdm[indx, :,:] = tdm_list[birr][kirr][:, :, sym_indx]
-            print('tdm_list[indx,:,:].shape='+str(tdm_list[birr][kirr][:,:,sym_indx].shape))
 
         return tdm
 
