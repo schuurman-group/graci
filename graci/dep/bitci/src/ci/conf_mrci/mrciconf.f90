@@ -105,7 +105,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
   E0max=E0max1-Escf
 
-  if (verbose) write(6,'(/,x,a,x,F10.7,x,a)') &
+  if (verbose) write(6,'(/,x,a,x,F12.6,x,a)') &
        'Max ref space eigenvalue:',E0max*eh2ev,'eV'
   
 !----------------------------------------------------------------------

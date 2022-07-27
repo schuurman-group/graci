@@ -242,21 +242,19 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
        write(6,'(/,x,a,x,i0)') 'New number of active MOs:',nactive
   
 !----------------------------------------------------------------------
-! Output the Q-space energy corrections and the norms of the A-vectors
+! Output the Q-space energy corrections and the reference space weights
 !----------------------------------------------------------------------
   if (verbose) then
 
      ! Table header
      write(6,'(/,x,30a)') ('-',i=1,30)
-     write(6,'(10x,a)') 'Q-space info'
-     write(6,'(x,30a)') ('-',i=1,30)
-     write(6,'(2x,a)') 'State   E2Q        ||psi_Q||'
+     write(6,'(2x,a)') 'State   E2Q        W(R)'
      write(6,'(x,30a)') ('-',i=1,30)
 
-     ! Energy corrections and A-vector norms
+     ! Energy corrections and reference space weights
      do i=1,nroots(irrep)
         write(6,'(2x,i4,3x,F9.6,2x,F9.6)') &
-             i,E2Q(indx(i)),Qnorm(indx(i))
+             i,E2Q(indx(i)),1.0d0/(1.0d0+Qnorm(indx(i))**2)
      enddo
 
      ! Table footer
