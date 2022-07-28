@@ -4,11 +4,11 @@
 ! Nesbet Hamiltonian partitioning
 !######################################################################
 #ifdef CBINDING
-subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
-     Qscr,dspscr) bind(c,name="gvvpt2")
+subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
+     vec0scr,Qscr,dspscr) bind(c,name="gvvpt2")
 #else
-subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
-       Qscr,dspscr)
+subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
+       vec0scr,Qscr,dspscr)
 #endif
 
   use constants
@@ -31,8 +31,12 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   ! Number of extra roots to include in the GVVPT2 calculation
   integer(is), intent(in)  :: nextra
 
-  ! ISA shift
-  real(dp), intent(in)     :: shift
+  ! Regularizer index: 1 <-> ISA
+  !                    2 <-> sigma^p
+  integer(is), intent(in)  :: ireg
+  
+  ! Regularization factor
+  real(dp), intent(in)     :: regfac
   
   ! Array of MRCI configuration scratch file numbers
   integer(is), intent(in)  :: confscr(0:nirrep-1)
@@ -90,7 +94,6 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   real(dp), allocatable    :: Smat(:,:),Sinvsq(:,:)
   real(dp), allocatable    :: Elow(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:)
-  real(dp), allocatable    :: mcoeff(:,:)
   
   ! Timing variables
   real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
@@ -112,7 +115,20 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
           'subspace'
      write(6,'(52a)') ('-',i=1,52)
   endif
-     
+
+!----------------------------------------------------------------------
+! Output the regularizer being used
+!----------------------------------------------------------------------
+  select case(ireg)
+  case(1)
+     if (verbose) write(6,'(/,x,a)') 'Regularizer: ISA'
+  case(2)
+     if (verbose) write(6,'(/,x,a)') 'Regularizer: sigma^p'
+  case default
+     errmsg='Error in gvvpt2: unrecognized regularizer index'
+     call error_control
+  end select
+  
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
 !----------------------------------------------------------------------
@@ -179,9 +195,6 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 
   allocate(work(cfg%csfdim,nvec))
 
-  allocate(mcoeff(nvec,nvec))
-  mcoeff=0.0d0
-
   allocate(heff(nvec,nvec))
   heff=0.0d0
   
@@ -200,17 +213,9 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
 ! Also returns the 1st-order perturbed model functions in the Avec
 ! array
 !----------------------------------------------------------------------
-  ! We are using the ref space eigenstates as model functions, so
-  ! set the model space transformation to the unit matrix
-  mcoeff=0.0d0
-  do i=1,nvec
-     mcoeff(i,i)=1.0d0
-  enddo
-  
   ! H_eff and Psi^(1) calculation
   call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix,&
-       heff)
+       vec0scr(irrep),Avec,E2,nvec,ireg,regfac,dspscr,EQD,mix,heff)
 
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
@@ -394,7 +399,6 @@ subroutine gvvpt2(irrep,nroots,nextra,shift,confscr,vecscr,vec0scr,&
   deallocate(EQD)
   deallocate(mix)
   deallocate(work)
-  deallocate(mcoeff)
   deallocate(heff)
   
 !----------------------------------------------------------------------

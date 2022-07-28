@@ -14,7 +14,7 @@ contains
 !              model functions
 !######################################################################
   subroutine gvvpt2_heff(irrep,cfg,hdiag,averageii,csfdim,confdim,&
-       vec0scr,mcoeff,Avec,E2,nroots,nref,shift,dspscr,EQD,mix,heff)
+       vec0scr,Avec,E2,nroots,ireg,regfac,dspscr,EQD,mix,heff)
 
     use constants
     use bitglobal
@@ -40,22 +40,19 @@ contains
     ! Reference space eigenpair scratch file number
     integer(is), intent(in)  :: vec0scr
 
-    ! Representation of the model states in the reference space
-    ! eigenstate basis
-    real(dp), intent(in)     :: mcoeff(nref,nroots)
-    
     ! Number of roots/model states
     integer(is), intent(in)  :: nroots
 
-    ! Number of reference space states
-    integer(is), intent(in)  :: nref
-    
     ! ENPT2 wave function and energy corrections
     real(dp), intent(out)    :: Avec(csfdim,nroots)
     real(dp), intent(out)    :: E2(nroots)
 
-    ! ISA shift
-    real(dp), intent(in)     :: shift
+    ! Regularizer index: 1 <-> ISA
+    !                    2 <-> sigma^p
+    integer(is), intent(in)  :: ireg
+    
+    ! Regularization factor
+    real(dp), intent(in)     :: regfac
     
     ! Damped strong perturber scratch file number
     integer, intent(out)     :: dspscr
@@ -71,9 +68,6 @@ contains
     integer(is), allocatable :: iroots(:)
     real(dp), allocatable    :: e0(:),vec0(:,:)
 
-    ! Model states
-    real(dp), allocatable    :: mvec(:,:)
-    
     ! Damped strong perturbers
     integer(is)              :: ndsp
     integer(is), allocatable :: idsp(:)
@@ -97,19 +91,15 @@ contains
     refdim=cfg%csfs0h(cfg%n0h+1)-1
 
     ! Reference space eigenvalues
-    allocate(e0(nref))
+    allocate(e0(nroots))
     e0=0.0d0
 
     ! Reference space eigenvectors
-    allocate(iroots(nref))
-    allocate(vec0(refdim,nref))
+    allocate(iroots(nroots))
+    allocate(vec0(refdim,nroots))
     iroots=0
     vec0=0.0d0
 
-    ! Model states
-    allocate(mvec(refdim,nroots))
-    mvec=0.0d0
-    
     ! Hij working array
     harr2dim=maxval(ncsfs(0:nomax))**2
     allocate(harr2(harr2dim))
@@ -127,43 +117,37 @@ contains
 ! nroots ref space eigenvectors are needed.
 !----------------------------------------------------------------------
     ! Read in the eigenpairs
-    do i=1,nref
+    do i=1,nroots
        iroots(i)=i
     enddo
-    call read_some_eigenpairs(vec0scr,vec0,e0,refdim,nref,iroots)
+    call read_some_eigenpairs(vec0scr,vec0,e0,refdim,nroots,iroots)
 
     ! Subtract off E_SCF from the energies to get the true eigenvalues
     e0=e0-escf
 
 !----------------------------------------------------------------------
-! Construct the model states as linear combination of the reference
-! space eigenstates
-!----------------------------------------------------------------------
-    mvec=matmul(vec0,mcoeff)
-
-!----------------------------------------------------------------------
 ! (1) 1-hole configurations -> 1I and 1E configurations
 !----------------------------------------------------------------------
-    call avec_1h(cfg,Avec,averageii,mvec,csfdim,confdim,refdim,nroots,&
+    call avec_1h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots,&
          harr2,harr2dim)
 
 !----------------------------------------------------------------------
 ! (2) 2-hole configurations -> 2I, 2E and 1I1E configurations
 !----------------------------------------------------------------------
-    call avec_2h(cfg,Avec,averageii,mvec,csfdim,confdim,refdim,nroots,&
+    call avec_2h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots,&
          harr2,harr2dim)
 
 !----------------------------------------------------------------------
 ! Construct and diagonalise the GVVPT2 effective Hamiltonian
 !----------------------------------------------------------------------
-    call diag_heff(cfg,Avec,hdiag,e0,mcoeff,EQD,mix,csfdim,&
-         nroots,nref,refdim,shift,heff)
+    call diag_heff(cfg,Avec,hdiag,e0,EQD,mix,csfdim,nroots,refdim,&
+         ireg,regfac,heff)
     
 !----------------------------------------------------------------------
 ! Compute the first-order perturbed model states
 !----------------------------------------------------------------------
-    call model_states1(cfg,Avec,E2,hdiag,e0,mcoeff,csfdim,nroots,nref,&
-         refdim,shift,idsp)
+    call model_states1(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim,&
+         ireg,regfac,idsp)
    
 !----------------------------------------------------------------------
 ! Write the damped strong perturber array to disk
@@ -202,7 +186,6 @@ contains
     deallocate(e0)
     deallocate(iroots)
     deallocate(vec0)
-    deallocate(mvec)
     deallocate(harr2)
     deallocate(idsp)
 
@@ -214,8 +197,8 @@ contains
 ! model_states1: Application of the (H_nn - E^0_I) to get the 1st-order
 !                perturbed model states 
 !######################################################################
-  subroutine model_states1(cfg,Avec,E2,hdiag,e0,mcoeff,csfdim,nroots,&
-       nref,refdim,shift,idsp)
+  subroutine model_states1(cfg,Avec,E2,hdiag,e0,csfdim,nroots,refdim,&
+       ireg,regfac,idsp)
 
     use constants
     use bitglobal
@@ -227,7 +210,7 @@ contains
     type(mrcfg), intent(in)  :: cfg
 
     ! Dimensions
-    integer(is), intent(in)  :: csfdim,nroots,nref,refdim
+    integer(is), intent(in)  :: csfdim,nroots,refdim
 
     ! On-diagonal Hamiltonian matrix elements
     real(dp), intent(in)     :: hdiag(csfdim)
@@ -237,44 +220,23 @@ contains
     real(dp), intent(out)    :: E2(nroots)
     
     ! Reference space eigenvalues
-    real(dp), intent(in)     :: e0(nref)
+    real(dp), intent(in)     :: e0(nroots)
 
-    ! Model space expansion coefficients
-    real(dp), intent(in)     :: mcoeff(nref,nroots)
+    ! Regularizer index: 1 <-> ISA
+    !                    2 <-> sigma^p
+    integer(is), intent(in)  :: ireg
     
-    ! ISA shift
-    real(dp), intent(in)     :: shift
+    ! Regularization factor
+    real(dp), intent(in)     :: regfac
 
     ! Damped strong perturbers
     integer(is), intent(out) :: idsp(csfdim)    
     real(dp), parameter      :: cthrsh=0.055d0
-
-    ! Zeroth-erder effective Hamiltonian matrix
-    real(dp), allocatable   :: href(:,:),heff0(:,:)
     
     ! Everything else
     integer(is)              :: j,icsf
     real(dp)                 :: dj,Aold,ediff
-
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(href(nref,nref))
-    href=0.0d0
-
-    allocate(heff0(nroots,nroots))
-    heff0=0.0d0
-
-!----------------------------------------------------------------------
-! Zeroth-order effective Hamiltonian
-!----------------------------------------------------------------------
-    ! H_eff in the ref space eigenstate basis
-    do j=1,nref
-       href(j,j)=e0(j)
-    enddo
-
-    ! Transform to the model space basis
-    heff0=matmul(matmul(transpose(mcoeff),href),mcoeff)
+    real(dp)                 :: deltai,Vi,fi
     
 !----------------------------------------------------------------------
 ! Compute the 1st-order perturbed model states (projected onto the
@@ -291,20 +253,29 @@ contains
        do icsf=refdim+1,csfdim
 
           ! E^(0) - H_ii
-          ediff=heff0(j,j)-hdiag(icsf)
-          
-          ! ISA factor
-          dj=shift/ediff
+          deltai=e0(j)-hdiag(icsf)
 
-          ! Unshifted A-vector element
-          Aold=Avec(icsf,j)/ediff
-          
-          ! Energy correction
-          E2(j)=E2(j)+Avec(icsf,j)**2/(ediff+dj)
+          ! <I|H|i>
+          Vi=Avec(icsf,j)
+
+          ! Regularized denominators
+          if (ireg == 1) then
+             ! ISA
+             fi=deltai/(deltai**2+regfac)
+          else if (ireg == 2) then
+             ! sigma^p
+             fi=(1.0d0-exp(-abs(deltai/regfac)**2))/deltai
+          endif
+
+          ! Unregularized A-vector element
+          Aold=Vi/deltai
           
           ! A-vector element
-          Avec(icsf,j)=Avec(icsf,j)/(ediff+dj)
+          Avec(icsf,j)=Vi*fi
 
+          ! Energy correction
+          E2(j)=E2(j)+Vi**2*fi
+          
           ! Make sure that all strong perturbers are captured
           if (abs(Aold) >= cthrsh &
                .and. abs(Avec(icsf,j)) < cthrsh) idsp(icsf)=1
@@ -313,12 +284,6 @@ contains
        
     enddo
 
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(href)
-    deallocate(heff0)
-        
     return
     
   end subroutine model_states1
@@ -327,8 +292,8 @@ contains
 ! diag_heff: constructs and diagonalises the GVVPT2 effective
 !            Hamiltonian using the ENPT2 Hamiltonian partitioning  
 !######################################################################
-  subroutine diag_heff(cfg,Avec,hdiag,e0,mcoeff,EQD,mix,csfdim,&
-       nroots,nref,refdim,shift,heff)
+  subroutine diag_heff(cfg,Avec,hdiag,e0,EQD,mix,csfdim,nroots,&
+       refdim,ireg,regfac,heff)
 
     use constants
     use bitglobal
@@ -342,7 +307,7 @@ contains
     type(mrcfg), intent(in) :: cfg
 
     ! Dimensions
-    integer(is), intent(in) :: csfdim,nroots,nref,refdim
+    integer(is), intent(in) :: csfdim,nroots,refdim
 
     ! On-diagonal Hamiltonian matrix elements
     real(dp), intent(in)    :: hdiag(csfdim)
@@ -351,53 +316,35 @@ contains
     real(dp), intent(inout) :: Avec(csfdim,nroots)
     
     ! Reference space eigenvalues
-    real(dp), intent(in)    :: e0(nref)
-
-    ! Model space expansion coefficients
-    real(dp), intent(in)    :: mcoeff(nref,nroots)
+    real(dp), intent(in)    :: e0(nroots)
 
     ! QDPT2 energies and mixing coefficients
     real(dp), intent(out)   :: EQD(nroots)
     real(dp), intent(out)   :: mix(nroots,nroots)
 
-    ! ISA shift
-    real(dp), intent(in)    :: shift
+    ! Regularizer index: 1 <-> ISA
+    !                    2 <-> sigma^p
+    integer(is), intent(in) :: ireg
+    
+    ! Regularization factor
+    real(dp), intent(in)    :: regfac
     
     ! Effective Hamiltonian
     real(dp), intent(out)   :: heff(nroots,nroots)
 
-    ! Zeroth-order Hamiltonian
-    real(dp), allocatable   :: href(:,:),heff0(:,:)
-
     ! Everything else
     integer(is)             :: i,j,icsf
-    real(dp)                :: fac,di,dj
-    
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(href(nref,nref))
-    href=0.0d0
-
-    allocate(heff0(nroots,nroots))
-    heff0=0.0d0
-
-!----------------------------------------------------------------------
-! Zeroth-order contribution to the GVVPT2 effective Hamiltonian
-!----------------------------------------------------------------------
-    ! H_eff in the ref space eigenstate basis
-    do i=1,nref
-       href(i,i)=e0(i)
-    enddo
-
-    ! Transform to the model space basis
-    heff0=matmul(matmul(transpose(mcoeff),href),mcoeff)
+    real(dp)                :: fac,di,dj,deltai,deltaj,Vi,Vj
+    real(dp)                :: fi,fj,epsilon
     
 !----------------------------------------------------------------------
 ! Second-order contribution to the GVVPT2 effective Hamiltonian
 !----------------------------------------------------------------------
     ! Initialisation
-    heff=heff0
+    heff=0.0d0
+    do i=1,nroots
+       heff(i,i)=e0(i)
+    enddo
 
     ! Loop over pairs of roots
     do i=1,nroots
@@ -406,16 +353,25 @@ contains
           ! Loop over FOIS CSFs
           do icsf=refdim+1,csfdim
 
-             ! ISA factors
-             di=shift/(heff0(i,i)-hdiag(icsf))
-             dj=shift/(heff0(j,j)-hdiag(icsf))
-
-             ! ISA-shifted denominators
-             fac=0.5d0/(heff0(i,i)-hdiag(icsf)+di)
-             fac=fac+0.5d0/(heff0(j,j)-hdiag(icsf)+dj)
-
-             ! <I|H|i> <i|H|J> / (E_I^0 - H_ii + Delta_Ii) + (I<->J)
-             heff(i,j)=heff(i,j)+Avec(icsf,i)*Avec(icsf,j)*fac
+             ! <I|H|i> and <i|H|J>
+             Vi=Avec(icsf,i)
+             Vj=Avec(icsf,j)
+             
+             ! Regularized denominators
+             deltai=e0(i)-hdiag(icsf)
+             deltaj=e0(j)-hdiag(icsf)
+             if (ireg == 1) then
+                ! ISA
+                fi=deltai/(deltai**2+regfac)
+                fj=deltaj/(deltaj**2+regfac)
+             else if (ireg == 2) then
+                ! sigma^p
+                fi=(1.0d0-exp(-abs(deltai/regfac)**2))/deltai
+                fj=(1.0d0-exp(-abs(deltaj/regfac)**2))/deltaj
+             endif
+             
+             ! <I|H|i> <i|H|J> / (E_I^0 - H_ii) * f_I + (I<->J)
+             heff(i,j)=heff(i,j)+0.5d0*Vi*Vj*(fi+fj)
              
           enddo
           
@@ -432,12 +388,6 @@ contains
 
     ! Add E_SCF to the eigenvalues
     EQD=EQD+escf
-    
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(href)
-    deallocate(heff0)
     
     return
     

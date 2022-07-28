@@ -78,10 +78,9 @@ bitci_registry = {
     'ndet_truncated'          : ['int32','int32','double','int32'],
     'retrieve_det_truncated'  : ['int32','int32','int32','int32','int64',
                                  'double','double'],
-    'gvvpt2'                  : ['int32','int32','int32','double',
-                                 'int32','int32','int32',
-                                 'int32','int32'],
-    'gvvpt2_follow'           : ['int32','int32','int32','double',
+    'gvvpt2'                  : ['int32','int32','int32','int32','double',
+                                 'int32','int32','int32','int32','int32'],
+    'gvvpt2_follow'           : ['int32','int32','int32','int32','double',
                                  'int32','int32','int32','int64','double',
                                  'int32','double','int32','int32','logical',
                                  'int32','int32','int32','int32','int32'],
@@ -130,11 +129,11 @@ bitci_intent = {
     'wf_mrci'                 : ['in','in','in','in','in','out','out'],
     'ndet_truncated'          : ['in','in','in','out'],
     'retrieve_det_truncated'  : ['in','in','in','in','out','out','in'],
-    'gvvpt2'                  : ['in','in','in','in','in','out','in',
-                                 'out','out'],
+    'gvvpt2'                  : ['in','in','in','in','in','in','out',
+                                 'in','out','out'],
     'gvvpt2_follow'           : ['in','in','in','in','in','in','in',
                                  'in','in','in','in','in','in','in',
-                                 'in','out','in','out','out'],
+                                 'in','in','out','in','out','out'],
     'truncate_mrci_wf'        : ['in','in','in','in','in','out']
 }
 
