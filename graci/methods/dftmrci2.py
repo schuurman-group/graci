@@ -16,6 +16,7 @@ import graci.interfaces.bitci.ref_prune as ref_prune
 import graci.interfaces.bitci.mrci_space as mrci_space
 import graci.interfaces.bitci.gvvpt2 as gvvpt2
 import graci.interfaces.bitci.gvvpt2_refine as gvvpt2_refine
+import graci.interfaces.bitci.gvvpt2_truncate as gvvpt2_truncate
 import graci.interfaces.bitci.mrci_1rdm as mrci_1rdm
 import graci.interfaces.bitci.mrci_wf as mrci_wf
 import graci.interfaces.overlap.bdd as bdd
@@ -200,18 +201,11 @@ class Dftmrci2(cimethod.Cimethod):
             # DFT/MRCI(2) calculation
             if self.diabatic:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units, n_conf_new = \
-                        gvvpt2.diag_heff_follow(self, guess)
+                    q_units, dsp_units = gvvpt2.diag_heff_follow(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units, n_conf_new = \
-                        gvvpt2.diag_heff(self)
+                    q_units, dsp_units = gvvpt2.diag_heff(self)
                 
-            # set the new number of mrci confs if wave function
-            # truncation is being used
-            if self.truncate:
-                self.mrci_wfn.set_nconf(n_conf_new)            
-                        
             # set the wfn unit numbers, file names, energies,
             # Q-space info, and damped strong perturber unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
@@ -241,11 +235,10 @@ class Dftmrci2(cimethod.Cimethod):
         if self.save_wf or self.diabatic:
             mrci_wf.extract_wf(self)
 
+        # diabatisation
         if self.diabatic:
-            # ADT matrix
             adt_matrices = bdd.adt(guess, self)
             self.adt = adt_matrices
-            # Diabatic potential
             self.diabatize()
             nroots = [self.n_states_sym(irr)
                       for irr in range(self.n_irrep())]
@@ -253,7 +246,14 @@ class Dftmrci2(cimethod.Cimethod):
                 output.print_diabpot(self.diabpot, nroots,
                                      self.n_irrep(),
                                      self.scf.mol.irreplbl)
-            
+
+        # removal of deadwood configurations
+        # (this must be called _after_ the CSF-to-det
+        #  transformation)
+        if self.truncate:
+            n_conf_new = gvvpt2_truncate.truncate_wf(self)
+            self.mrci_wfn.set_nconf(n_conf_new)            
+        
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
 
