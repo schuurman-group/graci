@@ -14,7 +14,7 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
      nconf_new) bind(c,name="truncate_mrci_wf")
 #else
 subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
-       nconf_new)
+     nconf_new)
 #endif
 
   use constants
@@ -55,8 +55,8 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
   ! Array of CSFs to include in the new space regardless
   ! of their contribution to the WFs
   ! Needed by pspace_conf_indices, but won't be utilised here
-  integer(is)                :: nexplicit
-  integer(is), allocatable   :: iexplicit(:)
+  integer(is)              :: nexplicit
+  integer(is), allocatable :: iexplicit(:)
   
   ! Everything else
   integer(is)              :: i,iscratch
@@ -121,17 +121,16 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
 !----------------------------------------------------------------------
   call cfg_new%finalise
   call cfg_new%initialise(irrep,confscr)
-
+  
   allocate(vec_new(cfg_new%csfdim,nroots))
   vec_new=0.0d0
   
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
-
-  ! This should be called for one root at a time in order to
-  ! move through the vec arrays in a contiguous manner
-  
+! To do: this should be called for one root at a time in order to move
+!        through the vec arrays in a contiguous manner
+!----------------------------------------------------------------------
   call set_new_vecs(cfg,cfg_new,cfg%csfdim,cfg_new%csfdim,nroots,&
        cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,i1I,i2I,i1E,i2E,&
        i1I1E,vec,vec_new)

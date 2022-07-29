@@ -56,7 +56,7 @@ contains
     ! Timing variables
     real(dp)                :: tcpu_start,tcpu_end,twall_start,&
                                twall_end
-
+    
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -761,8 +761,9 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 1I - bra 1I contributions
-                if (nac <= 3 .and. &
-                     cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
+                if (nac <= 3 &
+                     .and. cfgB%n1I > 0 &
+                     .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1I,cfgK%n1I,&       ! no. bra and ket confs
@@ -776,6 +777,7 @@ contains
 
                 ! Ket 1I - bra 1E contributions
                 if (nac <= 1 &
+                     .and. cfgB%n1E > 0 &
                      .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -797,7 +799,7 @@ contains
           !
           ! Work with elements < Ket | E_q^p | Bra >
           transpose=.true.
-          if (cfgB%n1I > 0) then
+          if (cfgB%n1I > 0 .and. cfgK%n1E > 0) then
 
              ! Loop over ket 1I configurations
              do ikconf=cfgB%off1I(bn),cfgB%off1I(bn+1)-1
@@ -854,16 +856,17 @@ contains
           !
           ! Work with elements < Bra | E_p^q | Ket >
           transpose=.false.
-          
-          ! Cycle if the bra 1-hole configuration doesn't generate
-          ! any 1E configurations
+
+          ! Cycle if we have no bra or ket 1E confs
+          if (cfgK%n1E == 0) cycle
+          if (cfgB%n1E == 0) cycle
           if (cfgB%off1E(bn) == cfgB%off1E(bn+1)) cycle
           
           ! Cycle if the the bra and ket 1-hole configurations
           ! cannot generate interacting 1E configurations wrt the
           ! singlet excitation operators E_a^i
           if (nac1 > 2) cycle
-
+          
           ! Loop over ket 1E configurations
           do ikconf=cfgK%off1E(kn),cfgK%off1E(kn+1)-1
              
@@ -876,11 +879,11 @@ contains
 
              ! Number of ket 1E CSFs
              knsp=ncsfs(knopen)
-
+                
              ! Get the number of open shells preceding each ket
              ! conf MO
              call nobefore(ksop_full,nbefore)
-
+             
              ! Ket 1E - bra 1E matrix contributions
              call tdm_batch(&
                   bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
