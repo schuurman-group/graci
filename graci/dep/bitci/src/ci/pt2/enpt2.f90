@@ -136,7 +136,7 @@ contains
     ndsp=sum(idsp)
     
     if (verbose) write(6,'(/,x,a,x,i0)') &
-         'Number of damped strong perurbers:',ndsp
+         'Number of damped strong perturbers:',ndsp
     
 !----------------------------------------------------------------------
 ! Deallocate arrays
