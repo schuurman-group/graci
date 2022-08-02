@@ -373,8 +373,10 @@ class Parameterize:
                 is_ci  = any([ci in name for ci in params.ci_objs])
                 st_map = chkpt.read_attribute(ref_file, name, 
                                                        'state_map')
-                 
-                if molecule in name and is_ci and st_map is not None:
+                
+                # name of section is 'original.name.molecule'
+                m_name = name.strip().split('.')[-1]
+                if molecule == m_name and is_ci and st_map is not None:
                     ci_objs[molecule].append(name)
                     ref_states[molecule].append(st_map)
 
