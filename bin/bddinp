@@ -1,0 +1,161 @@
+#!/usr/bin/env python
+"""
+Automated creation of GRaCI DFT/MRCI(2) P-BDD input files
+given an xyz file containing a set of geometries at which
+the diabatic states are to be computed, the no. states of each irrep
+and the basis name.
+
+Currently assumes that density fitting will be used
+
+Usage: 
+
+bddinp -xyz_file 'geom_file.xyz' -nstates '[n1 n2 n3 n4]' -basis 'basis_name'
+
+"""
+
+
+import sys as sys
+import numpy as np
+
+
+class Geometry:
+    """
+    Class constructor for a geometry object
+    """
+    def __init__(self, xyz):
+        self.n_atoms = len(xyz)
+        self.atoms   = [lst[0] for lst in xyz]
+        self.coords  = np.array([lst[1:] for lst in xyz])
+
+        
+def read_args():
+    """
+    Parsing of the command line arguments
+    """
+
+    # Command line arguments
+    args = sys.argv[1:]
+
+    # xyz file name
+    try:
+        xyz_file = args[1+args.index('-xyz_file')]
+    except:
+        sys.exit('-xyz_file argument not given')
+        
+    # nstates argument
+    try:
+        nstates = args[1+args.index('-nstates')]
+    except:
+        sys.exit('-nstates argument not given')
+
+    # basis set
+    try:
+        basis = args[1+args.index('-basis')]
+    except:
+        sys.exit('-basis argument not given')
+        
+    return xyz_file, nstates, basis
+
+
+def parse_xyz_file(xyz_file):
+    """
+    reads an xyz file and creates a Geometry class object
+    for each entry
+    """
+
+    # initialise the list of Geometry class objects
+    geom_objs = []
+
+    # parse the xyz file
+    with open(xyz_file) as f:
+        lines = f.readlines()
+
+    # no. atoms and starting points of the xyz entries
+    n_atoms      = int(lines[0])
+    start_points = [i for i, s in enumerate(lines) if s == lines[0]]
+    n_geoms      = len(start_points)
+
+    # set up the geomtry class objects
+    for i in range(n_geoms):
+        xyz = []
+        for j in range(start_points[i]+2,start_points[i]+n_atoms+2):
+            xyz.append(lines[j].split())
+        geom_objs.append(Geometry(xyz))
+        
+    return geom_objs
+
+
+def write_input(geom_objs, nstates, basis):
+    """
+    writes the GRaCI DFT/MRCI(2) P-BDD input file
+    """
+
+    # are we using symmetry?
+    n_symm = len([int(s) for s in nstates.strip('[').strip(']').split()])
+    if n_symm > 1:
+        symm = True
+    else:
+        symm = False
+
+    # reference geometry
+    write_1geom(geom_objs[0], symm, nstates, basis, label='geom0', diab=False)
+
+    # displaced geometries
+    for i in range(1, len(geom_objs)):
+        write_1geom(geom_objs[i], symm, nstates, basis,
+                    label='geom'+str(i),
+                    prev_label='geom'+str(i-1))        
+    
+    return
+
+
+def write_1geom(geom_obj, symm, nstates, basis, label, prev_label=None,
+                diab=True):
+    """
+    writes a set of input sections for a single geometry
+    """
+
+    print('\n$molecule section')
+    for i in range(geom_obj.n_atoms):
+        atom   = geom_obj.atoms[i]
+        coords = geom_obj.coords[i]
+        print('', atom, coords[0], coords[1], coords[2])
+    print(' label    = '+label)
+    print(' basis    = '+basis)
+    print(' ri_basis = '+basis+'-jkfit')
+    print(' use_sym  = '+str(symm))
+    print(' use_df   = True')
+    print('$end')
+
+    print('\n$scf section')
+    print(' label       = '+label)
+    if prev_label is not None:
+        print(' guess_label = '+prev_label)
+    print(' charge      = 0')
+    print(' mult        = 1')
+    print(' xc          = bhandhlyp')
+    print('$end')
+
+    print('\n$dftmrci2 section')
+    print(' label       = '+label)
+    if prev_label is not None:
+        print(' guess_label = '+prev_label)
+    print(' nstates     = '+nstates)
+    if diab:
+        print(' diabatic    = True')
+    else:
+        print(' save_wf     = True')
+    print('$end')
+    
+    return
+
+if __name__ == '__main__':
+
+    # parse the command line arguments
+    xyz_file, nstates, basis = read_args()
+
+    # set up the Geometry class objects
+    geom_objs = parse_xyz_file(xyz_file)
+
+    # write the GRaCI input file
+    write_input(geom_objs, nstates, basis)

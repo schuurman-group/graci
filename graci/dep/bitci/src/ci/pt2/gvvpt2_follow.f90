@@ -4,13 +4,13 @@
 ! Nesbet Hamiltonian partitioning ***with root following***
 !######################################################################
 #ifdef CBINDING
-subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
-     nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,confscr,&
-     vecscr,vec0scr,Qscr,dspscr) bind(c,name="gvvpt2_follow")
+subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
+     ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
+     confscr,vecscr,vec0scr,Qscr,dspscr) bind(c,name="gvvpt2_follow")
 #else
-subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
-     nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,confscr,&
-     vecscr,vec0scr,Qscr,dspscr)
+subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
+     ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
+     confscr,vecscr,vec0scr,Qscr,dspscr)
 #endif
 
   use constants
@@ -35,8 +35,12 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   ! Number of extra roots to include in the GVVPT2 calculation
   integer(is), intent(in)  :: nextra
 
-  ! ISA shift
-  real(dp), intent(in)     :: shift
+  ! Regularizer index: 1 <-> ISA
+  !                    2 <-> sigma^p
+  integer(is), intent(in)  :: ireg
+  
+  ! Regularization factor
+  real(dp), intent(in)     :: regfac
 
   ! Eigenvectors to follow, expressed in a Slater determinant basis
   integer(is), intent(in)  :: n_intR0,ndetR0,nrootsR0
@@ -113,7 +117,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=60)        :: vecfile,Qfile
+  character(len=250)       :: vecfile,Qfile
   character(len=2)         :: amult,airrep
   
   ! Everything else
@@ -121,7 +125,6 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   integer(is)              :: nvec
   integer(is), allocatable :: indx(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:),Qnorm1(:),Qener1(:)
-  real(dp), allocatable    :: mcoeff(:,:)
   logical                  :: lprint
   
   ! Timing variables
@@ -153,6 +156,19 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
      errmsg='Error in gvvpt2_follow: nroots != nrootsR0'
      call error_control
   endif
+
+!----------------------------------------------------------------------
+! Output the regularizer being used
+!----------------------------------------------------------------------
+  select case(ireg)
+  case(1)
+     if (verbose) write(6,'(/,x,a)') 'Regularizer: ISA'
+  case(2)
+     if (verbose) write(6,'(/,x,a)') 'Regularizer: sigma^p'
+  case default
+     errmsg='Error in gvvpt2: unrecognized regularizer index'
+     call error_control
+  end select
   
 !----------------------------------------------------------------------
 ! Set up the configuration derived type
@@ -214,9 +230,6 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   allocate(indx(nroots))
   indx=0.0d0
 
-  allocate(mcoeff(nvec,nvec))
-  mcoeff=0.0d0
-
   allocate(heff(nvec,nvec))
   heff=0.0d0
   
@@ -235,17 +248,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
 ! Also returns the 1st-order perturbed model functions in the Avec
 ! array
 !----------------------------------------------------------------------
-  ! We are using the ref space eigenstates as model functions, so
-  ! set the model space transformation to the unit matrix
-  mcoeff=0.0d0
-  do i=1,nvec
-     mcoeff(i,i)=1.0d0
-  enddo
-  
   ! H_eff and Psi^(1) calculation
   call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),mcoeff,Avec,E2,nvec,nvec,shift,dspscr,EQD,mix,&
-       heff)
+       vec0scr(irrep),Avec,E2,nvec,ireg,regfac,dspscr,EQD,mix,heff)
 
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
@@ -498,7 +503,6 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,shift,n_intR0,ndetR0,&
   deallocate(maxSij)
   deallocate(Sij1)
   deallocate(indx)
-  deallocate(mcoeff)
   deallocate(heff)
   
 !----------------------------------------------------------------------

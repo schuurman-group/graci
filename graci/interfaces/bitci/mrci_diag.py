@@ -49,12 +49,12 @@ def diag(ci_method):
         nblock = blocksize[irrep]
 
         args = (irrep, nroots, ci_confunits, ciunit, ialg, tol, niter, 
-                blocksize, deflate, iguess, ref_ciunits)
+                nblock, deflate, iguess, ref_ciunits)
         ciunit = libs.lib_func('diag_mrci', args)
 
         # Bitci eigenvector scratch number
         ciunits.append(ciunit)
-
+    
     # Retrieve the MRCI energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)

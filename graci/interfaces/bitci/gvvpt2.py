@@ -18,8 +18,11 @@ def diag_heff(ci_method):
     Diagonalisation of the DFT/MRCI(2) effective Hamiltonian
     """
 
-    # ISA shift
-    shift = ci_method.shift
+    # GVVPT2 regularizer index
+    ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
+    
+    # Regularisation factor
+    regfac = ci_method.regfac
     
     # nirr is given by the length of the nstates vector in ci obj
     nirr = ci_method.n_irrep()
@@ -42,10 +45,6 @@ def diag_heff(ci_method):
     dspunit  = 0
     dspunits = []
 
-    # Number of configurations per irrep (this can change if wave
-    # function truncation is being used)
-    nconf = np.array(ci_method.mrci_wfn.nconf, dtype=int)
-    
     # Loop over irreps
     for irrep in range(nirr):
 
@@ -55,8 +54,9 @@ def diag_heff(ci_method):
         # Number of extra roots
         nextra = ci_method.nextra['pt2'][irrep]
         
-        args = (irrep, nroots, nextra, shift, ci_confunits,
-                ciunit, ref_ciunits, qunit, dspunit)
+        args = (irrep, nroots, nextra, ireg, regfac,
+                ci_confunits, ciunit, ref_ciunits,
+                qunit, dspunit)
 
         ciunit, qunit, dspunit = libs.lib_func('gvvpt2', args)
 
@@ -87,18 +87,6 @@ def diag_heff(ci_method):
         name = libs.lib_func('retrieve_filename', args)
         ciname.append(name)
 
-    # Optional truncation of the DFT/MRCI(2) 1st-order corrected
-    # wave functions
-    if ci_method.truncate:
-        for irrep in range(nirr):
-            thresh       = ci_method.truncate_thresh
-            nroots       = ci_method.n_states_sym(irrep)
-            nconf_new    = 0
-            args         = (irrep, nroots, ci_confunits[irrep],
-                            ciunits[irrep], thresh, nconf_new)
-            (nconf_new)  = libs.lib_func('truncate_mrci_wf', args)
-            nconf[irrep] = nconf_new
-    
     # Print the report of the DFT/MRCI(2) states 
     if ci_method.verbose:
         output.print_dftmrci2_states_header()
@@ -108,7 +96,7 @@ def diag_heff(ci_method):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
     
-    return ciunits, ciname, ener, qunits, dspunits, nconf
+    return ciunits, ciname, ener, qunits, dspunits
 
 @timing.timed
 def diag_heff_follow(ci_method, ci_method0):
@@ -117,8 +105,11 @@ def diag_heff_follow(ci_method, ci_method0):
     with root following
     """
 
-    # ISA shift
-    shift = ci_method.shift
+     # GVVPT2 regularizer index
+    ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
+    
+    # Regularisation factor
+    regfac = ci_method.regfac
     
     # nirr is given by the length of the nstates vector in ci obj
     nirr = ci_method.n_irrep()
@@ -140,10 +131,6 @@ def diag_heff_follow(ci_method, ci_method0):
     qunits   = []
     dspunit  = 0
     dspunits = []
-
-    # Number of configurations per irrep (this can change if wave
-    # function truncation is being used)
-    nconf = np.array(ci_method.mrci_wfn.nconf, dtype=int)
 
     # MO overlaps
     nmo0 = ci_method0.scf.nmo
@@ -183,10 +170,11 @@ def diag_heff_follow(ci_method, ci_method0):
         vec0   = np.reshape(ci_method0.vec_det[irrep],
                             (n_det0*n_vec0), order='F')
         
-        args = (irrep, nroots, nextra, shift,
-                n_int0, n_det0, n_vec0, dets0, vec0, nmo0, smat,
-                ncore, icore, delete_core,
-                ci_confunits,ciunit, ref_ciunits, qunit, dspunit)
+        args = (irrep, nroots, nextra, ireg, regfac,
+                n_int0, n_det0, n_vec0, dets0, vec0,
+                nmo0, smat, ncore, icore, delete_core,
+                ci_confunits,ciunit, ref_ciunits, qunit,
+                dspunit)
 
         ciunit, qunit, dspunit = libs.lib_func('gvvpt2_follow', args)
 
@@ -217,18 +205,6 @@ def diag_heff_follow(ci_method, ci_method0):
         name = libs.lib_func('retrieve_filename', args)
         ciname.append(name)
 
-    # Optional truncation of the DFT/MRCI(2) 1st-order corrected
-    # wave functions
-    if ci_method.truncate:
-        for irrep in range(nirr):
-            thresh       = ci_method.truncate_thresh
-            nroots       = ci_method.n_states_sym(irrep)
-            nconf_new    = 0
-            args         = (irrep, nroots, ci_confunits[irrep],
-                            ciunits[irrep], thresh, nconf_new)
-            (nconf_new)  = libs.lib_func('truncate_mrci_wf', args)
-            nconf[irrep] = nconf_new
-    
     # Print the report of the DFT/MRCI(2) states 
     if ci_method.verbose:
         output.print_dftmrci2_states_header()
@@ -238,4 +214,4 @@ def diag_heff_follow(ci_method, ci_method0):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
             
-    return ciunits, ciname, ener, qunits, dspunits, nconf
+    return ciunits, ciname, ener, qunits, dspunits

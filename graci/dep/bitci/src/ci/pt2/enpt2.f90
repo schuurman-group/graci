@@ -69,7 +69,7 @@ contains
 
     ! I/O
     integer(is)                     :: iscratch
-    character(len=60)               :: dspfile
+    character(len=250)              :: dspfile
     character(len=2)                :: amult,airrep
     
     ! Everything else
@@ -136,7 +136,7 @@ contains
     ndsp=sum(idsp)
     
     if (verbose) write(6,'(/,x,a,x,i0)') &
-         'Number of damped strong perurbers:',ndsp
+         'Number of damped strong perturbers:',ndsp
     
 !----------------------------------------------------------------------
 ! Deallocate arrays

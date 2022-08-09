@@ -117,7 +117,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
      write(6,'(/,x,a,x,i0)') 'Bra CSF basis dimension:',cfgB%csfdim
      write(6,'(x,a,x,i0)') 'Ket CSF basis dimension:',cfgK%csfdim
   endif
-     
+  
 !----------------------------------------------------------------------
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------
@@ -206,7 +206,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
 !----------------------------------------------------------------------
   call tdm_mrci(cfgB,cfgK,cfgB%csfdim,cfgK%csfdim,nvecB,nvecK,vecB,&
        vecK,npairs,rhoij,Bmap,Kmap)
-
+  
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------

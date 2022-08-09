@@ -15,6 +15,7 @@ orb_objs      = {'-scf' : ['Scf'],
                  '-nto' : ['Transition'],
                  '-ndo' : ['Transition']}
 wfn_objs      = {'-dets' : ['Dftmrci','Dftcis']}                
+diab_objs     = {'-diabpot' : ['Dftmrci2']}
 
 #
 def main():
@@ -30,6 +31,9 @@ def main():
     # extract det/csf lists if requested
     extract_wfns(chkpt_file, extract_list)
 
+    # extract the diabatic potentials if requested
+    extract_diabpot(chkpt_file, extract_list)
+    
     return
 
 #
@@ -44,6 +48,7 @@ def read_cmdline():
                     '-nto'     : None, 
                     '-ndo'     : None,
                     '-dets'    : None,
+                    '-diabpot' : None,
                     '-format'  : 'molden',
                     '-cutoff'  : 0,
                     '-cartao'  : 'true'}
@@ -63,7 +68,7 @@ def read_cmdline():
             # if argument not given, define default behavior
             else:
                 extract_list[arg] = 'default'
-
+    
     # do some sanity checking on the format argument
     if extract_list['-format'] not in valid_formats:
         print("File format: "+str(extract_list['-format'])+
@@ -92,7 +97,8 @@ def extract_orbitals(chkpt_file, extract_list):
 
         # these are not orbital related 
         if key=='-dets' or key=='-cutoff' or \
-                key=='-format' or key=='-cartao':
+                key=='-format' or key=='-cartao' \
+                or key == '-diabpot':
             continue
 
         # figure out which object to extract:
@@ -211,6 +217,89 @@ def extract_wfns(chkpt_file, extract_list):
                     det_str += ('%3d'*nmo) % tuple(det[:,idet])
                     detlist.write(det_str+'\n')
 
+    return
+
+#
+def extract_diabpot(chkpt_file, extract_list):
+    """Output the diabatic potentials"""
+
+    if extract_list['-diabpot'] is None:
+        return
+
+    # requested Dftmrci2 object label(s)
+    string = extract_list['-diabpot']
+
+    # if the Dftmrci2 object labels were given in
+    # the string[i:j], format, then convert to
+    # [stringi, stringi+1,..., stringj]
+    if '[' in string and ']' in string:
+        interval = string[string.index('[')+1:string.index(']')]
+        i = int(interval[:interval.index(':')])
+        j = int(interval[interval.index(':')+1:])
+        stem = string[:string.index('[')]
+        labels = [stem+str(k) for k in range(i,j+1)]
+    else:
+        labels = [string]
+    
+    # get the object name(s)
+    chkpt_objs = chkpt.contents(file_name=chkpt_file)
+    valid_objs = diab_objs['-diabpot']
+    obj_names  = []
+    for i in range(len(labels)):
+        try:
+            obj_names.append([name for name in chkpt_objs if
+                              name.split('.')[0] in valid_objs
+                              and name.endswith('.'+labels[i])][0])
+        except:
+            pass
+            
+    # get the Dftmrci2 object(s)
+    chkpt_objs = [chkpt.read(obj_names[i], file_name = chkpt_file)
+                  for i in range(len(obj_names))]
+    
+    # no. irreps (enforced to be the same for all geometries by
+    # GRaCI during a diabatisation run)
+    nirr = len(chkpt_objs[0].scf.mol.irreplbl)
+            
+    # irrep labels
+    irreplbl = chkpt_objs[0].scf.mol.irreplbl
+    
+    # make the output directory
+    if not os.path.isdir('diabpot'):
+        os.mkdir('diabpot')
+        
+    # output the diabatic potentials for each symmetry block
+    for irr in range(nirr):
+
+        n_states   = chkpt_objs[0].n_states_sym(irr)
+
+        # open the output files
+        file_names = ['diabpot/diabpot_'+irreplbl[irr]
+                      +'_'+str(i+1)+'_'+str(j+1)
+                      for i in range(n_states)
+                      for j in range(i,n_states)]
+        
+        f = [open(file_names[i], 'w')
+             for i in range(len(file_names))]
+
+        # write the diabatic potentials to file
+        for n in range(len(chkpt_objs)):
+
+            try:
+                # Diabatic potential
+                wmat = chkpt_objs[n].diabpot[irr]
+            except:
+                # No diabatic potential object: assume
+                # that we are at Q0
+                wmat = np.diag(chkpt_objs[n].energies)
+                
+            k = -1
+            for i in range(n_states):
+                for j in range(i,n_states):
+                    k += 1
+                    f[k].write('{:4d} {:10.6f}\n'
+                               .format(n, wmat[i,j]))
+    
     return
 
 #

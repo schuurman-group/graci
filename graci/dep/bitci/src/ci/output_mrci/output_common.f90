@@ -566,7 +566,7 @@ contains
 
     integer(is)                                 :: ihomo,imo,k,i,occ
     integer(is)                                 :: ind
-    character(len=60)                           :: string1,string2
+    character(len=250)                          :: string1,string2
     character(len=1), parameter, dimension(0:2) :: aocc= ['0', '1', '2']
     
     !

@@ -352,7 +352,6 @@ class Transition(interaction.Interaction):
         bra and/or ket object may be spin-free or spin-orbit
         coupled objects
         """
-        print('tdm_blk.shape='+str(tdm_blk.shape))
 
         # this will work for now, but feels inelegant
         if type(self.bra_obj).__name__ == 'Spinorbit':

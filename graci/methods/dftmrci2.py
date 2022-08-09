@@ -16,6 +16,7 @@ import graci.interfaces.bitci.ref_prune as ref_prune
 import graci.interfaces.bitci.mrci_space as mrci_space
 import graci.interfaces.bitci.gvvpt2 as gvvpt2
 import graci.interfaces.bitci.gvvpt2_refine as gvvpt2_refine
+import graci.interfaces.bitci.gvvpt2_truncate as gvvpt2_truncate
 import graci.interfaces.bitci.mrci_1rdm as mrci_1rdm
 import graci.interfaces.bitci.mrci_wf as mrci_wf
 import graci.interfaces.overlap.bdd as bdd
@@ -40,7 +41,8 @@ class Dftmrci2(cimethod.Cimethod):
         # user defined quanties
         self.truncate        = True
         self.truncate_thresh = 0.9
-        self.shift           = 0.005
+        self.regularizer     = 'isa'
+        self.regfac          = None
         self.hamiltonian     = 'heil17_standard'
         self.ras1            = []
         self.ras2            = []
@@ -57,22 +59,29 @@ class Dftmrci2(cimethod.Cimethod):
         self.label           = 'Dftmrci2'
 
         # class variables
-        # No. extra ref space roots needed
-        self.nextra         = {}
-        # Max no. iterations of the ref space refinement 
-        self.niter          = 0
+        # allowed regularizers
+        self.allowed_regularizer = ['isa', 'sigmap']
+        # allowed ref conf selection algorithms
+        self.allowed_refsel      = ['static', 'dynamic']
+        # default regularization factors
+        self.default_regfac      = {'isa' : 0.005, 'sigmap' : 0.025}
+        # no. extra ref space roots needed
+        self.nextra              = {}
+        # max no. iterations of the ref space refinement 
+        self.niter               = 0
         # ref space bitci wave function object
-        self.ref_wfn        = None
+        self.ref_wfn             = None
         # MRCI bitci wave function object
-        self.mrci_wfn       = None
+        self.mrci_wfn            = None
         # reference space energies
-        self.ref_ener       = None
+        self.ref_ener            = None
         # Q-space norm file numbers
-        self.qunits         = None
-        # Damped strong perturbers file numbers
-        self.dspunits       = None
+        self.qunits              = None
+        # damped strong perturbers file numbers
+        self.dspunits            = None
         # dictionary of bitci wfns
-        self.bitciwfns      = {}
+        self.bitciwfns           = {}
+        
         
 # Required functions #############################################################
     def copy(self):
@@ -96,26 +105,20 @@ class Dftmrci2(cimethod.Cimethod):
 
         # set the scf object
         self.set_scf(scf)
-        
-        if self.scf.mol is None or self.scf is None:
-            sys.exit('ERROR: mol and scf objects not set in dftmrci2')
 
-        # check on the diabatic guess object
-        if self.diabatic and guess is None:
-            sys.exit('ERROR: diabatisation requires a guess dftmrci2 object')
+        # sanity check on the input variables
+        self.sanity_check(scf, guess)
 
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
             self.smo = self.scf.mo_overlaps(guess.scf)
 
-        # check on the ref conf selection algorithm
-        allowed = ['dynamic', 'static']
-        if self.refsel not in allowed:
-            sys.exit('\n ERROR: unrecognised value of refsel: '
-                     +self.refsel + '\n allowed values: '
-                     +str(allowed))
-            
+        # set the regularization factor to something sensible if it has
+        # not been given
+        if self.regfac is None:
+            self.regfac = self.default_regfac[self.regularizer]
+
         # write the output logfile header for this run
         if self.verbose:
             output.print_dftmrci2_header(self.label)
@@ -198,18 +201,11 @@ class Dftmrci2(cimethod.Cimethod):
             # DFT/MRCI(2) calculation
             if self.diabatic:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units, n_conf_new = \
-                        gvvpt2.diag_heff_follow(self, guess)
+                    q_units, dsp_units = gvvpt2.diag_heff_follow(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units, n_conf_new = \
-                        gvvpt2.diag_heff(self)
+                    q_units, dsp_units = gvvpt2.diag_heff(self)
                 
-            # set the new number of mrci confs if wave function
-            # truncation is being used
-            if self.truncate:
-                self.mrci_wfn.set_nconf(n_conf_new)            
-                        
             # set the wfn unit numbers, file names, energies,
             # Q-space info, and damped strong perturber unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
@@ -239,11 +235,10 @@ class Dftmrci2(cimethod.Cimethod):
         if self.save_wf or self.diabatic:
             mrci_wf.extract_wf(self)
 
+        # diabatisation
         if self.diabatic:
-            # ADT matrix
             adt_matrices = bdd.adt(guess, self)
             self.adt = adt_matrices
-            # Diabatic potential
             self.diabatize()
             nroots = [self.n_states_sym(irr)
                       for irr in range(self.n_irrep())]
@@ -251,7 +246,14 @@ class Dftmrci2(cimethod.Cimethod):
                 output.print_diabpot(self.diabpot, nroots,
                                      self.n_irrep(),
                                      self.scf.mol.irreplbl)
-            
+
+        # removal of deadwood configurations
+        # (this must be called _after_ the CSF-to-det
+        #  transformation)
+        if self.truncate:
+            n_conf_new = gvvpt2_truncate.truncate_wf(self)
+            self.mrci_wfn.set_nconf(n_conf_new)            
+        
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
 
@@ -282,6 +284,32 @@ class Dftmrci2(cimethod.Cimethod):
         self.print_moments()
 
         return 
+
+    #
+    def sanity_check(self, scf, guess):
+        """sanity check on user specified variables"""
+
+        # mol and scf objects
+        if self.scf.mol is None or self.scf is None:
+            sys.exit('ERROR: mol and scf objects not set in dftmrci2')
+
+        # diabatic guess object
+        if self.diabatic and guess is None:
+            sys.exit('ERROR: diabatisation requires a guess dftmrci2 object')
+
+        # ref conf selection algorithm
+        if self.refsel not in self.allowed_refsel:
+            sys.exit('\n ERROR: unrecognised value of refsel: '
+                     +self.refsel + '\n allowed values: '
+                     +str(self.allowed_refsel))
+
+        # GVVPT2 regularizer
+        if self.regularizer not in self.allowed_regularizer:
+            sys.exit('\n ERROR: unrecognised value of regularizer: '
+                     +self.regularizer + '\n allowed values: '
+                     +str(self.allowed_regularizer))
+            
+        return
         
     #
     def bitci_ref(self):
