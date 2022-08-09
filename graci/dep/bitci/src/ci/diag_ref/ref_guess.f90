@@ -55,7 +55,7 @@ contains
     
     ! I/O variables
     integer(is)              :: iscratch
-    character(len=60)        :: guessfile
+    character(len=250)       :: guessfile
     character(len=2)         :: amult,airrep
     
     ! Everthing else

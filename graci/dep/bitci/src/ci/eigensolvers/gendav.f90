@@ -1159,7 +1159,7 @@ contains
     ! Everything else
     integer(is)                  :: i,k
     integer(is)                  :: iscratch
-    character(len=60)            :: vecfile
+    character(len=250)           :: vecfile
     character(len=2)             :: amult,airrep
     
 !----------------------------------------------------------------------

@@ -69,7 +69,7 @@ contains
 
     ! I/O
     integer(is)                     :: iscratch
-    character(len=60)               :: dspfile
+    character(len=250)              :: dspfile
     character(len=2)                :: amult,airrep
     
     ! Everything else

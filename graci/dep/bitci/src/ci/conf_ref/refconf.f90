@@ -544,7 +544,7 @@ contains
     integer(is)              :: n_int_I
     integer(is)              :: iscratch
     integer(is)              :: irrep,istart,iend
-    character(len=60)        :: scrfile(0:nirrep-1)
+    character(len=250)       :: scrfile(0:nirrep-1)
     character(len=2)         :: amult,asym
   
 !----------------------------------------------------------------------

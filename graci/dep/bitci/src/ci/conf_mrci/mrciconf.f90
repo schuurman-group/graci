@@ -68,7 +68,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   
   ! Scratch file variables
   integer(is)                :: iscratch
-  character(len=60)          :: vecfile
+  character(len=250)         :: vecfile
   character(len=2)           :: amult,airrep
 
   ! Timing variables

@@ -83,7 +83,7 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=60)        :: vecfile,Qfile
+  character(len=250)       :: vecfile,Qfile
   character(len=2)         :: amult,airrep
   
   ! Everything else

@@ -70,7 +70,7 @@ subroutine retrieve_mrci_dets(d,nmrci)
   integer(is)              :: nchk
   integer(is)              :: detcnt,ndet,i
   integer(is)              :: iscratch
-  character(len=60)        :: mrcifile
+  character(len=250)       :: mrcifile
 
   !
   ! Open the scratch file

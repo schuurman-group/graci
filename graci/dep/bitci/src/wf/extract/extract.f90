@@ -66,7 +66,7 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   real(dp), allocatable    :: S2expec(:)
   real(dp)                 :: S,S2
   real(dp), parameter      :: tiny=5e-12_dp
-  character(len=60)        :: wffile
+  character(len=250)       :: wffile
   character(len=2)         :: amult,airrep
 
 !----------------------------------------------------------------------

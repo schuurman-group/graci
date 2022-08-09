@@ -117,7 +117,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=60)        :: vecfile,Qfile
+  character(len=250)       :: vecfile,Qfile
   character(len=2)         :: amult,airrep
   
   ! Everything else

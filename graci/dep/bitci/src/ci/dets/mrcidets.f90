@@ -40,7 +40,7 @@ subroutine generate_mrci_dets(refscr,mrciscr,ndet,order)
   
   ! Determinant scratch file
   integer(is)              :: iscratch
-  character(len=60)        :: detfile
+  character(len=250)       :: detfile
   character(len=2)         :: amult
 
   ! Determinant sorting
@@ -547,7 +547,7 @@ subroutine write_mrci_dets(mrciscr,detmrci_a,detmrci_b,ndet,nsym,&
   integer(is), intent(in)  :: nunique_a(0:nirrep-1),&
                               nunique_b(0:nirrep-1)
   integer(is)              :: iscratch
-  character(len=60)        :: mrcifile
+  character(len=250)       :: mrcifile
   character(len=2)         :: amult
   
   !

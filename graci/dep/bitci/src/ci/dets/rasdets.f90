@@ -1059,7 +1059,7 @@ subroutine write_ras_dets_sorted(scrnum,detras_a,detras_b,ndet,nsym,&
   integer(is), intent(in)  :: nunique_a(0:nirrep-1),&
                               nunique_b(0:nirrep-1)
   integer(is)              :: iscratch
-  character(len=60)        :: rasfile
+  character(len=250)       :: rasfile
   character(len=2)         :: amult
 
   !
@@ -1139,7 +1139,7 @@ subroutine write_ras_dets_unsorted(scrnum,detras,ndet)
   integer(is), intent(in)  :: ndet
   integer(ib), intent(in)  :: detras(n_int,2,ndet)
   integer(is)              :: iscratch
-  character(len=60)        :: rasfile
+  character(len=250)       :: rasfile
   character(len=2)         :: amult
 
   !
