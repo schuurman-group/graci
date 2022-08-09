@@ -1,15 +1,23 @@
 """Module for storing global parameters"""
 
 # molecule section input keywords and data types
-molecule_kword =     {'xyz_file' : str,
-                      'units'    : str,
-                      'basis'    : str,
-                      'ri_basis' : str,
-                      'ao_cart'  : bool,
-                      'use_sym'  : bool,
-                      'use_df'   : bool,
-                      'label'    : str
-                     }
+molecule_kword =     {'xyz_file'    : str,
+                      'units'       : str,
+                      'basis'       : str,
+                      'ri_basis'    : str,
+                      'ao_cart'     : bool,
+                      'use_sym'     : bool,
+                      'use_df'      : bool,
+                      'add_rydberg' : str,
+                      'ano_file'    : str,
+                      'label'       : str}
+
+rydano_kword =       {'xc'       : str,
+                      'charge'   : int,
+                      'mult'     : int,
+                      'origin'   : str,
+                      'contract' : str,
+                      'label'    : str}
 
 #----------------------------------------------
 
@@ -58,8 +66,7 @@ dftmrci_kword  = {'mult'           : int,
                   'ddci'           : bool,
                   'ref_state'      : int,
                   'verbose'        : bool,
-                  'label'          : str
-                  }
+                  'label'          : str}
 
 # DFT/MRCI(2) section input keywords and data types
 dftmrci2_kword  = {'mult'           : int,
@@ -87,8 +94,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'nbuffer'        : int,
                    'verbose'        : bool,
                    'refsel'         : str,
-                   'label'          : str
-}
+                   'label'          : str}
 
 #---------------------------------------------------
 
@@ -98,8 +104,7 @@ spinorbit_kword = {'couple_groups'     : str,
                    'print_soc_thresh'  : float,
                    'mf2e'              : str,
                    'verbose'           : bool,
-                   'label'             : str
-                   }
+                   'label'             : str}
 
 # transition moments input keywords and data types
 transition_kword = {'init_states'      : int, 
@@ -110,8 +115,7 @@ transition_kword = {'init_states'      : int,
                     'print_orbitals'   : bool,
                     'print_orb_thresh' : float,
                     'verbose'          : bool,
-                    'label'            : str
-                   }
+                    'label'            : str}
 
 overlap_kword   = {'bra_states'        : int,
                    'bra_label'         : str,
@@ -120,8 +124,7 @@ overlap_kword   = {'bra_states'        : int,
                    'calc'              : str,
                    'norm_thresh'       : float,
                    'verbose'           : bool,
-                   'label'             : str,
-                  } 
+                   'label'             : str} 
 
 #----------------------------------------------------
 
@@ -143,23 +146,23 @@ ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap']
 support_objs = ['Bitciwfn','Moments','SpinInfo']
-valid_objs   = ['Molecule', 'Scf', 'Parameterize'] + \
+valid_objs   = ['Molecule', 'Rydano', 'Scf', 'Parameterize'] + \
                ci_objs + postci_objs + si_objs
 
 # maximum number of processors: we set this as a distinct variable, since
 # we can't depend on mpirun/mpiexec -n X, since spawn-based parallelism
 # expects -n 1 in these cases
-nproc        = 1
+#nproc        = 1
 
 ##############################################
 kwords = {'Molecule'     : molecule_kword,
+          'Rydano'       : rydano_kword,
           'Parameterize' : parameterize_kword,
           'Scf'          : scf_kword,
           'Dftmrci'      : dftmrci_kword,
           'Dftmrci2'     : dftmrci2_kword,
           'Spinorbit'    : spinorbit_kword,
           'Transition'   : transition_kword,
-          'Overlap'      : overlap_kword
-         }
+          'Overlap'      : overlap_kword}
 
 

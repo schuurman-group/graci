@@ -50,7 +50,7 @@ def refine_ref_space(ci_method):
     # Refine the reference space
     args = (ci_confunits, ref_confunits, ci_ciunits, nstates, nextra,
             cthrsh, min_norm, ref_nconf)
-    (confunits_ref, min_norm, ref_nconf) = \
+    (ref_confunits, min_norm, ref_nconf) = \
             libs.lib_func('refine_ref_space', args)
 
     return min_norm, ref_nconf, ref_confunits

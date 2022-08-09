@@ -54,6 +54,7 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
+
     ! Numbers of roots
     nroot_tot=sum(nroots)
     nroot_max=maxval(nroots)
@@ -93,12 +94,12 @@ contains
 ! Sort the energies
 !----------------------------------------------------------------------
     call sort_energies(ener,nroot_max,nroot_tot,nroots,sindx)
-    
+ 
 !----------------------------------------------------------------------
 ! Output the base conf
 !----------------------------------------------------------------------
     if (verbose) call print_base_conf
-    
+
 !----------------------------------------------------------------------
 ! Output the energies and dominant CSFs for each state
 !----------------------------------------------------------------------
@@ -106,7 +107,7 @@ contains
     
     ! Minimum energy
     emin=ener(sindx(1,1),sindx(1,2))
-    
+       
     ! Loop over roots
     do n=1,nroot_tot
 
@@ -120,7 +121,6 @@ contains
 
        ! Minimum reference space norm
        minrnorm=min(rnorm,minrnorm)
-
     enddo
 
 !----------------------------------------------------------------------
@@ -194,7 +194,7 @@ contains
 ! Number of reference space CSFs
 !----------------------------------------------------------------------
     nrefcsf=cfg%csfs0h(cfg%n0h+1)-1
-    
+ 
 !----------------------------------------------------------------------
 ! Determine the configuration and spin-coupling information for the
 ! dominant CSFs
@@ -209,7 +209,7 @@ contains
     modus=1
     call dominant_csfs(modus,csfthrsh,cfg,vecscr,k,ndom,rnorm,&
          dconf,domega,dcoe)
-    
+
 !----------------------------------------------------------------------
 ! Sort the dominant coefficients by absolute value
 !----------------------------------------------------------------------
@@ -232,6 +232,7 @@ contains
        write(6,'(2x,50a)') ('-',i=1,50)
        write(6,'(4x,a)') 'Coeff        omega     Delta w'
        write(6,'(2x,50a)') ('-',i=1,50)
+       call flush()
     endif
 
 !----------------------------------------------------------------------
@@ -254,7 +255,7 @@ contains
        ! configuration
        if (verbose) &
             write(6,'(3x,F10.7,6x,i0,6x,a)') dcoe(i),domega(i),string
-       
+            call flush()   
     enddo
 
     ! Footer

@@ -228,6 +228,7 @@ class Parameterize:
         # are used for state comparison
         ci_refs   = [chkpt.read(ci, file_handle=ref_chkpt)
                                                 for ci in ci_name]
+
         # these are the ci objects that get run with the current
         # values of the Hamiltonian parameters
         ci_objs = [ci_ref.copy() for ci_ref in ci_refs]
@@ -263,8 +264,10 @@ class Parameterize:
 
                 curr_scf = scf_name[i]
 
-            ci_objs[i].verbose = False
+            output.file_names['out_file'] = topdir+'/'+str(molecule)+'.log'
+            ci_objs[i].verbose = (molecule == 'methylenecyclopropene')
             ci_objs[i].update_hparam(np.asarray(hparams))
+            print('rank='+str(MPI.COMM_WORLD.Get_rank())+' running: '+str(ci_objs[i].label),flush=True)
             ci_objs[i].run(scf_objs[iscf], None)
 
         libs.lib_func('bitci_int_finalize', [])
@@ -272,14 +275,13 @@ class Parameterize:
         # use overlap with ref states to identify relevant states
         ener_match = self.identify_states(molecule, ref_state, ci_refs, 
                                                                ci_objs)
-
         energies = {molecule : {}}
         for state, ener in ener_match.items():
             energies[molecule][state] = ener
 
         # always end in initial directory
         os.chdir(topdir)
-         
+        
         return energies
 
 
@@ -366,6 +368,7 @@ class Parameterize:
             ci_objs[molecule]    = []
             scf_objs[molecule]   = []
             ref_states[molecule] = []
+            states_found         = []
 
             # if the molecule string is in the reference 
             # object name, add it ref_objs dict
@@ -373,10 +376,13 @@ class Parameterize:
                 is_ci  = any([ci in name for ci in params.ci_objs])
                 st_map = chkpt.read_attribute(ref_file, name, 
                                                        'state_map')
-                 
-                if molecule in name and is_ci and st_map is not None:
+
+                m_name = name.strip().split('.')[-1]
+                if molecule == m_name and is_ci and st_map is not None:
                     ci_objs[molecule].append(name)
                     ref_states[molecule].append(st_map)
+                    states_found.extend(list(st_map.keys()))
+                    states_found.sort()
 
                     # get the name of corresponding scf object
                     scf_link = chkpt.read_attribute(ref_file, name, 
@@ -386,13 +392,13 @@ class Parameterize:
                         scf_objs[molecule].append(scf_name)
 
             # check that we found all the reference states
-            states_found = []
-            for st_dic in ref_states[molecule]:
-                states_found.extend(list(st_dic.keys()))
-            states_found.sort()
+            #states_found = []
+            #for st_dic in ref_states[molecule]:
+            #    states_found.extend(list(st_dic.keys()))
+            #states_found.sort()
 
             if target_lbls != states_found:
-                print('molecule: ' + str(molecule) + ' -- ' + 
+                print('ERROR - molecule: ' + str(molecule) + ' -- ' + 
                        str(target_lbls) + ' != ' + str(states_found), 
                        flush=True)
                 sys.exit(1)

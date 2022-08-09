@@ -4,10 +4,14 @@ and in what order
 """
 import sys as sys
 import os as os
+import graci.utils.basis as basis
+import graci.utils.rydano as rydano
 import graci.core.params as params
 import graci.core.libs as libs
 import graci.io.output as output
 import graci.io.chkpt as chkpt
+
+import numpy as np
 
 class Driver:
     def __init__(self):
@@ -115,32 +119,10 @@ class Driver:
                             ' has no molecule section. Please check input')
                     sys.exit(1)
 
-                # check if we need to generate any additional basis 
-                # functions
-                if mol_obj.ano_file is not None:
-                    mol_obj.append_basis(fname=mol_obj.ano_file)
-                elif mol_obj.rydano is not None:
-                    # if this is a valid contraction, construct a default
-                    # rydano object
-                    carr = basis.str_to_contract(mol_obj.rydano)
-                    if carr is not None:
-                        ryd_basis = rydano.Rydano()
-                        ryd_basis.contract = mol_obj.rydano
-                        ryd_basis.run()
-                    # else, load the rydano object from the input file
-                    else:
-                        ryd_basis = None
-                        for obj in calc_array:
-                            if (type(obj).__name__  == 'Rydano' and 
-                                            obj.label == mol_obj.rydano):
-                                ryd_basis = obj
-                                break
-                        if ryd_basis is None:
-                            print('Molecule.rydano = ' + 
-                                   str(mol_obj.rydano) + ' not found.')
-                            sys.exit(1)
-                        ryd_basis.run()
-                    mol_obj.append_basis(obj=ryd_basis.basis_obj())
+                # if we need to perform run-time basis set modifications
+                if (mol_obj.ano_file is not None or 
+                          mol_obj.add_rydberg is not None):
+                    self.modify_basis(mol_obj)
 
                 # guess SCF object
                 if scf_obj.guess_label is None:
@@ -185,7 +167,7 @@ class Driver:
                         ci_guess = ci_objs[ci_lbls.index(g_lbl)]
                     else:
                         ci_guess = None
-                       
+                     
                     ci_obj.run(scf_obj, ci_guess)
                     chkpt.write(ci_obj)
 
@@ -219,6 +201,44 @@ class Driver:
             param_obj.run()
 
         return
+ 
+    #
+    def modify_basis(self, mol_obj):
+        """
+        modify the atomic basis set at run-time if need be
+        """
+        # check if we need to generate any additional basis 
+        # functions
+        if mol_obj.ano_file is not None:
+            mol_obj.append_basis(fname=mol_obj.ano_file)
+
+        elif mol_obj.add_rydberg is not None:
+
+            # if this is a valid contraction, construct a default
+            # rydano object
+            carr = basis.str_to_contract(mol_obj.add_rydberg)
+            if carr is not None:
+                ryd_basis = rydano.Rydano()
+                ryd_basis.contract = mol_obj.add_rydberg
+                ryd_basis.run(mol_obj)
+            # else, load the rydano object from the input file
+            else:
+                ryd_basis = None
+                for obj in calc_array:
+                    if (type(obj).__name__  == 'Rydano' and
+                              obj.label == mol_obj.add_rydberg):
+                        ryd_basis = obj
+                        break
+                if ryd_basis is None:
+                    print('Molecule.rydano = ' +
+                           str(mol_obj.add_rydberg) + ' not found.')
+                    sys.exit(1)
+                ryd_basis.run(mol_obj)
+
+            mol_obj.append_basis(obj=ryd_basis.basis_obj())
+
+        return
+
 
     #
     def get_postscf_objs(self, run_obj, avail_objs):

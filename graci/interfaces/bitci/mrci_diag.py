@@ -58,6 +58,7 @@ def diag(ci_method):
     # Retrieve the MRCI energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
+
     for irrep in range(nirr):
         if ci_method.n_states_sym(irrep) > 0:
 
@@ -67,7 +68,7 @@ def diag(ci_method):
             args = (ciunits[irrep], nroots, ener[irrep,:nroots])
             (ener[irrep,:nroots]) = \
                     libs.lib_func('retrieve_energies', args)
-            
+
     # Retrieve the MRCI eigenvector scratch file names
     ciname = []
     name    = ''
@@ -96,7 +97,7 @@ def diag(ci_method):
             (qcorr, maxovrlp) = libs.lib_func('retrieve_qcorr', args)
 
             ener[irrep,:nstates[irrep]] += qcorr
-            
+
     # Print the report of the MRCI states
     if ci_method.verbose:
         output.print_dftmrci_states_header(ci_method.prune)
@@ -104,6 +105,7 @@ def diag(ci_method):
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states_sym()
     nextra  = np.array(ci_method.nextra['prune'], dtype=int)
+
     if ci_method.prune and ci_method.prune_qcorr:
         args = (ci_confunits, ciunits, ref_ciunits, equnits, nstates,
                 nextra)

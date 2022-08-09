@@ -115,6 +115,33 @@ contains
 
   end subroutine freeunit
 
+!########################################################################
+! check_exists:  confirm that file exists and, if not, call error control
+!                and terminate execution
+!########################################################################
+  subroutine confirm_exists(scrnum)
+
+    use constants
+    use bitglobal
+   
+    implicit none
+
+    integer(is), intent(in)  :: scrnum
+    
+    logical                  :: exists
+
+    !
+    ! Confirm file exists
+    !
+    inquire(file=scrname(scrnum), exist=exists)
+    if(.not.exists) then
+        errmsg='file: '//trim(scrname(scrnum))//' does not exist'
+        call error_control
+    endif
+
+  end subroutine confirm_exists
+
+
 !#######################################################################
 ! error_control: writes the passed string to the screen and, if open,
 !                the log file, then terminates the program
@@ -130,6 +157,7 @@ contains
     ! the program
     !
     write(6,'(/,2x,a,/)') trim(errmsg)
+    call flush()
     stop
     
   end subroutine error_control
@@ -228,6 +256,11 @@ contains
     integer(is), allocatable :: mapab(:)
     integer(is)              :: iscratch
     
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
+
     !
     ! Open the scratch file
     !
@@ -304,6 +337,11 @@ contains
     integer(ib), allocatable :: d(:,:,:)
     integer(is)              :: iscratch
 
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
+
     !
     ! Open the scratch file
     !
@@ -349,6 +387,11 @@ contains
     integer(is)              :: idum
     integer(is)              :: nsym(0:nirrep-1)
     
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
+
     !
     ! Open the scratch file
     !
@@ -401,6 +444,11 @@ contains
     integer(ib), allocatable :: conf(:,:,:),sop(:,:,:)
     integer(is), intent(out) :: m2c(nmo),c2m(nmo)
     integer(is)              :: iscratch
+
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
 
     !
     ! Open the scratch file
@@ -464,6 +512,11 @@ contains
     integer(is), intent(in)  :: scrnum
     integer(is), intent(out) :: nconf0
     integer(is)              :: iscratch    
+
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
     
     !
     ! Open the scratch file
@@ -501,6 +554,11 @@ contains
     integer(is), intent(in)  :: scrnum
     integer(is), intent(out) :: n_int_I,nmoI,nmoE
     integer(is)              :: iscratch,nconf
+
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
 
     !
     ! Open the scratch file
@@ -606,6 +664,11 @@ contains
        ! Cycle if there are no roots for this irrep
        if (nroots(i) == 0) cycle
 
+       ! 
+       ! confirm file exists
+       !
+       call confirm_exists(scrnum(i))
+
        ! Open the scratch file
        iscratch=scrunit(scrnum(i))
        open(iscratch,file=scrname(scrnum(i)),form='unformatted',&
@@ -651,6 +714,11 @@ contains
     integer(is)             :: iscratch
     integer(is)             :: ndum,nroots1
     real(dp), intent(out)   :: ener(nroots)
+
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
 
     !
     ! Open the scratch file
@@ -704,7 +772,13 @@ contains
     integer(is)             :: ndum,nroots,i
     real(dp), intent(out)   :: vec(dim)
     real(dp), allocatable   :: ener(:)
-    
+    logical                 :: exists  
+
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
+
     !
     ! Open the scratch file
     !
@@ -773,6 +847,11 @@ contains
     integer(is)             :: iscratch
     integer(is)             :: ndum,i
     real(dp), intent(out)   :: vec(dim,nroots),ener(nroots)
+
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
     
     !
     ! Open the scratch file
@@ -841,6 +920,11 @@ contains
     integer(is), intent(in) :: iroots(nroots)
     real(dp), intent(out)   :: vec(dim,nroots),ener(nroots)
     real(dp), allocatable   :: ener1(:),vec1(:)
+
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(scrnum)
     
     !
     ! Open the scratch file
@@ -921,6 +1005,11 @@ contains
     ! Everything else
     integer(is)              :: iscratch,idum
 
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(wfscr)
+
     !
     ! Open the scratch file
     !
@@ -986,7 +1075,12 @@ contains
     ! Allocate working arrays
     !
     allocate(vec1(ndet))
-    
+   
+    ! 
+    ! confirm file exists
+    !
+    call confirm_exists(wfscr)
+ 
     !
     ! Open the scratch file
     !

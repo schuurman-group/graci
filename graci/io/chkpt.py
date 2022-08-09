@@ -11,9 +11,9 @@ import struct as struct
 import json as json
 import graci.core.params as params
 import graci.core.molecule as molecule
-import graci.tools.parameterize as parameterize
 import graci.core.scf as scf
 import graci.core.bitciwfn as bitciwfn
+import graci.tools.parameterize as parameterize
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
 import graci.properties.moments as moments
@@ -21,6 +21,7 @@ import graci.interaction.interaction as spininfo # this makes me uncomfortable..
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
+import graci.utils.rydano as rydano
 import graci.io.output as output
 
 # top level computation objects: each will have own top-level group

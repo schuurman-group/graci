@@ -67,7 +67,7 @@ class Molecule:
         self.ao_cart  = False
         self.use_df   = False
         self.label    = 'Molecule'
-        self.rydano   = None
+        self.add_rydberg = None
         self.ano_file = None
 
         # the following are determined based on user
@@ -316,10 +316,13 @@ class Molecule:
         """
         determine the center of nuclear charge
         """
+        coc_xyz = np.zeros(3, dtype=float)
+        coords  = self.mol_obj.atom_coords()
+        chg     = self.mol_obj.atom_charges()
 
-        coc_xyz = np.sum(self.mol_obj.atom_charges() *
-                         self.mol_obj.atom_coords())
-
-        return coc_xyz / np.sum(self.mol_obj.atom_charges())
+        for ixyz in range(len(self.mol_obj.atom_coords())):
+            coc_xyz += chg[ixyz]*coords[ixyz]
+ 
+        return coc_xyz / np.sum(chg)
 
  

@@ -34,6 +34,7 @@ def print_message(message_str):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('ATTN: '+str(message_str)+'\n')
+        outfile.flush()
 
     return
 

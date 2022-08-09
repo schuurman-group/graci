@@ -62,7 +62,7 @@ def print_contents(fhandle, obj_name=None, attr_name=None):
         attr = chkpt.read_attribute(fhandle, prefix+obj, aname)
         if attr is None:
             attr = '--'
-        print('Section: {:>30} {:>30}: {:>30}'.format(obj, aname, str(attr)))
+        print('Section: {:>50} {:>15}: {:>40}'.format(obj, aname, str(attr)))
 
     return
 
@@ -73,7 +73,7 @@ def read_cmdline():
     Set relevant global variables.
     """
 
-    valid_args = ['-list', '-show', '-section', '-name', '-value']
+    valid_args = ['-list', '-section', '-name', '-value']
     arg_list   = sys.argv[1:]
 
     chk_file = arg_list[0]
