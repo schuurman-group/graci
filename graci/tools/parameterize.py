@@ -101,7 +101,7 @@ class Parameterize:
 
         # set initial parameter set
         pref = np.zeros(npar, dtype=float)
-        args = (self.hamiltonian, npar, p0)
+        args = (self.hamiltonian, npar, pref)
         pref = libs.lib_func('retrieve_hpar', args)
 
         if self.init_params is None:
