@@ -713,16 +713,16 @@ def print_param_header(target_data, ci_objs, ref_states, hparams):
 
         outfile.write('\n\n Reference Data -------------\n\n')
         for molecule, states in target_data.items():
-            outfile.write(str(molecule)+': '+str(states)+'\n')
+            outfile.write(' '+str(molecule)+': '+str(states)+'\n')
 
         outfile.write('\n Found Reference States -----\n\n')
         for molecule in ci_objs.keys():
-            outfile.write(str(molecule) + ': ' + 
+            outfile.write(' '+str(molecule) + ': ' + 
                           str(ci_objs[molecule]) + ': ' + 
                           str(ref_states[molecule])+'\n')
 
         outfile.write('\n Initial Parameter Values -----\n')
-        outfile.write(str(hparams)+'\n\n')
+        outfile.write(' '+str(hparams)+'\n\n')
 
         outfile.flush()
 

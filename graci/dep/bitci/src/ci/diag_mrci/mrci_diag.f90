@@ -55,7 +55,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
 
   ! On-diagonal Hamiltonian matrix elements
   ! averaged over spin couplings
-  eal(dp), allocatable    :: averageii(:)
+  real(dp), allocatable    :: averageii(:)
 
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
