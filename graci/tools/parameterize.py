@@ -315,8 +315,8 @@ class Parameterize:
         """
         compute overlaps to identify states
         """
-        s_thresh = 1./np.sqrt(2.)
-        s_thresh = 0.5
+        #s_thrsh = 1./np.sqrt(2.)
+        s_thrsh = 0.5
 
         eners  = {}
         smo    = np.identity(ref_ci[0].scf.nmo, dtype=float)
@@ -330,13 +330,13 @@ class Parameterize:
                                     bra_st, ket_st, smo, 0.975, False)
 
             for lbl, bst in ref_st.items():
-                Sij = np.absolute(Smat[bra_st.index(bst),:])
+                Sij   = np.absolute(Smat[bra_st.index(bst),:])
+                s_max = np.amax(Sij)
 
-                if np.amax(Sij) <= s_thresh:
-                    msg = 'MAX overlap for molecule=' + str(molecule) +\
-                     ' state=' + str(lbl) + ' is ' + str(np.amax(Sij)) 
-                    self.hard_exit(msg)
-
+                if s_max <= s_thrsh:
+                    print('ERROR: overlap for molecule=' + str(molecule)
+                          + ' state=' + str(lbl) +' is ' + str(s_max))
+                    sys.exit(1)
                 kst = ket_st[np.argmax(Sij)]
                 eners[lbl] = new_ci[iobj].energies[kst]
 
