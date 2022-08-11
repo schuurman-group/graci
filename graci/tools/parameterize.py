@@ -353,7 +353,7 @@ class Parameterize:
             nscf = len(list(set(scf_objs[molecule])))
 
             if os.path.isdir(molecule):
-                os.shutil.rmtree(molecule)
+                shutil.rmtree(molecule)
 
             os.mkdir(molecule)
             for iscf in range(nscf):
