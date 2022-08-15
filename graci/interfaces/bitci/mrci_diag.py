@@ -37,7 +37,7 @@ def diag(ci_method):
 
     # Q-space energy corrections (only needed if pruning is being
     # used)
-    equnits     = np.array(ci_method.mrci_wfn.eq_units, dtype=int)
+    equnits = np.array(ci_method.mrci_wfn.eq_units, dtype=int)
 
     # Loop over irreps
     for irrep in range(nirr):

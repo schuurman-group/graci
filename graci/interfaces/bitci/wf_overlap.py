@@ -143,12 +143,12 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
         sij  = libs.lib_func('detoverlap', args)
 
         overlap[irr][irr] = sij
-
+    
     # fill in the overlaps that are zero by symmetry
     for bra_irr in range(bra.n_irrep()):
         for ket_irr in range(ket.n_irrep()):
             if bra_irr != ket_irr:
-                npairs = len(overlap_list[irr][irr])
+                npairs = len(overlap_list[bra_irr][ket_irr])
                 if npairs == 0:
                     continue
                 overlap[bra_irr][ket_irr] = np.zeros((npairs),

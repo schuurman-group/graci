@@ -90,7 +90,7 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   integer(is)              :: isigma(3)
   real(dp)                 :: mem
   character(len=20)        :: vecstem
-
+  
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------

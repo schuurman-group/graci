@@ -380,7 +380,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
      ! Fix the phase
      if (maxSij(i) < 0.0d0) Avec_sel(:,i)=-Avec_sel(:,i)
-
+          
      ! Energy
      EQD_sel(i)=EQD(isel(i))
      

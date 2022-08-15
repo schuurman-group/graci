@@ -88,7 +88,7 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   call c2fstr(bkstr_in,bkstr,length)
 #else
   conffile=adjustl(trim(conffile_in))
-  vecfileB=adjustl(trim(vecfileB_in))
+  vecfile=adjustl(trim(vecfileB_in))
   bkstr=adjustl(trim(bkstr_in))
 #endif
 

@@ -85,7 +85,7 @@ def parse_xyz_file(xyz_file):
     return geom_objs
 
 
-def write_input(geom_objs, nstates, basis):
+def write_input(geom_objs, nstates, basis, stem=None):
     """
     writes the GRaCI DFT/MRCI(2) P-BDD input file
     """
@@ -97,14 +97,21 @@ def write_input(geom_objs, nstates, basis):
     else:
         symm = False
 
+    # label stem
+    if stem is not None:
+        label_stem = stem+'_geom'
+    else:
+        label_stem = 'geom'
+        
     # reference geometry
-    write_1geom(geom_objs[0], symm, nstates, basis, label='geom0', diab=False)
-
+    write_1geom(geom_objs[0], symm, nstates, basis,
+                label=label_stem+'0', diab=False)
+    
     # displaced geometries
     for i in range(1, len(geom_objs)):
         write_1geom(geom_objs[i], symm, nstates, basis,
-                    label='geom'+str(i),
-                    prev_label='geom'+str(i-1))        
+                    label=label_stem+str(i),
+                    prev_label=label_stem+str(i-1))
     
     return
 
@@ -158,4 +165,5 @@ if __name__ == '__main__':
     geom_objs = parse_xyz_file(xyz_file)
 
     # write the GRaCI input file
-    write_input(geom_objs, nstates, basis)
+    stem = xyz_file[:xyz_file.index('.xyz')]
+    write_input(geom_objs, nstates, basis, stem=stem)
