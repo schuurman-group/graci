@@ -1244,7 +1244,7 @@ contains
     integer                      :: indx(nstates)
     integer(is)                  :: iscratch
     real(dp)                     :: esort(nstates)
-    character(len=60)            :: vecfile
+    character(len=250)           :: vecfile
     character(len=2)             :: amult,airrep
     
 !-----------------------------------------------------------------------

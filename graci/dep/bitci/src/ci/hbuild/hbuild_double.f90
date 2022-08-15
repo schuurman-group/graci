@@ -224,7 +224,7 @@ contains
 
     ! I/O variables
     integer(is)                  :: iscratch
-    character(len=60)            :: hamfile
+    character(len=250)           :: hamfile
     character(len=2)             :: amult,airrep
 
     ! Buffer

@@ -48,7 +48,7 @@ contains
 
     ! I/O variables
     integer(is)                  :: iscratch
-    character(len=60)            :: vecfile
+    character(len=250)           :: vecfile
     character(len=2)             :: amult,airrep
     
     ! Everthing else

@@ -603,7 +603,7 @@ contains
     integer(is), allocatable   :: ibuffer(:,:)
     integer(ib), allocatable   :: cbuffer(:,:,:)
     integer(is)                :: iscratch
-    character(len=60)          :: buffile
+    character(len=250)         :: buffile
     
     ! Everything else
     integer(is)                :: i,j,k,n,imo,i1

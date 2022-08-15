@@ -72,7 +72,7 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
   ! IO variables
   integer(is)                        :: iscratch
   character(len=2)                   :: amult,asym
-  character(len=60)                  :: filename
+  character(len=250)                 :: filename
   
   ! Everything else
   integer(is)                        :: irrep,i,n,imo0,imo(1),ntot

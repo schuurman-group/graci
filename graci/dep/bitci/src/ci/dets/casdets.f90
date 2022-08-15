@@ -29,7 +29,7 @@ subroutine generate_cas_dets(icas,n,m,ndet)
   integer(is)                :: vdim
   integer(ib), allocatable   :: v(:,:)
   integer(is)                :: iscratch
-  character(len=60)          :: casfile
+  character(len=250)         :: casfile
   
 !----------------------------------------------------------------------
 ! Perform some sanity checks

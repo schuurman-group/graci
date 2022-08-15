@@ -28,10 +28,11 @@ class Parameterize:
         self.label          = 'parameterize'
 
         self.hamiltonian    = 'heil17_short'
+        self.init_params    = None
         self.graci_ref_file = ''
         self.target_file    = ''
         self.pthresh        = 1.e-4
-        self.verbose        = True
+        self.verbose        = False 
         self.max_iter       = 1000
 
         # -------------------------------
@@ -54,26 +55,21 @@ class Parameterize:
         scf_objs, ci_objs, ref_states = \
                                self.parse_graci_file(target_data)
 
-        # print the parameterize header
-        # show the mappings between the target data and the data in the
-        # reference checkpoint file
-        nparam   = 0
-        args     = (self.hamiltonian, nparam)
-        nparam   = libs.lib_func('retrieve_nhpar', args)
-
-        p0   = np.zeros(nparam, dtype=float)
-        args = (self.hamiltonian, nparam, p0)
-        p0   = libs.lib_func('retrieve_hpar', args)
-
+        # set initial parameter set
+        pref, p0 = self.set_init_params()
+ 
+        # print header info to output file defined in module output
         output.print_param_header(target_data, ci_objs, ref_states, p0)
 
         # set up directory structure: each molecule gets a subdirectory
         self.create_dirs(scf_objs)
 
-        # the first pass sets up the reference objects
-        ener_init = self.evaluate_energies(p0, ref_states, scf_objs,
+        # the first pass sets up the orbitals and integrals -- no need
+        # to recompute these every time
+        ener_init = self.evaluate_energies(pref, ref_states, scf_objs,
                                                  ci_objs, runscf=True)
 
+        # optimize parameters using scipy routines
         self.iiter      = 1
         self.current_h = p0
         res = sp_opt.minimize(self.err_func, p0, 
@@ -83,6 +79,7 @@ class Parameterize:
                               tol = self.pthresh,
                               callback = self.status_func)
 
+        # one final eval_energy call with the converged params
         ener_final = self.evaluate_energies(res.x, ref_states,
                                                       scf_objs, ci_objs)
 
@@ -92,6 +89,33 @@ class Parameterize:
         return
 
     #
+    def set_init_params(self):
+        """
+        set the initial parameter values, either using default 
+        Hamiltonian values, or, user supplied values
+        """
+
+        npar = 0
+        args = (self.hamiltonian, npar)
+        npar = libs.lib_func('retrieve_nhpar', args)
+
+        # set initial parameter set
+        pref = np.zeros(npar, dtype=float)
+        args = (self.hamiltonian, npar, pref)
+        pref = libs.lib_func('retrieve_hpar', args)
+
+        if self.init_params is None:
+            p0 = pref
+        else:
+            p0 = self.init_params
+            if (type(p0).__name__ != 'ndarray' or p0.shape[0] != npar):
+                msg = 'Cannot use '+str(p0)+' as initial param set'
+                self.hard_exit(msg)
+
+        return pref, p0
+
+
+    #
     def sanity_check(self):
         """
         sanity check the input
@@ -99,18 +123,18 @@ class Parameterize:
 
         algos = ['Nelder-Mead']
         if self.algorithm not in algos:
-            sys.exit(str(self.algorithm)+' not in '+str(algos))
-
+            msg = str(self.algorithm)+' not in '+str(algos)
+            self.hard_exit(msg) 
 
         if not os.path.isfile(self.graci_ref_file):
-            print('graci_ref_file: ' + str(self.graci_ref_file) + 
-                                             ' not found. Exiting')
-            sys.exit(1)
+            msg = 'graci_ref_file: ' + str(self.graci_ref_file) + \
+                                             ' not found. Exiting'
+            self.hard_exit(msg)
 
         if not os.path.isfile(self.target_file):
-            print('target_file: ' + str(self.target_file) +
-                                             ' not found. Exiting')
-            sys.exit(1)
+            msg = 'target_file: ' + str(self.target_file) + \
+                                             ' not found. Exiting'
+            self.hard_exit(msg)
 
         return
 
@@ -161,8 +185,9 @@ class Parameterize:
         self.current_h = xk
 
         if self.iiter >= self.max_iter:
-            output.print_message('Max. number of iterations reached.')
-            sys.exit(1)
+            msg = 'Max. number of iterations completed.'
+            output.print_message(msg)
+            self.hard_exit(msg) 
 
         return
 
@@ -178,20 +203,21 @@ class Parameterize:
         energies = {}
 
         if params.nproc > 1:
+
             with MPIPoolExecutor(max_workers=params.nproc,
-                             root=0) as executor:
+                                                   root=0) as executor:
                 if executor is not None:
 
                     args = ((hparams, molecule, topdir, 
-                            self.graci_ref_file, ref_states[molecule], 
-                            scf_names[molecule], ci_names[molecule], 
-                            True, runscf) for molecule in ref_states.keys())
+                        self.graci_ref_file, ref_states[molecule], 
+                        scf_names[molecule], ci_names[molecule], True,
+                        runscf) for molecule in ref_states.keys())
 
-                    for results in executor.starmap(self.eval_energy, 
-                                                                  args):
-                        energies.update(results)
+                    for res in executor.starmap(self.eval_energy, args):
+                        energies.update(res)
 
         else:
+
             for molecule in ref_states.keys():
                 mol_results = self.eval_energy(hparams, molecule,
                                   topdir, self.graci_ref_file, 
@@ -228,11 +254,14 @@ class Parameterize:
         # are used for state comparison
         ci_refs   = [chkpt.read(ci, file_handle=ref_chkpt)
                                                 for ci in ci_name]
+
         # these are the ci objects that get run with the current
         # values of the Hamiltonian parameters
         ci_objs = [ci_ref.copy() for ci_ref in ci_refs]
-
         ref_chkpt.close()
+
+        # set the output file stream if we're going to do any printing
+        output.file_names['out_file'] = topdir+'/'+str(molecule)+'.log'
 
         # change to the appropriate sub-directory
         #os.chdir(topdir+'/'+str(molecule))
@@ -247,7 +276,7 @@ class Parameterize:
                 os.chdir(topdir+'/'+str(molecule)+'/scf'+str(iscf))
  
                 if runscf:
-                    scf_objs[iscf].verbose = False
+                    scf_objs[iscf].verbose = self.verbose 
                     scf_objs[iscf].load()
 
                 if scf_objs[iscf].mol.use_df:
@@ -263,23 +292,21 @@ class Parameterize:
 
                 curr_scf = scf_name[i]
 
-            ci_objs[i].verbose = False
+            ci_objs[i].verbose = self.verbose 
             ci_objs[i].update_hparam(np.asarray(hparams))
             ci_objs[i].run(scf_objs[iscf], None)
-
         libs.lib_func('bitci_int_finalize', [])
 
         # use overlap with ref states to identify relevant states
         ener_match = self.identify_states(molecule, ref_state, ci_refs, 
                                                                ci_objs)
-
         energies = {molecule : {}}
         for state, ener in ener_match.items():
             energies[molecule][state] = ener
 
         # always end in initial directory
         os.chdir(topdir)
-         
+        
         return energies
 
 
@@ -288,6 +315,8 @@ class Parameterize:
         """
         compute overlaps to identify states
         """
+        #s_thrsh = 1./np.sqrt(2.)
+        s_thrsh = 0.5
 
         eners  = {}
         smo    = np.identity(ref_ci[0].scf.nmo, dtype=float)
@@ -301,11 +330,12 @@ class Parameterize:
                                     bra_st, ket_st, smo, 0.975, False)
 
             for lbl, bst in ref_st.items():
-                Sij = np.absolute(Smat[bra_st.index(bst),:])
-                if np.amax(Sij) <= 1./np.sqrt(2.):
-                    output.print_message('MAX overlap for molecule=' +
-                            str(molecule) + ' state=' + str(lbl) +
-                            ' is ' + str(np.amax(Sij)))
+                Sij   = np.absolute(Smat[bra_st.index(bst),:])
+                s_max = np.amax(Sij)
+
+                if s_max <= s_thrsh:
+                    print('ERROR: overlap for molecule=' + str(molecule)
+                          + ' state=' + str(lbl) +' is ' + str(s_max))
                     sys.exit(1)
                 kst = ket_st[np.argmax(Sij)]
                 eners[lbl] = new_ci[iobj].energies[kst]
@@ -323,7 +353,7 @@ class Parameterize:
             nscf = len(list(set(scf_objs[molecule])))
 
             if os.path.isdir(molecule):
-                os.shutil.rmtree(molecule)
+                shutil.rmtree(molecule)
 
             os.mkdir(molecule)
             for iscf in range(nscf):
@@ -366,6 +396,7 @@ class Parameterize:
             ci_objs[molecule]    = []
             scf_objs[molecule]   = []
             ref_states[molecule] = []
+            states_found         = []
 
             # if the molecule string is in the reference 
             # object name, add it ref_objs dict
@@ -373,10 +404,14 @@ class Parameterize:
                 is_ci  = any([ci in name for ci in params.ci_objs])
                 st_map = chkpt.read_attribute(ref_file, name, 
                                                        'state_map')
-                 
-                if molecule in name and is_ci and st_map is not None:
+                
+                # name of section is 'original.name.molecule'
+                m_name = name.strip().split('.')[-1]
+                if molecule == m_name and is_ci and st_map is not None:
                     ci_objs[molecule].append(name)
                     ref_states[molecule].append(st_map)
+                    states_found.extend(list(st_map.keys()))
+                    states_found.sort()
 
                     # get the name of corresponding scf object
                     scf_link = chkpt.read_attribute(ref_file, name, 
@@ -386,16 +421,15 @@ class Parameterize:
                         scf_objs[molecule].append(scf_name)
 
             # check that we found all the reference states
-            states_found = []
-            for st_dic in ref_states[molecule]:
-                states_found.extend(list(st_dic.keys()))
-            states_found.sort()
+            #states_found = []
+            #for st_dic in ref_states[molecule]:
+            #    states_found.extend(list(st_dic.keys()))
+            #states_found.sort()
 
             if target_lbls != states_found:
-                print('molecule: ' + str(molecule) + ' -- ' + 
-                       str(target_lbls) + ' != ' + str(states_found), 
-                       flush=True)
-                sys.exit(1)
+                msg = 'ERROR - molecule: ' + str(molecule) + ' -- ' +\
+                       str(target_lbls) + ' != ' + str(states_found)
+                self.hard_exit(msg)
                     
         ref_file.close()
 
@@ -428,9 +462,17 @@ class Parameterize:
                     target_dict[molecule][states] = val
                     self.ndata += 1
                 except:
-                    print('Error parsing value as str/float: '+str(val))
-                    print('line = '+str(str_arr))
-                    sys.exit(1)
+                    msg = 'Error parsing value as str/float: ' + \
+                           str(val) + '\nline = '+str(str_arr)
+                    self.hard_exit(msg)
         
         return target_dict
+
+    #
+    def hard_exit(self, message):
+        """
+        exit the program with a sys.exit call
+        """
+        print("\n"+str(message)+"\n", flush=True)
+        sys.exit(1)
 

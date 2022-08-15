@@ -94,7 +94,7 @@ subroutine mrci_prune(Athrsh,irrep,nroots,nextra,shift,confscr,&
   integer(is)                :: i,nvec
   integer(is), allocatable   :: indx(:)
   integer(is)                :: iscratch
-  character(len=60)          :: eqfile
+  character(len=250)         :: eqfile
   character(len=2)           :: amult,airrep
   
   ! Timing variables

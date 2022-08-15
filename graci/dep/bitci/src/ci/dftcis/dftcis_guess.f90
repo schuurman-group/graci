@@ -38,7 +38,7 @@ contains
 
     ! I/O variables
     integer(is)              :: iscratch
-    character(len=60)        :: guessfile
+    character(len=250)       :: guessfile
     
     ! Everything else
     integer(is)              :: i
@@ -148,7 +148,7 @@ contains
 
     ! I/O variables
     integer(is)              :: iscratch
-    character(len=60)        :: guessfile
+    character(len=250)       :: guessfile
     
     ! Everything else
     integer(is)              :: bcsf,kcsf,icsf,n

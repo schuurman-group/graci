@@ -62,7 +62,7 @@ subroutine wf_mrci(irrep,nroots,iroots,confscr,vecscr,ndet,wfscr)
 
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=60)        :: wffile
+  character(len=250)       :: wffile
   character(len=2)         :: amult,airrep
   
   ! Everything else

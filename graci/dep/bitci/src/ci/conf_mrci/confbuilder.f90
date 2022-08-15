@@ -45,7 +45,7 @@ contains
     
     ! Configuration scratch files
     integer(is)                :: nrec2I,nrec1I1E
-    character(len=60)          :: file2I,file1I1E
+    character(len=250)         :: file2I,file1I1E
 
     ! Everything else
     integer(is)                :: irrep,i
@@ -128,7 +128,7 @@ contains
     
     ! Configuration bit string buffers
     integer(is), intent(out)       :: nrec2I,nrec1I1E
-    character(len=60), intent(out) :: file2I,file1I1E
+    character(len=250), intent(out):: file2I,file1I1E
     integer(is)                    :: nbuf2I,nbuf1I1E
     integer(is), allocatable       :: ibuf2I(:,:),ibuf1I1E(:,:)
     integer(is)                    :: iscratch2I,iscratch1I1E
@@ -771,7 +771,7 @@ contains
 
     ! Original 2I configuration scratch file
     integer(is), intent(inout)    :: nrec2I
-    character(len=60), intent(in) :: file2I
+    character(len=250), intent(in):: file2I
     integer(is), allocatable      :: ibuf(:,:)
     integer(is)                   :: iscratch
 
@@ -779,7 +779,7 @@ contains
     integer(is)                   :: nrec2I_new
     integer(is), allocatable      :: ibuf_new(:,:)
     integer(is)                   :: iscratch_new
-    character(len=60)             :: file2I_new
+    character(len=250)            :: file2I_new
     
     ! Hash table
     type(dhtbl)                   :: h
@@ -1007,7 +1007,7 @@ contains
 
     ! Original 1I1E configuration scratch file
     integer(is), intent(inout)    :: nrec1I1E
-    character(len=60), intent(in) :: file1I1E
+    character(len=250), intent(in):: file1I1E
     integer(is), allocatable      :: ibuf(:,:)
     integer(is)                   :: iscratch
 
@@ -1015,7 +1015,7 @@ contains
     integer(is)                   :: nrec1I1E_new
     integer(is), allocatable      :: ibuf_new(:,:)
     integer(is)                   :: iscratch_new
-    character(len=60)             :: file1I1E_new
+    character(len=250)            :: file1I1E_new
     
     ! Hash table
     type(dhtbl)                   :: h
@@ -1226,7 +1226,7 @@ contains
     
     ! Configuration scratch files
     integer(is), intent(in)       :: nrec2I,nrec1I1E
-    character(len=60), intent(in) :: file2I,file1I1E
+    character(len=250), intent(in):: file2I,file1I1E
     integer(is), allocatable      :: ibuf(:,:)
     integer(is)                   :: iscratch2I,iscratch1I1E
 

@@ -59,7 +59,7 @@ subroutine ref_diag(irrep,detscr,vecscr,nroots)
   ! I/O variables
   integer(is), intent(out)   :: vecscr
   integer(is)                :: iscratch
-  character(len=60)          :: vecfile
+  character(len=250)         :: vecfile
   character(len=2)           :: amult,airrep
 
   ! Timing variables
