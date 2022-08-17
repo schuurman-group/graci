@@ -76,7 +76,7 @@ contains
 !----------------------------------------------------------------------
     ! Target squared norm
     targ=normthrsh**2
-
+    
     ! Loop over roots
     do i=1,nroots
 
@@ -93,7 +93,7 @@ contains
 
           ! Flag the determinant for survival
           idet(indx(k))=1
-
+          
           ! Exit if:
           ! (1) we have hit the target squared norm, and;
           ! (2) this determinant is not degenerate with the next one
