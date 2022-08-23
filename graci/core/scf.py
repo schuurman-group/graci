@@ -106,6 +106,10 @@ class Scf:
         if self.verbose:
             output.print_scf_header(self)
 
+        # write the Cartesian coordinate to the log file
+        if self.verbose:
+            output.print_coords(self.mol.crds, self.mol.asym)
+            
         # set the file names based on class label
         # save integrals -- tie them to the scf object for
         self.moint_1e     = '1e_'+str(self.label).strip()+'.h5'

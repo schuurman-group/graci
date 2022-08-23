@@ -123,9 +123,7 @@ def print_scf_header(scf):
             outfile.write('\n\n **** RESTART ACTIVATED ****\n\n')
             outfile.write(' Extracting SCF result from checkpoint file:'
                           + str(file_names['chkpt_file'])+'\n\n')
-        else:
-            outfile.write('\n\n')
-
+        
         outfile.flush()
       
     return
@@ -482,7 +480,7 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
 
     # table header
     delim = ' '+'-'*(53+2*llen)
-    print('\n'+delim)
+    print('\n'+delim, flush=True)
     fstr = '  {:<'+str(llen)+'}' \
         + ' {:>3}' \
         + ' {:>4}' \
@@ -500,8 +498,8 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
                       'I',
                       'M',
                       'Re <SOC>',
-                      'Im <SOC>'))
-    print(delim)
+                      'Im <SOC>'), flush=True)
+    print(delim, flush=True)
 
     # matrix elements
     fstr = '  {:<'+str(llen)+'}' \
@@ -529,10 +527,11 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
                                   stlbl[j][3],
                                   np.real(soc_cm),
                                   np.imag(soc_cm),
-                                  'cm-1'))
+                                  'cm-1'),
+                      flush=True)
     
     # footer
-    print(delim)
+    print(delim, flush=True)
     
     return
 
@@ -559,27 +558,27 @@ def print_hsoc_eig(eig, vec, hdim, stlbl):
     
     for i in range(hdim):
 
-        print('\n'+delim)
+        print('\n'+delim, flush=True)
         
-        print(fstr_en.format(
-            i+1,
-            eig[i],
-            (eig[i] - eig[0]) * constants.au2ev))
+        print(fstr_en.format(i+1,
+                             eig[i],
+                             (eig[i] - eig[0]) * constants.au2ev),
+              flush=True)
 
-        print(delim)
+        print(delim, flush=True)
 
         indx = np.flip(np.argsort(np.abs(vec[:, i])))
 
         for j in range(hdim):
             if np.abs(vec[indx[j], i]) > thrsh:
-                print(fstr_vec.format(
-                    np.real(vec[indx[j], i]),
-                    np.imag(vec[indx[j], i]),
-                    stlbl[indx[j]][0],
-                    stlbl[indx[j]][2] + 1,
-                    stlbl[indx[j]][3],))
-
-        print(delim)
+                print(fstr_vec.format(np.real(vec[indx[j], i]),
+                                      np.imag(vec[indx[j], i]),
+                                      stlbl[indx[j]][0],
+                                      stlbl[indx[j]][2] + 1,
+                                      stlbl[indx[j]][3],),
+                      flush=True)
+                
+        print(delim, flush=True)
                 
     return
 
@@ -616,21 +615,22 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     
     # table header
     delim = ' '+'-'*(36)
-    print('\n'+delim)
+    print('\n'+delim, flush=True)
 
     fstr = '  {:'+str(10+llen)+'}'
-    print(fstr.format('Bra Label: '+bra_label))
-    print(fstr.format('Ket Label: '+ket_label))
+    print(fstr.format('Bra Label: '+bra_label), flush=True)
+    print(fstr.format('Ket Label: '+ket_label), flush=True)
     
-    print(delim)
+    print(delim, flush=True)
     
     fstr = '  {:<12} {:<12} {:<12}'
     
     print(fstr.format('Bra State',
                       'Ket State',
-                      'Overlap'))
+                      'Overlap'),
+          flush=True)
     
-    print(delim)
+    print(delim, flush=True)
 
     # Overlaps
     fstr = '{:4d} {:<7} {:4d} {:<8} {:9.6f}'
@@ -657,10 +657,11 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
         
         print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
                           bk_st[1]+1, '('+irrlbl+')',
-                          sij))
+                          sij),
+              flush=True)
 
     # table footer
-    print(delim)
+    print(delim, flush=True)
         
     return
 
@@ -808,23 +809,40 @@ def print_diabpot(diabpot, nroots, nirr, irrlbl):
     fstr = '{:4d} {:4d}     {:10.6f}'
 
     # table header
-    print('\n'+delim)
-    print('  Diabatic potential matrix elements')
+    print('\n'+delim, flush=True)
+    print('  Diabatic potential matrix elements', flush=True)
     
     # loop over irreps
     for irr in range(nirr):
     
         # sub-table header
-        print(delim)
-        print('  '+irrlbl[irr]+' block')
-        print(delim)
+        print(delim, flush=True)
+        print('  '+irrlbl[irr]+' block', flush=True)
+        print(delim, flush=True)
 
         # matrix elements for this irrep
         for i in range(nroots[irr]):
             for j in range(i,nroots[irr]):
-                print(fstr.format(i+1, j+1, diabpot[irr][i,j]))
+                print(fstr.format(i+1, j+1, diabpot[irr][i,j]),
+                      flush=True)
                 
     # table footer
-    print(delim)
+    print(delim, flush=True)
 
+    return
+
+def print_coords(crds, asym):
+    """prints a set Cartesian coordinates and atom labels"""
+
+    fstr = ' {:<}'+3*'  {:10.7f}'
+
+    print('\n\n Cartesian Coordinates', flush=True)
+    print(' ---------------------', flush=True)
+    for i in range(crds.shape[0]):
+        print(fstr.format(asym[i],
+                          crds[i,0],
+                          crds[i,1],
+                          crds[i,2]),
+              flush=True)
+    
     return

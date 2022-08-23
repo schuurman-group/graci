@@ -302,4 +302,3 @@ class Molecule:
     def n_atoms(self):
         """returns the number of atoms in the molecule"""
         return len(self.asym)
- 

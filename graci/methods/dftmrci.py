@@ -93,6 +93,11 @@ class Dftmrci(cimethod.Cimethod):
         if self.verbose:
             output.print_dftmrci_header(self.label)
 
+        # write the Cartesian coordinate to the log file
+        if self.verbose:
+            output.print_coords(self.scf.mol.crds,
+                                self.scf.mol.asym)
+            
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
