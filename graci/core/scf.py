@@ -118,7 +118,7 @@ class Scf:
         # this is just to tell user the nature of the auxiliary basis
         if self.mol.use_df:
             # tell user what RI basis if ri_basis is not set
-            self.auxbasis = self.mol.ri_basis
+            self.auxbasis = self.mol.ri_basis_obj
 
         # run the SCF calculation
         scf_pyscf = self.run_pyscf(pymol, guess)
@@ -264,7 +264,7 @@ class Scf:
         else:
             method_str = 'RO'+method_str
         if self.mol.use_df:
-            df_str = '.density_fit(auxbasis = self.mol.ri_basis)'
+            df_str = '.density_fit(auxbasis = self.mol.ri_basis_obj)'
         else:
             df_str=''
         if self.cosmo:
@@ -374,7 +374,7 @@ class Scf:
             # PySCF default
             ij_trans = np.concatenate(([orbs], [orbs]))
             df.outcore.general(pymol, ij_trans, self.moint_2e_eri,
-                        auxbasis=self.mol.ri_basis, dataname='eri_mo')
+                    auxbasis=self.mol.ri_basis_obj, dataname='eri_mo')
         else:
             eri_ao = pymol.intor('int2e_sph', aosym='s8')
             eri_mo = ao2mo.incore.full(eri_ao, orbs)
