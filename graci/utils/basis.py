@@ -39,15 +39,15 @@ def load_basis(atom, name):
     while bf_atm != atom.strip().lower() and start<len(bfile)-1:
         start += 1
         bf_atm = bfile[start][:2].strip().lower()
-
+    
     if start == len(bfile)-1:
         sys.exit('atom: '+str(atom)+' not in basis set file: ' + 
                                                     str(alias+'.dat'))
 
-    end    = start
-    while '#BASIS SET' not in bfile[end].strip() and end<len(bfile):
+    end = start
+    while '#BASIS SET' not in bfile[end].strip() and end < len(bfile)-1:
         end += 1
-
+    
     bstr = ''
     for i in range(start, end):
         bstr += bfile[i]
