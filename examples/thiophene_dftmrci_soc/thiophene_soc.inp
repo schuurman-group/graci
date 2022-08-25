@@ -18,7 +18,6 @@
  charge       = 0
  mult         = 1
  xc           = bhandhlyp
- verbose      = 4
  $end
 
  $dftmrci section

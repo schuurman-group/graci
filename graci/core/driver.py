@@ -84,22 +84,28 @@ class Driver:
                 # this should be changed: we should only set
                 # scf_obj to the object read from the chkpt file
                 # after we've confirmed they're the same..
-                scf_obj = chkpt.read('Scf.' + scf_obj.label, 
-                                     build_subobj = True,
-                                     make_mol = True)
-
-                if scf_obj is None:
+                scf_obj1 = chkpt.read('Scf.' + scf_obj.label, 
+                                      build_subobj = True,
+                                      make_mol = True)
+                
+                if scf_obj1 is None:
                     sys.exit('Cannot restart Scf, section = Scf.' + 
-                              str(scf_obj.label) + 
+                              str(scf_obj1.label) + 
                              ' not found in chkpt file = ' + 
                               str(output.file_names['chkpt_file']))
 
                 # evidence that this is imperfect:
-                scf_obj.restart = True
+                scf_obj1.restart = True
                 # call load to ensure AO -> MO transformation is run
                 # and that orbitals are printed, etc.
-                scf_obj.load()
+                scf_obj1.load()
 
+                # overwrite the original scf object in scf_objs
+                # with the 'filled in' object
+                # (required in case this scf object is going to be
+                # used as the guess for another)
+                scf_objs[scf_objs.index(scf_obj)] = scf_obj1.copy()
+                
             # else assign molecule object and call run() routine
             else:
 
@@ -129,7 +135,7 @@ class Driver:
                     scf_guess = None
                 else:
                     scf_guess = scf_objs[scf_lbls.index(scf_obj.guess_label)]
-
+                
                 # run the SCF calculation
                 scf_obj.run(mol_obj, scf_guess)
                 

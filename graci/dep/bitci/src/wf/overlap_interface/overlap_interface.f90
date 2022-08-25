@@ -59,10 +59,6 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
 
-  ! TEST
-  integer(is) :: iscratch
-  ! TEST
-  
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------

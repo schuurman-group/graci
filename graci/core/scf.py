@@ -106,6 +106,10 @@ class Scf:
         if self.verbose:
             output.print_scf_header(self)
 
+        # write the Cartesian coordinate to the log file
+        if self.verbose:
+            output.print_coords(self.mol.crds, self.mol.asym)
+            
         # set the file names based on class label
         # save integrals -- tie them to the scf object for
         self.moint_1e     = '1e_'+str(self.label).strip()+'.h5'
@@ -114,13 +118,14 @@ class Scf:
         # this is just to tell user the nature of the auxiliary basis
         if self.mol.use_df:
             # tell user what RI basis if ri_basis is not set
-            self.auxbasis = self.mol.ri_basis
+            self.auxbasis = self.mol.ri_basis_obj
 
         # run the SCF calculation
         scf_pyscf = self.run_pyscf(pymol, guess)
         
         # extract orbitals, occupations and energies
         self.orbs      = scf_pyscf.mo_coeff
+
         # orb_occ are the MO occupation numbers
         self.orb_occ   = scf_pyscf.mo_occ
         # orb_ener is the array of MO energies
@@ -168,7 +173,7 @@ class Scf:
                                      orb_ener=self.orb_ener,
                                      orb_dir='scf.'+str(self.label), 
                                      cart=True)
-
+        
         return
 
     #
@@ -260,7 +265,7 @@ class Scf:
         else:
             method_str = 'RO'+method_str
         if self.mol.use_df:
-            df_str = '.density_fit(auxbasis = self.mol.ri_basis)'
+            df_str = '.density_fit(auxbasis = self.mol.ri_basis_obj)'
         else:
             df_str=''
         if self.cosmo:
@@ -301,14 +306,28 @@ class Scf:
             dm = None
         else:
             dm = self.guess_dm(guess)
-        
+
         # run the scf computation
         self.energy = mf.kernel(dm0=dm)
         
         # if not converged, kill things
         if not mf.converged:
             sys.exit('Reference SCF computation did not converge.')
-
+    
+        # MO phase convention: positive dominant coefficients
+        # for degenerate coefficients, pick the first occurrence
+        # N.B. this is essential for diabatisation runs
+        nmo  = mf.mo_coeff.shape[1]
+        nao  = mf.mo_coeff.shape[0]
+        imax = [np.argmax(np.abs(mf.mo_coeff[:,i])) for i in range(nmo)]
+        for i in range(nmo):
+            coeff_max = mf.mo_coeff[imax[i], i]
+            diff = np.abs(mf.mo_coeff[:, i]) - abs(coeff_max)
+            indx = [1 if abs(diff[i]) < 1e-6 else 0
+                    for i in range(nao)].index(1)
+            if mf.mo_coeff[indx, i] < 0.:
+                mf.mo_coeff[:, i] *= -1.
+            
         return mf
 
     #
@@ -319,7 +338,7 @@ class Scf:
         
         adapted from the PySCF uhf.init_guess_by_chkfile function
         """
-
+        
         # PySCF mol objects
         mol  = self.mol.mol_obj
         mol0 = guess.mol.mol_obj
@@ -356,7 +375,7 @@ class Scf:
             # PySCF default
             ij_trans = np.concatenate(([orbs], [orbs]))
             df.outcore.general(pymol, ij_trans, self.moint_2e_eri,
-                        auxbasis=self.mol.ri_basis, dataname='eri_mo')
+                    auxbasis=self.mol.ri_basis_obj, dataname='eri_mo')
         else:
             eri_ao = pymol.intor('int2e_sph', aosym='s8')
             eri_mo = ao2mo.incore.full(eri_ao, orbs)

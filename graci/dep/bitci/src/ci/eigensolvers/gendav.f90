@@ -643,7 +643,7 @@ contains
     !
     call diag_matrix_real(Gmat(1:currdim,1:currdim),rho(1:currdim),&
          alpha(1:currdim,1:currdim),currdim)
-    
+
     return
     
   end subroutine subspace_diag
@@ -992,7 +992,7 @@ contains
          Sinvsq,nnew,0.0d0,work2(:,1:nnew),matdim)
     
     bvec(:,ki:kf)=work2(:,1:nnew)
-
+    
 !----------------------------------------------------------------------
 ! End timing and update the subspace vector timer
 !----------------------------------------------------------------------

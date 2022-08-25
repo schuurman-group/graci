@@ -90,6 +90,7 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   integer(is)              :: i,j
   integer(is)              :: nvec
   integer(is), allocatable :: indx(:)
+  integer(is)              :: ipos(1)
   real(dp)                 :: norm
   real(dp), allocatable    :: Smat(:,:),Sinvsq(:,:)
   real(dp), allocatable    :: Elow(:)
@@ -346,6 +347,17 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   ! Orthogonalise
   Avec(:,1:nroots)=Avec_ortho
   Avec_ortho=matmul(Avec(:,1:nroots),Sinvsq)
+
+!----------------------------------------------------------------------
+! Phase convention: enforce a positive dominant coefficient
+! This becomes a necessity if this is the starting point of a P-BDD
+! diabatisation run
+!----------------------------------------------------------------------
+  do i=1,nroots
+     ipos=maxloc(abs(Avec_ortho(:,i)))
+     if (Avec_ortho(ipos(1),i) < 0.0d0) &
+          Avec_ortho(:,i)=-Avec_ortho(:,i)
+  enddo
 
 !----------------------------------------------------------------------
 ! Write the 2nd-order energies and 1st-order wave functions to disk

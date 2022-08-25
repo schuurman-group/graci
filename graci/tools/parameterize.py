@@ -295,7 +295,7 @@ class Parameterize:
             ci_objs[i].verbose = self.verbose 
             ci_objs[i].update_hparam(np.asarray(hparams))
             ci_objs[i].run(scf_objs[iscf], None)
-            
+
         libs.lib_func('bitci_int_finalize', [])
 
         # use overlap with ref states to identify relevant states

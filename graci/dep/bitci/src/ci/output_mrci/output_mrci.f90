@@ -189,12 +189,12 @@ contains
     integer(is)              :: i,i1,modus,ndom,nexci
     real(dp), parameter      :: csfthrsh=0.005d0
     character(len=50)        :: string
-    
+
 !----------------------------------------------------------------------
 ! Number of reference space CSFs
 !----------------------------------------------------------------------
     nrefcsf=cfg%csfs0h(cfg%n0h+1)-1
- 
+
 !----------------------------------------------------------------------
 ! Determine the configuration and spin-coupling information for the
 ! dominant CSFs

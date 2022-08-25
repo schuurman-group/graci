@@ -49,6 +49,7 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
   ! Everything else
   integer(is)             :: i,j
   real(dp)                :: s,smax
+  logical                 :: printcsf
   
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the calculation type character
@@ -175,15 +176,15 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
 ! Generate the bra and ket CSFs
 !----------------------------------------------------------------------
   ! Don't spam the user with info that's already been generated
-  verbose=.false.
+  printcsf=.false.
 
   ! Bra CSFs
   call generate_csfs(imultB,nocase2,ncsfsB,ndetsB,maxcsfB,&
-       maxdetB,csfcoeB,detvecB,verbose)
+       maxdetB,csfcoeB,detvecB,printcsf)
 
   ! Ket CSFs
   call generate_csfs(imultK,nocase2,ncsfsK,ndetsK,maxcsfK,&
-       maxdetK,csfcoeK,detvecK,verbose)
+       maxdetK,csfcoeK,detvecK,printcsf)
 
   verbose=verbose1
 !----------------------------------------------------------------------
@@ -204,6 +205,11 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
   allocate(scrname(maxunits))
   scrname=''
 
+!----------------------------------------------------------------------
+! Set the output verbosity
+!----------------------------------------------------------------------
+  verbose=verbose1
+  
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------

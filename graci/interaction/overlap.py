@@ -78,7 +78,7 @@ class Overlap(interaction.Interaction):
         # overlaps
         list_type = 'full'
         if self.same_obj(self.bra_obj, self.ket_obj):
-            list_type = 'nodiag'
+            list_type = 'lower'
 
         # construct the list of state pairs between which we
         # will compute overlaps
@@ -195,5 +195,5 @@ class Overlap(interaction.Interaction):
             [kirr, kst]    = ket.state_sym(bk_st[1])
             sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
             overlaps[indx] = overlap_list[birr][kirr][sym_indx]
-        
+                
         return overlaps

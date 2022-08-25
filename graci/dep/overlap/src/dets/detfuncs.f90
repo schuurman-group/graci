@@ -17,6 +17,7 @@ contains
     use constants
     use global
     use utils
+    use timing
     
     implicit none
 
@@ -43,12 +44,21 @@ contains
 
     ! Surviving determinants
     integer(is), allocatable :: idet(:)
+
+    ! Timing variables
+    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
+                                twall_end
     
     ! Everything else
     integer(is)              :: i,k,n
     real(dp)                 :: normsq,targ,diff
     real(dp), parameter      :: epsilon=1e-6_dp
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -66,7 +76,7 @@ contains
 !----------------------------------------------------------------------
     ! Target squared norm
     targ=normthrsh**2
-
+    
     ! Loop over roots
     do i=1,nroots
 
@@ -83,7 +93,7 @@ contains
 
           ! Flag the determinant for survival
           idet(indx(k))=1
-
+          
           ! Exit if:
           ! (1) we have hit the target squared norm, and;
           ! (2) this determinant is not degenerate with the next one
@@ -146,6 +156,14 @@ contains
        enddo
 
     enddo
+
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+         'truncate_wave_functions')
     
     return
     

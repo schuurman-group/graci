@@ -85,6 +85,7 @@ class Molecule:
         self.mol_obj   = None
         self.nao       = None
         self.basis_obj = None
+        self.ri_basis_obj = None
 
     def copy(self):
         """create of deepcopy of self"""
@@ -177,17 +178,20 @@ class Molecule:
         """make basis set objects using alias names"""
 
         # check the basis set exists in pyscf library
-        self.basis_obj = {}
+        self.basis_obj    = {}
+        self.ri_basis_obj = {}
+        if self.ri_basis is None:
+            self.ri_basis = {}
+
         for atom, bname in self.basis.items():
             alias = bname.lower().replace('-','').replace('_','')
 
             # if alias if found in PySCF library, use those
             if alias in gto.basis.ALIAS.keys():
                 self.basis_obj[atom] = gto.basis.load(bname, atom)
-                continue
 
             # if not in pyscf, check if in supplemental library
-            if alias in basis.local_basis_sets():
+            elif alias in basis.local_basis_sets():
                 self.basis_obj[atom] = basis.load_basis(atom,bname)
                 continue
 
@@ -199,18 +203,40 @@ class Molecule:
                 sys.exit('Basis: ' + str(bname) + ' for atom ' +
                           atom + ' not found.')
 
-        if self.ri_basis is None and self.use_df:
-            bname = {atm :
-                    gto.basis._format_basis_name(self.basis[atm])
-                                    for atm in self.basis.keys()}
-            self.ri_basis = dict()
-            for atm in bname.keys():
-                if bname[atm] in df.addons.DEFAULT_AUXBASIS.keys():
-                    self.ri_basis[atm] = df.addons.DEFAULT_AUXBASIS[bname[atm]][0]
-                else:
-                    self.ri_basis[atm] = 'even-tempered'
+            # if using density-fitting, set up auxiliary basis
+            if self.use_df:
+               
+                # if not specified, make a default
+                if atom not in self.ri_basis.keys():
+                    if alias in df.addons.DEFAULT_AUXBASIS.keys():
+                        aux_name = df.addons.DEFAULT_AUXBASIS[alias][0]
+                        self.ri_basis[atom] = aux_name
+                    else:
+                        self.ri_basis[atom] = 'even-tempered'
 
-    #
+                # if specified, check where to find basis set
+                aux_bname = self.ri_basis[atom].lower()
+                aux_alias = aux_bname.replace('-','').replace('_','')
+
+                # if basis set in pyscf, continue
+                if aux_alias in gto.basis.ALIAS.keys():
+                    self.ri_basis_obj[atom] = gto.basis.load(aux_bname, 
+                                                                  atom)
+
+                # special case: run-time generation of even-tempered basis
+                elif aux_alias == 'eventempered':
+                    self.ri_basis_obj[atom] = aux_bname
+
+                #...if not, check local basis set directory
+                elif aux_alias in basis.local_basis_sets():
+                    self.ri_basis_obj[atom] = basis.load_basis(atom, 
+                                                             aux_bname)
+
+                # can't find it anywhere: exit with error
+                else:
+                    sys.exit('Basis: ' + str(aux_alias) + ' for atom ' +
+                      atom + ' not found.')
+
     def read_xyz(self):
         """read the xyz_file specified by 'xyz_file'"""
 
@@ -325,4 +351,3 @@ class Molecule:
  
         return coc_xyz / np.sum(chg)
 
- 

@@ -118,11 +118,16 @@ class Dftmrci2(cimethod.Cimethod):
         # not been given
         if self.regfac is None:
             self.regfac = self.default_regfac[self.regularizer]
-
-        # write the output logfile header for this run
+            
+        # write the output log file header for this run
         if self.verbose:
             output.print_dftmrci2_header(self.label)
-
+            
+        # write the Cartesian coordinate to the log file
+        if self.verbose:
+            output.print_coords(self.scf.mol.crds,
+                                self.scf.mol.asym)
+        
         # initialize bitci
         bitci_init.init(self)
 
