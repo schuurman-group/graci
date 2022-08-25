@@ -47,6 +47,7 @@ def extract(bra, ket):
         # for this irrep
         args   = (irr, conf_file, vec_file, nstates, 'bra', wf_scr)
         wf_scr = libs.lib_func('detwf', args)
+
         wfunits_bra.append(wf_scr)
         
     # Extract the ket wave functions
@@ -119,6 +120,7 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
         # pairs of states for this bra irrep and ket irrep
         # bitwf uses Fortran indexing for these, hence the +1
         npairs = len(overlap_list[irr][irr])
+
         if npairs == 0:
             continue
         overlap_pairs = 1 + np.reshape(
@@ -140,15 +142,15 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
         args = (irr, bra_tot, ket_tot, npairs, overlap_pairs,
                 bra_unit, ket_unit, norm_thresh, ncore, icore,
                 delete_core, sij)
-        sij  = libs.lib_func('detoverlap', args)
 
+        sij  = libs.lib_func('detoverlap', args)
         overlap[irr][irr] = sij
 
     # fill in the overlaps that are zero by symmetry
     for bra_irr in range(bra.n_irrep()):
         for ket_irr in range(ket.n_irrep()):
             if bra_irr != ket_irr:
-                npairs = len(overlap_list[irr][irr])
+                npairs = len(overlap_list[bra_irr][ket_irr])
                 if npairs == 0:
                     continue
                 overlap[bra_irr][ket_irr] = np.zeros((npairs),
