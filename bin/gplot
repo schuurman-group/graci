@@ -1,0 +1,253 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import re
+import numpy as np
+import graci.io.chkpt as chkpt
+import graci.io.parse as parse
+import graci.utils.constants as constants
+import matplotlib.pyplot as plt
+
+kwords = {}
+colors = {'blue'  : 'b', 'red' : 'r', 'green': 'g', 'black': 'k', 
+          'magenta':'m', 'cyan': 'c'}
+
+
+def main():
+
+    arg_list = sys.argv[1:]
+    set_defaults()
+    kwords = extract_keywords(arg_list[0])
+    t_ener, t_osc, t_color, t_shft = extract_trans(arg_list[1:])
+    generate_plot(t_ener, t_osc, t_color, t_shft)
+
+def set_defaults():
+
+    kwords['sections']    = []
+    kwords['labels']      = []
+    kwords['color']       = []
+    kwords['xshift']      = []
+    kwords['yshift']      = []
+    kwords['xcutoff']     = -1
+    kwords['range']       = []
+    kwords['nrm']         = 0.
+    kwords['xlabel']      = ""
+    kwords['ylabel']      = ""
+    kwords['fwhm']        = 1.
+    kwords['convolution'] = 'gaussian'
+    kwords['external']    = []
+    kwords['ext_lbls']    = []
+    kwords['ext_color']   = ['black']
+    kwords['ext_xshft']   = [0]
+    kwords['ext_yshft']   = [0]
+    kwords['ext_conv']    = [False]
+
+#
+def extract_keywords(fname):
+
+    with open(fname, 'r') as f:
+        input_keys = f.readlines()
+
+    i = 0
+    while i < len(input_keys):
+        (kword,value) = input_keys[i].split('=')
+        kword = kword.strip().lower()
+        vals = re.split('(\[)|(\])|\n', value)
+
+        try:
+            while True:
+                vals.remove(None)
+        except ValueError:
+            pass
+
+        # remove empty strings
+        try:
+            while True:
+                vals.remove('')
+        except ValueError:
+            pass
+
+        if len(vals) == 1:
+            kwords[kword] = parse.convert_value(vals[0].strip())
+
+        else:
+            start = vals.index('[')+1
+            end   = vals.index(']')
+            kwords[kword] = []
+            for val in vals[start:end]:
+                vlist = val.split()
+                for v in vlist:
+                    kwords[kword].append(parse.convert_value(v.strip()))
+
+        i += 1
+
+    for key,value in kwords.items():
+        print('kwords['+str(key)+'] = '+str(value), flush=True)
+ 
+    return
+
+#
+def extract_trans(fnames):
+
+    t_ener  = {}
+    t_osc   = {}    
+    t_color = {}
+    t_shft  = {}
+
+    for i in range(len(fnames)):
+        fname = fnames[i]
+        # get contents
+        objs        = chkpt.contents(file_name=fname)
+
+        for section in kwords['sections']:
+            if section in objs:
+                 obj = chkpt.read(section, file_name=fname, 
+                               build_subobj=True, make_mol=False)
+
+                 # get the list of ket states
+                 ket_st = obj.get_states('ket')
+                 bra_st = obj.get_states('bra')
+
+                 for iket in range(len(ket_st)):
+                     eners = []
+                     osc   = []
+
+                     for ibra in range(len(bra_st)):
+                         indx = obj.trans_list.index([bra_st[ibra],
+                                                      ket_st[iket]])
+
+                         bra_e = obj.bra_obj.energy(bra_st[ibra])
+                         ket_e = obj.ket_obj.energy(ket_st[iket])
+                         ener  = (bra_e - ket_e)*constants.au2ev + \
+                                 kwords['xshift'][i]
+
+                         if ener <= kwords['xcutoff'] or kwords['xcutoff']==-1:
+                             eners.append(ener)
+                             osc.append(obj.oscstr['f2iso_v'][indx])
+
+                 t_ener[kwords['labels'][i]] = np.asarray(eners, dtype=float)
+                 t_osc[kwords['labels'][i]]  = np.asarray(osc, dtype=float) 
+                 t_color[kwords['labels'][i]]= colors[kwords['color'][i]]            
+                 t_shft[kwords['labels'][i]] = kwords['yshift'][i]
+
+    return t_ener, t_osc, t_color, t_shft
+
+#
+def lorentz(x, x0, gamma):
+    g2 = 0.5 * gamma
+    dx = x - x0
+    return (1./np.pi) * g2 / ( dx**2 + g2**2 )
+
+#
+def gaussian(x, x0, sigma):
+    dx = x - x0
+    return (1. / (sigma*np.sqrt(2.*np.pi))) * np.exp(-0.5*dx**2 / sigma**2)
+    
+#
+def generate_conv(x, y, domain, fwhm, conv_func):
+
+    npts = 200 
+    xval = np.linspace(domain[0], domain[1], npts)
+    yval = np.zeros(npts, dtype=float)
+
+    if conv_func == 'gaussian':
+      conv  = gaussian
+      param = fwhm / (2. * np.sqrt(2. * np.log(2.)))
+    elif conv_func == 'lorentzian':
+      conv = lorentz
+      param = fwhm
+    else:
+      print('unknown convolution function: '+str(conv_func))
+      sys.exit(1)
+
+    for xi in range(npts):
+        yval[xi] = np.dot(y, conv(x, xval[xi], param))
+
+    return xval, yval
+
+
+
+# 
+def generate_plot(t_ener, t_osc, t_color, t_shft):
+
+
+    fht = max([0] + [val for key,val in t_shft.items()] + \
+              2*kwords['ext_yshft']) + 4
+    plt.figure(figsize=(6,fht)) 
+ 
+    # convlution domain should not extend past xcutoff
+    domain = kwords['range']
+
+    lgds = []
+    for lbl, xval in t_ener.items():
+
+        xconv, yconv = generate_conv(xval, t_osc[lbl], domain,
+                        kwords['fwhm'], conv_func=kwords['convolution'])
+
+        nrm_fac = kwords['nrm'] / np.amax(yconv)
+        yconv *= nrm_fac
+        t_osc[lbl] *= nrm_fac
+
+        plt.stem(xval, t_osc[lbl]+t_shft[lbl], use_line_collection=True, 
+                       bottom = t_shft[lbl], linefmt = '-'+t_color[lbl], 
+                       markerfmt = " ", basefmt = " ")
+        plt.plot(xconv, yconv+t_shft[lbl], color=t_color[lbl])  
+        lgds.append(lbl)
+
+    for iext in range(len(kwords['external'])):
+        with open(kwords['external'][iext], 'r') as f:
+            ext_data = f.readlines()
+
+        nd    = len(ext_data)
+        xshft = kwords['ext_xshft'][iext]
+        xl = []
+        yl = []
+        for i in range(nd):
+            xystr = ext_data[i].lstrip().rstrip().split()
+            xval  = parse.convert_value(xystr[0]) + xshft
+            if xval <= kwords['xcutoff'] or kwords['xcutoff'] == -1:
+                xl.append(xval)
+                yl.append(parse.convert_value(xystr[1]))
+
+        shft   = kwords['ext_yshft'][iext]
+        clr    = colors[kwords['ext_color'][iext]]
+        lbl    = kwords['ext_lbls'][iext]
+        x      = np.asarray(xl, dtype=float)
+        y      = np.asarray(yl, dtype=float)
+
+        if kwords['ext_conv'][iext]:
+
+
+            xconv, yconv = generate_conv(x, y, domain,
+                        kwords['fwhm'], conv_func=kwords['convolution'])
+            nrm_fac = kwords['nrm'] / np.amax(yconv)
+
+            yconv *= nrm_fac
+            y     *= nrm_fac
+
+            plt.stem(x, y + shft, use_line_collection=True,
+                                  bottom = shft, 
+                                  linefmt = '-'+clr,
+                                  markerfmt = " ", basefmt = " ")
+            plt.plot(xconv, yconv+shft, color=clr)
+        else:
+            y = y * kwords['nrm'] / np.amax(y)
+            plt.plot(x, y, color=clr) 
+        lgds.append(lbl)            
+
+    plt.yticks(color='w')
+    plt.xlim(kwords['range']) 
+    plt.xlabel(kwords['xlabel'])
+    plt.ylabel(kwords['ylabel'])
+    plt.legend(lgds)
+ 
+    plt.savefig('plot.png')
+
+    return
+
+if __name__ == '__main__':
+
+    # run the main routine
+    main()
+

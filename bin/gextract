@@ -8,13 +8,14 @@ import numpy as np
 import h5py
 import graci.io.chkpt as chkpt
 import graci.core.params
+import graci.core.orbitals as orbitals
 
 valid_formats = ['molden','gamess']
 orb_objs      = {'-scf' : ['Scf'],
                  '-nos' : ['Dftmrci','Dftcis'],
                  '-nto' : ['Transition'],
                  '-ndo' : ['Transition']}
-wfn_objs      = {'-dets' : ['Dftmrci','Dftcis']}                
+wfn_objs      = {'-dets' : ['Dftmrci','Dftcis','Dftmrci2']}                
 diab_objs     = {'-diabpot' : ['Dftmrci2']}
 
 #
@@ -131,8 +132,10 @@ def extract_orbitals(chkpt_file, extract_list):
 
         # extract objects and write to current directory
         chkpt_obj = chkpt.read(obj2extract, file_name=chkpt_file)
-        chkpt_obj.export_orbitals(file_format=extract_list['-format'], 
-                                  orb_dir=False, cart=cartaos)
+        orbitals.export_orbitals('mos.dat', chkpt_obj.mol, 
+               chkpt_obj.orbs, orb_sym = chkpt_obj.orb_irrep, 
+               orb_ener=chkpt_obj.orb_ener, 
+               cart=cartaos, fmt=extract_list['-format'])
 
     return
 
@@ -142,6 +145,9 @@ def extract_wfns(chkpt_file, extract_list):
 
     if extract_list['-dets'] is None:
         return
+
+    # multiplicity based file names
+    f_names = ['S', 'D', 'T', 'Q', '5', '6', '7', '8']
 
     # name of method object to get determinants from
     # currenty default is to extract all states. We may want to add
@@ -171,53 +177,84 @@ def extract_wfns(chkpt_file, extract_list):
             sys.exit(1)
         wfn2extract = obj_names[name_chk.index(True)]
 
-    # now we need to find out how many states there are and their
-    # indices
-    wfn_dsets = chkpt.contents(file_name = chkpt_file, 
-                               grp_name = wfn2extract)
-
-    cf_inds =  []
-    for wfn in wfn_dsets:
-        if 'wfn_cf' in wfn:
-            cf_inds.append(int(wfn.replace('wfn_cf','')))
-
     # make sure the cutoff value is interprable
     try:
         cutoff = float(extract_list['-cutoff'])
     except:
-        print("WARNING: cannot intepret cutoff value of: " + 
+        print("WARNING: cannot intepret cutoff value of: " +
               str(extract_list['-cutoff'])+" as a float. Setting to 0")
         cutoff = 0.
 
-    f_names = ['S', 'D', 'T', 'Q', '5', '6', '7', '8']
+    # read in the wfn object
+    ci_method = chkpt.read(wfn2extract, file_name=chkpt_file)
 
-    # extract wfns and write them to file
-    for indx in cf_inds:
-        cf, det = chkpt.read_wfn(wfn2extract, indx, cutoff,
-                                 file_name = chkpt_file)
+    # write the bit strings, ordered by irrep
+    for irr in range(ci_method.n_irrep()):
+ 
+        if ci_method.n_states_sym(irrep=irr) == 0:
+            continue
 
-        (nmo, ndets) = det.shape
-        if ndets > 0:
-            # write to file. Determine multiplicity by taking 
-            # open(alpha) - open(beta)
-            unique, counts = np.unique(det[:,0], return_counts=True)
-            cnts = dict(zip(unique, counts))
-            nalpha = 0
-            nbeta = 0
-            if 1 in cnts.keys():
-                nalpha = cnts[1]
-            if -1 in cnts.keys():
-                nbeta  = cnts[-1]
-            nopen = abs(nalpha-nbeta)
+        dstr   = ci_method.det_strings[irr]
+        cf     = ci_method.vec_det[irr]   
+        nd,nst = cf.shape
+        nmo    = ci_method.scf.nmo 
 
+        if nd == 0 or nst == 0:
+            continue
+
+        dfmt   = [bstr2vec(dstr[:,:,i], nmo) for i in range(nd)]
+        unique, counts = np.unique(dfmt[0], return_counts=True)
+        cnts = dict(zip(unique, counts))
+        nalpha = 0
+        nbeta = 0
+        if 1 in cnts.keys():
+            nalpha = cnts[1]
+        if -1 in cnts.keys():
+            nbeta  = cnts[-1]
+        nopen = abs(nalpha-nbeta)
+
+        for ist in range(nst):
+            indx  = ci_method.state_index(irr, ist)
+            cf_srt = np.flip(np.argsort(cf[:,ist]))
+            print(cf[cf_srt[0:5],ist],flush=True)
             out_file = f_names[nopen]+str(indx)+"_det.dat"
-            with open(out_file, 'w') as detlist:
-                for idet in range(ndets):
-                    det_str = '{:14.10f} '.format(cf[idet])
-                    det_str += ('%3d'*nmo) % tuple(det[:,idet])
-                    detlist.write(det_str+'\n')
+            with open(out_file, 'w') as dfile:
+                idet = 0
+                while cf[cf_srt[idet],ist] > cutoff and idet < nd:
+                    det_str = '{:14.10f} '.format(cf[cf_srt[idet],ist])
+                    det_str += ('%3d'*nmo) % tuple(dfmt[cf_srt[idet]])
+                    dfile.write(det_str+'\n')
+                    idet += 1
 
     return
+
+def bstr2vec(bstr, nmo):
+
+    STR_LEN = 64
+    n_int, n_spin = bstr.shape
+
+    alpha = []
+    beta  = []
+
+    #print('bstr='+str(bstr),flush=True)
+    # use numpy intrinsic binary_repr -- if width specified,
+    # returns two's complement value
+    for i_int in range(n_int):
+        alpha  += list(np.binary_repr(bstr[i_int,0],
+                                       width=STR_LEN))[::-1]
+        beta   += list(np.binary_repr(bstr[i_int,1],
+                                       width=STR_LEN))[::-1]
+
+    # only take first nmo entries -- the rest are padding
+    dabs = [int(alpha[i]) + int(beta[i]) for i in range(nmo)]
+    rdet = np.array(dabs, dtype=np.short)
+    for i in range(nmo):
+        if int(alpha[i]) == 0:
+            rdet[i] = -dabs[i]
+
+    #print('rdet='+str(rdet),flush=True)
+    return rdet
+
 
 #
 def extract_diabpot(chkpt_file, extract_list):

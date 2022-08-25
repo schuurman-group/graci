@@ -167,7 +167,7 @@ class Driver:
                         ci_guess = ci_objs[ci_lbls.index(g_lbl)]
                     else:
                         ci_guess = None
-                     
+                
                     ci_obj.run(scf_obj, ci_guess)
                     chkpt.write(ci_obj)
 
