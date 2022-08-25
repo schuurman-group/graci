@@ -1021,7 +1021,7 @@ contains
     !
     read(iscratch) idum
     read(iscratch) idum
-    
+ 
     !
     ! Read the no. determinants
     !

@@ -156,9 +156,6 @@ class Dftmrci(cimethod.Cimethod):
             n_mrci_conf, mrci_conf_units, mrci_conf_files, \
                 eq_units = mrci_space.generate(self)
  
-            if self.verbose:
-                print('generate n_mrci_conf, mrci_conf_units, mrci_conf_files='+str(n_mrci_conf)+' '+str(mrci_conf_units)+' '+str(mrci_conf_files), flush=True)
-
             # set the number of mrci config, the mrci unit numbers and
             # unit names, the Q-space energy correction unit numbers,
             # and the damped strong perturber unit numbers
@@ -183,9 +180,6 @@ class Dftmrci(cimethod.Cimethod):
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
                 mrci_refine.refine_ref_space(self)
-
-            if self.verbose:
-                print('refine n_ref_conf, ref_conf_units='+str(n_mrci_conf)+' '+str(ref_conf_units), flush=True)
 
             self.ref_wfn.set_nconf(n_ref_conf)
             self.ref_wfn.set_confunits(ref_conf_units)

@@ -28,14 +28,14 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   ! bitCI configuration and eigenvector file names
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: conffile_in(*),vecfile_in(*),&
-                                        bkstr_in
-  character(len=255)                 :: conffile,vecfile,bkstr
-       
+                                        bkstr_in(*)
   integer(is)                        :: length
 #else
   character(len=*), intent(in)       :: conffile_in,vecfile_in,bkstr_in
-  character(len=255)                 :: conffile,vecfile,bkstr
 #endif
+
+  ! file names for internal use
+  character(len=255)                 :: conffile,vecfile,bkstr
 
   ! Irrep and no. roots
   integer(is), intent(in)  :: irrep,nroots
@@ -88,7 +88,7 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
   call c2fstr(bkstr_in,bkstr,length)
 #else
   conffile=adjustl(trim(conffile_in))
-  vecfileB=adjustl(trim(vecfileB_in))
+  vecfile=adjustl(trim(vecfile_in))
   bkstr=adjustl(trim(bkstr_in))
 #endif
 

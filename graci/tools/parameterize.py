@@ -40,6 +40,7 @@ class Parameterize:
         self.iiter          = 0
         self.current_h      = 0
         self.error          = 0
+        self.de_thr         = 0.5
 
     #
     def run(self):
@@ -101,7 +102,7 @@ class Parameterize:
 
         # set initial parameter set
         pref = np.zeros(npar, dtype=float)
-        args = (self.hamiltonian, npar, p0)
+        args = (self.hamiltonian, npar, pref)
         pref = libs.lib_func('retrieve_hpar', args)
 
         if self.init_params is None:
@@ -159,7 +160,7 @@ class Parameterize:
 
         # this approach assumes dict is ordered! Only true from Python
         # 3.6 onwards...
-        ide = 0
+        ide        = 0
         for molecule in target_data.keys():
             for trans, ener in target_data[molecule].items():
                 init, final  = trans.strip().split()
@@ -168,7 +169,7 @@ class Parameterize:
                 dif_vec[ide] = de_iter*constants.au2ev - ener
                 ide         += 1
  
-        self.error = np.linalg.norm(dif_vec)
+        self.error    = np.linalg.norm(dif_vec)
 
         return self.error
 
@@ -186,7 +187,6 @@ class Parameterize:
 
         if self.iiter >= self.max_iter:
             msg = 'Max. number of iterations completed.'
-            output.print_message(msg)
             self.hard_exit(msg) 
 
         return
@@ -205,7 +205,7 @@ class Parameterize:
         if params.nproc > 1:
 
             with MPIPoolExecutor(max_workers=params.nproc,
-                                                   root=0) as executor:
+                                                 root=0) as executor:
                 if executor is not None:
 
                     args = ((hparams, molecule, topdir, 
@@ -264,7 +264,7 @@ class Parameterize:
         output.file_names['out_file'] = topdir+'/'+str(molecule)+'.log'
 
         # change to the appropriate sub-directory
-        #os.chdir(topdir+'/'+str(molecule))
+        os.chdir(topdir+'/'+str(molecule))
 
         curr_scf = ''
         iscf     = -1
@@ -295,11 +295,23 @@ class Parameterize:
             ci_objs[i].verbose = self.verbose 
             ci_objs[i].update_hparam(np.asarray(hparams))
             ci_objs[i].run(scf_objs[iscf], None)
+            
         libs.lib_func('bitci_int_finalize', [])
 
         # use overlap with ref states to identify relevant states
         ener_match = self.identify_states(molecule, ref_state, ci_refs, 
                                                                ci_objs)
+ 
+        # if we're unable to match the states output some info that
+        # may help diagnose the problem
+        if ener_match is None:
+            msg = str(molecule)+' failed to match states. Current ' + \
+                  ' hparam values = ' + str(hparams)
+            for i in range(len(ci_objs)):
+                msg += '\n ' + str(ci_objs[i].label) + ' ' + \
+                       str(ci_objs[i].energies)
+            self.hard_exit(msg)
+
         energies = {molecule : {}}
         for state, ener in ener_match.items():
             energies[molecule][state] = ener
@@ -334,13 +346,13 @@ class Parameterize:
                 s_max = np.amax(Sij)
 
                 if s_max <= s_thrsh:
-                    print('ERROR: overlap for molecule=' + str(molecule)
-                          + ' state=' + str(lbl) +' is ' + str(s_max))
-                    sys.exit(1)
+                    print('ERROR: overlap for ' + str(molecule) +
+                          ' state=' + str(lbl) +' is ' + str(Sij))
+                    return None
+
                 kst = ket_st[np.argmax(Sij)]
                 eners[lbl] = new_ci[iobj].energies[kst]
 
-                        
         return eners
 
     #
@@ -353,7 +365,7 @@ class Parameterize:
             nscf = len(list(set(scf_objs[molecule])))
 
             if os.path.isdir(molecule):
-                os.shutil.rmtree(molecule)
+                shutil.rmtree(molecule)
 
             os.mkdir(molecule)
             for iscf in range(nscf):
@@ -419,12 +431,6 @@ class Parameterize:
                     is_scf, scf_name = chkpt.data_name('', scf_link)
                     if is_scf:
                         scf_objs[molecule].append(scf_name)
-
-            # check that we found all the reference states
-            #states_found = []
-            #for st_dic in ref_states[molecule]:
-            #    states_found.extend(list(st_dic.keys()))
-            #states_found.sort()
 
             if target_lbls != states_found:
                 msg = 'ERROR - molecule: ' + str(molecule) + ' -- ' +\
