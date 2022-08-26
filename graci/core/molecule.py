@@ -83,7 +83,6 @@ class Molecule:
         self.mol_obj   = None
         self.nao       = None
         self.basis_obj = None
-        self.ri_basis_obj = None
 
     def copy(self):
         """create of deepcopy of self"""
@@ -177,58 +176,66 @@ class Molecule:
 
         # check the basis set exists in pyscf library
         self.basis_obj    = {}
-        self.ri_basis_obj = {}
         if self.ri_basis is None:
             self.ri_basis = {}
 
         for atom, bname in self.basis.items():
             alias = bname.lower().replace('-','').replace('_','')
 
-            # if alias if found in PySCF library, use those
-            if alias in gto.basis.ALIAS.keys():
+            # highest priority is the user-specified local directory 
+            if alias in basis.local_basis_sets(local_dir=True):
+                self.basis_obj[atom] = basis.load_basis(atom, bname,
+                                                        local_dir=True)
+
+            # ...next the GRACI source directory basis sets
+            elif alias in basis.local_basis_sets():
+                self.basis_obj[atom] = basis.load_basis(atom, bname)
+
+            # next is alias if found in PySCF library, use those
+            elif alias in gto.basis.ALIAS.keys():
                 self.basis_obj[atom] = gto.basis.load(bname, atom)
 
-            # if not in pyscf, check if in supplemental library
-            elif alias in basis.local_basis_sets():
-                self.basis_obj[atom] = basis.load_basis(atom,bname)
             else:
-                sys.exit('Basis: ' + str(bname) + ' for atom ' +
-                          atom + ' not found.')
+                # lastly, try loading as a basis format string using
+                # pyscf basis loader
+                try:
+                    self.basis_obj[atom] = gto.basis.parse(bname)
+                except:
+                    sys.exit('Basis: ' + str(bname) +
+                             ' for ' + atom + ' not found.')
 
             # if using density-fitting, set up auxiliary basis
             if self.use_df:
-               
+
                 # if not specified, make a default
                 if atom not in self.ri_basis.keys():
+
                     if alias in df.addons.DEFAULT_AUXBASIS.keys():
                         aux_name = df.addons.DEFAULT_AUXBASIS[alias][0]
                         self.ri_basis[atom] = aux_name
                     else:
-                        self.ri_basis[atom] = 'even-tempered'
+                        self.ri_basis[atom] = None
 
-                # if specified, check where to find basis set
-                aux_bname = self.ri_basis[atom].lower()
-                aux_alias = aux_bname.replace('-','').replace('_','')
-
-                # if basis set in pyscf, continue
-                if aux_alias in gto.basis.ALIAS.keys():
-                    self.ri_basis_obj[atom] = gto.basis.load(aux_bname, 
-                                                                  atom)
-
-                # special case: run-time generation of even-tempered basis
-                elif aux_alias == 'eventempered':
-                    self.ri_basis_obj[atom] = aux_bname
-
-                #...if not, check local basis set directory
-                elif aux_alias in basis.local_basis_sets():
-                    self.ri_basis_obj[atom] = basis.load_basis(atom, 
-                                                             aux_bname)
-
-                # can't find it anywhere: exit with error
+                # else, if specified, make sure it something that is
+                # supported
                 else:
-                    sys.exit('Basis: ' + str(aux_alias) + ' for atom ' +
-                      atom + ' not found.')
 
+                    # None is OK -- will result in even-tempered
+                    if self.ri_basis[atom] is not None:
+                        a_name  = self.ri_basis[atom].lower()
+                        a_alias = a_name.replace('-','').replace('_','')
+
+                        # is in pyscf directory
+                        if a_alias not in gto.basis.ALIAS.keys():
+                            sys.exit('Auxiliay basis: ' + str(a_alias) +
+                                     ' for atom '+ atom + ' not found.')
+
+        # if we don't have RI-basis for each atom, use even-tempered 
+        # for all atoms -- else PySCF squawks
+        if any(b is None for b in self.ri_basis.values()):
+            self.ri_basis = None
+
+    #
     def read_xyz(self):
         """read the xyz_file specified by 'xyz_file'"""
 
