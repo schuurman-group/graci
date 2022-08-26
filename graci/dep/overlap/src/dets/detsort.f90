@@ -131,17 +131,17 @@ contains
        
        ! Deallocate work arrays
        deallocate(det_sort,dwork,mwork,imap,vwork)
-       
+   
     enddo
-    
+   
 !----------------------------------------------------------------------
 ! (4) Using the now double-sorted array of determinants, determine:
 !     (i)  the unique beta strings
 !     (ii) the determinant-to-unique beta string mapping
 !----------------------------------------------------------------------
     ! Allocate work arrays
-    allocate(dwork(n_int,2,ndet), mwork(ndet), imap(ndet), vwork(ndet))
-    dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
+    allocate(det_sort(n_int,2,ndet),dwork(n_int,2,ndet),mwork(ndet), imap(ndet))
+    det_sort=0_ib; dwork=0_ib; mwork=0; imap=0
     
     ! Put a copy of the double-sorted determinants into beta-major
     ! order
@@ -149,7 +149,7 @@ contains
     call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,2)
 
     ! Deallocate now undeeded work arrays
-    deallocate(dwork,mwork,vwork)
+    deallocate(dwork,mwork)
     
     ! Get the no. unique beta strings
     nbeta=nunique_strings(n_int,ndet,det_sort,2)
@@ -158,7 +158,7 @@ contains
     allocate(offb(nbeta+1), beta(n_int,nbeta), det2beta(ndet))
     offb=0; beta=0_ib; det2beta=0
     
-    ! Fill in the unique alpha strings
+    ! Fill in the unique beta strings
     call fill_unique(n_int,ndet,nbeta,det_sort,beta,offb,2)
 
     ! Fill in the determinant-to-beta-string mapping array
@@ -169,7 +169,7 @@ contains
     enddo
     
     ! Deallocate arrays
-    deallocate(offb)
+    deallocate(det_sort, imap, offb)
 
     return
     

@@ -56,8 +56,6 @@ class Rydano():
         """
 
         # make a copy of the molecule object we are
-        # to modify and use that to generate Rydberg
-        # basis
         cation_mol = mol.copy()
 
         # build the PySCF molecule object 
@@ -105,10 +103,14 @@ class Rydano():
         ao_s   = cation_mol.pymol().intor('int1e_ovlp')
         ao_s_s, ao_s_c = np.linalg.eigh(ao_s)
 
-        s_thr  = 1.e-12
-        s_inv  = np.diag([1./np.sqrt(s) if s > s_thr else 0.
-                                                       for s in ao_s_s])
-        ao_s12 = ao_s_c @ s_inv @ ao_s_c.T
+        s_thr = 1.e-12
+        s_12  = np.diag([np.sqrt(s) for s in ao_s_s])
+        s_m12 = np.diag([1./np.sqrt(s) if s > s_thr else 0. 
+                                                     for s in ao_s_s])
+
+        ao_sm12 = ao_s_c @ s_m12 @ ao_s_c.T
+        ao_s12  = ao_s_c @ s_12  @ ao_s_c.T
+
         print('X@orbs@orbs.T@X.T='+str(ao_s@cation_scf.orbs@cation_scf.orbs.T),flush=True)
 
 
@@ -123,10 +125,10 @@ class Rydano():
         occ = self.set_virtual_occ(cation_scf) 
 
         # construct a set of ortho-normal rydberg orbitals
-        orbs_r = self.project_orbitals(ao_s, cation_scf.orbs, r_indx)
+        #orbs_r = self.project_orbitals(ao_s12, cation_scf.orbs)
 
         # form the density associated with the rydberg basis 
-        dao, r_indx = self.ryd_density(cation_scf.orbs, occ, a_lbl)
+        dao = self.form_ryd_density(cation_scf.orbs, occ, a_lbl)
 
         # spherically average the density
         dao_sph = self.sph_average(dao, l_val[r_indx], l_shl[r_indx])

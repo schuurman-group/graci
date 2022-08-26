@@ -406,6 +406,7 @@ class Transition(interaction.Interaction):
                                                 for k_indx in k_indxs]
 
                 cf = sum( [bcf*kcf for kcf in k_cf for bcf in b_cf] )
+
                 if abs(cf) > 1.e-16:
                     self.tdms[ind, :, :] += cf * tdm
 

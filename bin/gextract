@@ -215,12 +215,12 @@ def extract_wfns(chkpt_file, extract_list):
 
         for ist in range(nst):
             indx  = ci_method.state_index(irr, ist)
-            cf_srt = np.flip(np.argsort(cf[:,ist]))
-            print(cf[cf_srt[0:5],ist],flush=True)
+            cf_srt = np.flip(np.argsort(np.absolute(cf[:,ist])))
+
             out_file = f_names[nopen]+str(indx)+"_det.dat"
             with open(out_file, 'w') as dfile:
                 idet = 0
-                while cf[cf_srt[idet],ist] > cutoff and idet < nd:
+                while np.abs(cf[cf_srt[idet],ist]) > cutoff and idet < nd:
                     det_str = '{:14.10f} '.format(cf[cf_srt[idet],ist])
                     det_str += ('%3d'*nmo) % tuple(dfmt[cf_srt[idet]])
                     dfile.write(det_str+'\n')

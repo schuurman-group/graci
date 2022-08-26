@@ -77,6 +77,7 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
             det_bra, det_ket, vec_bra, vec_ket, smo1,
             norm_thresh, ncore, icore, delete_core, npairs,
             Sij, pairs1, verbose)
+
     Sij  = libs.lib_func('overlap_c', args)
     
     return Sij

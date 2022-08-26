@@ -123,6 +123,11 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 
   ! Everything else
   integer(is)             :: i,ic,j
+  real(dp)                :: tmpB, tmpK
+ ! Untruncated eigenvectors
+  real(dp)    :: vecB2(ndetB1,nrootsB1)
+  real(dp)    :: vecK2(ndetK1,nrootsK1)
+
 
 !----------------------------------------------------------------------
 ! Start timing
@@ -177,6 +182,25 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
+  vecB2 = vecB1
+  vecK2 = vecK1
+  do i = 1,nrootsB
+    tmpB = maxval(abs(vecB2(:,i)))
+    ic   = maxloc(abs(vecB2(:,i)),dim=1)
+    vecB2(ic,i) = 0.
+    tmpK = maxval(abs(vecB2(:,i)))
+    j    = maxloc(abs(vecB2(:,i)),dim=1)
+    print *,'root=',i,' Bvals:',detB1(1,1,ic),detB1(1,2,ic),tmpB,detB1(1,1,j),detB1(1,2,j),tmpK
+    tmpB = maxval(abs(vecK2(:,i)))
+    ic   = maxloc(abs(vecK2(:,i)),dim=1)
+    vecK2(ic,i) = 0.
+    tmpK = maxval(abs(vecK2(:,i)))
+    j    = maxloc(abs(vecK2(:,i)),dim=1)
+    print *,'root=',i,'Kvals:',detK1(1,1,ic),detK1(1,2,ic),tmpB,detK1(1,1,j),detK1(1,2,j),tmpK
+  enddo
+  call flush()
+
+
   ! Bra
   call truncate_wave_functions(n_intB,ndetB1,nrootsB,detB1,vecB1,&
        normthrsh,ndetB,detB,vecB)
@@ -230,7 +254,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   
   ! Ket
   call symm_ortho(n_intK,ndetK,nrootsK,vecK)
-  
+
 !----------------------------------------------------------------------
 ! Sorting of the bra and ket determinants, as well as the
 ! determination of the unique alpha and beta strings
@@ -242,7 +266,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Ket
   call det_sorting(n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
        alphaK,betaK,offsetK,det2betaK)
-  
+
   ! Ouput the number of unique alpha and beta strings
   if (verbose) then
      write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&
@@ -258,12 +282,12 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   betafac=0.0d0
 
   call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
-  
+
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------
   call get_overlaps(npairs,ipairs,Sij)
-  
+
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------

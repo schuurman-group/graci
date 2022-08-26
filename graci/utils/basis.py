@@ -5,13 +5,20 @@ import sys
 import re
 import pyscf.gto as gto
 
-def local_basis_sets():
+def local_basis_sets(local_dir=False):
     """
     Return a list of available local basis sets by alias
     name, i.e. with all special characters stripped 
     and converted to lower-case
     """
-    bdir = os.environ['GRACI']+'/graci/utils/basis_sets'
+
+    if local_dir:
+        if 'GRACI_EXT_BASIS_DIR' in os.environ:
+            bdir = os.environ['GRACI_EXT_BASIS_DIR']
+        else:
+            return []
+    else:
+        bdir = os.environ['GRACI']+'/graci/utils/basis_sets'
 
     basis_files = [f.replace('.dat','') for f in os.listdir(bdir) if 
                               os.path.isfile(os.path.join(bdir, f))]
@@ -19,17 +26,24 @@ def local_basis_sets():
     return basis_files
 
 #
-def load_basis(atom, name):
+def load_basis(atom, name, local_dir=False):
     """
     load basis function specified by 'alias' for atom 'atom'
     """
-    bdir = os.environ['GRACI']+'/graci/utils/basis_sets'
+    if local_dir:
+        if 'GRACI_EXT_BASIS_DIR' in os.environ:
+            bdir = os.environ['GRACI_EXT_BASIS_DIR']
+        else:
+            return None
+    else:
+        bdir = os.environ['GRACI']+'/graci/utils/basis_sets'
 
     alias = name.lower().replace('-','').replace('_','')
-    basis_avail = local_basis_sets()
+    basis_avail = local_basis_sets(local_dir=local_dir)
 
     if alias not in basis_avail:
-        sys.exit('basis set: '+str(name)+' not in local basis set list')
+        sys.exit('basis set: ' + str(name) + 
+                 ' not in basis sets in directory: ' + str(bdir))
 
     with open(bdir+'/'+alias+'.dat','r') as bf:
         bfile = bf.readlines()
@@ -41,8 +55,8 @@ def load_basis(atom, name):
         bf_atm = bfile[start][:2].strip().lower()
     
     if start == len(bfile)-1:
-        sys.exit('atom: '+str(atom)+' not in basis set file: ' + 
-                                                    str(alias+'.dat'))
+        sys.exit('atom: ' + str(atom) + 
+                 ' not in basis set file: ' + str(alias+'.dat'))
 
     end = start
     while '#BASIS SET' not in bfile[end].strip() and end < len(bfile)-1:

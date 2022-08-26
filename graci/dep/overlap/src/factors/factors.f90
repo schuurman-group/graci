@@ -61,6 +61,9 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
+    print *,'nelX=',nelX
+    call flush()
+
     allocate(occB(nelX), occK(nelX))
     occB=0; occK=0
 
@@ -84,7 +87,15 @@ contains
 
           ! Get the bra occupied MO indices
           call mo_occ_string(n_intB,stringB(:,ibra),nelX,noccB,occB)
-          
+       
+          if (iket == ibra) then
+            print *,'stringK(:,',iket,')=',stringK(:,iket)
+            print *,'stringB(:,',ibra,')=',stringB(:,ibra)
+            print *,'occB = ',occB
+            print *,'occK = ',occK
+            call flush()
+          endif   
+
           ! Fill in the matrix of occupied bra-ket MO overlaps
           do m=1,nelX
              do n=1,nelX

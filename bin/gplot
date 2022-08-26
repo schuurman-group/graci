@@ -19,7 +19,12 @@ def main():
     arg_list = sys.argv[1:]
     set_defaults()
     kwords = extract_keywords(arg_list[0])
-    t_ener, t_osc, t_color, t_shft = extract_trans(arg_list[1:])
+
+    args = []    
+    if len(arg_list) > 1:
+        args = arg_list[1:]
+
+    t_ener, t_osc, t_color, t_shft = extract_trans(args)
     generate_plot(t_ener, t_osc, t_color, t_shft)
 
 def set_defaults():
@@ -42,6 +47,8 @@ def set_defaults():
     kwords['ext_xshft']   = [0]
     kwords['ext_yshft']   = [0]
     kwords['ext_conv']    = [False]
+    kwords['invertx']     = False
+    kwords['inverty']     = False
 
 #
 def extract_keywords(fname):
@@ -241,7 +248,11 @@ def generate_plot(t_ener, t_osc, t_color, t_shft):
     plt.xlabel(kwords['xlabel'])
     plt.ylabel(kwords['ylabel'])
     plt.legend(lgds)
- 
+    if kwords['invertx']:
+        plt.gca().invert_xaxis()
+    if kwords['inverty']:
+        plt.gca().invert_yaxis()
+
     plt.savefig('plot.png')
 
     return
