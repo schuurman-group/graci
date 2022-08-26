@@ -203,12 +203,12 @@ class Molecule:
                 try:
                     self.basis_obj[atom] = gto.basis.parse(bname)
                 except:
-                    sys.exit('Basis: ' + str(bname) + 
+                    sys.exit('Basis: ' + str(bname) +
                              ' for ' + atom + ' not found.')
 
             # if using density-fitting, set up auxiliary basis
             if self.use_df:
-               
+
                 # if not specified, make a default
                 if atom not in self.ri_basis.keys():
 
@@ -216,12 +216,13 @@ class Molecule:
                         aux_name = df.addons.DEFAULT_AUXBASIS[alias][0]
                         self.ri_basis[atom] = aux_name
                     else:
-                        self.ri_basis[atom] = None 
+
+                        self.ri_basis[atom] = None
 
                 # else, if specified, make sure it something that is
                 # supported
                 else:
-                    
+
                     # None is OK -- will result in even-tempered
                     if self.ri_basis[atom] is not None:
                         a_name  = self.ri_basis[atom].lower()
