@@ -210,7 +210,7 @@ contains
        do n=1,nroots(irrep)
 
           ! Low overlap?
-          if (max_overlap(n,irrep) < 0.8d0) then
+          if (max_overlap(n,irrep) < 0.8d0 .and. verbose) then
              lowoverlap=.true.
              write(an,'(i0)') n
              write(6,'(/,2x,a)') &
@@ -223,7 +223,7 @@ contains
     enddo
 
     ! Helpful suggestion
-    if (lowoverlap) &
+    if (lowoverlap .and. verbose) &
          write(6,'(/,2x,a)') 'Small overlaps found: Consider '&
          //'increasing the value of nextra used in ref_diag_mrci'
     

@@ -184,22 +184,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   vecB2 = vecB1
   vecK2 = vecK1
-  do i = 1,nrootsB
-    tmpB = maxval(abs(vecB2(:,i)))
-    ic   = maxloc(abs(vecB2(:,i)),dim=1)
-    vecB2(ic,i) = 0.
-    tmpK = maxval(abs(vecB2(:,i)))
-    j    = maxloc(abs(vecB2(:,i)),dim=1)
-    print *,'root=',i,' Bvals:',detB1(1,1,ic),detB1(1,2,ic),tmpB,detB1(1,1,j),detB1(1,2,j),tmpK
-    tmpB = maxval(abs(vecK2(:,i)))
-    ic   = maxloc(abs(vecK2(:,i)),dim=1)
-    vecK2(ic,i) = 0.
-    tmpK = maxval(abs(vecK2(:,i)))
-    j    = maxloc(abs(vecK2(:,i)),dim=1)
-    print *,'root=',i,'Kvals:',detK1(1,1,ic),detK1(1,2,ic),tmpB,detK1(1,1,j),detK1(1,2,j),tmpK
-  enddo
-  call flush()
-
 
   ! Bra
   call truncate_wave_functions(n_intB,ndetB1,nrootsB,detB1,vecB1,&

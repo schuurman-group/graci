@@ -32,7 +32,7 @@ class Parameterize:
         self.init_params    = None
         self.graci_ref_file = ''
         self.target_file    = ''
-        self.pthresh        = 1.e-4
+        self.pthresh        = 1.e-3
         self.verbose        = False 
         self.max_iter       = 1000
         self.bounds         = None

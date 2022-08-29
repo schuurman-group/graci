@@ -137,8 +137,8 @@ module hparam
        0.358727d0, &  ! pF^(vv)
        0.563893d0, &  ! p1
        1.8571d0, &    ! p2
-       0.70d0, &      ! pJ^(cv)
-       0.95d0]        ! pF^(cv)
+       0.503001d0, &  ! pJ^(cv)
+       0.358727d0]    ! pF^(cv)
 
   ! delta E_sel = 0.8
   real(dp), parameter, dimension(6) :: cvs_short= &
@@ -146,8 +146,8 @@ module hparam
        0.356986d0, &  ! pF
        0.573523d0, &  ! p1
        1.9266d0, &    ! p2
-       0.70d0, &      ! pJ^(cv)
-       0.95d0]        ! pF^(cv)
+       0.500779d0, &  ! pJ^(cv)
+       0.356986d0]    ! pF^(cv)
   
 contains
 
