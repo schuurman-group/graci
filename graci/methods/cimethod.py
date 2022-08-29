@@ -33,7 +33,7 @@ class Cimethod:
         # user defined quanties
         self.charge         = 0
         self.mult           = None
-        self.nstates        = []
+        self.nstates        = None 
         self.print_orbitals = False
         self.save_wf        = False
         self.wf_thresh      = 1.

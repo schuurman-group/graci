@@ -134,6 +134,7 @@ parameterize_kword = {'algorithm'      : str,
                       'target_file'    : str,
                       'graci_ref_file' : str,
                       'init_params'    : float,
+                      'bounds'         : float,
                       'verbose'        : bool,
                       'hamiltonian'    : str,
                       'label'          : str}

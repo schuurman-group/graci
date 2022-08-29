@@ -250,8 +250,8 @@ def lib_func(name, args):
         if isinstance(args[i], str):
             arg = args[i].ljust(255)
         elif isinstance(args[i], list):
-            if all([isinstance(elem, str) for elem in args[i]]):
-                arg = [istr.ljust(255) for istr in args[i]]
+            arg = [iarg.ljust(255) if isinstance(iarg, str) 
+                                else iarg for iarg in args[i]]
         else:
             arg = args[i]
         c_arg = convert.convert_ctypes(arg, dtype=arg_list[i])
