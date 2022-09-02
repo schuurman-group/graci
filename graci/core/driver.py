@@ -126,9 +126,8 @@ class Driver:
                     sys.exit(1)
 
                 # if we need to perform run-time basis set modifications
-                if (mol_obj.ano_file is not None or 
-                          mol_obj.add_rydberg is not None):
-                    self.modify_basis(mol_obj)
+                if mol_obj.add_rydberg is not None:
+                    mol_obj = self.modify_basis(calc_array, mol_obj)
 
                 # guess SCF object
                 if scf_obj.guess_label is None:
@@ -209,25 +208,24 @@ class Driver:
         return
  
     #
-    def modify_basis(self, mol_obj):
+    def modify_basis(self, calc_array, mol_obj):
         """
         modify the atomic basis set at run-time if need be
         """
-        # check if we need to generate any additional basis 
-        # functions
-        if mol_obj.ano_file is not None:
-            mol_obj.append_basis(fname=mol_obj.ano_file)
-
-        elif mol_obj.add_rydberg is not None:
+ 
+        # right now this is just to add Rydberg functions
+        if mol_obj.add_rydberg is not None:
 
             # if this is a valid contraction, construct a default
             # rydano object
-            carr = basis.str_to_contract(mol_obj.add_rydberg)
-            if carr is not None:
+            ncon = basis.str_to_contract(mol_obj.add_rydberg)
+            if ncon is not None:
                 ryd_basis = rydano.Rydano()
+                ryd_basis.label = 'auto-generated with defaults'
                 ryd_basis.contract = mol_obj.add_rydberg
                 ryd_basis.run(mol_obj)
-            # else, load the rydano object from the input file
+
+            # else, load the rydano object defined in input file
             else:
                 ryd_basis = None
                 for obj in calc_array:
@@ -241,9 +239,7 @@ class Driver:
                     sys.exit(1)
                 ryd_basis.run(mol_obj)
 
-            mol_obj.append_basis(obj=ryd_basis.basis_obj())
-
-        return
+        return mol_obj
 
 
     #

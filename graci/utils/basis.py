@@ -73,16 +73,35 @@ def str_to_contract(cstr):
     attempt to convert a string of the form XsYpZd, etc. to 
     an array of contractions
     """
+
+    angmom = ['s','p','d','f','g','h','i'] 
+    ncon   = []
+    constr = str(cstr)
+
+    for ia in range(len(angmom)):
+
+        val = constr.strip().split(angmom[ia])
+
+        # if search string was found, try
+        # to send contraction
+        if len(val) > 1:
+           try:
+                ncon.append(int(val[0]))
+           except:
+                return None
+           constr = val[1]
+           if len(constr) == 0:
+               break
+           
+        else:
+            ncon.append(0)
  
-    cs_arr = re.split('spdfghi\W+', cstr)
-    c_arr = []
-    for num in c_arr:
-        try:
-            c_arr.append(int(num))
-        except:
-            return None
-    
-    return c_arr
+    # if we didn't find any contractions, not valid 
+    # constraction string
+    if max(ncon) == 0:
+        return None
+    else:
+        return ncon
 
 
 

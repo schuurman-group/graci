@@ -68,7 +68,6 @@ class Molecule:
         self.use_df   = False
         self.label    = 'Molecule'
         self.add_rydberg = None
-        self.ano_file = None
 
         # the following are determined based on user
         # input
@@ -172,6 +171,19 @@ class Molecule:
 
         return
 
+    # 
+    def add_atom(self, atom_obj):
+        """add an atom to existing molecule object, which 
+           includes coordinates and basis set
+
+        Args:
+
+        Returns:
+            None
+        """
+    
+        return
+
     #
     def make_basis_obj(self):
         """make basis set objects using alias names"""
@@ -216,7 +228,6 @@ class Molecule:
                         aux_name = df.addons.DEFAULT_AUXBASIS[alias][0]
                         self.ri_basis[atom] = aux_name
                     else:
-
                         self.ri_basis[atom] = None
 
                 # else, if specified, make sure it something that is
@@ -237,6 +248,8 @@ class Molecule:
         # for all atoms -- else PySCF squawks
         if any(b is None for b in self.ri_basis.values()):
             self.ri_basis = None
+
+        return
 
     #
     def read_xyz(self):

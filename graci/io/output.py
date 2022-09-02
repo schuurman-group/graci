@@ -121,11 +121,63 @@ def print_rydano_header(rydano):
         outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')                                   
         outfile.write(  '\n '+str('*'*LLEN))
 
+        ostr = '\n\n -- Automatic Construction of an ANO basis for ' + \
+               ' Rydberg states using KBJ\n' + \
+               '    uncontracted primitives and a density '+ \
+               ' constructed from the low-lying\n' + \
+               '    virtual orbitals of the corresponding cation.\n'
+
+        ostr+= '\n       See: K. Kaufmann, W. Baumeistert, M. Jungen'+\
+               '\n            J. Phys. B: At. Mol. Opt. Phys., 22, '+\
+               ' 2223-2240, (1989).\n\n'
+
+        outfile.write(ostr)
         outfile.flush()
 
     return  
 
+def print_rydano_summary(exps, occ, nos, con_str):
+    """print the result of the Rydberg ANO basis construction
 
+    Args:
+        prims:    the KBJ primitives used in the expansion
+        occ:      the 'occupations' of the NOs 
+        nos:      the contracted ANOs
+        contract: the requested contraction to be added to basis
+
+    Returns:
+        None
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        ostr  = '\n Summary of ANO basis set generation\n'
+        ostr += ' '+'-'*35
+
+        ostr += '\n\n Exponents\n ----------\n'
+        for l in range(len(exps)):
+            ostr += '\n  l = '+str(l)+' | '+ \
+                    ''.join(['{:10.6f}'.format(exps[l][i]) \
+                      for i in range(len(exps[l]))])        
+
+        ostr += '\n\n Contractions\n ------------'
+        for l in range(len(nos)):
+            ncon = len(occ[l])
+            ostr += '\n\n angular momentum l='+str(l)+'\n'
+            ostr += ' occ:'+' '.join(['{:10.4f}'.format(occ[l][i]) 
+                                               for i in range(ncon)])
+            ostr += '\n '+'-'*(13*ncon+5)+'\n'
+            for n in range(nos[l].shape[0]):
+                ostr += '\n     '
+                ostr += ' '.join(['{:10.4f}'.format(nos[l][n,i]) 
+                                                 for i in range(ncon)])
+          
+        ostr += '\n\n Contractions to be applied: '+str(con_str)
+
+        outfile.write(ostr)
+        outfile.flush()
+
+    return
+ 
 #
 def print_scf_header(scf):
     """print the SCF header"""

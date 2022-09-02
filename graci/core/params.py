@@ -9,15 +9,17 @@ molecule_kword =     {'xyz_file'    : str,
                       'use_sym'     : bool,
                       'use_df'      : bool,
                       'add_rydberg' : str,
-                      'ano_file'    : str,
                       'label'       : str}
 
-rydano_kword =       {'xc'       : str,
-                      'charge'   : int,
-                      'mult'     : int,
-                      'origin'   : str,
-                      'contract' : str,
-                      'label'    : str}
+rydano_kword =       {'xc'         : str,
+                      'charge'     : int,
+                      'mult'       : int,
+                      'origin'     : float,
+                      'contract'   : str,
+                      'verbose'    : bool,
+                      'nprimitive' : int,
+                      'print_ano'  : bool,
+                      'label'      : str}
 
 #----------------------------------------------
 

@@ -3,33 +3,13 @@
 import os
 import sys
 import numpy as np
+import scipy as sp
 import operator as op
 import pyscf.gto as gto
 import graci.core.scf as scf
 import graci.io.output as output
+import graci.utils.basis as basis
 
-# the KBJ exponents are ordered by angular momentum l (l=0,1,2,3),
-# and run from n=1,1.5,2,2.5,...8. The starting exponent should
-# be chosen by inspecting the valence basis set, and then
-# 7 additional functions (8 total) are taken
-kbj_exp = [[0.245645, 0.0656456, 0.0246239, 0.0112533, 0.00585838, 
-            0.00334597, 0.00204842, 0.00132364, 0.000893096, 
-            0.000624313, 0.000449505, 0.000331842, 0.000250295, 
-            0.000192336, 0.000150229],
-           [0.430082, 0.113659, 0.0423353, 0.0192542, 0.00998821, 
-            0.00568936, 0.00347568, 0.00224206, 0.00151064, 
-            0.00105475, 0.000758656, 0.000559584, 0.000421752, 
-            0.000323875, 0.000252822],
-           [0.622557, 0.163298, 0.0605402, 0.0274457, 0.0142044, 
-            0.00807659, 0.00492719, 0.00317481, 0.00213712, 
-            0.00149102, 0.00107174, 0.000790066, 0.00059517, 
-            0.00045685, 0.000356487],
-           [0.820349, 0.214006, 0.0790699, 0.0357629, 0.0184778, 
-            0.010493, 0.00639492, 0.00411721, 0.00276965, 
-            0.00193124, 0.00138751, 0.00102243, 0.000769943, 
-            0.000590821, 0.000460901]]
-
-n_vals     = [0.5*(n+1) for n in range(1,16)]
 ang_lbls = ['s','p','d','f','g','h','i']
 
 class Rydano():
@@ -39,15 +19,19 @@ class Rydano():
 
     def __init__(self):
         # user variables
-        self.xc         = 'hf'
+        self.xc         = 'bhandhlyp'
         self.mult       = 2
         self.charge     = 1
-        self.origin     = 'center'
+        self.origin     = None 
         self.label      = 'rydano'
-        self.verbose    = False
+        self.verbose    = True 
         self.contract   = '1s1p1d'
+        self.nprimitive = 8
+        self.print_ano  = False
 
         # class variables
+        self.anos       = []
+        self.occs       = []
 
 
     def run(self, mol):
@@ -56,93 +40,198 @@ class Rydano():
         """
 
         # make a copy of the molecule object we are
-        cation_mol = mol.copy()
+        ion_mol = mol.copy()
 
         # build the PySCF molecule object 
-        cation_mol.run()
+        ion_mol.run()
+
+        # maximum angular momentum value to include in AO basis
+        n_con = basis.str_to_contract(self.contract)
+        l     = [ind for ind,val in enumerate(n_con) if val>0]
+        l_max = max(l)
+
+        # add the atom to the ion_mol object. ANOs not specified, 
+        # so primitives are added uncontracted. Determine which
+        # primitives to include based on the original basis 
+        # function -- not the dz(p) used to compute virtuals
+        if self.origin is None:
+            coc_xyz = ion_mol.nuc_charge_center()
+        else:
+            coc_xyz = self.origin
+        exps    = self.determine_exponents(mol, l, self.nprimitive)
+        self.add_atom(ion_mol, 'X', coc_xyz, l, exps)
 
         # the valence basis will be DZP for the non-H
         # atoms and DZ for H
-        cation_mol.basis = {} 
-        for atm in list(set(cation_mol.asym)):
-            if atm.lower().strip() == 'h':
+        for atm in list(set(ion_mol.asym)):
+            if atm.lower().strip() == 'x':
+                continue
+            elif atm.lower().strip() == 'h':
                 bas_lbl = 'dz'
             else:
                 bas_lbl = 'dzp'
-            cation_mol.basis[atm] = bas_lbl
+            ion_mol.basis[atm] = bas_lbl
 
-        # construct basis object of uncontracted primitives
-        prim_obj = \
-         self.construct_prim_basis('X', 2, 
-                          [0.5*(n+1) for n in range(3,11)])
-        cation_mol.basis['X'] = prim_obj
-
-        # add a ghost atom at the center of 
-        # of nuclear charge and place an un-contracted
-        # KBJ basis at this site
-        coc_xyz = cation_mol.nuc_charge_center()
-        cation_mol.asym.append('X')
-        cation_mol.crds = np.append(cation_mol.crds, [coc_xyz], axis=0)
-
-        output.print_rydano_header(self)
+        # print header information to the log
+        if self.verbose:
+            output.print_rydano_header(self)
 
         # construct an SCF object
-        cation_scf          = scf.Scf()
-        cation_scf.xc       = self.xc
-        cation_scf.mult     = self.mult
-        cation_scf.charge   = self.charge
-        cation_scf.verbose  = True
-        cation_scf.do_ao2mo = False
-        cation_scf.print_orbitals = True
+        ion_scf          = scf.Scf()
+        ion_scf.xc       = self.xc
+        ion_scf.mult     = self.mult
+        ion_scf.charge   = self.charge
+        ion_scf.verbose  = False
+        ion_scf.do_ao2mo = False
+        ion_scf.print_orbitals = False
 
-        # generate the cationic density
-        cation_scf.run(cation_mol, None)
+        # generate the ionic density
+        ion_scf.run(ion_mol, None)
 
-        print('olap matrix='+str(cation_scf.orbs@cation_scf.orbs.T), flush=True)
-        # make the AO overlap matrix
-        ao_s   = cation_mol.pymol().intor('int1e_ovlp')
-        ao_s_s, ao_s_c = np.linalg.eigh(ao_s)
-
-        s_thr = 1.e-12
-        s_12  = np.diag([np.sqrt(s) for s in ao_s_s])
-        s_m12 = np.diag([1./np.sqrt(s) if s > s_thr else 0. 
-                                                     for s in ao_s_s])
-
-        ao_sm12 = ao_s_c @ s_m12 @ ao_s_c.T
-        ao_s12  = ao_s_c @ s_12  @ ao_s_c.T
-
-        print('X@orbs@orbs.T@X.T='+str(ao_s@cation_scf.orbs@cation_scf.orbs.T),flush=True)
-
+        # print orbital info  / scf summary
+        if self.verbose:
+            output.print_scf_summary(ion_scf)
 
         # parse the AO-basis to get relevant labels
-        a_ind, a_lbl, l_val, l_shl, l_lbl = \
-                                     self.parse_ao_basis(cation_scf.mol)
-
-        print('l_shl='+str(l_shl))
+        a_ind, a_lbl, l_i, n_l, l_lbl = self.parse_ao_basis(ion_scf.mol)
 
         # extract virtual orbitals and set occupation
         # using the expression exp[6.9*(orb_ener[i]/min(orb_ener)-1)] 
-        occ = self.set_virtual_occ(cation_scf) 
+        occ = self.set_virtual_occ(ion_scf) 
 
-        # construct a set of ortho-normal rydberg orbitals
-        #orbs_r = self.project_orbitals(ao_s12, cation_scf.orbs)
+        # form the l-projected NOs
+        S_ao = ion_mol.pymol().intor('int1e_ovlp')
+        rocc, rnos = \
+              self.make_nos(S_ao, ion_scf.orbs, occ, a_lbl, l_i, l_lbl)
 
-        # form the density associated with the rydberg basis 
-        dao = self.form_ryd_density(cation_scf.orbs, occ, a_lbl)
+        # set the phase
+        for li in range(len(rnos)):
+            rnos[li] = self.set_phase(rnos[li])
 
-        # spherically average the density
-        dao_sph = self.sph_average(dao, l_val[r_indx], l_shl[r_indx])
+        self.anos = []
+        self.occs = []
+        for li in range(len(n_con)):
+           self.anos.append(rnos[li][:,:n_con[li]])
+           self.occs.append(rocc[li][  :n_con[li]])      
+       
+        # add the Rydberg basis
+        basis_str = self.add_atom(mol, 'X', coc_xyz, l, exps, 
+                                                       ano=self.anos)
 
-        # form NOs via projection of different ang. mom. shells
-        l_max = max(l_val)
-        ano_ryd = []
-        for l in range(l_max+1):
-            ano_ryd.append(self.make_nos(l, dao_sph, r_orbs, r_l, r_lbl))
+        # print basis string to file if requested
+        if self.print_ano:
+            with open('rydano.dat', 'w') as f:
+                f.write(basis_str) 
 
+        # print the results
+        if self.verbose:
+            output.print_rydano_summary(exps, rocc, rnos, self.contract)
+ 
         return
 
     #
-    def construct_prim_basis(self, a_lbl, l_max, n_range):
+    def kbj_exp(self, l, i):
+        """generate the 'nth' KBJ expononent for specified value of l
+
+        Args:
+           i: ith value in the series: 1, 1.5, 2, 2.5, 3, 3.5,...
+           l: angular momentum value
+
+        Returns:
+          ex: Rydberg exponent corresponding to n,l value
+        """ 
+
+        a = [0.584342, 0.452615, 0.382362, 0.337027, 0.304679]
+        b = [0.424483, 0.309805, 0.251333, 0.215013, 0.189944]
+        n = 1 + i*0.5
+
+        return (1./( 4*n**2 )) * (1./( a[l]*n + b[l] )**2)
+    
+    def determine_exponents(self, mol, l, nprim):
+        """Determine the appropriate KBJ primitives to include for a
+           given AO basis set
+
+           Args:
+            mol:   molecule object to amend [Molecule]
+            l:     angular momentum values to include in basis
+            nprim: number of primitives to include
+ 
+           Return:
+            exps:  a list of exponents for each value of l
+        """
+
+        # scan the basis set and find the most diffuse 
+        # function (max_diffuse).  Start the ANO set with first exponent 
+        # <= 0.5*max_diffuse. 
+        exps = [[] for _ in range(len(l))]
+        for atm,bas in mol.basis_obj.items():
+            for icon in range(len(bas)):
+               lval = bas[icon][0]
+               exps[lval].extend([bas[icon][i][0] 
+                           for i in range(1,len(bas[icon]))])
+        most_dif = [0.5*min(exps[i]) for i in range(len(l))]
+
+        # find where to start diffuse exponents for each value of
+        # l in the AO basis
+        kbj_i = [0]*len(l)
+        for i in range(len(l)):
+            while self.kbj_exp(l[i], kbj_i[i]) > most_dif[i]:
+                kbj_i[i] += 1
+
+        # get the list of primitive exponents for eac value of l
+        exps = [[self.kbj_exp( l[i], kbj_i[i]+j) for j in range(nprim)]
+                                                 for i in range(len(l))] 
+
+        return exps
+
+    #
+    def add_atom(self, mol, sym, crds, l, exps, ano=None):
+        """Add an atom to a molecule object, including the basis
+           set
+         
+        Args:
+            mol:  molecule object to amend [Molecule]
+            sym:  atomic symbol [str]
+            crds: cartesian coordinates of the atom
+            l:    angular momentum values to include in basis
+            exps: the exponents on the primitive functions.
+            nos:  list of numpy array at least max(l) long. Each 
+                  column of numpy array is ANO, ordered by 'n'
+    
+        Returns:
+            None
+        """
+
+        # add atomic symbol and cartesian coordinaes
+        mol.asym.append(sym)
+        mol.crds = np.append(mol.crds, [crds], axis=0)
+
+        # if ANOs is None, or, they don't match the number of
+        # primitives, use uncontracted functions
+        if ano is None:
+            rano = [np.identity(len(exps[li]), dtype=float) 
+                                             for li in range(len(l))]
+        else:
+            rano = ano
+            for li in range(len(rano)):
+                if rano[li].shape[0] != len(exps[li]):
+                    print('Number of primitivies in ANO incorrect: ' + 
+                              str(rano[li].shape[0]) + ' != ' + 
+                              str(len(exps[li])))
+                    sys.exit(1)
+
+        # construct basis object of uncontracted primitives
+        basis_str = self.make_ano_basis(sym, l, exps, rano)
+        mol.basis[sym]    = basis_str
+
+        #RI basis definition limited to even-tempered for time being
+        if mol.use_df and mol.ri_basis is not None:
+            mol.ri_basis[sym] = None
+
+        return basis_str
+
+    #
+    def make_ano_basis(self, sym, l, exps, ano):
         """
         construct an uncontracted basis of KBJ functions, running 
         from 0 to l_max, and for exponents specified by the values
@@ -150,32 +239,40 @@ class Rydano():
         """
         l_lbl = ['S', 'P', 'D', 'F', 'G', 'H', 'I']
 
-        ostr = ''
+        ostr = '#BASIS set generated by rydano\n'
         astr = '{:<6s}{:1s}\n'
-        pstr = '{:>15.7f}'+''.join(['{:14.7f}']*len(n_range))+'\n'
 
-        nprim = len(n_range)
+        for li in range(len(l)):
+            nprim = ano[li].shape[0]
+            ncon = ano[li].shape[1]
+            pstr = '{:>15.7f}'+''.join(['{:14.7f}']*ncon)+'\n'
 
-        for l in range(0, l_max+1):
-            ostr += astr.format(a_lbl, l_lbl[l])
-            args = [0]*(nprim+1)
-            for ni in range(len(n_range)):
-               n_indx          = n_vals.index(n_range[ni])
-               args[0]         = kbj_exp[l][n_indx]
-               args[1:nprim+1] = [0.]*nprim
-               args[ni+1]      = 1.
+            ostr += astr.format(sym, l_lbl[l[li]])
+            for ni in range(nprim):
+               args = []
+               args.append(exps[li][ni])
+               args.extend(ano[li][ni,:])
                ostr += pstr.format(*args)        
 
         return ostr
 
     #
     def parse_ao_basis(self, mol):
-        """
-        parse_ao_basis
+        """parses PySCF AO basis set for ang. mom., labels, etc.
+
+        Args:
+          mol: A port GRaCI molecule class object
+
+        Returns:
+          a_indx: the int index of atomic center 0=1st, 1=2nd, etc. 
+          a_lbl: the text atomic symbol for the center
+          l_val: the angular momentum value, l, for each basis function
+          l_shl: the quantum number 'n', or, 'shell' value of each basis
+                 function of a given value of l
+          l_lbl: text label for each basis function, eg. 's','px','dxy'
+
         """
         ao_lbls = mol.pymol().ao_labels(fmt=True)
-        print('ao_lbls='+str(ao_lbls), flush=True)
-
         n_ao = len(ao_lbls)
 
         a_indx = np.zeros(n_ao, dtype=int)
@@ -210,18 +307,18 @@ class Rydano():
         return a_indx, a_lbl, l_val, l_shl, l_lbl
 
     # 
-    def set_virtual_occ(self, cation_scf):
+    def set_virtual_occ(self, ion_scf):
         """
         set the occupations on the virtual orbitals
         """
 
-        nmo = cation_scf.nmo
+        nmo = ion_scf.nmo
         occ = np.zeros(nmo, dtype=float)
 
         first_vrt = None
         for imo in range(nmo):
-            scf_occ  = cation_scf.orb_occ[imo]
-            scf_ener = cation_scf.orb_ener[imo]
+            scf_occ  = ion_scf.orb_occ[imo]
+            scf_ener = ion_scf.orb_ener[imo]
             if scf_occ == 0. and scf_ener < 0:
                 if first_vrt is None:
                     first_vrt = scf_ener
@@ -232,106 +329,166 @@ class Rydano():
         return occ
 
     #
-    def ryd_density(self, orbs, occ, a_lbl):
+    def make_nos(self, Smat, orbs, occ, a_lbl, l_i, l_lbl):
         """
         form the rydberg density
         """
+        # first extract basis properties from our selected
+        # center (for now assume ghost atoms 'X')        
+        x_ao   = [ind for ind,val in enumerate(a_lbl) if val=='X']
+        x_mo   = [ind for ind,val in enumerate(occ) if val > 0.] 
+        x_l    = [val for ind,val in enumerate(l_i) if ind in x_ao]
+        x_lbl  = [val for ind,val in enumerate(l_lbl) if ind in x_ao]
+        l_max  = max(x_l)
+        nao_x  = len(x_ao)
+
+        dao   = np.zeros((nao_x, nao_x),dtype=float)
+        # construct the total Rydberg density
+        for imo in range(len(x_mo)):
+            mo   = orbs[x_ao, x_mo[imo]]
+            dao += occ[x_mo[imo]] * np.outer(mo, mo)
+
+        # compute the corresponding Rydberg orbitals 
+        S_ao        = Smat[x_ao,:][:,x_ao]
+        s_12, s_m12 = self.ao_s(S_ao)
+
+        # find the orbitals that correspond to the the Rydberg density
+        rocc, rmos = self.eig_h(s_12 @ dao @ s_12)
+        rmos = s_m12 @ rmos
+        # normalize the Rydberg density to 1
+        rocc /= np.sum(rocc)
+
+        # project out the various angular momentum components
+        # and form m_l specific density matrices
+        occ_all = []
+        nos_all = []
+        for l in range(l_max+1):
+
+            # the various m_l components. We'll use the AO labels
+            # which should be fine for sph. harmonics or cartesians
+            ml_lbl = list(set([lbl for ind,lbl in enumerate(x_lbl) 
+                                                     if x_l[ind] == l]))
+
+            # indices of the AO basis functions for each m_l value
+            ml_i = [[ind for ind,val in enumerate(x_l) if
+                      x_l[ind]==l and x_lbl[ind]==ml_lbl[ml]]
+                      for ml in range(2*l+1)]
+
+            # Ensure the number of AOs for each m_l value are the 
+            # the same
+            nml_all  = [len(ml_i[ml]) for ml in range(len(ml_i))]           
+            if len(list(set(nml_all))) == 1:
+                nml = nml_all[0]
+            else:
+                print('Error in rydano: number of AOs inconsistent: '+
+                      'l='+str(l)+' n_ml='+str(nml_all))
+                sys.exit(1)
+
+            # project out each set of MOs corresponding to each
+            # value of m_l
+            dao_ml = np.zeros((2*l+1, nml, nml), dtype=float)
+            S_ml   = np.zeros((2*l+1, nml, nml), dtype=float)
+            for ml in range(2*l+1):
+
+                # construct density for each value of m_l in AO basis
+                for imo in range(rmos.shape[1]):
+                    mo              = rmos[ml_i[ml], imo]
+                    dao_ml[ml,:,:] += rocc[imo] * np.outer(mo, mo)
+                    S_ml[ml,:,:]    = S_ao[ml_i[ml],:][:,ml_i[ml]] 
+
+            # spherically average over the different m_l components
+            dao_sph = self.average_matrices(dao_ml)           
+            
+            # determine the corresponding NOs
+            S_l  = self.average_matrices(S_ml)           
+
+            s_12, s_m12  = self.ao_s(S_ml[0])
+            occ_l, nos_l = self.eig_h( s_12 @ dao_sph @ s_12)
+            nos_l        = s_m12 @ nos_l          
+
+            occ_all.append(occ_l)
+            nos_all.append(nos_l)
+ 
+        return occ_all, nos_all
+
+    #
+    def set_phase(self, vecs):
+        """routine to set the phase of a set of vectors according
+           to some convention (here: largest element is positive)
+
+        Args:
+           vecs: set of vectors to be phased
+
+        Returns:
+           vecs: vectors with sign convention applied to each
+                 column
+        """
+
+        for i in range(vecs.shape[1]):
+            mx_i = np.argmax(np.absolute(vecs[:,i]))
+            if vecs[mx_i,i] < 0.:
+                vecs[:,i] *= -1.
+
+        return vecs
+
+
+    #
+    def eig_h(self, M):
+        """diagonalize hermitian matrix H and return eigenvalues 
+           in ascending order.
+
+        Args:
+            M: hermitian matrix 
+
+        Returns:
+            evals: eigenvalues in ascending order
+            evecs: correspoinding eigenvectors
+        """
+
+        evals, evecs = np.linalg.eigh(M)
+
+        # put in descending order
+        idx   = evals.argsort()[::-1]
+        evals = evals[idx]
+        evecs = evecs[:,idx]
+
+        return evals, evecs
+
+    #
+    def ao_s(self, Smat, thr=1.e-12):
+        """construct the S^1/2 and S^-1/2 for a given overlap matrix
         
-        nmo     = orbs.shape[1]
-        nao_ryd = a_lbl.count('X')
-        ryd_i   = [ind for ind,val in enumerate(a_lbl) if val=='X']
-        ryd_o   = [ind for ind,val in enumerate(occ) if val > 0.] 
-        dao     = np.zeros((nao_ryd, nao_ryd), dtype=float)
+        Args:
+            Smat: an AO overlap matrix
+            thr:  threshold for the generalized inverse (default=1.e-12)
 
-        orbs_r = orbs[:, ryd_o]
-        occ_r  = occ[ryd_o]
+        Returns:
+            s12:  the S^1/2 matrix
+            sm12: the S^-1/2 matrix
+        """
 
-        for imo in range(len(ryd_o)):
-            # pull out just those AOs on the target center
-            mo_ryd = orbs_r[ ryd_i, imo ] 
-            dao   += occ_r[ imo ]*np.outer(mo_ryd, mo_ryd)
+        sv, sc = np.linalg.eigh(Smat)
+        s_12   = np.diag([np.sqrt(s) for s in sv])
+        s_m12  = np.diag([1./np.sqrt(s) if s > thr else 0. for s in sv])
 
-        return dao, ryd_i
+        S12    = sc @ s_12 @ sc.T
+        Sm12   = sc @ s_m12 @ sc.T
+
+        return S12, Sm12
 
     #
-    def sph_average(self, dao, l_val, l_shl):
+    def average_matrices(self, mats):
+        """averages as list of matrices. 
+
+        Args:
+           mats: a list of nao x nao density matrices
+
+        Returns:
+           ave_mat: a single nao x nao averaged density
         """
-        sph_average
-        """
 
-        nmo = dao.shape[1]
-        dao_sph = np.zeros(dao.shape, dtype=float)
-
-        for bra_l in range(0, max(l_val)+1):
-            bl_ind = [ind for ind,val in enumerate(l_val) 
-                                                      if val == bra_l]
-            bshl  = list(set(l_shl[bl_ind]))
-            for bra_n in bshl:
-                bs_ind = [val for ind,val in enumerate(bl_ind) 
-                                         if l_shl[val] == bra_n]
-
-                for ket_l in range(0, max(l_val)+1):
-                    kl_ind = [ind for ind,val in enumerate(l_val) 
-                                                      if val == ket_l]
-                    kshl  = list(set(l_shl[kl_ind]))
-                    for ket_n in kshl:
-                        ks_ind = [val for ind,val in enumerate(kl_ind)
-                                         if l_shl[val] == ket_n]
-                        indx  = np.ix_(bs_ind, ks_ind)
-                        nindx = len(bs_ind) * len(ks_ind)
-
-                        ave   = np.sum(dao[indx]) / nindx
-                        dao_sph[indx] = ave
-
-        return dao_sph
-
-    # 
-    def project_orbitals(self, ao_s, orbs, r_indx):
-        return
-
-
-    #
-    def make_nos(self, l, dao, r_orbs, l_val, l_lbl):
-        """
-        make_nos
-        """
-        #for i in range(dao.shape[0]):
-        #    print('dao['+str(i)+']='+str(dao[i,:]),flush=True)
-
-        print('l_lbl='+str(l_lbl), flush=True)
-        n_l = (l_val == l).sum()
-        print('l='+str(l)+' n_l = '+str(n_l),flush=True)
-        ml  = list(set([l_lbl[ind] for ind,val 
-                          in enumerate(l_val) if val==l]))
-        print('ml='+str(ml), flush=True)
-        ml_ind = [ind for ind,val in enumerate(l_val) 
-                          if val==l and l_lbl[ind]==ml[0]]
-        n_ml = len(ml_ind)
-        print('ml_ind='+str(ml_ind), flush=True)
-
-        for il in ml:
-            ml_ind = [ind for ind,val in enumerate(l_val)
-                      if val==l and l_lbl[ind]==il]
-            n_ml = len(ml_ind)
-            print('ml_ind='+str(ml_ind), flush=True)
-
-            rc_ml  = np.ix_(ml_ind, ml_ind)
-            dao_ml = dao[rc_ml]
-            print('dao_ml='+str(dao_ml),flush=True)
-            occ, nos = np.linalg.eigh(dao_ml)        
-
-            # put in descending order
-            idx = occ.argsort()[::-1]   
-            occ = occ[idx]
-            nos = nos[:,idx]
-
-            print('l='+str(l)+' ml='+str(il), flush=True)
-            print('occ = '+str(occ),flush=True)
-            print('nos1='+str(nos[:,0]), flush=True)
-            print('nos2='+str(nos[:,1]), flush=True)
-            print('nos3='+str(nos[:,2]), flush=True)
-
-        return nos
+        ave_mat = np.sum(mats, axis=0) / mats.shape[0] 
+        return ave_mat 
 
 
     def tofile(self):
