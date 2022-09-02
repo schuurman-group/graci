@@ -250,7 +250,6 @@ class Molecule:
         if any(b is None for b in self.ri_basis.values()):
             self.ri_basis = None
 
-        print('ri_basis='+str(self.ri_basis))
         return
 
     #
