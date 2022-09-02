@@ -50,6 +50,9 @@ class Rydano():
         l     = [ind for ind,val in enumerate(n_con) if val>0]
         l_max = max(l)
 
+        # label for the ghost atom
+        g_lbl = 'X'
+
         # add the atom to the ion_mol object. ANOs not specified, 
         # so primitives are added uncontracted. Determine which
         # primitives to include based on the original basis 
@@ -59,12 +62,12 @@ class Rydano():
         else:
             coc_xyz = self.origin
         exps    = self.determine_exponents(mol, l, self.nprimitive)
-        self.add_atom(ion_mol, 'X', coc_xyz, l, exps)
+        self.add_ano_atom(ion_mol, g_lbl, coc_xyz, l, exps)
 
         # the valence basis will be DZP for the non-H
         # atoms and DZ for H
         for atm in list(set(ion_mol.asym)):
-            if atm.lower().strip() == 'x':
+            if atm.lower().strip() == g_lbl.lower():
                 continue
             elif atm.lower().strip() == 'h':
                 bas_lbl = 'dz'
@@ -102,7 +105,8 @@ class Rydano():
         # form the l-projected NOs
         S_ao = ion_mol.pymol().intor('int1e_ovlp')
         rocc, rnos = \
-              self.make_nos(S_ao, ion_scf.orbs, occ, a_lbl, l_i, l_lbl)
+              self.make_nos(g_lbl, S_ao, ion_scf.orbs, occ, 
+                                                     a_lbl, l_i, l_lbl)
 
         # set the phase
         for li in range(len(rnos)):
@@ -115,7 +119,7 @@ class Rydano():
            self.occs.append(rocc[li][  :n_con[li]])      
        
         # add the Rydberg basis
-        basis_str = self.add_atom(mol, 'X', coc_xyz, l, exps, 
+        basis_str = self.add_ano_atom(mol, g_lbl, coc_xyz, l, exps, 
                                                        ano=self.anos)
 
         # print basis string to file if requested
@@ -167,7 +171,9 @@ class Rydano():
         for atm,bas in mol.basis_obj.items():
             for icon in range(len(bas)):
                lval = bas[icon][0]
-               exps[lval].extend([bas[icon][i][0] 
+               if lval in l:
+                   li = l.index(lval)
+                   exps[li].extend([bas[icon][i][0] 
                            for i in range(1,len(bas[icon]))])
         most_dif = [0.5*min(exps[i]) for i in range(len(l))]
 
@@ -185,7 +191,7 @@ class Rydano():
         return exps
 
     #
-    def add_atom(self, mol, sym, crds, l, exps, ano=None):
+    def add_ano_atom(self, mol, sym, crds, l, exps, ano=None):
         """Add an atom to a molecule object, including the basis
            set
          
@@ -329,13 +335,13 @@ class Rydano():
         return occ
 
     #
-    def make_nos(self, Smat, orbs, occ, a_lbl, l_i, l_lbl):
+    def make_nos(self, g_lbl, Smat, orbs, occ, a_lbl, l_i, l_lbl):
         """
         form the rydberg density
         """
         # first extract basis properties from our selected
-        # center (for now assume ghost atoms 'X')        
-        x_ao   = [ind for ind,val in enumerate(a_lbl) if val=='X']
+        # center (for now assume ghost atoms '')        
+        x_ao   = [ind for ind,val in enumerate(a_lbl) if val==g_lbl]
         x_mo   = [ind for ind,val in enumerate(occ) if val > 0.] 
         x_l    = [val for ind,val in enumerate(l_i) if ind in x_ao]
         x_lbl  = [val for ind,val in enumerate(l_lbl) if ind in x_ao]
