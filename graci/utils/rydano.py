@@ -306,9 +306,9 @@ class Rydano():
                 print('error parsing ao label: '+str(vals))
                 sys.exit(1)
 
-            l_val[i]  = int(l)
-            l_lbl[i]  = val[2][val[2].index(ang_lbls[l])+1:].strip()
+            l_val[i]  = l
             l_shl[i]  = int(val[2][:val[2].index(ang_lbls[l])].strip())
+            l_lbl[i]  = ao_lbls[i].split(ang_lbls[l])[1].strip()
 
         return a_indx, a_lbl, l_val, l_shl, l_lbl
 
@@ -375,10 +375,17 @@ class Rydano():
             ml_lbl = list(set([lbl for ind,lbl in enumerate(x_lbl) 
                                                      if x_l[ind] == l]))
 
+            nao_ml = len(ml_lbl)
+            if nao_ml != 2*l+1 and nao_ml != int((l+1)*(l+2)/2):
+                print('Number of AOs not consistent with spherical or '+
+                      'cartesian functions: l=' + str(l) +
+                      ' nao=' + str(nao_ml),flush=True)
+                sys.exit(1)
+
             # indices of the AO basis functions for each m_l value
             ml_i = [[ind for ind,val in enumerate(x_l) if
-                      x_l[ind]==l and x_lbl[ind]==ml_lbl[ml]]
-                      for ml in range(2*l+1)]
+                      val==l and x_lbl[ind]==ml_lbl[ml]]
+                      for ml in range(nao_ml)]
 
             # Ensure the number of AOs for each m_l value are the 
             # the same
@@ -392,9 +399,9 @@ class Rydano():
 
             # project out each set of MOs corresponding to each
             # value of m_l
-            dao_ml = np.zeros((2*l+1, nml, nml), dtype=float)
-            S_ml   = np.zeros((2*l+1, nml, nml), dtype=float)
-            for ml in range(2*l+1):
+            dao_ml = np.zeros((nao_ml, nml, nml), dtype=float)
+            S_ml   = np.zeros((nao_ml, nml, nml), dtype=float)
+            for ml in range(nao_ml):
 
                 # construct density for each value of m_l in AO basis
                 for imo in range(rmos.shape[1]):
