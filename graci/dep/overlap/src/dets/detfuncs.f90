@@ -97,7 +97,8 @@ contains
           ! Exit if:
           ! (1) we have hit the target squared norm, and;
           ! (2) this determinant is not degenerate with the next one
-          diff=abs(vec(indx(k),i)-vec(indx(k+1),i))
+          diff = 10.*epsilon
+          if(k.lt.ndet) diff=abs(vec(indx(k),i)-vec(indx(k+1),i))
           if (normsq >= targ .and. diff > epsilon) exit
 
        enddo

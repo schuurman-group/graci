@@ -50,7 +50,7 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
 
   ! Verbosity flag
   logical, intent(in)     :: verbose1
-  
+
   call overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
        nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
        icore,lfrzcore,npairs,Sij,ipairs,verbose1)

@@ -331,7 +331,7 @@ class Parameterize:
             i_add       = 0
             n_add       = 5
             add_states  = np.ceil(2*ci_objs[i].nstates / n_add).astype(int)  
- 
+
             while not roots_found and i_add < n_add:
                 # only update the Hamiltonian parameters if the CI object
                 # is employing the Hamiltonian we're optimizing
