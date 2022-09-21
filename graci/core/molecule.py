@@ -9,19 +9,27 @@ import graci.utils.basis as basis
 from pyscf.lib import logger
 from pyscf import gto, df
 
-atom_name = ['ghost', 'X' ,'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' , 
-             'O' , 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P' , 'S' , 'Cl', 
-             'Ar', 'K', 'Ca', 'Sc', 'Ti', 'V' , 'Cr', 'Mn', 'Fe', 'Co', 
-             'Ni','Cu', 'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 
-             'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 
-             'Cd','In', 'Sn', 'Sb', 'Te', 'I' , 'Xe', 'Cs', 'Ba', 'La', 
-             'Ce','Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 
-             'Er','Tm', 'Yb', 'Lu', 'Hf', 'Ta', 'W' , 'Re', 'Os', 'Ir', 
-             'Pt','Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn', 'Fr', 
-             'Ra','Ac', 'Th', 'Pa', 'U' , 'Np', 'Pu', 'Am', 'Cm', 'Bk', 
-             'Cf','Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 
-             'Hs','Mt', 'Ds', 'Rg', 'Cn', 'Nh', 'Fl', 'Mc', 'Lv', 'Ts', 
-             'Og']
+atom_name = ['ghost', 'X' ,'H' , 'He', 
+             'Li', 'Be', 
+             'B' , 'C' , 'N' , 'O' , 'F', 'Ne', 
+             'Na', 'Mg', 
+             'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar', 
+             'K', 'Ca', 
+             'Sc', 'Ti', 'V' , 'Cr', 'Mn', 'Fe', 'Co', 'Ni','Cu', 'Zn', 
+             'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 
+             'Rb', 'Sr', 
+             'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+             'In', 'Sn', 'Sb', 'Te', 'I' , 'Xe', 
+             'Cs', 'Ba', 
+             'La', 'Ce','Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 
+             'Ho', 'Er','Tm', 'Yb', 'Lu', 
+             'Hf', 'Ta', 'W' , 'Re', 'Os', 'Ir', 'Pt','Au', 'Hg', 
+             'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn', 
+             'Fr', 'Ra',
+             'Ac', 'Th', 'Pa', 'U' , 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf',
+             'Es', 'Fm', 'Md', 'No', 'Lr', 
+             'Rf', 'Db', 'Sg', 'Bh', 'Hs','Mt', 'Ds', 'Rg', 'Cn', 'Nh', 
+             'Fl', 'Mc', 'Lv', 'Ts', 'Og']
 
 # Atomic masses taken from PySCF elements.py
 atom_mass = [ 0., 0., 1.008, 4.002602, 6.94, 9.0121831, 10.81, 12.011,
@@ -63,6 +71,7 @@ class Molecule:
         self.xyz_file = None
         self.units    = 'Angstrom'
         self.use_sym  = False
+        self.sym_grp  = None
         self.basis    = dict() 
         self.ri_basis = None 
         self.ao_cart  = False
@@ -132,6 +141,12 @@ class Molecule:
         # make the basis set objects from the string alias basis names
         self.make_basis_obj()
 
+        # if we're using symmetry, check if pt grp is specified
+        if self.sym_grp is not None:
+            pt_grp  = self.sym_grp
+        else:
+            pt_grp  = self.use_sym
+
         self.mol_obj = gto.M(
                      dump_input = False,
                      parse_arg  = False,
@@ -142,17 +157,16 @@ class Molecule:
                      output     = None,
                      cart       = self.ao_cart,
                      basis      = self.basis_obj,
-                     symmetry   = self.use_sym,
+                     symmetry   = pt_grp,
                      unit       = self.units)
 
         # do a quick check on symmetry: we will convert Coov and 
-        # Dooh to C2v and D2h, respectively
+        # Dooh to C2v and D2h, respectively`
         if self.mol_obj.topgroup.lower() == 'coov':
-            self.mol_obj.symmetry_subgroup = 'C2v'
-            self.mol_obj.build()
-        elif self.mol_obj.topgroup.lower() == 'dooh':
+            self.mol_obj.symmetry_subgroup  = 'C2v'
+        if self.mol_obj.topgroup.lower() == 'dooh':
             self.mol_obj.symmetry_subgroup = 'D2h'
-            self.mol_obj.build()
+        self.mol_obj.build()
 
         # the nuclear repulsion energy
         self.enuc     = self.mol_obj.energy_nuc()

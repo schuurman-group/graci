@@ -308,6 +308,7 @@ class Scf:
             dm = self.guess_dm(guess)
 
         # run the scf computation
+        mf.grids.prune = None
         self.energy = mf.kernel(dm0=dm)
         
         # if not converged, kill things

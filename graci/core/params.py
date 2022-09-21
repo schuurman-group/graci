@@ -7,6 +7,7 @@ molecule_kword =     {'xyz_file'    : str,
                       'ri_basis'    : str,
                       'ao_cart'     : bool,
                       'use_sym'     : bool,
+                      'sym_grp'     : str,
                       'use_df'      : bool,
                       'add_rydberg' : str,
                       'label'       : str}
@@ -68,6 +69,7 @@ dftmrci_kword  = {'mult'           : int,
                   'ddci'           : bool,
                   'ref_state'      : int,
                   'verbose'        : bool,
+                  'scf_label'      : str,
                   'label'          : str}
 
 # DFT/MRCI(2) section input keywords and data types
@@ -97,6 +99,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'nbuffer'        : int,
                    'verbose'        : bool,
                    'refsel'         : str,
+                   'scf_label'      : str,
                    'label'          : str}
 
 #---------------------------------------------------
@@ -138,6 +141,7 @@ parameterize_kword = {'algorithm'      : str,
                       'init_params'    : float,
                       'bounds'         : float,
                       'verbose'        : bool,
+                      'freeze'         : int,
                       'hamiltonian'    : str,
                       'label'          : str}
 

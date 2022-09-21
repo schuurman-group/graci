@@ -164,7 +164,7 @@ class Driver:
 
                 # if labels match -- set the geometry
                 # to the molecule object
-                if ci_obj.label == scf_obj.label or len(scf_objs)==1:
+                if ci_obj.scf_label == scf_obj.label or len(scf_objs)==1:
 
                     # guess CI object
                     g_lbl = ci_obj.guess_label

@@ -36,11 +36,13 @@ class Parameterize:
         self.verbose        = False 
         self.max_iter       = 1000
         self.bounds         = None
+        self.freeze         = []
 
         # -------------------------------
         self.ndata          = 0
         self.iiter          = 0
-        self.current_h      = 0
+        self.p0             = None
+        self.p_n            = None
         self.error          = 0
         self.de_thr         = 0.5
         self.log_file        = None
@@ -60,10 +62,11 @@ class Parameterize:
                                self.parse_graci_file(target_data)
 
         # set initial parameter set
-        pref, p0 = self.set_init_params()
+        pref, self.p0 = self.set_init_params()
  
         # print header info to output file defined in module output
-        output.print_param_header(target_data, ci_objs, ref_states, p0)
+        output.print_param_header(target_data, ci_objs, 
+                                  ref_states, self.p0)
 
         # set up directory structure: each molecule gets a subdirectory
         scf_dirs = self.create_dirs(scf_objs)
@@ -79,8 +82,9 @@ class Parameterize:
 
         # optimize parameters using scipy routines
         self.iiter      = 1
-        self.current_h = p0
-        res = sp_opt.minimize(self.err_func, p0, 
+        self.p_n        = self.extract_opt_param(self.p0)
+
+        res = sp_opt.minimize(self.err_func, self.p_n, 
                               args = (target_data, ref_states, 
                                       scf_dirs, scf_objs, ci_objs),
                               bounds = hbounds,
@@ -88,11 +92,12 @@ class Parameterize:
                               tol = self.pthresh,
                               callback = self.status_func)
 
+        p_final = self.to_full_param_set(res.x)
         # one final eval_energy call with the converged params
-        ener_final = self.evaluate_energies(res.x, ref_states, scf_dirs,
+        ener_final = self.evaluate_energies(p_final, ref_states, scf_dirs,
                                                       scf_objs, ci_objs)
 
-        output.print_param_results(res, target_data, ener_init,
+        output.print_param_results(p_final, res, target_data, ener_init,
                                                              ener_final)
 
         return
@@ -118,12 +123,13 @@ class Parameterize:
                                              ' not found. Exiting'
             self.hard_exit(msg)
 
+        nfrz = len(self.freeze)
         if self.bounds is not None:
             npar = 0
             args = (self.hamiltonian, npar)
             npar = libs.lib_func('retrieve_nhpar', args)
 
-            if self.bounds.shape[0] != npar:
+            if self.bounds.shape[0]+nfrz  != npar:
                 msg = 'Length of bounds array != number of H parameters'
                 self.hard_exit(msg)
 
@@ -131,7 +137,8 @@ class Parameterize:
                 msg = 'bounds.shape[1] != 2: specify upr and lwr bounds'
                 self.hard_exit(msg)
 
-            hmin = np.min([self.bounds[i,0] for i in range(npar)])
+            hmin = np.min([self.bounds[i,0] 
+                           for i in range(len(self.bounds))])
             if hmin <= 0.:
                 msg = 'lower bound for H[param] < 0: '+str(hmin)
                 output.print_message(msg)
@@ -160,18 +167,19 @@ class Parameterize:
         pref = libs.lib_func('retrieve_hpar', args)
 
         if self.init_params is None:
-            p0 = pref
+            pinit = pref
         else:
-            p0 = self.init_params
-            if (type(p0).__name__ != 'ndarray' or p0.shape[0] != npar):
-                msg = 'Cannot use '+str(p0)+' as initial param set'
+            pinit = self.init_params
+            if (type(pinit).__name__ != 'ndarray' 
+                                        or pinit.shape[0] != npar):
+                msg = 'Cannot use '+str(pinit)+' as initial param set'
                 self.hard_exit(msg)
 
-        return pref, p0
+        return pref, pinit
 
     #
-    def err_func(self, hparams, target_data, ref_states, scf_dirs, 
-                                                 scf_objs, ci_objs):
+    def err_func(self, h_opt, target_data, ref_states, scf_dirs, 
+                                               scf_objs, ci_objs):
         """
         Evaluate the error function. In this case, simple RMSD
 
@@ -183,7 +191,9 @@ class Parameterize:
         Returns:
         norm of the different between target and current values
         """
-
+       
+        # set the hamiltonian parameters: both frozen and optimized 
+        hparams = self.to_full_param_set(h_opt)
         iter_ener = self.evaluate_energies(hparams, ref_states,
                                            scf_dirs, scf_objs, ci_objs)
         dif_vec   = np.zeros(self.ndata, dtype=float)
@@ -209,11 +219,12 @@ class Parameterize:
         Give status of optimization
         """
 
-        dif = np.linalg.norm(xk - self.current_h)
-        output.print_param_iter(self.iiter, list(xk), self.error)
+        dif     = np.linalg.norm(xk - self.p_n)
+        xk_full = self.to_full_param_set(xk)
+        output.print_param_iter(self.iiter, xk_full, self.error)
 
-        self.iiter     += 1
-        self.current_h = xk
+        self.iiter += 1
+        self.p_n    = xk
 
         if self.iiter >= self.max_iter:
             msg = 'Max. number of iterations completed.'
@@ -534,6 +545,28 @@ class Parameterize:
                     self.hard_exit(msg)
         
         return target_dict
+
+    #
+    def to_full_param_set(self, p_opt):
+        """
+        to come
+        """
+        # set the hamiltonian parameters: both frozen and optimized 
+        hparams = self.p0
+        iopt    = 0
+        for i in range(len(self.p0)):
+            if not i in self.freeze:
+                hparams[i] = p_opt[iopt]
+                iopt      += 1
+
+        return hparams
+
+    #
+    def extract_opt_param(self, h_all):
+        """
+        to come
+        """
+        return [hi for i,hi in enumerate(h_all) if i not in self.freeze]
 
     #
     def hard_exit(self, message):

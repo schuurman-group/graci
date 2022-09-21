@@ -790,7 +790,7 @@ def print_param_iter(cur_iter, params, error):
     with output_file(file_names['out_file'], 'a+') as outfile:
 
         nparam = len(params)
-        args   = [cur_iter] + params + [error]
+        args   = [cur_iter] + list(params) + [error]
         fstr   =  ' iteration {:>5d} |'
         fstr   += ' parameters: ' + ' '.join(['{:10.8f}']*nparam)
         fstr   += ' |error| = {:10.8f}\n'
@@ -801,7 +801,7 @@ def print_param_iter(cur_iter, params, error):
     return
 
 #
-def print_param_results(res, target, init_ener, final_ener):
+def print_param_results(p_final, res, target, init_ener, final_ener):
     """
     print result of a parameterization run
     """
@@ -817,8 +817,8 @@ def print_param_results(res, target, init_ener, final_ener):
 
         outfile.write('\n\n Final Parameter Values')
         outfile.write('\n -----------------------------------------')
-        fstr = '\n '+' '.join(['{:10.8f} ']*len(res['x']))
-        outfile.write(fstr.format(*list(res['x'])))
+        fstr = '\n '+' '.join(['{:10.8f} ']*len(p_final))
+        outfile.write(fstr.format(*list(p_final)))
 
         outfile.write('\n\n Reference Data')
         outfile.write('\n -----------------------------------------')
