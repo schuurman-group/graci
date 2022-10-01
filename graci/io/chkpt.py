@@ -367,7 +367,7 @@ def read_dataset(chkpt_handle, dset_name):
         sys.exit('Could not locate '+str(dset_name)+' in chkpt file')
 
     try:
-        dset = np.ndarray(chkpt_handle[dset_name])
+        dset = np.array(chkpt_handle[dset_name])
     except TypeError:
         sys.exit('Could not read '+str(dset_name)+' as numpy array')
 
@@ -415,11 +415,11 @@ def read_attribute(chkpt_handle, obj_name, name):
         sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
 
     try:
-        value = loads(chkpt_handle[obj_name].attrs[name])
+        attr = loads(chkpt_handle[obj_name].attrs[name])
     except:
-        value = None
+        attr = None
 
-    return value
+    return attr
 
 #
 def data_name(grp, link_name):
@@ -459,6 +459,31 @@ def link_name(obj, suffix=''):
         return 'NUMPY.'+str(suffix)
 
     return None
+
+#
+def name_isdataset(name):
+    """
+    if the name string has the format of a GRaCI checkpoint link
+    """
+
+    name_list = str(name).strip().split('.')
+    if name_list[0] == 'NUMPY':
+        return True
+    else:
+        return False
+
+def name_isobj(name):
+    """
+    if the name string has the format of a GRaCI checkpoint link
+    """
+
+    obj_list = ['OBJ','OBJC']
+    name_list = name.strip().split('.')
+    if name_list[-1] in obj_list:
+        return True
+    else:
+        return False
+
 
 #
 class GraciEncoder(json.JSONEncoder):

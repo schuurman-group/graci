@@ -359,7 +359,7 @@ class Parameterize:
                     i_add              += 1
             
             # if all roots found, update the energy directory 
-            if roots_found:        
+            if roots_found:       
                 energies[molecule].update(eners) 
 
             # else, hard exit
@@ -488,10 +488,24 @@ class Parameterize:
                 is_ci  = any([ci in name for ci in params.ci_objs])
                 st_map = chkpt.read_attribute(ref_file, name, 
                                                        'state_map')
-                
+
                 # name of section is 'original.name.molecule'
                 m_name = name.strip().split('.')[-1]
                 if molecule == m_name and is_ci and st_map is not None:
+
+                    # ensure the state_map array is consistent with the 
+                    # number of states in the CI object.
+                    n_st     = chkpt.read_dataset(ref_file, 
+                                              name+'/NUMPY.nstates')
+                    n_st_ref = max([int(s) for s in st_map.values()])+1     
+                    n_st_tot = np.sum(n_st)
+                    if n_st_ref > n_st_tot:
+                        msg = 'Insufficient # of states, molecule = ' +\
+                              str(molecule)+': max(state_map)=' + \
+                              str(n_st_ref) + ' > sum(nstates)=' + \
+                              str(n_st_tot)
+                        self.hard_exit(msg)
+
                     ci_objs[molecule].append(name)
                     ref_states[molecule].append(st_map)
                     states_found.extend(list(st_map.keys()))
