@@ -10,7 +10,7 @@ import sys as sys
 def init(ci_method):
     """Initialize the bitci library"""
 
-    # (note that the pgrp and iham variables use Fortran indexing)
+    # (note that the pgrp variable uses Fortran indexing)
     imult = ci_method.mult
     nel   = ci_method.nel 
     nmo   = ci_method.scf.nmo
