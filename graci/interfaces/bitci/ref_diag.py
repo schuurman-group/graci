@@ -156,8 +156,8 @@ def diag_follow(ci_method, ci_method0):
     ciunits = []
 
     # MO overlaps
-    nmo0 = ci_method0.scf.nmo
-    nmo  = ci_method.scf.nmo
+    nmo0 = ci_method0.nmo
+    nmo  = ci_method.nmo
     smat = np.reshape(ci_method.smo, (nmo0 * nmo), order='F')
 
     # frozen core orbitals

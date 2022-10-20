@@ -26,8 +26,8 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
     npairs = pairs.shape[0]
 
     # number of MOs
-    nmo_bra = bra_obj.scf.nmo
-    nmo_ket = ket_obj.scf.nmo
+    nmo_bra = bra_obj.nmo
+    nmo_ket = ket_obj.nmo
 
     # number of dets, roots, etc.
     n_int_bra  = bra_obj.det_strings[irrep].shape[0]

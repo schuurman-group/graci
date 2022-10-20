@@ -15,7 +15,7 @@ def rdm(ci_method):
     """Calculation of the MRCI 1-RDMs for all states"""
 
     # number of molecular orbitals
-    nmo = ci_method.scf.nmo
+    nmo = ci_method.nmo
 
     # bitci mrci wfn object
     mrci_wfn = ci_method.bitci_mrci()

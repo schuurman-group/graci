@@ -23,7 +23,7 @@ def init(bra, ket, calctype, verbose):
     smat   = gto.intor_cross('int1e_ovlp',
                              bra.scf.mol.mol_obj,
                              ket.scf.mol.mol_obj)
-    smat   = np.matmul(np.matmul(bra.scf.orbs.T, smat), ket.scf.orbs)
+    smat   = np.matmul(np.matmul(bra.mos.T, smat), ket.mos)
 
     # point group: currently we are limited to
     # bra point group = ket point group, which has already been checked
@@ -37,8 +37,8 @@ def init(bra, ket, calctype, verbose):
     multKet = ket.mult
     nelBra  = bra.nel
     nelKet  = ket.nel
-    nmoBra  = bra.scf.nmo
-    nmoKet  = ket.scf.nmo
+    nmoBra  = bra.nmo
+    nmoKet  = ket.nmo
     smat    = np.reshape(smat, (nmoBra * nmoKet), order='F')
 
     # call to bitwf_initialise

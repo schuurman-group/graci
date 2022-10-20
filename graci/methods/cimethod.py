@@ -72,7 +72,14 @@ class Cimethod:
         self.adt            = None
         # Diabatic potential matrices (one per irrep)
         self.diabpot        = None
-        
+        # mos 
+        self.mos            = None
+        # number of MOs in CSF expansions
+        self.nmo            = None
+        # mo energies
+        self.emo            = None
+        # mo symmetries
+        self.mosym          = None
 
 # Required functions #############################################################
 
@@ -215,6 +222,26 @@ class Cimethod:
         """update the values of the Hamiltonian parameters"""
 
         self.hparam = hparams
+        return
+
+    #
+    def update_eri(self, ao2mo):
+        """update the MO integral information used by the CI 
+           object. Particularly: the dimension of the MO basis
+
+           Arguments:
+               ao2mo: the Ao2mo class object used to generate 
+                      the MO integrals
+
+           Returns:
+               None
+        """
+
+        self.nmo   = ao2mo.nmo
+        self.emo   = ao2mo.emo
+        self.mosym = ao2mo.mosym
+        self.mos   = ao2mo.orbs
+
         return
 
 #########################################################################

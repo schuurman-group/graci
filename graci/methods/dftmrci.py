@@ -49,6 +49,8 @@ class Dftmrci(cimethod.Cimethod):
         self.scf_label      = 'Scf'
         self.label          = 'Dftmrci'
 
+        # MO energy cutoff: MOs above this value excluded
+        self.mo_cutoff      = 1.
         # No. extra ref space roots needed
         # for various tasks
         self.nextra         = {}

@@ -19,7 +19,7 @@ def generate(ci_method):
     nirr    = ci_method.n_irrep()
 
     # number of mos
-    nmo     = ci_method.scf.nmo
+    nmo     = ci_method.nmo
 
     # bitci reference space wfn
     ref_wfn = ci_method.bitci_ref()

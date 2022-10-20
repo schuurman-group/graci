@@ -74,7 +74,7 @@ class Parameterize:
         # the first pass sets up the orbitals and integrals -- no need
         # to recompute these every time
         ener_init = self.evaluate_energies(pref, ref_states, scf_dirs, 
-                                         scf_objs, ci_objs, runscf=True)
+                                     scf_objs, ci_objs, run_ao2mo=True)
 
         # save the default logfile name for writing updates of the
         # reparam procedure
@@ -234,7 +234,7 @@ class Parameterize:
 
     @timing.timed
     def evaluate_energies(self, hparams, ref_states, scf_dirs,
-                                   scf_names, ci_names, runscf=False):
+                                scf_names, ci_names, run_ao2mo=False):
         """
         evaluate all the energies in the graci data set
 
@@ -252,7 +252,7 @@ class Parameterize:
                     args = ((hparams, molecule, topdir, 
                         self.graci_ref_file, ref_states[molecule], 
                          scf_dirs[molecule], scf_names[molecule], 
-                         ci_names[molecule], True, runscf)
+                         ci_names[molecule], True, run_ao2mo)
                                    for molecule in ref_states.keys())
 
                     for res in executor.starmap(self.eval_energy, args):
@@ -267,14 +267,14 @@ class Parameterize:
                                   scf_dirs[molecule], 
                                   scf_names[molecule], 
                                   ci_names[molecule], 
-                                  False, runscf)
+                                  False, run_ao2mo)
 
                 energies.update(mol_results)
 
         return energies
 
     def eval_energy(self, hparams, molecule, topdir, ref_file, ref_state, 
-                           scf_dirs, scf_name, ci_name, parallel, runscf):
+                          scf_dirs, scf_name, ci_name, parallel, run_ao2mo):
         """
         eval_energy
         """
@@ -311,6 +311,7 @@ class Parameterize:
 
         curr_dir  = ''
         energies  = {molecule : {}}
+        mo_ints   = ao2mo.Ao2mo()
 
         for i in range(len(ci_objs)):
         
@@ -319,21 +320,15 @@ class Parameterize:
                 # change to the appropriate sub-directory
                 os.chdir(topdir+'/'+str(molecule)+'/'+scf_dirs[i])
 
-                if runscf:
+                # we only need to generate MO integrals files once:
+                # orbitals don't change during this process
+                if run_ao2mo:
                     scf_objs[scf_name[i]].verbose = self.verbose 
                     scf_objs[scf_name[i]].load()
-
-                if scf_objs[scf_name[i]].mol.use_df:
-                    type_str = 'df'
+                    mo_ints.emo_cut = ci_objs[i].mo_cutoff
+                    mo_ints.run(scf_objs[scf_name[i])
                 else:
-                    type_str = 'exact'
-
-                if curr_dir != '':
-                    libs.lib_func('bitci_int_finalize', [])
-
-                libs.lib_func('bitci_int_initialize', ['pyscf', 
-                             type_str, scf_objs[scf_name[i]].moint_1e, 
-                             scf_objs[scf_name[i]].moint_2e_eri])
+                    mo_ints.load_bitci(scf_objs[scf_name[i])
 
                 curr_dir = scf_dirs[i]
 
@@ -390,7 +385,7 @@ class Parameterize:
         s_thrsh = 0.5
 
         eners  = {}
-        smo    = np.identity(ref_ci.scf.nmo, dtype=float)
+        smo    = np.identity(ref_ci.nmo, dtype=float)
 
         # iterate over the reference states
         bra_st  = list(ref_st.values())

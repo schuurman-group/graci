@@ -71,9 +71,9 @@ class Transition(interaction.Interaction):
         # oscillator strengths -- all gauges
         self.oscstr     = {}
 
-        # we currently require the same scf and mol objects
+        # we currently require the same orbitals and mol objects
         # for the bra and ket -- this is them
-        self.scf        = None
+        self.mos        = None
         self.mol        = None
 
     def copy(self):
@@ -106,8 +106,9 @@ class Transition(interaction.Interaction):
         self.bra_obj, self.ket_obj = self.add_state_grps(arg_list)
 
         # do some sanity checks on the bra/ket objects
-        self.scf, self.mol = self.check_bra_ket()
-      
+        self.mos, self.mol = self.check_bra_ket()
+        nmo = self.mos.shape[1]
+
         # if bra and ket are the same object, only compute the unique
         # transition densities
         list_type = 'full'
@@ -130,8 +131,8 @@ class Transition(interaction.Interaction):
 
         # initialize the transition density matrices
         # These will be complex for spin-orbit coupled states
-        self.tdms = np.zeros((len(self.trans_list), self.scf.nmo,
-                                        self.scf.nmo), dtype=np.cdouble)
+        self.tdms = np.zeros((len(self.trans_list), nmo, nmo),
+                                                       dtype=np.cdouble)
 
         # loop over all pairs of spin free states in both the bra
         # and ket objects. In the future, may be prudent to check
@@ -302,25 +303,27 @@ class Transition(interaction.Interaction):
         # sanity checking on the orbitals/geometries involved
         if not self.same_obj(self.bra_obj, self.ket_obj):
             for bra_lbl in self.state_grps['bra']:
-                scf_b = self.get_obj(bra_lbl).scf
+                mos_b = self.get_obj(bra_lbl).mos
+                mol_b = self.get_obj(bra_lbl).scf.mol
+
                 for ket_lbl in self.state_grps['ket']:
-                    scf_k = self.get_obj(ket_lbl).scf
+                    mos_k = self.get_obj(ket_lbl).mos
+                    mol_k = self.get_obj(ket_lbl).scf.mol
 
                     # sanity check that orbitals and geometry are
                     # the same
-                    if np.any(scf_b.orbs != scf_k.orbs):
+                    if np.any(mos_b != mos_k):
                         sys.exit('transition moments require same '+
                                  ' bra/ket orbitalss')
 
-                    if (scf_b.mol.pymol().atom !=
-                              scf_k.mol.pymol().atom):
+                    if (mol_b.pymol().atom != mol_k.pymol().atom):
                         sys.exit('transition moments require same '+
                                  ' geometry and basis set')
 
         else:
             scf_b = self.get_obj(self.state_grps['bra'][0]).scf
 
-        return scf_b, scf_b.mol.pymol()
+        return mos_b, mol_b
 
 
     @timing.timed
@@ -332,7 +335,7 @@ class Transition(interaction.Interaction):
         tdm_list = mrci_1tdm.tdm(bra, ket, trans_list_sym)
 
         # make the tdm list
-        nmo    = bra.scf.nmo
+        nmo    = bra.nmo
         npairs = len(trans_list)
         tdm    = np.zeros((npairs, nmo, nmo), dtype=float)
 
@@ -472,7 +475,7 @@ class Transition(interaction.Interaction):
             kst = self.trans_list[it][1]
 
             wt, ndo = orbitals.build_ndos(b_rdm(bst), k_rdm(kst),
-                                         basis=basis, mos=self.scf.orbs)
+                                         basis=basis, mos=self.mos)
             ndos.append(ndo)
             wts.append(wt)
 
@@ -492,7 +495,7 @@ class Transition(interaction.Interaction):
                 occ[1::2]    = wt[-1:-npair-1:-1]
 
                 fname ='ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
-                orbitals.export_orbitals(fname, self.scf.mol, orbs,
+                orbitals.export_orbitals(fname, self.mol, orbs,
                                 orb_occ=occ, 
                                 orb_dir='Transition.'+str(self.label),
                                 fmt='molden')
@@ -524,7 +527,7 @@ class Transition(interaction.Interaction):
             kst = self.trans_list[it][1]
 
             wt, nto = orbitals.build_ntos(self.tdm(bst, kst), 
-                          basis=basis, mos=self.scf.orbs)
+                                             basis=basis, mos=self.mos)
             ntos.append(nto)
             wts.append(wt)
 
@@ -545,7 +548,7 @@ class Transition(interaction.Interaction):
                 occ[1::2]    =  wt[1,:npair].real
 
                 fname = 'nto_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
-                orbitals.export_orbitals(fname, self.scf.mol, orbs,
+                orbitals.export_orbitals(fname, self.mol, orbs,
                                 orb_occ=occ, 
                                 orb_dir='Transition.'+str(self.label),
                                 fmt='molden')
@@ -566,11 +569,11 @@ class Transition(interaction.Interaction):
         nao = self.mol.nao
            
         # dipole moment integrals (length gauge)
-        mu_ao = self.mol.intor('int1e_r')
+        mu_ao = self.mol.pymol().intor('int1e_r')
         mu_mo = self.ints_ao2mo(mu_ao)
         # dipole moment integrals (velocity gauge) -- imaginary
         # contribution only
-        p_ao  = self.mol.intor('int1e_ipovlp')
+        p_ao  = self.mol.pymol().intor('int1e_ipovlp')
         p_mo  = self.ints_ao2mo(p_ao)
 
         dipole = {}
@@ -588,12 +591,13 @@ class Transition(interaction.Interaction):
         nao = self.mol.nao
 
         # electronic quadrupole moment tensor (length gauge)
-        Q_ao  = self.mol.intor('int1e_rr').reshape(3, 3, nao, nao)
+        Q_ao  = self.mol.pymol().intor('int1e_rr').reshape(3, 3, nao, nao)
         Q_mo  = self.ints_ao2mo(Q_ao)
 
         # electronic quadrupole moment tensor (velocity gauge)
         # returns imaginary part only, see Eq. 28
-        Qp_ao  = self.mol.intor('int1e_irp', comp=9, hermi=0).reshape(3,3, nao, nao)
+        Qp_ao  = self.mol.pymol().intor('int1e_irp', 
+                                  comp=9, hermi=0).reshape(3,3, nao, nao)
         Qp_ao += Qp_ao.transpose(1,0,3,2)
         Qp_mo  = self.ints_ao2mo(Qp_ao)
 
@@ -612,14 +616,16 @@ class Transition(interaction.Interaction):
         nao = self.mol.nao
 
         # electronic octupole moment tensor (length gauge)
-        O_ao  = self.mol.intor('int1e_rrr').reshape(3, 3, 3, nao, nao)
+        O_ao  = self.mol.pymol().intor('int1e_rrr').reshape(3, 3, 3, nao, nao)
         O_mo  = self.ints_ao2mo(O_ao)
 
         # electronic octupole moment tensor (velocity gauge)
         # returns imaginary part only, see Eq. 42
-        Op_ao  = self.mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,3,3, nao, nao)
+        Op_ao  = self.mol.pymol().intor('int1e_irrp', 
+                                 comp=27, hermi=0).reshape(3,3,3, nao, nao)
         Op_ao += Op_ao.transpose(2,1,0,4,3)
-        Op_ao += self.mol.intor('int1e_irpr', comp=27,hermi=0).reshape(3,3,3, nao, nao)
+        Op_ao += self.mol.pymol().intor('int1e_irpr', 
+                                 comp=27,hermi=0).reshape(3,3,3, nao, nao)
         Op_mo  = self.ints_ao2mo(Op_ao)
 
         octo = {}
@@ -642,7 +648,7 @@ class Transition(interaction.Interaction):
         # ------------------------------------
         # magnetic first moment -- see Eq. 37 (negletcing spin for now)
         # returns imaginary part only
-        mdp_ao = self.mol.intor('int1e_cg_irxp', comp=3, hermi=2)
+        mdp_ao = self.mol.pymol().intor('int1e_cg_irxp', comp=3, hermi=2)
         mdp_mo = self.ints_ao2mo(mdp_ao)
 
         mdip = {}
@@ -665,9 +671,11 @@ class Transition(interaction.Interaction):
 
         # magnetic quadrupole tensor -- see Eq. 46
         # returns imaginary part only
-        ints     = self.mol.intor('int1e_irrp', comp=27, hermi=0).reshape(3,9,nao,nao)
+        ints     = self.mol.pymol().intor('int1e_irrp', 
+                                 comp=27, hermi=0).reshape(3,9,nao,nao)
         mquad_ao = (ints[:,[YZ,ZX,XY]] - ints[:,[ZY,XZ,YX]]).transpose(1,0,2,3)
-        ints     = self.mol.intor('int1e_irpr', comp=27, hermi=0).reshape(9,3,nao,nao)
+        ints     = self.mol.pymol().intor('int1e_irpr',
+                                  comp=27, hermi=0).reshape(9,3,nao,nao)
         mquad_ao+= ints[[YZ,ZX,XY]] - ints[[ZY,XZ,YX]]
         mquad_mo = self.ints_ao2mo(mquad_ao)
 
@@ -869,9 +877,6 @@ class Transition(interaction.Interaction):
     def ints_ao2mo(self, ao_ints):
         """contract ao_tensor with the mos to convert to mo basis"""
 
-        # mos from scf objects
-        mos     = self.scf.orbs
-
         # get dimension(s) 1-particle expansion
         nao     = ao_ints.shape[-1]
 
@@ -881,8 +886,8 @@ class Transition(interaction.Interaction):
                     +str(self.mol.nao)+' != '+str(nao))
             sys.exit(1)
 
-        return np.einsum('...pq,pi,qj->...ij', ao_ints, mos, mos, 
-                                                     optimize='optimal')
+        return np.einsum('...pq,pi,qj->...ij', ao_ints, 
+                              self.mos, self.mos, optimize='optimal')
 
     #
     @timing.timed
@@ -943,14 +948,14 @@ class Transition(interaction.Interaction):
             ket_syms = [0]*len(ket_states)
             ksym_lbl = ['A']*len(ket_states)
         else:
-            ksym_lbl = self.scf.mol.irreplbl
+            ksym_lbl = self.mol.irreplbl
 
         bra_syms = self.get_syms('bra')
         if bra_syms is None:
             bra_syms = [0]*len(bra_states)
             bsym_lbl = ['A']*len(bra_states)
         else:
-            bsym_lbl = self.scf.mol.irreplbl
+            bsym_lbl = self.mol.irreplbl
 
         # print a 'transition table' for each initial state
         for iket in range(len(ket_states)):

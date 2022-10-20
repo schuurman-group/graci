@@ -23,7 +23,7 @@ def generate(ci_method):
     nirr = ci_method.n_irrep()
 
     # number of mos
-    nmo = ci_method.scf.nmo
+    nmo = ci_method.nmo
 
     # orbital occupations
     occ = ci_method.ref_occ
@@ -104,13 +104,13 @@ def autoras(ci_method):
     nirr = ci_method.n_irrep()
 
     # number of mos
-    nmo = ci_method.scf.nmo
+    nmo = ci_method.nmo
 
     # orbital occupations
     orb_occ = ci_method.ref_occ
 
     # orbital energies
-    orb_ener = ci_method.scf.orb_ener
+    orb_ener = ci_method.emo
 
     # Number of extra roots
     n_extra = 2
@@ -255,8 +255,8 @@ def propagate(ci_method, ci_method0):
     nvec   = np.array((nroots+nextra), dtype=int)
 
     # MO overlaps
-    nmo0 = ci_method0.scf.nmo
-    nmo  = ci_method.scf.nmo
+    nmo0 = ci_method0.nmo
+    nmo  = ci_method.nmo
     smat = np.reshape(ci_method.smo, (nmo0 * nmo), order='F')
     
     # Create the reference spaces for this calculation

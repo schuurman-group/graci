@@ -13,9 +13,9 @@ def init(ci_method):
     # (note that the pgrp variable uses Fortran indexing)
     imult = ci_method.mult
     nel   = ci_method.nel 
-    nmo   = ci_method.scf.nmo
-    mosym = np.array(ci_method.scf.orb_sym)
-    moen  = np.array(ci_method.scf.orb_ener)
+    nmo   = ci_method.nmo
+    mosym = np.array(ci_method.mosym)
+    moen  = np.array(ci_method.emo)
 
     if ci_method.scf.mol.sym_indx <= 0:
         pgrp = 1

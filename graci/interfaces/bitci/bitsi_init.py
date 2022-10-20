@@ -11,8 +11,8 @@ def init(bra, ket, calctype, verbose):
     """Initialize the bitsi library"""
 
     # if the number of mos is different between bra and ket, end
-    if bra.scf.nmo != ket.scf.nmo:
-        sys.exit('bra.scf.nmo != ket.scf.nmo init_bitsi')
+    if bra.nmo != ket.nmo:
+        sys.exit('bra.nmo != ket.nmo init_bitsi')
 
     # set all variables that have to be passed to bitsi_initialise
     # (note that the pgrp uses Fortran indexing)
@@ -20,7 +20,7 @@ def init(bra, ket, calctype, verbose):
     multKet = ket.mult
     nelBra  = bra.nel
     nelKet  = ket.nel
-    nmo     = bra.scf.nmo
+    nmo     = bra.nmo
 
     # catch instances of C1 symmetry
     if bra.scf.mol.sym_indx <= 0:
