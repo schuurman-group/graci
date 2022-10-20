@@ -104,7 +104,7 @@ class Cimethod:
             self.ref_occ = np.zeros(self.scf.nmo, dtype=float)
             self.ref_occ[:nclsd]            = 2.
             self.ref_occ[nclsd:nclsd+nopen] = 1.
-
+        
         return
 
     def scf_exists(self):
