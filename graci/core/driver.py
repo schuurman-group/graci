@@ -30,6 +30,7 @@ class Driver:
         postci_objs = []
         si_objs     = []
         param_objs  = []
+
         for obj in calc_array:
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
@@ -70,10 +71,6 @@ class Driver:
 
         # SCF Sections 
         # -----------------------------------------------------
-
-        # list of all scf labels
-        scf_lbls = [scf.label for scf in scf_objs]
-        
         # match scf objects to molecule objects
         for scf_obj in scf_objs:
 
@@ -84,50 +81,43 @@ class Driver:
                 # this should be changed: we should only set
                 # scf_obj to the object read from the chkpt file
                 # after we've confirmed they're the same..
-                scf_obj1 = chkpt.read('Scf.' + scf_obj.label, 
+                scf_load = chkpt.read('Scf.' + scf_obj.label, 
                                       build_subobj = True,
                                       make_mol = True)
                 
-                if scf_obj1 is None:
+                if scf_load is None:
                     sys.exit('Cannot restart Scf, section = Scf.' + 
-                              str(scf_obj1.label) + 
+                              str(scf_obj.label) + 
                              ' not found in chkpt file = ' + 
                               str(output.file_names['chkpt_file']))
 
                 # evidence that this is imperfect:
-                scf_obj1.restart = True
+                scf_load.restart = True
                 # call load to ensure AO -> MO transformation is run
                 # and that orbitals are printed, etc.
-                scf_obj1.load()
+                scf_load.load()
 
                 # overwrite the original scf object in scf_objs
                 # with the 'filled in' object
                 # (required in case this scf object is going to be
                 # used as the guess for another)
-                scf_objs[scf_objs.index(scf_obj)] = scf_obj1.copy()
+                scf_objs[scf_objs.index(scf_obj)] = scf_load.copy()
                 
             # else assign molecule object and call run() routine
             else:
 
-                mol_lbls = [obj.label for obj in mol_objs]
-                if scf_obj.label in mol_lbls:
-                    mol_obj = mol_objs[mol_lbls.index(scf_obj.label)]
-                elif len(mol_objs) == 1:
-                    mol_obj = mol_objs[0]
-                else:
-                    mol_obj = None
+                # grab the corresponding molecule section
+                mol_obj = self.match_lbls(scf_obj.label, 
+                                          'label', mol_objs) 
 
-                # if we have a label problem, then we should exit
-                # with an error
-                if mol_obj is None:
-                    output.print_message('scf section, label='+
-                            str(scf_obj.label)+
-                            ' has no molecule section. Please check input')
-                    sys.exit(1)
+                # if too many matches: die
+                if len(mol_obj) > 1:
+                    sys.exit('Too many molecule objects with label: '+
+                             str(scf_obj.label))
 
                 # if we need to perform run-time basis set modifications
-                if mol_obj.add_rydberg is not None:
-                    mol_obj = self.modify_basis(calc_array, mol_obj)
+                if mol_obj[0].add_rydberg is not None:
+                    mol_obj[0] = self.modify_basis(calc_array, mol_obj[0])
 
                 # guess SCF object
                 if scf_obj.guess_label is None:
@@ -138,26 +128,15 @@ class Driver:
                 # run the SCF calculation
                 scf_obj.run(mol_obj, scf_guess)
                 
+                # write scf object to checkpoint file
                 if save_to_chkpt:
                     chkpt.write(scf_obj)
-
-            # initialize the MO integrals following the SCF run, but
-            # finalise previous integrals if they exist. Not sure if this
-            # should ultimately go here (probably not), but fine for now
-            if len(ci_objs) > 0:
-                libs.lib_func('bitci_int_finalize', [])
-                if scf_obj.mol.use_df:
-                    type_str = 'df'
-                else:
-                    type_str = 'exact'
-                libs.lib_func('bitci_int_initialize', 
-                              ['pyscf', type_str, scf_obj.moint_1e, 
-                                scf_obj.moint_2e_eri])
 
             # CI Sections 
             #-----------------------------------------------------
             # run all the post-scf routines that map to the current
             # scf object.
+            ci_obj = self.match_lbls(scf_obj.label, 'scf_label', ci_objs)
 
             ci_lbls = [ci.label for ci in ci_objs]
             for ci_obj in ci_objs:
@@ -207,6 +186,32 @@ class Driver:
 
         return
  
+    #
+    def match_lbls(self, label, obj_lbl, obj_lst):
+        """
+        find the obj in obj_list with the label 'label'
+        """
+
+        obj_lbls = [getattr(obj, obj_lbl) for obj in obj_lst]
+        obj      = []
+
+        if label in obj_lbls:
+            obj.append(obj_lst[obj_lbls.index(label)])
+        elif len(obj_lst) == 1:
+            obj = obj_lst[0]
+        else:
+            obj = None
+
+        # if we have a label problem, then we should exit
+        # with an error
+        if obj is None:
+            output.print_message('Cannot match label='+str(label)+
+                  ' to corresponding section. Please check input')
+            sys.exit(1)
+        
+        else:
+            return obj
+
     #
     def modify_basis(self, calc_array, mol_obj):
         """

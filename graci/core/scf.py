@@ -50,7 +50,6 @@ class Scf:
         self.moint_1e     = None
         self.moint_2e_eri = None
         self.auxbasis     = None 
-        self.do_ao2mo     = True
 
 # Required functions #######################################################
 
