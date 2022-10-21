@@ -25,10 +25,6 @@ class Transition(interaction.Interaction):
         # parent attributes
         super().__init__()
     
-        # input syntax should be identical to transition
-        # name for this object
-        self.label          = 'Transition'
-
         # user defined quanties
         self.print_orbitals = False
         # for transition it's convenient to call these variables
@@ -321,7 +317,8 @@ class Transition(interaction.Interaction):
                                  ' geometry and basis set')
 
         else:
-            scf_b = self.get_obj(self.state_grps['bra'][0]).scf
+            mol_b = self.get_obj(self.state_grps['bra'][0]).scf.mol
+            mos_b = self.get_obj(self.state_grps['bra'][0]).mos
 
         return mos_b, mol_b
 

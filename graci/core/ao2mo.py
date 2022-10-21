@@ -20,7 +20,7 @@ class Ao2mo:
         self.mosym        = None
         self.emo_cut      = None
         self.orbs         = None
-        self.label        = 'Ao2mo'
+        self.label        = 'default'
 
     @timing.timed
     def run(self, scf):
@@ -36,11 +36,9 @@ class Ao2mo:
         self.emo     = scf.orb_ener[:self.nmo]
         self.mosym   = scf.orb_sym[:self.nmo]
 
-        # set default file names if they're not given
-        if self.moint_2e_eri is None:
-            self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
-        if self.moint_1e is None:
-            self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
+        # set default file names
+        self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
+        self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
 
         # Do the AO -> MO transformation
         if scf.mol.use_df:
@@ -80,17 +78,16 @@ class Ao2mo:
         Reload bitci with the current integral files
         """
 
-        # set default file names if they're not given
-        if self.moint_2e_eri is None:
-            self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
-        if self.moint_1e is None:
-            self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
+        # set default file names
+        self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
+        self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
 
         libs.lib_func('bitci_int_finalize', [])
         if scf.mol.use_df:
             type_str = 'df'
         else:
             type_str = 'exact'
+
         libs.lib_func('bitci_int_initialize',
                 ['pyscf', type_str, self.moint_1e, self.moint_2e_eri])
 

@@ -23,7 +23,7 @@ class Rydano():
         self.mult       = 2
         self.charge     = 1
         self.origin     = None 
-        self.label      = 'rydano'
+        self.label      = 'default'
         self.verbose    = True 
         self.contract   = '1s1p1d'
         self.nprimitive = 8

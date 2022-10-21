@@ -27,7 +27,7 @@ class Parameterize:
         # (or subject to user input) -- these are keywords
         # in params module
         self.algorithm      = 'Nelder-Mead'
-        self.label          = 'parameterize'
+        self.label          = 'default'
 
         self.hamiltonian    = 'heil17_standard'
         self.init_params    = None

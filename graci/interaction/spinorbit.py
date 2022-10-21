@@ -30,7 +30,6 @@ class Spinorbit(interaction.Interaction):
         self.couple_groups = [None]
         # states from each object to couple
         self.couple_states = [None]
-        self.label         = 'Spinorbit'
 
         #
         # Private variables -- should not be directly referenced

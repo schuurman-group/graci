@@ -47,6 +47,15 @@ class Driver:
             elif type(obj).__name__ == 'Parameterize':
                 param_objs.append(obj)
 
+        # Sanity check that sections of the same type have 
+        # distinct label identifiers
+        #-----------------------------------------------------
+        self.check_labels(mol_objs)
+        self.check_labels(scf_objs)
+        self.check_labels(ci_objs)
+        self.check_labels(postci_objs)
+        self.check_labels(si_objs)
+
         # Load required libraries
         #-----------------------------------------------------
         # for now, assume postscf will require the bitci and
@@ -108,20 +117,20 @@ class Driver:
             else:
 
                 # grab the corresponding molecule section
-                mol_obj = self.match_sections(scf_obj.label, 
-                                          'label', mol_objs, warn=True) 
+                mol_obj = self.match_sections(scf_obj.label, 'label',
+                                              mol_objs, match_all=False) 
 
                 # if we need to perform run-time basis set modifications
-                if mol_obj[0].add_rydberg is not None:
-                    mol_obj[0] = self.modify_basis(calc_array, mol_obj[0])
+                if mol_obj.add_rydberg is not None:
+                    mol_obj = self.modify_basis(calc_array, mol_obj)
 
                 # guess SCF object
                 scf_guess = self.match_sections(scf_obj.guess_label, 
                                                 'label', scf_objs, 
-                                                 warn=True, strict=True)
+                                                 match_all=False)
 
                 # run the SCF calculation
-                scf_obj.run(mol_obj[0], scf_guess[0])
+                scf_obj.run(mol_obj, scf_guess)
                 
                 # write scf object to checkpoint file
                 if save_to_chkpt:
@@ -132,13 +141,14 @@ class Driver:
             # run all the post-scf routines that map to the current
             # scf object.
             # if there is a single scf object, ignore labels
-            if len(scf_objs) == 1:
-                ci_calcs = ci_objs
-            else:
-                ci_calcs = self.match_sections(scf_obj.label, 
-                                    'scf_label', ci_objs, strict=True)
+            ci_calcs = self.match_sections(scf_obj.label, 
+                                          'scf_label', ci_objs, 
+                                           match_all=True)
             eri_mo   = ao2mo.Ao2mo()
             for ci_calc in ci_calcs:
+
+                if ci_calc is None:
+                    continue
 
                 # perform AO -> MO integral transformation
                 if eri_mo.emo_cut is None or \
@@ -151,10 +161,10 @@ class Driver:
 
                 # guess CI object
                 ci_guess = self.match_sections(ci_calc.guess_label, 
-                                           'label', ci_objs, 
-                                            warn=True, strict=True)
+                                               'label', ci_objs, 
+                                                match_all=False)
 
-                ci_calc.run(scf_obj, ci_guess[0])
+                ci_calc.run(scf_obj, ci_guess)
                 chkpt.write(ci_calc)
 
         # All SCF + CI objects are created and run() called before 
@@ -189,11 +199,21 @@ class Driver:
         return
  
     #
-    def match_sections(self, label, sec_lbl, sec_lst, 
-                                      warn=False, strict=False):
-        """
+    def match_sections(self, label, sec_lbl, sec_lst, match_all=False):
+        """Match the sections in sec_lst that have the variable 
+           sec_lbl equal to label. If lst is True, return all
+           cases that match, else, just return the first match
 
-        find the obj in obj_list with the label 'label'
+        Arguments:
+           label:   the string label to match
+           sec_lbl: the variable name that is being comared to label
+           sec_lst: list of candidate objects
+           match_all: If False, return first true match, if true, 
+                    return all matches
+
+        Returns:
+           match:   list (if lst==True) of matches, else, just
+                    the matching object
         """
 
         sec_lbls = [getattr(sec_lst[i], sec_lbl) 
@@ -204,25 +224,49 @@ class Driver:
             if label == sec_lbls[i]:
                 secs.append(sec_lst[i])
 
-        # if strict==False, then if only one object is present,
-        # match it regardless of label value. This is useful
-        # default behavior when a single section of a particular
-        # type is present
-        if len(secs) == 0 and len(sec_lst) == 1 and not strict:
-            secs = sec_lst
+        # If multiple sections match and match_all is false, this
+        # likely constitutes a labelling problem, and we're going
+        # to exit the program, rather than just give a warning
+        if not match_all and len(secs) > 1:
+            output.print_message('Multiple objects matched to label=' +
+                    str(label)+': '+str([sec.label for sec in secs]))
+            sys.exit(1)
 
-        # if obj is empty array, return [None]. May be worthwhile
-        # to revisit this behavior
+        # if we still don't have any matches, return None 
         if len(secs) == 0:
             secs = [None]
 
-        # if we have a label problem, then we should exit
-        # with an error
-        if warn and len(secs) > 1:
-            output.print_message('Multiple objects matched to label=' + 
-                    str(label)+': '+str([sec.label for sec in secs]))
-        
-        return secs
+        if match_all:
+            return secs
+        else:
+            return secs[0]
+
+    # 
+    def check_labels(self, obj_lst):
+        """Check that each label in object list is unique
+
+        Arguments:
+          obj_list: list of objects, each possessing 'label' variable
+
+        Returns:
+          None
+        """
+
+        if len(obj_lst) == 0:
+            return 
+
+        lbls = [obj.label for obj in obj_lst]
+        uniq = list(set(lbls))
+
+        if len(uniq) != len(lbls):
+            c_name = type(obj_lst[0]).__name__
+            ostr = '\nSection type: '+str(c_name) + '\n' + \
+                   'Section labels: '+str(lbls) + '\n' + \
+                   '--> Sections of the same type require unique labels'
+            output.print_message(ostr)
+            sys.exit(1)
+
+        return
 
     #
     def modify_basis(self, calc_array, mol_obj):

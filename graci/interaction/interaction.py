@@ -42,6 +42,7 @@ class Interaction:
         # spin info for the states in group
         self.spins        = {}
         self.verbose      = True
+        self.label        = 'default'
 
 
     def same_obj(self, obj1, obj2):

@@ -23,7 +23,7 @@ class Scf:
         # user defined input paramaters
         self.xc             = 'hf'
         self.print_orbitals = False
-        self.label          = 'Scf'
+        self.label          = 'default'
         self.verbose        = True 
         self.restart        = False
         self.mult           = 0

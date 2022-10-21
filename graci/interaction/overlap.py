@@ -20,7 +20,6 @@ class Overlap(interaction.Interaction):
 
         # user defined quantities
         self.calc         = None
-        self.label        = 'Overlap'
         self.bra_label    = None
         self.ket_label    = None
         self.bra_states   = None

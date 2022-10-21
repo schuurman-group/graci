@@ -42,6 +42,7 @@ class Cimethod:
         self.guess_label    = None
         self.verbose        = True
         self.hparam         = None
+        self.label          = 'default'
 
         # class variables
         # total number of electrons

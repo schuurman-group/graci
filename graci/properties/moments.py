@@ -15,7 +15,7 @@ class Moments:
         self.dipole_vec  = None
         self.quad_tensor = None
         self.second_momt = None
-        self.label       = 'Moments'
+        self.label       = 'default'
 
     def copy(self):
         """create of deepcopy of self"""
