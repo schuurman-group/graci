@@ -96,7 +96,7 @@ class Cimethod:
         # Default charge: inherited from the scf object
         if self.charge is None or self.charge == scf.charge:
             self.charge  = scf.charge
-            self.ref_occ = copy.copy(scf.orb_occ)
+            self.ref_occ = copy.copy(scf.orb_occ)[:self.nmo]
 
         # if the number of electrons have changed update ref_occ
         if self.charge != scf.charge:
@@ -108,7 +108,7 @@ class Cimethod:
             if 2*nclsd + nopen != self.nel:
                 sys.exit('Inconsistent charge='+str(self.charge)+ 
                                       ' / multp='+str(self.mult))
-            self.ref_occ = np.zeros(self.scf.nmo, dtype=float)
+            self.ref_occ = np.zeros(self.nmo, dtype=float)
             self.ref_occ[:nclsd]            = 2.
             self.ref_occ[nclsd:nclsd+nopen] = 1.
         
@@ -267,7 +267,7 @@ class Cimethod:
         self.natocc    = np.zeros((n_tot, nmo), dtype=float)
         for i in range(n_tot):
             occ, nos = orbitals.build_nos(self.rdm(i), basis='ao',
-                                                 mos=self.scf.orbs)
+                                                 mos=self.mos)
             self.natorb_ao[i,:,:] = nos
             self.natocc[i,:]      = occ
 

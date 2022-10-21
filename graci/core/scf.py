@@ -13,7 +13,7 @@ import graci.core.orbitals as orbitals
 import graci.io.output as output
 import graci.utils.timing as timing
 import graci.core.solvents as solvents
-from pyscf import gto, scf, dft, symm, ao2mo, df
+from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 
 
@@ -47,8 +47,6 @@ class Scf:
         self.nao          = 0
         self.naux         = 0
         self.rdm_ao       = None
-        self.moint_1e     = None
-        self.moint_2e_eri = None
         self.auxbasis     = None 
 
 # Required functions #######################################################
@@ -156,10 +154,6 @@ class Scf:
             self.rdm_ao += self.orb_occ[i]*np.outer(self.orbs[:,i],\
                                                     self.orbs[:,i])
 
-        # perform AO -> MO transformation
-        if self.do_ao2mo:
-            self.ao_to_mo(pymol, self.orbs)
-
         # print the summary of the output to file
         if self.verbose:
             output.print_scf_summary(self)
@@ -177,8 +171,8 @@ class Scf:
 
     #
     def load(self):
-        """load is called on a restart to generate integrals and do 
-           ao2mo transformation"""
+        """load is called on a restart to export orbitals
+           and print summary/orbital information"""
 
         # construct the molecule object
         pymol = self.mol.pymol()
@@ -192,9 +186,6 @@ class Scf:
         # print header info even on a restart
         if self.verbose:
             output.print_scf_header(self)
-
-        # perform AO -> MO transformation
-        self.ao_to_mo(pymol, self.orbs)
 
         # print the summary of the output to file
         if self.verbose:
@@ -293,9 +284,10 @@ class Scf:
         mf.conv_tol = self.conv_tol
             
         # set the name of the DF-tensor
-        if hasattr(mf, 'with_df') and self.do_ao2mo:
+        if hasattr(mf, 'with_df'):
             if self.mol.use_df:
-                mf.with_df._cderi_to_save = self.moint_2e_eri
+                eri_name = '2e_eri_'+str(self.label).strip()+'.h5'
+                mf.with_df._cderi_to_save = eri_name
             else:
                 mf.with_df = None
 
@@ -362,38 +354,6 @@ class Scf:
 
         return dm[0] + dm[1]
         
-    #
-    @timing.timed
-    def ao_to_mo(self, pymol, orbs):
-        """perform AO to MO integral transformation using the current
-           orbitals"""
-
-        # Do the AO -> MO transformation
-        if self.mol.use_df:
-            # save the auxbasis value: either user requested or the
-            # PySCF default
-            ij_trans = np.concatenate(([orbs], [orbs]))
-            df.outcore.general(pymol, ij_trans, self.moint_2e_eri,
-                    auxbasis=self.mol.ri_basis, dataname='eri_mo')
-        else:
-            eri_ao = pymol.intor('int2e_sph', aosym='s8')
-            eri_mo = ao2mo.incore.full(eri_ao, orbs)
-            with h5py.File(self.moint_2e_eri, 'w') as f:
-                f['eri_mo'] = eri_mo
-
-        # Construct the core Hamiltonian
-        one_nuc_ao = pymol.intor('int1e_nuc')
-        one_kin_ao = pymol.intor('int1e_kin')
-        hcore_ao   = one_nuc_ao + one_kin_ao
-
-        # transform the core Hamiltonian to MO basis explicitly 
-        # and write to file
-        h1_mo      = np.matmul(np.matmul(orbs.T, hcore_ao), orbs)
-        with h5py.File(self.moint_1e, 'w') as f:
-            f['hcore_mo'] = h1_mo
-
-        return
-
     #
     def mo_overlaps(self, other):
         """

@@ -12,6 +12,7 @@ import os as os
 import shutil as shutil
 import graci.core.libs as libs
 import graci.core.params as params
+import graci.core.ao2mo as ao2mo
 import graci.io.chkpt as chkpt
 import graci.io.parse as parse
 import graci.io.output as output
@@ -326,9 +327,9 @@ class Parameterize:
                     scf_objs[scf_name[i]].verbose = self.verbose 
                     scf_objs[scf_name[i]].load()
                     mo_ints.emo_cut = ci_objs[i].mo_cutoff
-                    mo_ints.run(scf_objs[scf_name[i])
+                    mo_ints.run(scf_objs[scf_name[i]])
                 else:
-                    mo_ints.load_bitci(scf_objs[scf_name[i])
+                    mo_ints.load_bitci(scf_objs[scf_name[i]])
 
                 curr_dir = scf_dirs[i]
 

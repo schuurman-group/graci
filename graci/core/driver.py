@@ -8,6 +8,7 @@ import graci.utils.basis as basis
 import graci.utils.rydano as rydano
 import graci.core.params as params
 import graci.core.libs as libs
+import graci.core.ao2mo as ao2mo
 import graci.io.output as output
 import graci.io.chkpt as chkpt
 
@@ -107,26 +108,20 @@ class Driver:
             else:
 
                 # grab the corresponding molecule section
-                mol_obj = self.match_lbls(scf_obj.label, 
-                                          'label', mol_objs) 
-
-                # if too many matches: die
-                if len(mol_obj) > 1:
-                    sys.exit('Too many molecule objects with label: '+
-                             str(scf_obj.label))
+                mol_obj = self.match_sections(scf_obj.label, 
+                                          'label', mol_objs, warn=True) 
 
                 # if we need to perform run-time basis set modifications
                 if mol_obj[0].add_rydberg is not None:
                     mol_obj[0] = self.modify_basis(calc_array, mol_obj[0])
 
                 # guess SCF object
-                if scf_obj.guess_label is None:
-                    scf_guess = None
-                else:
-                    scf_guess = scf_objs[scf_lbls.index(scf_obj.guess_label)]
-                
+                scf_guess = self.match_sections(scf_obj.guess_label, 
+                                                'label', scf_objs, 
+                                                 warn=True, strict=True)
+
                 # run the SCF calculation
-                scf_obj.run(mol_obj, scf_guess)
+                scf_obj.run(mol_obj[0], scf_guess[0])
                 
                 # write scf object to checkpoint file
                 if save_to_chkpt:
@@ -136,24 +131,31 @@ class Driver:
             #-----------------------------------------------------
             # run all the post-scf routines that map to the current
             # scf object.
-            ci_obj = self.match_lbls(scf_obj.label, 'scf_label', ci_objs)
+            # if there is a single scf object, ignore labels
+            if len(scf_objs) == 1:
+                ci_calcs = ci_objs
+            else:
+                ci_calcs = self.match_sections(scf_obj.label, 
+                                    'scf_label', ci_objs, strict=True)
+            eri_mo   = ao2mo.Ao2mo()
+            for ci_calc in ci_calcs:
 
-            ci_lbls = [ci.label for ci in ci_objs]
-            for ci_obj in ci_objs:
+                # perform AO -> MO integral transformation
+                if eri_mo.emo_cut is None or \
+                        eri_mo.emo_cut < ci_calc.mo_cutoff:
+                    eri_mo.emo_cut = ci_calc.mo_cutoff
+                    eri_mo.run(scf_obj)
 
-                # if labels match -- set the geometry
-                # to the molecule object
-                if ci_obj.scf_label == scf_obj.label or len(scf_objs)==1:
+                # update ci object with results of ao2mo
+                ci_calc.update_eri(eri_mo)
 
-                    # guess CI object
-                    g_lbl = ci_obj.guess_label
-                    if g_lbl in ci_lbls:
-                        ci_guess = ci_objs[ci_lbls.index(g_lbl)]
-                    else:
-                        ci_guess = None
-                
-                    ci_obj.run(scf_obj, ci_guess)
-                    chkpt.write(ci_obj)
+                # guess CI object
+                ci_guess = self.match_sections(ci_calc.guess_label, 
+                                           'label', ci_objs, 
+                                            warn=True, strict=True)
+
+                ci_calc.run(scf_obj, ci_guess[0])
+                chkpt.write(ci_calc)
 
         # All SCF + CI objects are created and run() called before 
         # PostCI and subsequently SI objects are run()
@@ -187,30 +189,40 @@ class Driver:
         return
  
     #
-    def match_lbls(self, label, obj_lbl, obj_lst):
+    def match_sections(self, label, sec_lbl, sec_lst, 
+                                      warn=False, strict=False):
         """
+
         find the obj in obj_list with the label 'label'
         """
 
-        obj_lbls = [getattr(obj, obj_lbl) for obj in obj_lst]
-        obj      = []
+        sec_lbls = [getattr(sec_lst[i], sec_lbl) 
+                            for i in range(len(sec_lst))]
+        secs     = []
 
-        if label in obj_lbls:
-            obj.append(obj_lst[obj_lbls.index(label)])
-        elif len(obj_lst) == 1:
-            obj = obj_lst[0]
-        else:
-            obj = None
+        for i in range(len(sec_lst)):
+            if label == sec_lbls[i]:
+                secs.append(sec_lst[i])
+
+        # if strict==False, then if only one object is present,
+        # match it regardless of label value. This is useful
+        # default behavior when a single section of a particular
+        # type is present
+        if len(secs) == 0 and len(sec_lst) == 1 and not strict:
+            secs = sec_lst
+
+        # if obj is empty array, return [None]. May be worthwhile
+        # to revisit this behavior
+        if len(secs) == 0:
+            secs = [None]
 
         # if we have a label problem, then we should exit
         # with an error
-        if obj is None:
-            output.print_message('Cannot match label='+str(label)+
-                  ' to corresponding section. Please check input')
-            sys.exit(1)
+        if warn and len(secs) > 1:
+            output.print_message('Multiple objects matched to label=' + 
+                    str(label)+': '+str([sec.label for sec in secs]))
         
-        else:
-            return obj
+        return secs
 
     #
     def modify_basis(self, calc_array, mol_obj):

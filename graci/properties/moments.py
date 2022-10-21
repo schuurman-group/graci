@@ -37,9 +37,9 @@ class Moments:
     def run(self, mol, natocc, natorb):
         """return the dipole moments for states in 'states'"""
 
-        # compute the dipole moment integrals dimensions = (3,nmo,nmo)
+        # compute the dipole moment integrals dimensions = (3,nao,nao)
         mu_ao = mol.pymol().intor('int1e_r')
-        # compute the quadrupole tensor, dimensions = (9, nmo, nmo)
+        # compute the quadrupole tensor, dimensions = (9, nao, nao)
         q_ao  = mol.pymol().intor('int1e_rr')
         # compute the second moment
         q2_ao = mol.pymol().intor('int1e_r2')
@@ -59,7 +59,7 @@ class Moments:
 
             self.second_momt[ist]  = np.sum(rdm_ao*q2_ao)
 
-            qtens = np.einsum('xij,ij->x',q_ao.reshape((9,nao,nmo)), 
+            qtens = np.einsum('xij,ij->x',q_ao.reshape((9,nao,nao)), 
                                                                   rdm_ao)
 
             # traceless quad tensor defined as: 
