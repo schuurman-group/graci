@@ -26,8 +26,8 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
     npairs = pairs.shape[0]
 
     # number of MOs
-    nmo_bra = bra_obj.scf.nmo
-    nmo_ket = ket_obj.scf.nmo
+    nmo_bra = bra_obj.nmo
+    nmo_ket = ket_obj.nmo
 
     # number of dets, roots, etc.
     n_int_bra  = bra_obj.det_strings[irrep].shape[0]
@@ -107,7 +107,6 @@ def overlap_st(bra_obj, ket_obj, bra_st, ket_st, smo, norm_thresh,
 
     for irr in range(nirr):
         pairs = [[bst,kst] for bst in bsym[irr] for kst in ksym[irr]]
-        #print(str(bra_obj.label)+','+str(ket_obj.label)+' irr='+str(irr)+' pairs='+str(pairs),flush=True)
         if len(pairs) > 0:
             Sij   = overlap(bra_obj, ket_obj, smo, 
                             np.asarray(pairs, dtype=int), 

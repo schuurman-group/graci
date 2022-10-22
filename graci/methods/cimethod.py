@@ -42,6 +42,7 @@ class Cimethod:
         self.guess_label    = None
         self.verbose        = True
         self.hparam         = None
+        self.label          = 'default'
 
         # class variables
         # total number of electrons
@@ -72,7 +73,14 @@ class Cimethod:
         self.adt            = None
         # Diabatic potential matrices (one per irrep)
         self.diabpot        = None
-        
+        # mos 
+        self.mos            = None
+        # number of MOs in CSF expansions
+        self.nmo            = None
+        # mo energies
+        self.emo            = None
+        # mo symmetries
+        self.mosym          = None
 
 # Required functions #############################################################
 
@@ -89,7 +97,7 @@ class Cimethod:
         # Default charge: inherited from the scf object
         if self.charge is None or self.charge == scf.charge:
             self.charge  = scf.charge
-            self.ref_occ = copy.copy(scf.orb_occ)
+            self.ref_occ = copy.copy(scf.orb_occ)[:self.nmo]
 
         # if the number of electrons have changed update ref_occ
         if self.charge != scf.charge:
@@ -101,10 +109,10 @@ class Cimethod:
             if 2*nclsd + nopen != self.nel:
                 sys.exit('Inconsistent charge='+str(self.charge)+ 
                                       ' / multp='+str(self.mult))
-            self.ref_occ = np.zeros(self.scf.nmo, dtype=float)
+            self.ref_occ = np.zeros(self.nmo, dtype=float)
             self.ref_occ[:nclsd]            = 2.
             self.ref_occ[nclsd:nclsd+nopen] = 1.
-
+        
         return
 
     def scf_exists(self):
@@ -217,6 +225,26 @@ class Cimethod:
         self.hparam = hparams
         return
 
+    #
+    def update_eri(self, ao2mo):
+        """update the MO integral information used by the CI 
+           object. Particularly: the dimension of the MO basis
+
+           Arguments:
+               ao2mo: the Ao2mo class object used to generate 
+                      the MO integrals
+
+           Returns:
+               None
+        """
+
+        self.nmo   = ao2mo.nmo
+        self.emo   = ao2mo.emo
+        self.mosym = ao2mo.mosym
+        self.mos   = ao2mo.orbs
+
+        return
+
 #########################################################################
     #
     def build_nos(self):
@@ -240,7 +268,7 @@ class Cimethod:
         self.natocc    = np.zeros((n_tot, nmo), dtype=float)
         for i in range(n_tot):
             occ, nos = orbitals.build_nos(self.rdm(i), basis='ao',
-                                                 mos=self.scf.orbs)
+                                                 mos=self.mos)
             self.natorb_ao[i,:,:] = nos
             self.natocc[i,:]      = occ
 

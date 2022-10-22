@@ -24,7 +24,7 @@ class Bitciwfn:
         # (one per irrep)
         self.eq_units    = None
         # class label
-        self.label       = 'Bitciwfn'
+        self.label       = 'default'
 
     def copy(self):
         """create of deepcopy of self"""

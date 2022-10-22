@@ -21,7 +21,7 @@ def tdm(bra, ket, trans_list):
     nirr_bra = bra.n_irrep()
 
     # number of molecular orbitals
-    nmo = bra.scf.nmo
+    nmo = bra.nmo
 
     # bitci bra mrci wfn object
     bra_wfn = bra.bitci_mrci()

@@ -30,7 +30,6 @@ class Spinorbit(interaction.Interaction):
         self.couple_groups = [None]
         # states from each object to couple
         self.couple_states = [None]
-        self.label         = 'Spinorbit'
 
         #
         # Private variables -- should not be directly referenced
@@ -281,7 +280,7 @@ class Spinorbit(interaction.Interaction):
         construct the 1RDMs 
         """
         nst     = self.n_states()
-        nmo     = self.get_obj(self.grp_lbls[0]).scf.nmo
+        nmo     = self.get_obj(self.grp_lbls[0]).nmo
         soc_wts = (np.conj(self.so_vec) * self.so_vec).real
 
         soc_lbls = [self.soc_basis_lbl(i) for i in range(nst)]
@@ -317,7 +316,7 @@ class Spinorbit(interaction.Interaction):
             for j in range(i):
                 if not self.same_obj(obj_lst[i], obj_lst[j]):
                     # sanity check that orbitals and geometry are the same
-                    if np.any(obj_lst[i].scf.orbs != obj_lst[j].scf.orbs):
+                    if np.any(obj_lst[i].mos != obj_lst[j].mos):
                         sys.exit('spin-orbit coupling requires same'+
                                  'bra/ket orbs')
 
@@ -358,12 +357,14 @@ class Spinorbit(interaction.Interaction):
         mol = self.get_obj(self.grp_lbls[0]).scf.mol.pymol().copy()
         # No. AOs
         nao = mol.nao_nr()
+        # No. MOs
+        nmo = self.get_obj(self.grp_lbls[0]).nmo
 
         # get the MF density matrix
         rho_ao = self.build_rho()
 
         # Initialise arrays
-        h1e      = np.zeros((3, nao, nao), dtype=np.cdouble)
+        h1e      = np.zeros((3, nmo, nmo), dtype=np.cdouble)
         hcart_ao = np.zeros((3, nao, nao), dtype=float)
 
         # One-electron contributions
@@ -385,8 +386,8 @@ class Spinorbit(interaction.Interaction):
             hcart_ao += self.build_mf_atomic(mol, rho_ao)
 
         # Transform to the MO basis
-        orbs     = self.get_obj(self.grp_lbls[0]).scf.orbs
-        hcart_mo = np.matmul(np.matmul(orbs.T, hcart_ao), orbs)
+        orbs     = self.get_obj(self.grp_lbls[0]).mos
+        hcart_mo = orbs.T @ hcart_ao @ orbs
 
         # Transform to the spherical tensor representation
         ci = np.sqrt(-1+0j)
@@ -406,7 +407,7 @@ class Spinorbit(interaction.Interaction):
         sets up the mean-field density matrix
         """
         nsta = sum([len(self.get_states(lbl)) for lbl in self.grp_lbls])
-        nmo  = self.get_obj(self.grp_lbls[0]).scf.nmo
+        nmo  = self.get_obj(self.grp_lbls[0]).nmo
 
         # Average density matrix across states
         rho_mo = np.zeros((nmo, nmo), dtype=float)
@@ -418,7 +419,7 @@ class Spinorbit(interaction.Interaction):
         rho_mo /= nsta
 
         # Transform to the AO basis
-        orbs   = self.get_obj(self.grp_lbls[0]).scf.orbs
+        orbs   = self.get_obj(self.grp_lbls[0]).mos
         rho_ao = np.matmul(np.matmul(orbs, rho_mo), orbs.T)
 
         return rho_ao
@@ -481,7 +482,7 @@ class Spinorbit(interaction.Interaction):
         redmat_list = mrci_soc.redmat(bra, ket, pair_list_sym)
 
         # Make the reduced matrix list
-        nmo         = bra.scf.nmo
+        nmo         = bra.nmo
         npairs      = len(pair_list)
         redmat_blk  = np.zeros((nmo, nmo, npairs), dtype=float)
 
@@ -577,7 +578,7 @@ class Spinorbit(interaction.Interaction):
         """
         
         # Sum of the scaled one-electron SOC matrices
-        nmo    = self.get_obj(self.grp_lbls[0]).scf.nmo
+        nmo    = self.get_obj(self.grp_lbls[0]).nmo
         hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
         kval   = [-1, 0, 1]
         coe    = [1., np.sqrt(2.), -1.]

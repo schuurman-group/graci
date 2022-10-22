@@ -56,10 +56,11 @@ class Dftmrci2(cimethod.Cimethod):
         self.diabatic        = False
         self.nbuffer         = []
         self.refsel          = 'dynamic'
-        self.scf_label       = 'Scf'
-        self.label           = 'Dftmrci2'
+        self.scf_label       = 'default'
 
         # class variables
+        # MO energy cutoff: MOs above this value excluded
+        self.mo_cutoff       = 1.
         # allowed regularizers
         self.allowed_regularizer = ['isa', 'sigmap']
         # allowed ref conf selection algorithms
@@ -113,7 +114,7 @@ class Dftmrci2(cimethod.Cimethod):
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
-            self.smo = self.scf.mo_overlaps(guess.scf)
+            self.smo = self.scf.mo_overlaps(guess.scf)[:self.nmo,:self.nmo]
 
         # set the regularization factor to something sensible if it has
         # not been given
