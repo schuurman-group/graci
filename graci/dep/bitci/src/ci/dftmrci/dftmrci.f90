@@ -1189,6 +1189,7 @@ contains
 !----------------------------------------------------------------------
     ! Loop over created/annihilated MOs (relative to the base
     ! configuration)
+    pJ = pJvv
     do i=1,ndiff
 
        ! MO index

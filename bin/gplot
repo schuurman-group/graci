@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 kwords = {}
 colors = {'blue'  : 'b', 'red' : 'r', 'green': 'g', 'black': 'k', 
-          'magenta':'m', 'cyan': 'c'}
+          'magenta':'m', 'cyan': 'c', 'yellow': 'y'}
 
 
 def main():

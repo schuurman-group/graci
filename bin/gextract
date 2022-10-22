@@ -170,7 +170,7 @@ def extract_wfns(chkpt_file, extract_list):
     else:
         # assume that only the section label is given
         # and we need to append the class name
-        name_chk = [wfn_name in obj_name for obj_name in obj_names]
+        name_chk = [wfn_name == obj_name for obj_name in obj_names]
         if sum(name_chk) != 1:
             print("Ambiguous section name. \n"+
                   "Requested: "+str(wfn_name)+" Found: "+str(obj_names))
