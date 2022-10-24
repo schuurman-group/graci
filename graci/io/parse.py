@@ -17,6 +17,7 @@ import graci.methods.dftmrci2 as dftmrci2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
+import graci.interaction.dyson as dyson
 
 from pyscf import gto
 
@@ -335,7 +336,8 @@ def check_input(run_list):
             obj.init_states  -= 1
             obj.final_states -= 1            
 
-        if type(obj).__name__ == 'Overlap':
+        if type(obj).__name__ == 'Overlap' \
+           or type(obj).__name__ == 'Dyson':
             if obj.bra_states is not None:
                 if not isinstance(obj.bra_states, (list, np.ndarray)):
                     obj.bra_states = np.array([obj.bra_states])

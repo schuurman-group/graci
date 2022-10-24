@@ -171,7 +171,9 @@ bitwf_registry = {
                           'int32'],
     'detoverlap'       : ['int32','int32','int32','int32','int32',
                           'int32','int32','double','int32','int32',
-                          'logical','double']
+                          'logical','double'],
+    'detdyson'         : ['int32','int32','int32','int32','int32','int32',
+                          'int32','int32','double','int32','double']
 }
 
 bitwf_intent = {
@@ -180,7 +182,9 @@ bitwf_intent = {
     'bitwf_finalise'   : [],
     'detwf'            : ['in','in','in','in','in','out'],
     'detoverlap'       : ['in','in','in','in','in','in','in','in',
-                          'in','in','in','out']
+                          'in','in','in','out'],
+    'detdyson'         : ['in','in','in','in','in','in','in','in',
+                          'in','in','out']
 }
 
 # registry of overlap functions

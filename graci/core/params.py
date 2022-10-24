@@ -127,10 +127,17 @@ overlap_kword   = {'bra_states'        : int,
                    'bra_label'         : str,
                    'ket_states'        : int,
                    'ket_label'         : str,
-                   'calc'              : str,
                    'norm_thresh'       : float,
                    'verbose'           : bool,
-                   'label'             : str} 
+                   'label'             : str}
+
+dyson_kword     = {'bra_states'        : int,
+                   'bra_label'         : str,
+                   'ket_states'        : int,
+                   'ket_label'         : str,
+                   'norm_thresh'       : float,
+                   'verbose'           : bool,
+                   'label'             : str}
 
 #----------------------------------------------------
 
@@ -153,7 +160,7 @@ parameterize_kword = {'algorithm'      : str,
 # inartful.
 ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
-si_objs      = ['Transition', 'Overlap']
+si_objs      = ['Transition', 'Overlap', 'Dyson']
 support_objs = ['Bitciwfn','Moments','SpinInfo']
 valid_objs   = ['Molecule', 'Rydano', 'Scf', 'Parameterize'] + \
                ci_objs + postci_objs + si_objs
@@ -172,6 +179,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Dftmrci2'     : dftmrci2_kword,
           'Spinorbit'    : spinorbit_kword,
           'Transition'   : transition_kword,
-          'Overlap'      : overlap_kword}
+          'Overlap'      : overlap_kword,
+          'Dyson'        : dyson_kword}
 
 

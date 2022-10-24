@@ -47,8 +47,8 @@ class Dftmrci2(cimethod.Cimethod):
         self.ras1            = []
         self.ras2            = []
         self.ras3            = []
-        self.nhole1          = 0
-        self.nelec3          = 0
+        self.nhole1          = 2
+        self.nelec3          = 2
         self.autoras         = False
         self.icvs            = []
         self.refiter         = 3

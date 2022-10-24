@@ -187,6 +187,7 @@ subroutine bitwf_initialise(imultB1,imultK1,nelB1,nelK1,nmoB1,nmoK1,&
        maxdetK,csfcoeK,detvecK,printcsf)
 
   verbose=verbose1
+  
 !----------------------------------------------------------------------
 ! Scratch directory: the top-level bitscratch directory is assumed to
 ! have already been created in a preceding bitci calculation

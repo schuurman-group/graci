@@ -12,7 +12,7 @@ def init(bra, ket, calctype, verbose):
     """Initialise the bitwf library"""
 
     # check on |Nel_bra - Nel_ket|
-    if calctype in ['overlap', 'adt'] and bra.nel != ket.nel:
+    if calctype in ['overlap'] and bra.nel != ket.nel:
         sys.exit('calctype = overlap and bra.nel != ket.nel in init_bitwf')
     if calctype == 'dyson' and np.abs(bra.nel - ket.nel) != 1:
         sys.exit('calctype = dyson and |bra.nel-ket.nel| != 1 in init_bitwf')
