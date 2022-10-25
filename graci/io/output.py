@@ -667,7 +667,7 @@ def print_overlap_header(label):
     LLEN = 76
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        title = 'Wave function overlaps, label = '+str(label)
+        title = 'Overlap, label = '+str(label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
         pstr = str('*'.ljust(lpad)+title)
         pstr = pstr.ljust(LLEN-1)+'*'
@@ -749,7 +749,7 @@ def print_dyson_header(label):
     LLEN = 76
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        title = 'Dyson orbitals, label = '+str(label)
+        title = 'Dyson, label = '+str(label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
         pstr = str('*'.ljust(lpad)+title)
         pstr = pstr.ljust(LLEN-1)+'*'
