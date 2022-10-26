@@ -147,9 +147,9 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 !----------------------------------------------------------------------
 ! Call to liboverlap
 !----------------------------------------------------------------------
-  call dyson(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
-       detB,detK,vecB,vecK,smo,norm_thresh,npairs,n_basis,dysorb,&
-       iroots,verbose)
+  call dyson(irrepB,irrepK,nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,&
+       nvecK,detB,detK,vecB,vecK,mosymB,mosymK,smo,norm_thresh,npairs,&
+       n_basis,dysorb,iroots,verbose)
   
 !----------------------------------------------------------------------
 ! Flush stdout

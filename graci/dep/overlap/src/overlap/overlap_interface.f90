@@ -238,13 +238,13 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! determination of the unique alpha and beta strings
 !----------------------------------------------------------------------
   ! Bra
-  call det_sorting(n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
+  call det_sorting(1,2,n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
        alphaB,betaB,offsetB,det2betaB)
   
   ! Ket
-  call det_sorting(n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
+  call det_sorting(1,2,n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
        alphaK,betaK,offsetK,det2betaK)
-
+  
   ! Ouput the number of unique alpha and beta strings
   if (verbose) then
      write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&

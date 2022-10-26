@@ -17,15 +17,17 @@ subroutine bitwf_finalise()
   !
   ! Deallocate arrays
   !
-  if (allocated(scrunit))        deallocate(scrunit)
-  if (allocated(scrname))        deallocate(scrname)
-  if (allocated(csfcoe))         deallocate(csfcoe)
-  if (allocated(csfcoeB))        deallocate(csfcoeB)
-  if (allocated(csfcoeK))        deallocate(csfcoeK)
-  if (allocated(detvec))         deallocate(detvec)
-  if (allocated(detvecB))        deallocate(detvecB)
-  if (allocated(detvecK))        deallocate(detvecK)
-  if (allocated(smo))            deallocate(smo)
+  if (allocated(scrunit)) deallocate(scrunit)
+  if (allocated(scrname)) deallocate(scrname)
+  if (allocated(csfcoe))  deallocate(csfcoe)
+  if (allocated(csfcoeB)) deallocate(csfcoeB)
+  if (allocated(csfcoeK)) deallocate(csfcoeK)
+  if (allocated(detvec))  deallocate(detvec)
+  if (allocated(detvecB)) deallocate(detvecB)
+  if (allocated(detvecK)) deallocate(detvecK)
+  if (allocated(smo))     deallocate(smo)
+  if (allocated(mosymB))  deallocate(mosymB)
+  if (allocated(mosymK))  deallocate(mosymK)
   
   !
   ! To be on the safe side, scrub all other global variables

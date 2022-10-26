@@ -165,7 +165,8 @@ bitsi_intent   = {
 # registry of bitwf functions
 bitwf_registry = {
     'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
-                          'double','int32','string','logical'],
+                          'double','int32','int64','int64','string',
+                          'logical'],
     'bitwf_finalise'   : [],
     'detwf'            : ['int32','string','string','int32','string',
                           'int32'],
@@ -178,7 +179,7 @@ bitwf_registry = {
 
 bitwf_intent = {
     'bitwf_initialise' : ['in','in','in','in','in','in','in','in',
-                          'in','in'],
+                          'in','in','in','in'],
     'bitwf_finalise'   : [],
     'detwf'            : ['in','in','in','in','in','out'],
     'detoverlap'       : ['in','in','in','in','in','in','in','in',

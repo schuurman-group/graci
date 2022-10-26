@@ -342,5 +342,42 @@ contains
   end subroutine mo_occ_string
   
 !######################################################################
+! anihilate_electron_string: annihilates the electron in an input
+!                            alpha/beta string
+!######################################################################
+  function annihilate_electron_string(n_int,string,imo) &
+       result(hole_string)
+
+    use constants
+
+    implicit none
+
+    ! Function result
+    integer(is), intent(in) :: n_int
+    integer(ib)             :: hole_string(n_int)
+
+    ! Input alpha/beta string
+    integer(ib), intent(in) :: string(n_int)
+
+    ! Index of the MO to be annihilated
+    integer(is), intent(in) :: imo
+
+    ! Everything else
+    integer(is)             :: k,i
+
+    ! Block index
+    k=(imo-1)/n_bits+1
+
+    ! Orbital position with the block
+    i=imo-1-(k-1)*n_bits
+
+    ! Annihilate the electron
+    hole_string=ibclr(string,i)
+    
+    return
+    
+  end function annihilate_electron_string
+  
+!######################################################################
   
 end module detfuncs
