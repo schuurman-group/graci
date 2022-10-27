@@ -69,6 +69,7 @@ dftmrci_kword  = {'mult'           : int,
                   'ddci'           : bool,
                   'ref_state'      : int,
                   'verbose'        : bool,
+                  'mo_cutoff'      : float,
                   'scf_label'      : str,
                   'label'          : str}
 
@@ -99,6 +100,7 @@ dftmrci2_kword  = {'mult'           : int,
                    'nbuffer'        : int,
                    'verbose'        : bool,
                    'refsel'         : str,
+                   'mo_cutoff'      : float,
                    'scf_label'      : str,
                    'label'          : str}
 

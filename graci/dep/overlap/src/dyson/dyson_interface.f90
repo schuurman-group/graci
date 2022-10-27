@@ -334,7 +334,7 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
 ! phase factors
 !----------------------------------------------------------------------
   call get_sigma_holes(irrepB,irrepK,isigma,nmoK,mosymK,n_intK,&
-       nsigmaK,sigmaK)
+       nsigmaK,sigmaK,nsigmaHK,sigmaHK,Hinfo_dim,Hinfo)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report
