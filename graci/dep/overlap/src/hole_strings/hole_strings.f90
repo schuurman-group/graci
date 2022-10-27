@@ -18,6 +18,7 @@ contains
 
     use constants
     use detfuncs
+    use stringhash
 
     implicit none
 
@@ -39,11 +40,16 @@ contains
     integer(ib), intent(in)  :: sigma(n_int,nsigma)
 
     ! Hole strings
-    integer(ib)              :: hole_string(n_int)
+    integer(ib)              :: key(n_int)
+    integer(is)              :: values(2)
     
     ! Occpied MOs
     integer(is)              :: nocc
     integer(is), allocatable :: occ(:)
+
+    ! Hash table
+    type(shtbl)              :: h
+    integer(is)              :: initial_size
     
     ! Everything else
     integer(is)              :: i,j
@@ -66,6 +72,12 @@ contains
 
     ! Direct product of the irreps
     irrepBK=ieor(iBra,iKet)
+
+!----------------------------------------------------------------------
+! Initialise the hash table
+!----------------------------------------------------------------------
+    initial_size=nsigma*10
+    call h%initialise_table(n_int,initial_size)
     
 !----------------------------------------------------------------------
 ! Determine the unique sigma-hole strings along with the corresponding
@@ -92,9 +104,18 @@ contains
        ! table
        do j=1,n_ap
 
-          hole_string=annihilate_electron_string(n_int,sigma(:,i),&
+          ! Key: sigma-hole string
+          key=annihilate_electron_string(n_int,sigma(:,i),&
                ap(j))
 
+          ! Values: annihilation operator index and parent sigma
+          !         string indec
+          values(1)=ap(j)
+          values(2)=i
+
+          ! Insert the (key, values) pair
+          call h%insert_key(key,values)
+          
        enddo
        
     enddo
