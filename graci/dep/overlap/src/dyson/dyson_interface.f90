@@ -70,6 +70,10 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
   !
   integer(is)                 :: ap_spin
   character(len=5), parameter :: ap_label(2)=['alpha', 'beta ']
+
+  ! Number of electrons before the sigma-spin block of the
+  ! ket determinants
+  integer(is)                 :: nel_before
   
   ! Timing variables
   real(dp)                    :: tcpu_start,tcpu_end,twall_start,&
@@ -328,13 +332,21 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
   ! Ket
   call det_sorting(isigma,itau,n_intK,ndetK,nrootsK,detK,vecK,nsigmaK,&
        ntauK,sigmaK,tauK,offsetK,det2tauK)
-  
+
 !----------------------------------------------------------------------
 ! Generate the unique ket sigma-hole strings as well as the associated
 ! phase factors
 !----------------------------------------------------------------------
-  call get_sigma_holes(irrepB,irrepK,isigma,nmoK,mosymK,n_intK,&
-       nsigmaK,sigmaK,nsigmaHK,sigmaHK,Hinfo_dim,Hinfo)
+  ! Number of electrons before the sigma strings in the ket
+  ! determinants
+  if (isigma == 1) then
+     nel_before=0
+  else
+     nel_before=nel_alphaK
+  endif
+
+  call get_sigma_holes(irrepB,irrepK,nel_before,nmoK,mosymK,n_intK,&
+       nsigmaK,sigmaK,nsigmaHK,sigmaHK,Hinfo_dim,Hinfo,offHinfo)
   
 !----------------------------------------------------------------------
 ! Stop timing and print report

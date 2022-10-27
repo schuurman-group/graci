@@ -61,6 +61,16 @@ module stringhash
      ! Delete the hash table
      procedure, non_overridable :: delete_table
 
+     ! Retrieve the index of a given key (determinant)
+     procedure, non_overridable :: get_index
+
+     ! Retrieve the value for a given key
+     procedure, non_overridable :: get_value
+
+     ! Check if the key is already stored in the hash
+     ! table
+     procedure, non_overridable :: key_exists
+     
      ! Insert the key (determinant) into the hash table
      procedure, non_overridable :: insert_key
 
@@ -148,6 +158,163 @@ contains
     
   end subroutine delete_table
 
+!######################################################################
+! get_index: retrieve the index of a given key (determinant)
+!######################################################################
+  function get_index(h,key) result(kindx)
+
+    use constants
+    
+    implicit none
+
+    class(shtbl), intent(in) :: h
+    integer(ib), intent(in)  :: key(h%n_int)
+    integer(ib)              :: kindx
+    integer(ib)              :: hash,i1,step,nb
+
+!----------------------------------------------------------------------
+! Initialise the key index to -1 (a value that cannot correspond to a
+! hash index for a determinant key).
+! If the key is found to pre-exist in the table, then this is the
+! value that will be returned
+!----------------------------------------------------------------------
+    kindx=-1
+    
+!----------------------------------------------------------------------
+! Get the hash index for the determinant key
+!----------------------------------------------------------------------
+    hash=string_hash(h%n_int,key)
+    nb=h%n_buckets
+    i1=iand(hash,nb-1)+1
+
+!----------------------------------------------------------------------
+! Loop over buckets, and check to see if the key already exists in
+! the table or if another key with the same index is already present
+!----------------------------------------------------------------------
+    ! Loop over buckets
+    do step=1,h%n_buckets
+
+       ! Exit the loop when an empty bucket or the key is found
+       if (h%full(i1)==0) then
+          ! Empty bucket: the key is not yet in the hash table
+          exit
+       else if (keys_equal(h%n_int,h%keys(:,i1),key)) then
+          ! The key is already stored in the hash table
+          kindx=i1
+          exit
+       else
+          ! Quadratic probing
+          !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Linear probing
+          i1=iand(hash+step,nb-1)+1
+       endif
+       
+    enddo
+    
+    return
+    
+  end function get_index
+
+!######################################################################
+! get_value: retrieve the value associated with a given key
+!######################################################################
+  function get_value(h,key) result(val)
+
+    use constants
+
+    implicit none
+
+    class(shtbl), intent(in) :: h
+    integer(ib), intent(in)  :: key(h%n_int)
+    integer(is)              :: val
+    integer(ib)              :: indx
+
+    !
+    ! Retrieve the index of the key
+    !
+    indx=h%get_index(key)
+
+    !
+    ! Return a value of -1 if the key is not in the table
+    !
+    if (indx == -1) then
+       val=-1
+       return
+    endif
+    
+    !
+    ! Value
+    !
+    val=h%values(indx)
+    
+    return
+    
+  end function get_value
+
+!######################################################################
+! key_exists: returns .true. if a given key already exists, else
+!             returns .false.
+!######################################################################
+  function key_exists(h,key)
+
+    use constants
+
+    implicit none
+
+    logical                     :: key_exists
+    
+    class(shtbl), intent(inout) :: h
+    integer(ib), intent(in)     :: key(h%n_int)
+    integer(ib)                 :: hash
+    integer(ib)                 :: nb,i1,step
+
+    !
+    ! Get the hash of the key
+    !
+    hash=string_hash(h%n_int,key)
+    
+    !
+    ! Get the hash index for the key
+    !
+    nb=h%n_buckets
+    i1=iand(hash,nb-1)+1
+
+    !
+    ! Loop over buckets, and check to see if the key already exists in
+    ! the table
+    !
+    ! Loop over buckets
+    do step=1,h%n_buckets
+       
+       ! Exit the loop when an empty bucket or the key is found
+       if (h%full(i1)==0) then
+          ! Empty bucket: the key is not yet in the hash table
+          key_exists=.false.
+          return
+       else if (keys_equal(h%n_int,h%keys(:,i1),key)) then
+          ! The key is already stored in the hash table
+          key_exists=.true.
+          return
+       else
+          ! Collision: the key could still be in the hash table,
+          ! move to the next bucket
+          ! Quadratic probing
+          !i1=iand(hash+int(0.5*step+0.5*step**2),nb-1)+1
+          ! Linear probing
+          i1=iand(hash+step,nb-1)+1
+       endif
+
+    enddo
+
+    !
+    ! If we are here, then the key is not stored in the hash table
+    !
+    key_exists=.false.
+    
+    return
+    
+  end function key_exists
+  
 !######################################################################
 ! insert_key: stores a single key and a value tuple into the hash
 !######################################################################

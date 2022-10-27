@@ -82,8 +82,11 @@ module global
   ! Irreps generated the bra and ket MOs
   integer(ib), allocatable :: mosymB(:),mosymK(:)
 
-  ! Sigma-hole string information
+  ! Sigma-hole string info
   integer(is)              :: Hinfo_dim
   integer(is), allocatable :: Hinfo(:,:)
+
+  ! Sigma-hole info offsets
+  integer(is), allocatable :: offHinfo(:)
   
 end module global
