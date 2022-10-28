@@ -12,14 +12,13 @@ import graci.io.output as output
 
 class Overlap(interaction.Interaction):
     """
-    Calculation of overlaps, Dyson orbitals and ADT matrices using
-    the bitwf and overlap libraries
+    Calculation of wave functions overlaps using the bitwf and
+    overlap libraries
     """
     def __init__(self):
         super().__init__()
 
         # user defined quantities
-        self.calc         = None
         self.bra_label    = None
         self.ket_label    = None
         self.bra_states   = None
@@ -29,7 +28,6 @@ class Overlap(interaction.Interaction):
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly
-        self.allowed_calcs = ['overlap', 'dyson', 'adt']
         self.bra_obj       = None
         self.ket_obj       = None
         self.bra_wfunit    = None
@@ -55,8 +53,8 @@ class Overlap(interaction.Interaction):
     @timing.timed
     def run(self, obj_list):
         """
-        computes the overlaps/Dyson orbitals/ADT matrix elements
-        between the bra and ket states
+        computes the overlap matrix elements between the
+        bra and ket states
         """
 
         # set the bra and ket objects
@@ -66,11 +64,11 @@ class Overlap(interaction.Interaction):
         if self.verbose:
             output.print_overlap_header(self.label)
         
-        # check on the calculation type
+        # check on the requested calculation
         self.check_calc()
         
         # initialise the bitwf library
-        bitwf_init.init(self.bra_obj, self.ket_obj, self.calc,
+        bitwf_init.init(self.bra_obj, self.ket_obj, 'overlap',
                         self.verbose)
 
         # if bra and ket are the same object, only compute the unique
@@ -122,7 +120,7 @@ class Overlap(interaction.Interaction):
         bra_obj = None
         ket_obj = None
 
-        if obj_list[0].label == self.ket_label:
+        if obj_list[0].label == self.bra_label:
             bra_obj = obj_list[0]
             ket_obj = obj_list[1]
         else:
@@ -134,15 +132,14 @@ class Overlap(interaction.Interaction):
     #
     def check_calc(self):
         """
-        Checks whether the requested calculation type is supported
+        Sanity check on the requested calculation
         """
 
-        # check the calculation type
-        if self.calc not in self.allowed_calcs:
-            print('\n Unsupported calc type in overlap: '+str(self.calc)
-                  +'\n Allowed keywords: \n'+str(self.allowed_calcs))
-            sys.exit()
-
+        # make sure that we have equal numbers of bra and ket
+        # electrons
+        if self.bra_obj.nel != self.ket_obj.nel:
+            sys.exit('Error: unequal bra and ket N_el')
+        
         # bitwf currently only supports equal bra and ket point groups
         if self.bra_obj.scf.mol.sym_indx != self.ket_obj.scf.mol.sym_indx:
             sys.exit('Error: unequal bra and ket point groups')
@@ -171,7 +168,7 @@ class Overlap(interaction.Interaction):
     #
     def build_overlaps(self, bra, ket, trans_list, trans_list_sym):
         """
-        grab the wave function overlaps from bitwf and then reshape the
+        Grab the wave function overlaps from bitwf and then reshape the
         list of these into a more usable format
         """
 

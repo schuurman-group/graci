@@ -3,20 +3,18 @@
 !**********************************************************************
 
 !######################################################################
-! detoverlap: Calculation of wave function overlaps using the external
-!             liboverlap library.
-!             Takes as input a list of bra-ket state pairs and bitwf
-!             wave function scratch file numbers, reads in the
-!             required determinant bit strings, etc. and makes the
-!             call to liboverlap.
+! detdyson: Calculation of Dyson using the external liboverlap library.
+!           Takes as input a list of bra-ket state pairs and bitwf
+!           wave function scratch file numbers, reads in the
+!           required determinant bit strings, etc. and makes the
+!           call to liboverlap.
 !######################################################################
 #ifdef CBINDING
-subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij) &
-     bind(c,name='detoverlap')
+subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+     wfscrB,wfscrK,norm_thresh,n_basis,dysorb) bind(c,name='detdyson')
 #else
-subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij)
+subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+     wfscrB,wfscrK,norm_thresh,n_basis,dysorb)
 #endif
 
   use constants
@@ -25,26 +23,22 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 
   implicit none
 
-  ! Irrep and no. roots
-  integer(is), intent(in)  :: irrep,nrootsB,nrootsK
+  ! Irreps and no. roots
+  integer(is), intent(in) :: irrepB,irrepK,nrootsB,nrootsK
 
   ! Indices of the pairs of states for which overlaps are requested
-  integer(is), intent(in)  :: npairs
-  integer(is), intent(in)  :: iroots(npairs,2)
+  integer(is), intent(in) :: npairs
+  integer(is), intent(in) :: iroots(npairs,2)
 
   ! Scratch file numbers
-  integer(is), intent(in)  :: wfscrB,wfscrK
+  integer(is), intent(in) :: wfscrB,wfscrK
 
   ! Norm-based wave function truncation threshold
-  real(dp), intent(in)     :: norm_thresh
+  real(dp), intent(in)    :: norm_thresh
 
-  ! Frozen/deleted core MOs
-  integer(is), intent(in)  :: ncore
-  integer(is), intent(in)  :: icore(ncore)
-  logical(is), intent(in)  :: lfrzcore
-  
-  ! Wave function overlaps
-  real(dp), intent(out)    :: Sij(npairs)
+  ! Dyson orbitals
+  integer(is), intent(in) :: n_basis
+  real(dp), intent(out)   :: dysorb(n_basis,npairs)
 
   ! Determinant bit strings
   integer(ib), allocatable :: detB(:,:,:),detK(:,:,:)
@@ -58,18 +52,19 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   integer(is)              :: nvecB,nvecK
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
-
+  
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
   if (verbose) then
      write(6,'(/,52a)') ('-',i=1,52)
-     write(6,'(2(x,a))') &
-          'Wave function overlap calculation for the',&
-          trim(irreplbl(irrep,ipg)),'subspace'
+     write(6,'(3(x,a))') &
+          'Dyson orbital calculation for the',&
+          trim(irreplbl(irrepB,ipg)),' &',trim(irreplbl(irrepK,ipg)),&
+          'subspaces'
      write(6,'(52a)') ('-',i=1,52)
   endif
-     
+
 !----------------------------------------------------------------------
 ! Get the number of bra and ket determinants
 !----------------------------------------------------------------------
@@ -152,10 +147,10 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
 ! Call to liboverlap
 !----------------------------------------------------------------------
-  call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
-       detB,detK,vecB,vecK,smo,norm_thresh,ncore,icore,lfrzcore,&
-       npairs,Sij,iroots,verbose)
-
+  call dyson(irrepB,irrepK,nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,&
+       nvecK,detB,detK,vecB,vecK,mosymB,mosymK,smo,norm_thresh,npairs,&
+       n_basis,dysorb,iroots,verbose)
+  
 !----------------------------------------------------------------------
 ! Flush stdout
 !----------------------------------------------------------------------
@@ -163,4 +158,4 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   
   return
   
-end subroutine detoverlap
+end subroutine detdyson

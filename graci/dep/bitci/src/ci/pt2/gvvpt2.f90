@@ -156,9 +156,6 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 
   allocate(Avec(cfg%csfdim,nvec))
   Avec=0.0d0
-
-  allocate(Avec_ortho(cfg%csfdim,nroots))
-  Avec_ortho=0.0d0
   
   allocate(E0(nvec))
   E0=0.0d0
@@ -230,6 +227,9 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 !----------------------------------------------------------------------
   work=Avec
   Avec=matmul(work,mix)
+
+  ! Deallocate the work array now that it is not needed
+  deallocate(work)
   
 !----------------------------------------------------------------------
 ! Sort the 2nd-order energies
@@ -310,6 +310,11 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 !----------------------------------------------------------------------
 ! 1st-order wave functions for the nroots lowest energy roots only
 !----------------------------------------------------------------------
+  ! Allocate the array that will hold the orthonormalised roots
+  ! of interest
+  allocate(Avec_ortho(cfg%csfdim,nroots))
+  Avec_ortho=0.0d0
+  
   do i=1,nroots
      Avec_ortho(:,i)=Avec(:,indx(i))
   enddo
@@ -410,7 +415,6 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   deallocate(Sinvsq)
   deallocate(EQD)
   deallocate(mix)
-  deallocate(work)
   deallocate(heff)
   
 !----------------------------------------------------------------------

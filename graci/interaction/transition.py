@@ -16,8 +16,8 @@ import graci.utils.constants as constants
 
 class Transition(interaction.Interaction):
     """Sotransition class for determing transition moments between spin-orbit
-       copuled states. This class extends transition and will accpet either
-       spinorbit objects, or, simply method objects. If the latter, will convert
+       coupled states. This class extends Interaction and will accept either
+       spinorbit objects, or simply method objects. If the latter, will convert
        them into trivial spin orbit objects (i.e. with a single set of states and
        a single multiplicity)
     """
@@ -935,7 +935,7 @@ class Transition(interaction.Interaction):
         # print the header
         output.print_transition_header(self.label)
 
-        # get the list of ket states
+        # get the lists of bra ket states
         ket_states = self.get_states('ket')
         bra_states = self.get_states('bra')
 

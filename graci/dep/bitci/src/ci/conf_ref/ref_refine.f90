@@ -3,7 +3,7 @@
 !**********************************************************************
 module ref_refine
 
-  public refine_ref_space, refine_ref_space_runed, refine_ref_space_pt2
+  public refine_ref_space, refine_ref_space_pruned, refine_ref_space_pt2
   
 contains
   

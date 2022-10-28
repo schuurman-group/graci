@@ -55,7 +55,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   set(dialect "-w -g -O3 -cpp -free -implicitnone \
-               -traceback -qmkl -qopenmp -xhost -auto -ipo \
+               -traceback -mkl -qopenmp -xhost -auto -ipo \
                -qopt-prefetch -check noarg_temp_created")
   set(bounds "-check bounds")
 endif()

@@ -1,6 +1,7 @@
 """
 Parent state interaction class
 """
+import sys as sys
 import numpy as np
 import graci.methods.cimethod as cimethod
 import graci.utils.timing as timing

@@ -17,7 +17,6 @@ contains
     use constants
     use global
     use utils
-    use timing
     
     implicit none
 
@@ -45,20 +44,11 @@ contains
     ! Surviving determinants
     integer(is), allocatable :: idet(:)
 
-    ! Timing variables
-    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
-                                twall_end
-    
     ! Everything else
     integer(is)              :: i,k,n
     real(dp)                 :: normsq,targ,diff
     real(dp), parameter      :: epsilon=1e-6_dp
 
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -158,14 +148,6 @@ contains
 
     enddo
 
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    if (verbose) &
-         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'truncate_wave_functions')
-    
     return
     
   end subroutine truncate_wave_functions
@@ -340,6 +322,43 @@ contains
     return
     
   end subroutine mo_occ_string
+  
+!######################################################################
+! anihilate_electron_string: annihilates the electron in an input
+!                            alpha/beta string
+!######################################################################
+  function annihilate_electron_string(n_int,string,imo) &
+       result(hole_string)
+
+    use constants
+
+    implicit none
+
+    ! Function result
+    integer(is), intent(in) :: n_int
+    integer(ib)             :: hole_string(n_int)
+
+    ! Input alpha/beta string
+    integer(ib), intent(in) :: string(n_int)
+
+    ! Index of the MO to be annihilated
+    integer(is), intent(in) :: imo
+
+    ! Everything else
+    integer(is)             :: k,i
+
+    ! Block index
+    k=(imo-1)/n_bits+1
+
+    ! Orbital position with the block
+    i=imo-1-(k-1)*n_bits
+
+    ! Annihilate the electron
+    hole_string=ibclr(string,i)
+    
+    return
+    
+  end function annihilate_electron_string
   
 !######################################################################
   

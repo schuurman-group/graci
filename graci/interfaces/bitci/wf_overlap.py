@@ -123,6 +123,7 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
 
         if npairs == 0:
             continue
+        
         overlap_pairs = 1 + np.reshape(
             np.array(overlap_list[irr][irr], dtype=int),
             (2*npairs), order='F')
