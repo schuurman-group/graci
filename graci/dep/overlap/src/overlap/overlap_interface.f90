@@ -9,6 +9,7 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
   use constants
   
   implicit none
+  
   ! No. MOs
   integer(is), intent(in) :: nmoB1,nmoK1
 
@@ -124,10 +125,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Everything else
   integer(is)             :: i,ic,j
   real(dp)                :: tmpB, tmpK
- ! Untruncated eigenvectors
-  real(dp)    :: vecB2(ndetB1,nrootsB1)
-  real(dp)    :: vecK2(ndetK1,nrootsK1)
-
 
 !----------------------------------------------------------------------
 ! Start timing
@@ -182,9 +179,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
-  vecB2 = vecB1
-  vecK2 = vecK1
-
   ! Bra
   call truncate_wave_functions(n_intB,ndetB1,nrootsB,detB1,vecB1,&
        normthrsh,ndetB,detB,vecB)
@@ -244,13 +238,13 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! determination of the unique alpha and beta strings
 !----------------------------------------------------------------------
   ! Bra
-  call det_sorting(n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
+  call det_sorting(1,2,n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
        alphaB,betaB,offsetB,det2betaB)
   
   ! Ket
-  call det_sorting(n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
+  call det_sorting(1,2,n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
        alphaK,betaK,offsetK,det2betaK)
-
+  
   ! Ouput the number of unique alpha and beta strings
   if (verbose) then
      write(6,'(/,x,a,x,i0,a,i0)') 'No. bra alpha/beta strings:',&

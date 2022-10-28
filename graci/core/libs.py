@@ -165,22 +165,27 @@ bitsi_intent   = {
 # registry of bitwf functions
 bitwf_registry = {
     'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
-                          'double','int32','string','logical'],
+                          'double','int32','int64','int64','string',
+                          'logical'],
     'bitwf_finalise'   : [],
     'detwf'            : ['int32','string','string','int32','string',
                           'int32'],
     'detoverlap'       : ['int32','int32','int32','int32','int32',
                           'int32','int32','double','int32','int32',
-                          'logical','double']
+                          'logical','double'],
+    'detdyson'         : ['int32','int32','int32','int32','int32','int32',
+                          'int32','int32','double','int32','double']
 }
 
 bitwf_intent = {
     'bitwf_initialise' : ['in','in','in','in','in','in','in','in',
-                          'in','in'],
+                          'in','in','in','in'],
     'bitwf_finalise'   : [],
     'detwf'            : ['in','in','in','in','in','out'],
     'detoverlap'       : ['in','in','in','in','in','in','in','in',
-                          'in','in','in','out']
+                          'in','in','in','out'],
+    'detdyson'         : ['in','in','in','in','in','in','in','in',
+                          'in','in','out']
 }
 
 # registry of overlap functions

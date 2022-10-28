@@ -17,6 +17,7 @@ import graci.methods.dftmrci2 as dftmrci2
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
+import graci.interaction.dyson as dyson
 
 from pyscf import gto
 
@@ -324,7 +325,8 @@ def check_input(run_list):
 
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
-        if type(obj).__name__ == 'Transition':
+        if type(obj).__name__ == 'Transition' \
+           or type(obj).__name__ == 'Dyson':
             if obj.init_states is not None:
                 if not isinstance(obj.init_states, (list, np.ndarray)):
                     obj.init_states = np.array([obj.init_states])

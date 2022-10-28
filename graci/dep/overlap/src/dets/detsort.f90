@@ -1,6 +1,6 @@
 !**********************************************************************
 ! Routines for the sorting of the determinant bit string arrays into
-! alpha- and beta-major order, determining the unique alpha and beta
+! alpha- or beta-major order, determining the unique alpha and beta
 ! strings, etc.
 !**********************************************************************
 module detsort
@@ -14,21 +14,27 @@ contains
 !
 !              The determinants are subjected to the following:
 !
-!              (1) sorting into alpha-major order, followed by;
+!              (1) sorting into sigma-major order, followed by;
 !
-!              (2) sorting of each alpha-string block by beta strings
+!              (2) sorting of each sigma-string block by tau strings
 !
-!              During the course of this, the unique alpha and beta
+!              During the course of this, the unique sigma and tau
 !              strings are also determined, as well as the
-!              (sorted) determinant-to-unique beta string mapping
+!              (sorted) determinant-to-unique tau string mapping
+!
+!              isigma, itau = 1, 2 <-> sigma = alpha, tau = beta
+!              isigma, itau = 2, 1 <-> sigma = beta,  tau = alpha
 !######################################################################
-  subroutine det_sorting(n_int,ndet,nroots,det,vec,nalpha,nbeta,alpha,&
-       beta,offset,det2beta)
+  subroutine det_sorting(isigma,itau,n_int,ndet,nroots,det,vec,&
+       nsigma,ntau,sigma,tau,offset,det2tau)
 
     use constants
-    
+
     implicit none
 
+    ! Sigma and tau spin indices
+    integer(is), intent(in)    :: isigma,itau
+    
     ! Determinant bit strings
     integer(is), intent(in)    :: n_int,ndet
     integer(ib), intent(inout) :: det(n_int,2,ndet)
@@ -37,21 +43,21 @@ contains
     integer(is)                :: nroots
     real(dp), intent(inout)    :: vec(ndet,nroots)
     
-    ! No. unique alpha and beta strings
-    integer(is), intent(out)   :: nalpha,nbeta
+    ! No. unique sigma and tau strings
+    integer(is), intent(out)   :: nsigma,ntau
 
-    ! Alpha string offsets
+    ! Sigma string offsets
     integer(is), allocatable   :: offset(:)
 
-    ! Determinant-to-beta-string mapping
-    integer(is), allocatable   :: det2beta(:)
+    ! Determinant-to-tu-string mapping
+    integer(is), allocatable   :: det2tau(:)
     
-    ! Unique alpha and beta strings
-    integer(ib), allocatable   :: alpha(:,:),beta(:,:)
+    ! Unique sigma and tau strings
+    integer(ib), allocatable   :: sigma(:,:),tau(:,:)
     
     ! Working arrays
     integer(ib), allocatable   :: det_sort(:,:,:),dwork(:,:,:)
-    integer(is), allocatable   :: mwork(:),offb(:)
+    integer(is), allocatable   :: mwork(:),offt(:)
     real(dp), allocatable      :: vwork(:)
     
     ! Sorted-to-unsorted determinant index mapping array
@@ -61,17 +67,27 @@ contains
     integer(is)                :: i,j,k,n,istart,iend,nd
 
 !----------------------------------------------------------------------
-! (1) Put the determinant and eigenvector arrays into alpha-major
+! Sanity check on the input sigma and tau spin indices
+!----------------------------------------------------------------------
+    if (isigma < 1 .or. isigma > 2 .or. itau < 1 .or. itau > 2 &
+         .or. isigma == itau) then
+       write(6,'(/,x,a,2(x,i0))') 'Error in det_sort_new: illegal' &
+            //' isigma, itau values:',isigma,itau
+       stop
+    endif
+    
+!----------------------------------------------------------------------
+! (1) Put the determinant and eigenvector arrays into sigm-major
 !     order
 !----------------------------------------------------------------------
     ! Allocate work arrays
     allocate(dwork(n_int,2,ndet), mwork(ndet), imap(ndet), vwork(ndet))
     dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
 
-    ! Put the determinants into alpha-major order
-    call radix_sort(n_int,ndet,det,imap,dwork,mwork,1)
+    ! Put the determinants into sigma-major order
+    call radix_sort(n_int,ndet,det,imap,dwork,mwork,isigma)
 
-    ! Put the eigenvectors into alpha-major order
+    ! Put the eigenvectors into sigma-major order
     do i=1,nroots
        vwork=vec(:,i)
        do j=1,ndet
@@ -81,31 +97,31 @@ contains
 
     ! Deallocate work arrays
     deallocate(dwork,mwork,imap,vwork)
-    
+
 !----------------------------------------------------------------------
-! (2) Using the alpha-major ordered determinants, determine the unique
-!     alpha strings and their offsets
+! (2) Using the sigma-major ordered determinants, determine the unique
+!     sigma strings and their offsets
 !----------------------------------------------------------------------
-    ! Get the no. unique alpha strings
-    nalpha=nunique_strings(n_int,ndet,det,1)
+    ! Get the no. unique sigma strings
+    nsigma=nunique_strings(n_int,ndet,det,isigma)
 
     ! Allocate arrays
-    allocate(alpha(n_int,nalpha), offset(nalpha+1))
-    alpha=0_ib; offset=0
+    allocate(sigma(n_int,nsigma), offset(nsigma+1))
+    sigma=0_ib; offset=0
 
-    ! Fill in the unique alpha strings and their offsets
-    call fill_unique(n_int,ndet,nalpha,det,alpha,offset,1)
+    ! Fill in the unique sigma strings and their offsets
+    call fill_unique(n_int,ndet,nsigma,det,sigma,offset,isigma)
 
 !----------------------------------------------------------------------
-! (3) Sort each alpha-string block of determinants by their beta string
+! (3) Sort each sigma-string block of determinants by their tau string
 !----------------------------------------------------------------------
-    ! Loop over alpha string blocks
-    do n=1,nalpha
+    ! Loop over sigma string blocks
+    do n=1,nsigma
 
        ! Start and end of this block
        istart=offset(n)
        iend=offset(n+1)-1
-       
+
        ! Number of determinants in this block
        nd=iend-istart+1
 
@@ -113,14 +129,14 @@ contains
        allocate(det_sort(n_int,2,nd), dwork(n_int,2,nd), mwork(nd), &
             imap(nd), vwork(nd))
        det_sort=0_ib; dwork=0_ib; mwork=0; imap=0; vwork=0.0d0
-       
-       ! Sort this block by beta string
+
+       ! Sort this block by tau string
        det_sort=det(:,:,istart:iend)
-       call radix_sort(n_int,nd,det_sort,imap,dwork,mwork,2)
+       call radix_sort(n_int,nd,det_sort,imap,dwork,mwork,itau)
 
        ! Rearrange this block of the determinants
        det(:,:,istart:iend)=det_sort
-       
+
        ! Rearrange this block of the eigenvectors
        do i=1,nroots
           vwork=vec(istart:iend,i)
@@ -131,50 +147,51 @@ contains
        
        ! Deallocate work arrays
        deallocate(det_sort,dwork,mwork,imap,vwork)
-   
+       
     enddo
-   
+
 !----------------------------------------------------------------------
 ! (4) Using the now double-sorted array of determinants, determine:
-!     (i)  the unique beta strings
-!     (ii) the determinant-to-unique beta string mapping
+!     (i)  the unique tau strings
+!     (ii) the determinant-to-unique tau string mapping
 !----------------------------------------------------------------------
     ! Allocate work arrays
-    allocate(det_sort(n_int,2,ndet),dwork(n_int,2,ndet),mwork(ndet), imap(ndet))
+    allocate(det_sort(n_int,2,ndet),dwork(n_int,2,ndet),mwork(ndet),&
+         imap(ndet))
     det_sort=0_ib; dwork=0_ib; mwork=0; imap=0
-    
-    ! Put a copy of the double-sorted determinants into beta-major
+
+    ! Put a copy of the double-sorted determinants into tau-major
     ! order
     det_sort=det
-    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,2)
+    call radix_sort(n_int,ndet,det_sort,imap,dwork,mwork,itau)
 
     ! Deallocate now undeeded work arrays
     deallocate(dwork,mwork)
     
-    ! Get the no. unique beta strings
-    nbeta=nunique_strings(n_int,ndet,det_sort,2)
+    ! Get the no. unique tau strings
+    ntau=nunique_strings(n_int,ndet,det_sort,itau)
 
     ! Allocate arrays
-    allocate(offb(nbeta+1), beta(n_int,nbeta), det2beta(ndet))
-    offb=0; beta=0_ib; det2beta=0
-    
-    ! Fill in the unique beta strings
-    call fill_unique(n_int,ndet,nbeta,det_sort,beta,offb,2)
+    allocate(offt(ntau+1), tau(n_int,ntau), det2tau(ndet))
+    offt=0; tau=0_ib; det2tau=0
 
-    ! Fill in the determinant-to-beta-string mapping array
-    do n=1,nbeta
-       do i=offb(n),offb(n+1)-1
-          det2beta(imap(i))=n
+    ! Fill in the unique tau strings
+    call fill_unique(n_int,ndet,ntau,det_sort,tau,offt,itau)
+
+    ! Fill in the determinant-to-tau-string mapping array
+    do n=1,ntau
+       do i=offt(n),offt(n+1)-1
+          det2tau(imap(i))=n
        enddo
     enddo
     
     ! Deallocate arrays
-    deallocate(det_sort, imap, offb)
-
+    deallocate(det_sort, imap, offt)
+    
     return
     
   end subroutine det_sorting
-  
+    
 !######################################################################
 ! radix_sort: Radix sorting (in base 256) of a given set of
 !             determinants into either alpha- or beta-major order, as
