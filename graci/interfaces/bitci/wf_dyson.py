@@ -63,6 +63,8 @@ def dyson(bra, ket, mo_basis, n_basis, bra_wfunit,
 
             dysij = libs.lib_func('detdyson', args)
 
-            dysorb[bra_irr][ket_irr] = dysij
+            # Add the Dyson orbitals to the list
+            dysorb[bra_irr][ket_irr] = np.reshape(dysij, (n_basis, npairs),
+                                                  order='F')
             
     return dysorb

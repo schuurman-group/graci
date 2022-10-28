@@ -935,7 +935,7 @@ class Transition(interaction.Interaction):
         # print the header
         output.print_transition_header(self.label)
 
-        # get the list of ket states
+        # get the lists of bra ket states
         ket_states = self.get_states('ket')
         bra_states = self.get_states('bra')
 

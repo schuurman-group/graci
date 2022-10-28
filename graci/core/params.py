@@ -133,11 +133,12 @@ overlap_kword   = {'bra_states'        : int,
                    'verbose'           : bool,
                    'label'             : str}
 
-dyson_kword     = {'bra_states'        : int,
-                   'bra_label'         : str,
-                   'ket_states'        : int,
-                   'ket_label'         : str,
+dyson_kword     = {'init_states'       : int,
+                   'init_label'        : str,
+                   'final_states'      : int,
+                   'final_label'       : str,
                    'norm_thresh'       : float,
+                   'print_orbitals'    : bool,
                    'verbose'           : bool,
                    'label'             : str}
 

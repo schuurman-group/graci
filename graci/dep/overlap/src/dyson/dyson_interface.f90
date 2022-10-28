@@ -94,21 +94,26 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
 ! Make sure that all globally accessible allocatable arrays are
 ! not allocated
 !----------------------------------------------------------------------
-  if (allocated(smo))       deallocate(smo)
-  if (allocated(detB))      deallocate(detB)
-  if (allocated(detK))      deallocate(detK)
-  if (allocated(vecB))      deallocate(vecB)
-  if (allocated(vecK))      deallocate(vecK)
-!  if (allocated(alphaB))    deallocate(alphaB)
-!  if (allocated(betaB))     deallocate(betaB)
-!  if (allocated(alphaK))    deallocate(alphaK)
-!  if (allocated(betaK))     deallocate(betaK)
-!  if (allocated(offsetB))   deallocate(offsetB)
-!  if (allocated(offsetK))   deallocate(offsetK)
-!  if (allocated(det2betaB)) deallocate(det2betaB)
-!  if (allocated(det2betaK)) deallocate(det2betaK)
-!  if (allocated(betafac))   deallocate(betafac)
-
+  if (allocated(smo))      deallocate(smo)
+  if (allocated(detB))     deallocate(detB)
+  if (allocated(detK))     deallocate(detK)
+  if (allocated(vecB))     deallocate(vecB)
+  if (allocated(vecK))     deallocate(vecK)
+  if (allocated(sigmaB))   deallocate(sigmaB)
+  if (allocated(tauB))     deallocate(tauB)
+  if (allocated(sigmaK))   deallocate(sigmaK)
+  if (allocated(tauK))     deallocate(tauK)
+  if (allocated(offsetB))  deallocate(offsetB)
+  if (allocated(offsetK))  deallocate(offsetK)
+  if (allocated(det2tauB)) deallocate(det2tauB)
+  if (allocated(det2tauK)) deallocate(det2tauK)
+  if (allocated(taufac))   deallocate(taufac)
+  if (allocated(sigmaHK))  deallocate(sigmaHK)
+  if (allocated(mosymB))   deallocate(mosymB)
+  if (allocated(mosymK))   deallocate(mosymK)
+  if (allocated(Hinfo))    deallocate(Hinfo)
+  if (allocated(offHinfo)) deallocate(offHinfo)
+  
 !----------------------------------------------------------------------  
 ! Determine the numbers of electrons
 !----------------------------------------------------------------------  
@@ -404,7 +409,7 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
 ! Calculate the Dyson orbitals
 !----------------------------------------------------------------------
   call get_dysorbs(n_basis,npairs,ipairs,dysorb)
-  
+
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
@@ -412,8 +417,6 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
   if (verbose) &
        call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
        'dyson')
-  
-  STOP
   
   return
   

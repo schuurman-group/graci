@@ -764,6 +764,45 @@ def print_dyson_header(label):
     return
 
 #
+def print_dyson_table(init_st, init_sym, final_st, final_sym, 
+                      exc_ener, sqnorm): 
+    """
+    prints out the summary of a Dyson orbital calculation for
+    a single initial state
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+
+        delim = ' '+50*'-'
+
+        fstr = '\n Ionisation probabilities, initial state = {:3d}({:>3})'
+        outfile.write('\n\n'+delim)
+        outfile.write(fstr.format(init_st, init_sym))
+        outfile.write('\n'+delim)
+
+        header  = '\n  Initial     Final    Exc Ener    <psi_D|psi_D>'
+        header += '\n  State       State      (eV)'
+
+        fstr   = '{:3d}({:>3}) -> {:3d}({:>3}) {:7.2f}'+ \
+                '    {:9.4f} \n'
+
+        outfile.write(header)
+        outfile.write('\n '+delim)
+        outfile.write('\n')
+
+        for i in range(len(final_st)):
+            outfile.write(fstr.format(init_st,
+                                      init_sym,
+                                      final_st[i],
+                                      final_sym[i],
+                                      exc_ener[i]*constants.au2ev, 
+                                      sqnorm[i]))
+
+        outfile.write(delim)
+            
+    return
+    
+#
 def print_param_header(target_data, ci_objs, ref_states, hparams):
     """
     print header for reparameterization run
