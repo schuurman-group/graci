@@ -59,6 +59,9 @@ module global
   !
   ! sigma and tau spin indices (1<->alpha, 2<->beta)
   integer(is)              :: isigma,itau
+
+  ! Number of sigma and tau electrons
+  integer(is)              :: nel_sigmaB,nel_tauB,nel_sigmaK,nel_tauK
   
   ! Number of unique sigma and tau strings
   integer(is)              :: nsigmaB,ntauB,nsigmaK,ntauK
@@ -88,5 +91,8 @@ module global
 
   ! Sigma-hole info offsets
   integer(is), allocatable :: offHinfo(:)
+
+  ! Unique tau factors
+  real(dp), allocatable    :: taufac(:,:)
   
 end module global

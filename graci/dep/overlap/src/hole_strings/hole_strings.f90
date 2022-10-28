@@ -85,8 +85,6 @@ contains
     call get_hole_strings(n_int,nsigma,sigma,nel_before,irrepBK,nmo,&
          mosym,nsigmaH,sigmaH,Hinfo_dim,Hinfo,offHinfo)
     
-    STOP
-
     return
     
   end subroutine get_sigma_holes

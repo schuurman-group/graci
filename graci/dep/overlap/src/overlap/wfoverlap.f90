@@ -9,8 +9,8 @@ module wfoverlap
 contains
 
 !######################################################################
-! get_overlaps: Top level routine for the calculation of the wave
-!               function overlaps
+! get_overlaps: semi-direct calculation of wave function overlaps using
+!               pre-computed beta factors
 !######################################################################
   subroutine get_overlaps(npairs,ipairs,Sij)
 
@@ -18,8 +18,7 @@ contains
     use global
     use detfuncs
     use factors
-    use timing
-        
+    
     implicit none
 
     ! Indices of the pairs of states for which overlaps are requested
@@ -40,18 +39,9 @@ contains
     real(dp), allocatable    :: fwork(:,:)
     integer(is), allocatable :: iwork(:)
 
-    ! Timing variables
-    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
-                                twall_end
-
     ! Everything else
     integer(is)              :: n,isB,isK,iaB,iaK,ibB,ibK,idB,idK
     real(dp)                 :: afac,bfac
-
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -144,14 +134,6 @@ contains
     
     enddo
 
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    if (verbose) &
-         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'get_overlaps')
-    
     return
     
   end subroutine get_overlaps
