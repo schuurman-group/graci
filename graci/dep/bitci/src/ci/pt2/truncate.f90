@@ -447,8 +447,6 @@ subroutine ortho_new_vecs(csfdim,nroots,vec)
 ! Orthogonalisation
 !----------------------------------------------------------------------
   work=vec
-  !vec=matmul(work,Sinvsq)
-
   call dgemm('N','N',csfdim,nroots,nroots,1.0d0,work,csfdim,Sinvsq,&
        nroots,0.0d0,vec,csfdim)
   

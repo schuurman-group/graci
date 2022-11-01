@@ -263,8 +263,12 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 ! Compute the 1st-order wave functions
 !----------------------------------------------------------------------
   work=Avec
-  Avec=matmul(work,mix)
+  call dgemm('N','N',cfg%csfdim,nvec,nvec,1.0d0,work,cfg%csfdim,mix,&
+       nvec,0.0d0,Avec,cfg%csfdim)
 
+  ! Deallocate the work array now that it is not needed
+  deallocate(work)
+  
 !----------------------------------------------------------------------
 ! Q-space information for ***all*** states
 !----------------------------------------------------------------------
@@ -495,7 +499,6 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   deallocate(Qener1)
   deallocate(EQD_sel)
   deallocate(mix)
-  deallocate(work)
   deallocate(det)
   deallocate(Sij)
   deallocate(ipairs)

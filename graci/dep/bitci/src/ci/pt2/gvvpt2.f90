@@ -91,7 +91,6 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   integer(is)              :: nvec
   integer(is), allocatable :: indx(:)
   integer(is)              :: ipos(1)
-  real(dp)                 :: norm
   real(dp), allocatable    :: Smat(:,:),Sinvsq(:,:)
   real(dp), allocatable    :: Elow(:)
   real(dp), allocatable    :: Qnorm(:),Qener(:)
@@ -226,8 +225,9 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 ! Compute the 1st-order wave functions
 !----------------------------------------------------------------------
   work=Avec
-  Avec=matmul(work,mix)
-
+  call dgemm('N','N',cfg%csfdim,nvec,nvec,1.0d0,work,cfg%csfdim,mix,&
+       nvec,0.0d0,Avec,cfg%csfdim)
+  
   ! Deallocate the work array now that it is not needed
   deallocate(work)
   
@@ -236,7 +236,7 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 !----------------------------------------------------------------------
   ! Eigenvalues of the effective Hamiltonian
   EPT2=EQD
-    
+  
   ! Sorting
   call dsortindxa1('A',nvec,EPT2,indx)
 
@@ -297,9 +297,7 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
      
      ! Reference space weights
      do i=1,nroots
-        write(6,'(2x,i4,3x,F9.6)') &
-             !i,Qnorm(i)
-             i,1.0d0/(1.0d0+Qnorm(i)**2)
+        write(6,'(2x,i4,3x,F9.6)') i,1.0d0/(1.0d0+Qnorm(i)**2)
      enddo
 
      ! Table footer
@@ -314,45 +312,23 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   ! of interest
   allocate(Avec_ortho(cfg%csfdim,nroots))
   Avec_ortho=0.0d0
-  
+
+  ! Select the nroots lowest-lying roots
   do i=1,nroots
      Avec_ortho(:,i)=Avec(:,indx(i))
   enddo
+
+  ! Deallocate the Avec array now that it's no longer needed
+  deallocate(Avec)
   
 !----------------------------------------------------------------------
-! Normalisation
-!----------------------------------------------------------------------
-  do i=1,nroots
-     norm=dot_product(Avec_ortho(:,i),Avec_ortho(:,i))
-     norm=sqrt(norm)
-     Avec_ortho(:,i)=Avec_ortho(:,i)/norm
-  enddo
-  
-!----------------------------------------------------------------------
-! Orthonogonalise using Lowdin's symmetric orthogonalisation scheme
+! Lowdin's symmetric orthonormalisation of the 1st-order wave functions
 !----------------------------------------------------------------------
 ! Note that this ensures that the resulting vectors are the closest
 ! possible in the least squares sense to the original ones
 !----------------------------------------------------------------------
-  ! Overlap matrix: this should be replaced with a BLAS level operation
-  ! in the future
-  do i=1,nroots
-     Smat(i,i)=1.0d0
-  enddo
-  do i=1,nroots-1
-     do j=i+1,nroots
-        Smat(i,j)=dot_product(Avec_ortho(:,i),Avec_ortho(:,j))
-        Smat(j,i)=Smat(i,j)
-     enddo
-  enddo
-
-  ! Inverse square root of the overlap matrix
-  call invsqrt_matrix(Smat,Sinvsq,nroots)
-
-  ! Orthogonalise
-  Avec(:,1:nroots)=Avec_ortho
-  Avec_ortho=matmul(Avec(:,1:nroots),Sinvsq)
-
+  call symm_ortho(cfg%csfdim,nroots,Avec_ortho)
+  
 !----------------------------------------------------------------------
 ! Phase convention: enforce a positive dominant coefficient
 ! This becomes a necessity if this is the starting point of a P-BDD
@@ -401,7 +377,6 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 !----------------------------------------------------------------------
   deallocate(hdiag)
   deallocate(averageii)
-  deallocate(Avec)
   deallocate(Avec_ortho)
   deallocate(E0)
   deallocate(vec0)
