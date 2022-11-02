@@ -262,13 +262,15 @@ class Dyson(interaction.Interaction):
         else:
             dysao = np.matmul(self.dyson_orbs, self.bra_obj.scf.orbs.T[:nmo,:])
 
-        # export the (normalised) Dyson orbitals to Molden files
+        # export the (normalised) non-zero Dyson orbitals to Molden files
         sqnorm = np.zeros((1), dtype=float)
         for ido in range(len(self.trans_list)):
+            sqnorm[0] = self.dyson_norms[ido]**2
+            if sqnorm[0] < 1e-6:
+                continue
             bst       = self.trans_list[ido][0]
             kst       = self.trans_list[ido][1]
             fname     = 'dyson_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
-            sqnorm[0] = self.dyson_norms[ido]**2
             orb       = dysao[ido,:].reshape(nao,1) / self.dyson_norms[ido]
             orbitals.export_orbitals(fname,
                                      self.mol,
