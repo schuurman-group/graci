@@ -42,7 +42,7 @@ class Cimethod:
         self.guess_label    = None
         self.verbose        = True
         self.hparam         = None
-        self.mol_label      = 'default'
+        self.scf_label      = 'default'
         self.label          = 'default'
 
         # class variables
