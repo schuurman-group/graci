@@ -56,7 +56,6 @@ class Dftmrci2(cimethod.Cimethod):
         self.diabatic        = False
         self.nbuffer         = []
         self.refsel          = 'dynamic'
-        self.scf_label       = 'default'
 
         # class variables
         # MO energy cutoff: MOs above this value excluded

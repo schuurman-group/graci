@@ -32,6 +32,7 @@ class Scf:
         self.conv_tol       = 1e-8
         self.cosmo          = False
         self.solvent        = None
+        self.mol_label      = 'default'
         self.guess_label    = None
         
         # computed quantities

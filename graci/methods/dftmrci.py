@@ -46,7 +46,6 @@ class Dftmrci(cimethod.Cimethod):
         self.diag_iter      = 50
         self.diag_blocksize = []
         self.diag_deflate   = False
-        self.scf_label      = 'default'
 
         # MO energy cutoff: MOs above this value excluded
         self.mo_cutoff      = 1.

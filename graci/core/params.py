@@ -35,6 +35,7 @@ scf_kword      = {'xc'             : str,
                   'conv_tol'       : float,
                   'cosmo'          : bool,
                   'solvent'        : str,
+                  'mol_label'      : str,
                   'guess_label'    : str,
                   'label'          : str}
 

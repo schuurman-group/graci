@@ -142,6 +142,7 @@ def write_1geom(geom_obj, symm, nstates, basis, ri_basis, label,
     print('$end')
 
     print('\n$scf section')
+    print(' mol_label   = '+label)
     print(' label       = '+label)
     if prev_label is not None:
         print(' guess_label = '+prev_label)

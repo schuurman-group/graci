@@ -117,8 +117,15 @@ class Driver:
             else:
 
                 # grab the corresponding molecule section
-                mol_obj = self.match_sections(scf_obj.label, 'label',
+                mol_obj = self.match_sections(scf_obj.mol_label,'label',
                                               mol_objs, match_all=False) 
+
+                # if we can't match a mol object, exit
+                if mol_obj is None:
+                    ostr = '\nCannot for molecule object for Scf ' + \
+                    str(scf_obj.label) + ': Exiting...'
+                    output.print_message(ostr)
+                    sys.exit(1)
 
                 # if we need to perform run-time basis set modifications
                 if mol_obj.add_rydberg is not None:
@@ -163,7 +170,7 @@ class Driver:
                 ci_guess = self.match_sections(ci_calc.guess_label, 
                                                'label', ci_objs, 
                                                 match_all=False)
-
+               
                 ci_calc.run(scf_obj, ci_guess)
                 chkpt.write(ci_calc)
 
