@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=11
+  integer(is), parameter :: nham=13
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -24,7 +24,9 @@ module hparam
         'heil18_standard     ', &
         'heil18_short        ', &
         'cvs_standard        ', &
-        'cvs_short           ']
+        'cvs_short           ', &
+        'qtp17_heil17        ', &
+        'cvs_qtp17_heil17    ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -148,7 +150,28 @@ module hparam
        1.9266d0, &    ! p2
        0.500779d0, &  ! pJ^(cv)
        0.356986d0]    ! pF^(cv)
-  
+ 
+!----------------------------------------------------------------------
+! Experimental Hamiltonians using the QTP17 functional. These are the 
+! standard Heil17 parameterization and the experimental CVS 
+! parameterization for K-edge core-excited states
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(4) :: qtp17_heil17= &
+       [0.503001d0, & ! pJ
+       0.358727d0, &  ! pF
+       0.563893d0, &  ! p1
+       1.8571d0]      ! p2
+
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(6) :: cvs_qtp17_heil17= &
+       [0.503001d0, & ! pJ^(vv)
+       0.358727d0, &  ! pF^(vv)
+       0.563893d0, &  ! p1
+       1.8571d0, &    ! p2
+       0.503001d0, &  ! pJ^(cv)
+       0.358727d0]    ! pF^(cv)
+
 contains
 
 !######################################################################
@@ -278,7 +301,23 @@ contains
        allocate(hpar(nhpar))
        hpar=cvs_short
        desel=0.8d0
-       
+
+    case(12)
+       ! QTP17 standard
+       ldftmrci=.true.
+       nhpar=4
+       allocate(hpar(nhpar))
+       hpar=qtp17_heil17
+       desel=1.0d0
+
+    case(13)
+       ! CVS QTP17, standard
+       ldftmrci=.true.
+       nhpar=6
+       allocate(hpar(nhpar))
+       hpar=cvs_qtp17_heil17
+       desel=1.0d0
+
     case default
        ! Unrecognised Hamiltonian
        write(errmsg,'(a,x,i0)') &

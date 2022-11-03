@@ -57,16 +57,16 @@ contains
        call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(6:9)
+    case(6:9,12)
        ! Heil's parameterisations
        call hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(10:11)
+    case(10:11,13)
        ! Ottawa CVS parameterisation
        call hii_dftmrci_cvs(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
-       
+
     case default
        errmsg='Your Hamiltonian choice has not been implemented yet'
        call error_control
@@ -105,7 +105,7 @@ contains
        ! Grimme's parameterisation
        damp=damping_grimme(bav,kav)
 
-    case(4:7, 10:11)
+    case(4:7, 10:13)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's 2017 Hamiltonian
        ! as well as the Ottawa CVS Hamiltonian
@@ -115,6 +115,7 @@ contains
        ! Heil's 2018 parameterisation
        damp=damping_heil18(bav,kav)
        
+
     case default
        errmsg='Your Hamiltonian choice has not been implemented yet'
        call error_control
@@ -170,14 +171,14 @@ contains
        ! Grimme's parameterisation: do nothing
        return
 
-    case(4:9)
+    case(4:9,12)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's Hamiltonians
        nij=nsp*(nsp-1)/2
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
 
-    case(10:11)
+    case(10:11,13)
        ! Ottawa CVS parameterisation
        call hij_same_dftmrci_cvs(hij,nsp,sop,socc,nsocc,nbefore,m2c)
        
