@@ -491,7 +491,7 @@ class Transition(interaction.Interaction):
                 occ[0::2]    = wt[:npair]
                 occ[1::2]    = wt[-1:-npair-1:-1]
 
-                fname ='ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
+                fname = 'ndo_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
                 orbitals.export_orbitals(fname, self.mol, orbs,
                                 orb_occ=occ, 
                                 orb_dir='Transition.'+str(self.label),

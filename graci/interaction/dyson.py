@@ -9,6 +9,7 @@ import graci.interaction.interaction as interaction
 import graci.interfaces.bitci.bitwf_init as bitwf_init
 import graci.interfaces.bitci.wf_overlap as wf_overlap
 import graci.interfaces.bitci.wf_dyson as wf_dyson
+import graci.core.orbitals as orbitals
 import graci.io.output as output
 
 class Dyson(interaction.Interaction):
@@ -109,6 +110,10 @@ class Dyson(interaction.Interaction):
         if self.verbose:
             self.print_log()
 
+        # print the Dyson orbitals to file
+        if self.print_orbitals:
+            self.export_dysorbs()
+            
 #----------------------------------------------------------------------
 # "Private" class methods
 #
@@ -241,4 +246,37 @@ class Dyson(interaction.Interaction):
                                      exc_ener, 
                                      sqnorm)
         
+        return
+
+    #
+    def export_dysorbs(self):
+        """
+        Writing of the Dyson orbitals to molden files
+        """
+
+        # AO representation of the Dyson orbitals
+        nmo = self.dyson_orbs.shape[1]
+        nao = self.mol.nao
+        if self.mo_basis == 'ket':
+            dysao = np.matmul(self.dyson_orbs, self.ket_obj.scf.orbs.T[:nmo,:])
+        else:
+            dysao = np.matmul(self.dyson_orbs, self.bra_obj.scf.orbs.T[:nmo,:])
+
+        # export the (normalised) non-zero Dyson orbitals to Molden files
+        sqnorm = np.zeros((1), dtype=float)
+        for ido in range(len(self.trans_list)):
+            sqnorm[0] = self.dyson_norms[ido]**2
+            if sqnorm[0] < 1e-6:
+                continue
+            bst       = self.trans_list[ido][0]
+            kst       = self.trans_list[ido][1]
+            fname     = 'dyson_'+str(kst+1)+'_to_'+str(bst+1)+'_molden'
+            orb       = dysao[ido,:].reshape(nao,1) / self.dyson_norms[ido]
+            orbitals.export_orbitals(fname,
+                                     self.mol,
+                                     orb,
+                                     orb_ener=sqnorm,
+                                     orb_dir='Dyson.'+str(self.label),
+                                     fmt='molden')
+            
         return
