@@ -67,6 +67,7 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
   ! Working arrays
   integer(is)                        :: nsocc,ndocc
   integer(is), allocatable           :: socc(:),docc(:)
+  integer(is), allocatable           :: imap(:)
   real(dp), allocatable              :: abs_smatT(:,:)
 
   ! IO variables
@@ -138,6 +139,29 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
   enddo
 
 !----------------------------------------------------------------------
+! Construct the MO mapping array
+!----------------------------------------------------------------------
+  allocate(imap(nmo0))
+  allocate(abs_smatT(nmo,nmo0))
+  imap=0
+  abs_smatT=0.0d0
+
+  ! Absolute value of the transpose of the MO overlap matrix
+  abs_smatT=abs(transpose(smat))
+
+  ! Loop over ref geometry MOs
+  do i=1,nmo0
+
+     ! Current MO with the greatest overlap with the ref MO
+     imo=maxloc(abs_smatT(:,i))
+     imap(i)=imo(1)
+
+     ! Remove the selected current MO from the list
+     abs_smatT(imo(1),:)=0.0d0
+     
+  enddo
+  
+!----------------------------------------------------------------------
 ! Construct the current geometry ref confs
 !----------------------------------------------------------------------
 ! Important: as a first pass, we will assume a one-to-one mapping
@@ -146,14 +170,9 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
   ! Allocate arrays
   allocate(socc(nmo0))
   allocate(docc(nmo0))
-  allocate(abs_smatT(nmo,nmo0))
   socc=0
   docc=0
-  abs_smatT=0.0d0
-
-  ! Absolute value of the transpose of the MO overlap matrix
-  abs_smatT=abs(transpose(smat))
-
+  
   ! Loop over irreps
   do irrep=0,nirrep-1
 
@@ -175,8 +194,8 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
 
            ! Current geometry MO with the greatest overlap
            ! with imo0
-           imo=maxloc(abs_smatT(:,imo0))
-        
+           imo(1)=imap(imo0)
+           
            ! Create the electrons
            key1=create_electron(key,n_int,imo(1))
            key=create_electron(key1,n_int,imo(1))
@@ -191,14 +210,14 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
 
            ! Current geometry MO with the greatest overlap
            ! with imo0
-           imo=maxloc(abs_smatT(:,imo0))
-        
+           imo(1)=imap(imo0)
+           
            ! Create the electron
            key1=create_electron(key,n_int,imo(1))
            key=key1
         
         enddo
-
+        
         ! Insert the conf into the hash table
         call h(irrep)%insert_key(key)
         

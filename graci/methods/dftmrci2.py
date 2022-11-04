@@ -113,7 +113,7 @@ class Dftmrci2(cimethod.Cimethod):
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
-            self.smo = self.scf.mo_overlaps(guess.scf)[:self.nmo,:self.nmo]
+            self.smo = self.scf.mo_overlaps(guess.scf)[:guess.nmo,:self.nmo]
 
         # set the regularization factor to something sensible if it has
         # not been given
