@@ -13,42 +13,80 @@ import graci.io.convert as convert
 import graci.core.molecule as molecule
 
 @timing.timed
-def type_ii(ci_method0, ci_method1):
+def type_ii(ci_method0, ci_method):
     """
     Type-II QDPT diabatisation within the DFT/MRCI(2) framework
     Here, ci_method0 corresponds to the previous geometry, R_n-1,
-    and ci_method1 to the current geometry R_n
+    and ci_method to the current geometry R_n
     """
 
     # initialise the list of ADT matrices, one per irrep
     adt_matrices = []
 
     # GVVPT2 regularizer index
-    ireg = ci_method1.allowed_regularizer.index(ci_method1.regularizer)+1
+    ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
 
     # nirr is given by the length of the nstates vector in ci obj
-    nirr = ci_method1.n_irrep()
+    nirr = ci_method.n_irrep()
+
+    # Regularisation factor
+    regfac = ci_method.regfac
     
     # the bitci mrci wfn object
-    mrci_wfn = ci_method1.bitci_mrci()
+    mrci_wfn = ci_method.bitci_mrci()
 
     # bitci MRCI configuration scratch file numbers
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method1.ref_wfn.ci_units, dtype=int)    
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)    
 
-    # A-vector scratch file number
-    Aunits = ci_method1.Aunits
+    # MO overlaps
+    nmo0 = ci_method0.nmo
+    nmo  = ci_method.nmo
+    smat = np.reshape(ci_method.smo, (nmo0 * nmo), order='F')
 
-    print('\n\n Aunits:', Aunits)
-    sys.exit()
-    
-    # loop over irreps
-    #for irr in range(nirr):
-    
+    # frozen core orbitals
+    ncore_el = np.array([molecule.atom_ncore[n] for n in
+                         [molecule.atom_name.index(m)
+                          for m in ci_method0.scf.mol.asym]])
+    ncore_mo = int(np.sum(ncore_el/2))
+
+    # fill in the core MO indices
+    # (bitX libraries have the MOs in energy order and
+    # use Fortran indexing)
+    icore = np.arange(0, ncore_mo, 1) + 1
+    ncore = icore.size
+
+    # deleted core orbital flag
+    delete_core = True
+
+    # Loop over irreps
+    for irrep in range(nirr):
+
+        # Number of roots for the current irrep
+        nroots = ci_method.n_states_sym(irrep)
+
+        # Number of extra roots
+        nextra = ci_method.nextra['pt2'][irrep]
+
+        # A-vector scratch file number
+        Aunit = ci_method.Aunits[irrep]
         
-    
-    sys.exit()
-    
+        # R0 determinant bit strings and eigenvectors
+        n_int0 = ci_method0.det_strings[irrep].shape[0]
+        n_det0 = ci_method0.det_strings[irrep].shape[2]
+        n_vec0 = ci_method0.vec_det[irrep].shape[1]
+        dets0  = np.reshape(ci_method0.det_strings[irrep],
+                            (n_int0*2*n_det0), order='F')
+        vec0   = np.reshape(ci_method0.vec_det[irrep],
+                            (n_det0*n_vec0), order='F')
+
+        args = (irrep, nroots, nextra, ireg, regfac,
+                n_int0, n_det0, n_vec0, dets0, vec0,
+                nmo0, smat, ncore, icore, delete_core,
+                ci_confunits, ref_ciunits, Aunit)
+
+        libs.lib_func('gvvpt2_diab', args)
+        
     return

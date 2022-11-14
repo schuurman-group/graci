@@ -175,7 +175,7 @@ def diag_heff_follow(ci_method, ci_method0):
         args = (irrep, nroots, nextra, ireg, regfac,
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
-                ci_confunits,ciunit, ref_ciunits, qunit,
+                ci_confunits, ciunit, ref_ciunits, qunit,
                 dspunit, Aunit)
 
         ciunit, qunit, dspunit, Aunit = \

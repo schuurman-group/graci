@@ -151,7 +151,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
           //trim(irreplbl(irrep,ipg)),'subspace'
      write(6,'(52a)') ('-',i=1,52)
   endif
-     
+  
 !----------------------------------------------------------------------
 ! For now, we will only support nroots = nrootsR0
 ! i.e., same numbers of roots and roots to follow
@@ -170,7 +170,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   case(2)
      if (verbose) write(6,'(/,x,a)') 'Regularizer: sigma^p'
   case default
-     errmsg='Error in gvvpt2: unrecognized regularizer index'
+     errmsg='Error in gvvpt2_follow: unrecognized regularizer index'
      call error_control
   end select
   
@@ -185,8 +185,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-  ! Total number of roots for which the ENPT2 corrections will be
-  ! calculated
+  ! Dimension of the effective Hamiltonian:
+  ! nvec = no. roots + no. buffer states
   nvec=nroots+nextra
 
   ! Number of reference space CSFs

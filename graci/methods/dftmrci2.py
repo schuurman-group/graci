@@ -229,8 +229,6 @@ class Dftmrci2(cimethod.Cimethod):
             if self.diabatic:
                 self.Aunits   = A_units
 
-            print('\n\n Aunits:', self.Aunits ,'\n\n')
-                
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()

@@ -85,6 +85,10 @@ bitci_registry = {
                                  'int32','double','int32','int32','logical',
                                  'int32','int32','int32','int32','int32',
                                  'int32'],
+    'gvvpt2_diab'             : ['int32','int32','int32','int32','double',
+                                 'int32','int32','int32','int64','double',
+                                 'int32','double','int32','int32','logical',
+                                 'int32','int32','int32'],
     'truncate_mrci_wf'        : ['int32','int32','int32','int32',
                                  'double','int32']
 }
@@ -136,6 +140,9 @@ bitci_intent = {
                                  'in','in','in','in','in','in','in',
                                  'in','in','out','in','out','out',
                                  'out'],
+    'gvvpt2_diab'             : ['in','in','in','in','in','in','in',
+                                 'in','in','in','in','in','in','in',
+                                 'in','in','in','in'],
     'truncate_mrci_wf'        : ['in','in','in','in','in','out']
 }
 
