@@ -6,11 +6,12 @@
 #ifdef CBINDING
 subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vecscr,vec0scr,Qscr,dspscr) bind(c,name="gvvpt2_follow")
+     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr) &
+     bind(c,name="gvvpt2_follow")
 #else
 subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vecscr,vec0scr,Qscr,dspscr)
+     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr)
 #endif
 
   use constants
@@ -70,6 +71,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Damped strong perturber scratch file number
   integer(is), intent(out) :: dspscr
+
+  ! A-vector scratch file number
+  integer(is), intent(out) :: Ascr
   
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
@@ -117,7 +121,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=250)       :: vecfile,Qfile
+  character(len=250)       :: vecfile,Qfile,Afile
   character(len=2)         :: amult,airrep
   
   ! Everything else
@@ -253,12 +257,37 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
        vec0scr(irrep),Avec,E2,nvec,ireg,regfac,dspscr,EQD,mix,heff)
 
 !----------------------------------------------------------------------
+! Save the A-vectors to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('Avec'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),Afile)
+  call register_scratch_file(Ascr,Afile)
+
+  ! Open the scratch file
+  iscratch=scrunit(Ascr)
+  open(iscratch,file=scrname(Ascr),form='unformatted',&
+       status='unknown')
+
+  ! Dimensions
+  write(iscratch) nvec
+  write(iscratch) cfg%csfdim
+
+  ! All A-vectors
+  write(iscratch) Avec
+  
+  ! Close the scratch file
+  close(iscratch)
+  
+!----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
 !----------------------------------------------------------------------
   do i=1,nvec
      Avec(1:refdim,i)=vec0(:,i)
   enddo
-
+  
 !----------------------------------------------------------------------
 ! Compute the 1st-order wave functions
 !----------------------------------------------------------------------

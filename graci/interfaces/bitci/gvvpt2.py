@@ -123,14 +123,16 @@ def diag_heff_follow(ci_method, ci_method0):
     # Bitci ref space eigenvector scratch file numbers
     ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
 
-    # Initialise the list to hold the eigenvector and Q-space
-    # scratch file numbers
+    # Initialise the list to hold the eigenvector, Q-space info
+    # DSP, and A-vector scratch file numbers
     ciunit   = 0
     ciunits  = []
     qunit    = 0
     qunits   = []
     dspunit  = 0
     dspunits = []
+    Aunit    = 0
+    Aunits   = []
 
     # MO overlaps
     nmo0 = ci_method0.nmo
@@ -174,15 +176,17 @@ def diag_heff_follow(ci_method, ci_method0):
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
                 ci_confunits,ciunit, ref_ciunits, qunit,
-                dspunit)
+                dspunit, Aunit)
 
-        ciunit, qunit, dspunit = libs.lib_func('gvvpt2_follow', args)
+        ciunit, qunit, dspunit, Aunit = \
+            libs.lib_func('gvvpt2_follow', args)
 
-        # Bitci eigenvector, Q-space, and intruder state
+        # Bitci eigenvector, Q-space, intruder state, and A-vector
         # scratch numbers
         ciunits.append(ciunit)
         qunits.append(qunit)
         dspunits.append(dspunit)
+        Aunits.append(Aunit)
 
     # Retrieve the DFT/MRCI(2) energies
     maxroots = max(ci_method.n_states_sym())
@@ -214,4 +218,4 @@ def diag_heff_follow(ci_method, ci_method0):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
             
-    return ciunits, ciname, ener, qunits, dspunits
+    return ciunits, ciname, ener, qunits, dspunits, Aunits

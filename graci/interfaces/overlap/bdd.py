@@ -18,7 +18,7 @@ def adt(ref_obj, disp_obj):
     """
     Calculation of the P-BDD ADT matrices for all irreps
     Here, ref_obj corresponds to the previous geometry, R_n-1,
-    and disp_obj to the current geometru, R_n
+    and disp_obj to the current geometry, R_n
     """
 
     # section header

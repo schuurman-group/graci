@@ -1,5 +1,5 @@
 """
-The Molecule object and its associated functions.
+The Ao2mo object and its associated functions.
 """
 import sys as sys
 import numpy as np

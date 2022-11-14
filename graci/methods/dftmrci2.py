@@ -15,6 +15,7 @@ import graci.interfaces.bitci.ref_diag as ref_diag
 import graci.interfaces.bitci.ref_prune as ref_prune
 import graci.interfaces.bitci.mrci_space as mrci_space
 import graci.interfaces.bitci.gvvpt2 as gvvpt2
+import graci.interfaces.bitci.gvvpt2_diab as gvvpt2_diab
 import graci.interfaces.bitci.gvvpt2_refine as gvvpt2_refine
 import graci.interfaces.bitci.gvvpt2_truncate as gvvpt2_truncate
 import graci.interfaces.bitci.mrci_1rdm as mrci_1rdm
@@ -54,6 +55,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.refiter         = 3
         self.ref_prune       = True
         self.diabatic        = False
+        self.adt_type        = 'bdd'
         self.nbuffer         = []
         self.refsel          = 'dynamic'
 
@@ -80,6 +82,10 @@ class Dftmrci2(cimethod.Cimethod):
         self.qunits              = None
         # damped strong perturbers file numbers
         self.dspunits            = None
+        # A-vector file numbers
+        self.Aunits              = None
+        # allowed ADT types
+        self.allowed_adt_type    = ['bdd', 'qdpt-i', 'qdpt-ii']
         # dictionary of bitci wfns
         self.bitciwfns           = {}
         
@@ -207,7 +213,8 @@ class Dftmrci2(cimethod.Cimethod):
             # DFT/MRCI(2) calculation
             if self.diabatic:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units = gvvpt2.diag_heff_follow(self, guess)
+                    q_units, dsp_units, A_units \
+                    = gvvpt2.diag_heff_follow(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units = gvvpt2.diag_heff(self)
@@ -219,7 +226,11 @@ class Dftmrci2(cimethod.Cimethod):
             self.energies_sym = mrci_ener_sym
             self.qunits       = q_units
             self.dspunits     = dsp_units
+            if self.diabatic:
+                self.Aunits   = A_units
 
+            print('\n\n Aunits:', self.Aunits ,'\n\n')
+                
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
@@ -243,8 +254,15 @@ class Dftmrci2(cimethod.Cimethod):
 
         # diabatisation
         if self.diabatic:
-            adt_matrices = bdd.adt(guess, self)
-            self.adt = adt_matrices
+            if self.adt_type == 'bdd':
+                adt_matrices = bdd.adt(guess, self)
+            elif self.adt_type == 'qdpt-i':
+                sys.exit('\n ERROR: Type-I QDPT diabatisation has not'
+                         +' been implemented')
+            elif self.adt_type == 'qdpt-ii':
+                gvvpt2_diab.type_ii(guess, self)
+                
+            self.adt     = adt_matrices
             self.diabatize()
             nroots = [self.n_states_sym(irr)
                       for irr in range(self.n_irrep())]
@@ -314,6 +332,12 @@ class Dftmrci2(cimethod.Cimethod):
             sys.exit('\n ERROR: unrecognised value of regularizer: '
                      +self.regularizer + '\n allowed values: '
                      +str(self.allowed_regularizer))
+
+        # ADT type
+        if self.diabatic and self.adt_type not in self.allowed_adt_type:
+            sys.exit('\n ERROR: unrecognised adt_type: '
+                     +self.adt_type + '\n allowed values: '
+                     +str(self.allowed_adt_type))
             
         return
         
