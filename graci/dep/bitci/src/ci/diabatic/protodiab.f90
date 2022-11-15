@@ -354,11 +354,12 @@ contains
 !                  The transformed states in the prototype diabatic
 !                  state block will be taken as the model space states
 !######################################################################
-  subroutine get_model_basis(nvec,nrootsR0,ncomp,refdim,E0,vec_pds,&
-       vec_comp,vec_mod)
+  subroutine get_model_basis(nvec,nrootsR0,ncomp,refdim,E0,vec0,&
+       vec_pds,vec_comp,vec_mod,ref2mod)
 
     use constants
     use bitglobal
+    use utils
     
     implicit none
 
@@ -366,9 +367,10 @@ contains
     integer(is), intent(in) :: nvec,nrootsR0,ncomp
     integer(is), intent(in) :: refdim
 
-    ! Reference space eigenvalues
+    ! Reference space eigenpairs
     real(dp), intent(in)    :: E0(nvec)
-
+    real(dp), intent(in)    :: vec0(refdim,nvec)
+    
     ! Prototype diabatic states
     real(dp), intent(in)    :: vec_pds(refdim,nrootsR0)
 
@@ -377,13 +379,129 @@ contains
 
     ! Model space states
     real(dp), intent(out)   :: vec_mod(refdim,nrootsR0)
+
+    ! Ref-state-to-model-state transformation
+    real(dp), intent(out)   :: ref2mod(nvec,nrootsR0)
     
-    print*,''
-    print*,'We need the (rectangular) ref-to-PDS and ref-to-comp'&
-         //' transformations...'
-    print*,''
-    stop
+    ! Transformation matrices
+    real(dp), allocatable   :: ref2pds(:,:)
+    real(dp), allocatable   :: ref2comp(:,:)
+    real(dp), allocatable   :: ref2tot(:,:)
+
+    ! Hamiltonian matrix
+    real(dp), allocatable   :: H0(:,:),Htot(:,:)
+
+    ! Block diagonalisation transformation
+    real(dp), allocatable   :: eigval(:),V(:,:),VBDD(:,:)
+    real(dp), allocatable   :: X(:,:),Y(:,:),invsqrtY(:,:),T(:,:)
+    real(dp), allocatable   :: vec_tot(:,:)
     
+    ! Everything else
+    integer(is)             :: i,j
+    
+!----------------------------------------------------------------------
+! Set up the transformations from the ref state to prototype diabatic
+! and complement bases
+!----------------------------------------------------------------------
+    ! Allocate arrays
+    allocate(ref2pds(nvec,nrootsR0))
+    allocate(ref2comp(nvec,ncomp))
+    allocate(ref2tot(nvec,nvec))
+    
+    ! Ref-to-prototype-diabatic transformation
+    ref2pds=matmul(transpose(vec0),vec_pds)
+    
+    ! Ref-to-complement transformation
+    ref2comp=matmul(transpose(vec0),vec_comp)
+
+    ! Transformation for the union of the two bases
+    ref2tot(:,1:nrootsR0)=ref2pds
+    ref2tot(:,nrootsR0+1:nvec)=ref2comp
+    
+!----------------------------------------------------------------------
+! Hamiltonian matrix in the PDS U COMP basis
+!----------------------------------------------------------------------
+    ! Allocate arrays
+    allocate(H0(nvec,nvec))
+    allocate(Htot(nvec,nvec))
+    
+    ! Hamiltonian matrix in the ref state basis
+    ! (subtraction of E_SCF gives the true eigenvalues)
+    H0=0.0d0
+    do i=1,nvec
+       H0(i,i)=E0(i)-escf
+    enddo
+
+    ! Hamiltonian matrix in the PDS U COMP basis
+    Htot=matmul(H0,ref2tot)
+    Htot=matmul(transpose(ref2tot),Htot)
+
+!----------------------------------------------------------------------
+! Eigenvectors of the  Hamiltonian matrix in the PDS U COMP basis
+!----------------------------------------------------------------------
+    allocate(eigval(nvec))
+    allocate(V(nvec,nvec))
+
+    call diag_matrix_real(Htot,eigval,V,nvec)
+
+!----------------------------------------------------------------------
+! Block diagonalisation transformation T satisfying ||T-1|| = min,
+!
+! T = V V_BDD^T (V_BDD V_BDD^T)^-1/2,
+!
+! where V is the matrix of eigenvectors of the Hamiltonian matrix
+! and V_BDD its block diagonal part
+!----------------------------------------------------------------------
+    allocate(VBDD(nvec,nvec))
+    allocate(X(nvec,nvec))
+    allocate(Y(nvec,nvec))
+    allocate(invsqrtY(nvec,nvec))
+    allocate(T(nvec,nvec))
+
+    ! V_BDD
+    VBDD=0.0d0
+    do i=1,nrootsR0
+       do j=1,nrootsR0
+          VBDD(i,j)=V(i,j)
+       enddo
+    enddo
+    do i=nrootsR0+1,nvec
+       do j=nrootsR0+1,nvec
+          VBDD(i,j)=V(i,j)
+       enddo
+    enddo
+    
+    ! X = V V_BDD^T
+    X=matmul(V,transpose(VBDD))
+    
+    ! Y = V_BDD V_BDD^T
+    Y=matmul(VBDD,transpose(VBDD))
+
+    ! Y^-1/2
+    call invsqrt_matrix(Y,invsqrtY,nvec)
+    
+    ! T = X Y^-1/2
+    T=matmul(X,invsqrtY)
+
+!----------------------------------------------------------------------
+! Compute the model space states
+!----------------------------------------------------------------------
+    ! PDS + COMP states
+    allocate(vec_tot(refdim,nvec))
+    vec_tot(:,1:nrootsR0)=vec_pds
+    vec_tot(:,nrootsR0+1:nvec)=vec_comp
+
+    ! Apply the block diagonalisation transformation
+    vec_tot=matmul(vec_tot,T)
+
+    ! Extract the model space states
+    vec_mod=vec_tot(:,1:nrootsR0)
+
+!----------------------------------------------------------------------
+! Set up the ref-state-to-model-state transformation
+!----------------------------------------------------------------------
+    ref2mod(1:nvec,1:nrootsR0)=matmul(transpose(vec0),vec_mod)
+
     return
     
   end subroutine get_model_basis

@@ -15,7 +15,9 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   use constants
   use bitglobal
   use conftype
+  use hii
   use protodiab
+  use diabpot
   use utils
   use iomod
   use timing
@@ -67,14 +69,21 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
   ! MRCI configuration derived types
   type(mrcfg)              :: cfg
-
+  
   ! Zeroth-order eigenpairs
   integer(is)              :: refdim
   real(dp), allocatable    :: E0(:)
   real(dp), allocatable    :: vec0(:,:)
+
+  ! On-diagonal Hamiltonian matrix elements
+  real(dp), allocatable    :: hdiag(:)
+
+  ! On-diagonal Hamiltonian matrix elements
+  ! averaged over spin couplings
+  real(dp), allocatable    :: averageii(:)
   
   ! A-vectors
-  real(dp), allocatable    :: Avec(:,:)
+  real(dp), allocatable    :: Avec(:,:),Avec_mod(:,:)
 
   ! Prototype diabatic states
   real(dp), allocatable    :: vec_pds(:,:)
@@ -85,6 +94,10 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Model space states
   real(dp), allocatable    :: vec_mod(:,:)
+  real(dp), allocatable    :: ref2mod(:,:)
+
+  ! Zeroth- plus first-order effective Hamiltonian
+  real(dp), allocatable    :: H01(:,:),H01_mod(:,:)
   
   ! I/O variables
   integer(is)              :: iscratch
@@ -164,12 +177,23 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   allocate(vec0(refdim,nvec))
   vec0=0.0d0
+
+  allocate(hdiag(cfg%csfdim))
+  hdiag=0.0d0
+
+  allocate(averageii(cfg%confdim))
+  averageii=0.0d0
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
 !----------------------------------------------------------------------
   call read_all_eigenpairs(vec0scr(irrep),vec0,E0,refdim,nvec)
 
+!----------------------------------------------------------------------
+! Compute the on-diagonal Hamiltonian matrix elements
+!----------------------------------------------------------------------
+  call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
+  
 !----------------------------------------------------------------------
 ! Compute the prototype diabatic states
 !----------------------------------------------------------------------
@@ -198,26 +222,31 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 !----------------------------------------------------------------------
   ! Allocate arrays
   allocate(vec_mod(refdim,nrootsR0))
+  allocate(ref2mod(nvec,nrootsR0))
   vec_mod=0.0d0
+  ref2mod=0.0d0
 
   ! Compute the model space states in the ref CSF basis
-  call get_model_basis(nvec,nrootsR0,ncomp,refdim,E0,vec_pds,&
-       vec_comp,vec_mod)
-    
+  call get_model_basis(nvec,nrootsR0,ncomp,refdim,E0,vec0,vec_pds,&
+       vec_comp,vec_mod,ref2mod)
+
 !----------------------------------------------------------------------
-! Block diagonalisation of the Hamiltonian matrix between the prototype
-! diabatic state and complement space blocks
-!
-! The block diagonalisation transformation T will be such that
-! ||T-1|| = min.
-!
-! The thus transformed prototype diabatic states will form our model
-! space
+! Construct the zeroth-order effective Hamiltonian
 !----------------------------------------------------------------------
-  
-  
-  STOP
-  
+  ! Allocate arrays
+  allocate(H01(nvec,nvec))
+  allocate(H01_mod(nrootsR0,nrootsR0))
+
+  ! Hamiltonian in the ref state basis
+  ! (subtraction of E_SCF gives us the true eigenvalues)
+  H01=0.0d0
+  do i=1,nvec
+     H01(i,i)=E0(i)-escf
+  enddo
+
+  ! Transformation to the model state basis
+  H01_mod=matmul(transpose(ref2mod),matmul(H01,ref2mod))
+
 !----------------------------------------------------------------------
 ! Read in the A-vectors
 !----------------------------------------------------------------------
@@ -239,7 +268,19 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
   ! Close the A-vector file
   close(iscratch)
-  
+
+!----------------------------------------------------------------------
+! Transform the A-vectors to the model state representation
+!----------------------------------------------------------------------
+  allocate(Avec_mod(cfg%csfdim,nrootsR0))
+  Avec_mod=matmul(Avec,ref2mod)
+
+!----------------------------------------------------------------------
+! Calculate the diabatic potential matrix
+!----------------------------------------------------------------------
+  call heff_diab(refdim,cfg%csfdim,nrootsR0,hdiag,Avec_mod,H01_mod,&
+       ireg,regfac)
+
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
@@ -252,8 +293,6 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 ! Flush stdout
 !----------------------------------------------------------------------
   flush(6)
-  
-  STOP
   
   return
   

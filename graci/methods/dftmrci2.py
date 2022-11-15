@@ -228,11 +228,11 @@ class Dftmrci2(cimethod.Cimethod):
             self.dspunits     = dsp_units
             if self.diabatic:
                 self.Aunits   = A_units
-
+                
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
-            
+                
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
                     gvvpt2_refine.refine_ref_space(self)
@@ -259,6 +259,7 @@ class Dftmrci2(cimethod.Cimethod):
                          +' been implemented')
             elif self.adt_type == 'qdpt-ii':
                 gvvpt2_diab.type_ii(guess, self)
+                sys.exit('\n\n Stopping here...')
                 
             self.adt     = adt_matrices
             self.diabatize()
