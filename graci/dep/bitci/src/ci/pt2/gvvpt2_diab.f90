@@ -5,11 +5,11 @@
 #ifdef CBINDING
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr) bind(c,name="gvvpt2_diab")
+     confscr,vec0scr,Ascr,adtR0) bind(c,name="gvvpt2_diab")
 #else
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr)
+     confscr,vec0scr,Ascr,adtR0)
 #endif
 
   use constants
@@ -61,6 +61,9 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! A-vector scratch file number
   integer(is), intent(in)  :: Ascr
 
+  ! ADT matrix of the previous geometry
+  real(dp), intent(in)     :: adtR0(nrootsR0,nrootsR0)
+  
   ! MRCI configuration derived types
   type(mrcfg)              :: cfg,cfg_ref
 
@@ -78,8 +81,13 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   integer(is)              :: npairs
   integer(is), allocatable :: ipairs(:,:)
   real(dp), allocatable    :: Sij(:),Smat(:,:)
+  real(dp), allocatable    :: smoT(:,:)
   real(dp)                 :: normthrsh
   logical                  :: lprint
+
+  ! Prototype diabatic state expansion coefficients
+  real(dp), allocatable    :: pre_coe(:,:)
+  real(dp), allocatable    :: proto_coe(:,:)
   
   ! I/O variables
   integer(is)              :: iscratch
@@ -160,13 +168,22 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   allocate(vec0(refdim,nvec))
   vec0=0.0d0
 
-  npairs=nrootsR0*nvec
+  npairs=nvec*nrootsR0
   allocate(Sij(npairs))
   allocate(Smat(nvec,nrootsR0))
   allocate(ipairs(npairs,2))
   Sij=0.0d0
   Smat=0.0d0
   ipairs=0
+
+  allocate(smoT(nmo,nmoR0))
+  smoT=0.0d0
+
+  allocate(pre_coe(nvec,nrootsR0))
+  pre_coe=0.0d0
+
+  allocate(proto_coe(nvec,nrootsR0))
+  proto_coe=0.0d0
   
 !----------------------------------------------------------------------
 ! Read in the zeroth-order eigenpairs
@@ -217,7 +234,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Allocate arrays
   allocate(det_ref(n_int,2,ndet_ref))
-  allocate(vec0_det(refdim,nvec))
+  allocate(vec0_det(ndet_ref,nvec))
   det_ref=0_ib
   vec0_det=0.0d0
   
@@ -225,10 +242,18 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! wave functions
   call det_trans(cfg_ref,cfg%m2c,nvec,refdim,ndet_ref,vec0,vec0_det,&
        det_ref)
-
+  
 !----------------------------------------------------------------------
 ! Compute the overlaps of the reference space wave functions with
 ! the wave functions of the previous geometry
+!----------------------------------------------------------------------
+! In the following,
+!
+! Smat(i,j) = <psi_i^(0)(R_n)|psi_j(R_n-1)>
+!
+! i.e., Smat(:,j) is the projection of the previous geometry
+!       wave functions in terms onto the space spanned by the current
+!       geometry reference space wave functions
 !----------------------------------------------------------------------
   ! Truncation threshold
   normthrsh=0.999d0
@@ -243,12 +268,22 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      enddo
   enddo
 
+  ! MO overlaps
+  smoT=transpose(smoR0)
+  
   ! Compute the overlaps
   lprint=.true.
-  call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet_ref,nrootsR0,nvec,&
-       detR0,det_ref,vecR0,vec0_det,smoR0,normthrsh,ncore,icore,&
-       lfrzcore,npairs,Sij,ipairs,lprint)
-
+  call overlap(nmo,nmoR0,&
+       n_int,n_intR0,&
+       ndet_ref,ndetR0,&
+       nvec,nrootsR0,&
+       det_ref,detR0,&
+       vec0_det,vecR0,&
+       smoT,&
+       normthrsh,&
+       ncore,icore,lfrzcore,&
+       npairs,Sij,ipairs,lprint)
+  
   ! Put the overlaps into a more useful form
   do n=1,npairs
      i=ipairs(n,1)
@@ -258,15 +293,57 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
 !----------------------------------------------------------------------
 ! Transform the overlaps using the previous geometry ADT matrix
+! to yield the precursor states
 !----------------------------------------------------------------------
+  pre_coe=matmul(Smat,adtR0)
+  
+!----------------------------------------------------------------------
+! Output the squared norms of projections of the previous geometry
+! diabatic wave functions onto the space spanned by the current
+! geometry reference space wave functions
+!----------------------------------------------------------------------
+  write(6,'(/,x,21a)') ('-', i=1,21)
+  write(6,'(4x,a)') 'Precursor state'
+  write(6,'(5x,a)') 'squared norms'
+  write(6,'(x,21a)') ('-', i=1,21)
+  write(6,'(2x,a)') 'I  | <phi#_I|phi#_I>'
+  write(6,'(x,21a)') ('-', i=1,21)
 
-  print*,''
   do i=1,nrootsR0
-     print*,i,dot_product(Smat(:,i),Smat(:,i))
+     write(6,'(x,i3,x,a,x,F10.7)') &
+          i,'|',dot_product(pre_coe(:,i),pre_coe(:,i))
   enddo
 
-  print*,''
-  print*,'The R0 ADT matrix needs passing...'
+  write(6,'(x,21a)') ('-', i=1,21)
+
+!----------------------------------------------------------------------
+! Lowdin's symmetric orthonormalisation of the precursor states to
+! yield the prototype diabatic states
+!----------------------------------------------------------------------
+  proto_coe=pre_coe
+  call symm_ortho(nvec,nrootsR0,proto_coe)
+
+!----------------------------------------------------------------------
+! Calculation of the complement space states via:
+!
+! (1) projection of the reference space states onto the space
+!     orthogonal to the prototype diabatic states, followed by;
+!
+! (2) the dropping of the null space
+!----------------------------------------------------------------------
+
+  
+!----------------------------------------------------------------------
+! Block diagonalisation of the Hamiltonian matrix between the prototype
+! diabatic state and complement space blocks
+!
+! The block diagonalisation transformation T will be such that
+! ||T-1|| = min.
+!
+! The thus transformed prototype diabatic states will form our model
+! space
+!----------------------------------------------------------------------
+  
   
   STOP
   

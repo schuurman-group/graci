@@ -82,10 +82,16 @@ def type_ii(ci_method0, ci_method):
         vec0   = np.reshape(ci_method0.vec_det[irrep],
                             (n_det0*n_vec0), order='F')
 
+        # R0 ADT matrix
+        if ci_method0.adt is None:
+            adt0 = np.reshape(np.eye(n_vec0), (n_vec0**2), order='F')
+        else:
+            adt0 = np.reshape(ci_method0.adt[irrep], (n_vec0**2), order='F')
+
         args = (irrep, nroots, nextra, ireg, regfac,
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
-                ci_confunits, ref_ciunits, Aunit)
+                ci_confunits, ref_ciunits, Aunit, adt0)
 
         libs.lib_func('gvvpt2_diab', args)
         
