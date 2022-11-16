@@ -18,6 +18,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   use bitglobal
   use conftype
   use hii
+  use pt2_common
   use gvvpt2_hamiltonian
   use csf2det
   use mrciutils
@@ -248,13 +249,10 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
 
 !----------------------------------------------------------------------
-! Compute the eigenpairs of the GVVPT2 effective Hamiltonian
-! Also returns the 1st-order perturbed model functions in the Avec
-! array
+! Compute the unscaled A-vectors <Psi_I^(0)|H|Omega>
 !----------------------------------------------------------------------
-  ! H_eff and Psi^(1) calculation
-  call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
-       vec0scr(irrep),Avec,E2,nvec,ireg,regfac,dspscr,EQD,mix,heff)
+  call avector(cfg,Avec,averageii,vec0,cfg%csfdim,cfg%confdim,refdim,&
+       nvec)
 
 !----------------------------------------------------------------------
 ! Save the A-vectors to disk
@@ -280,6 +278,15 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
   ! Close the scratch file
   close(iscratch)
+  
+!----------------------------------------------------------------------
+! Compute the eigenpairs of the GVVPT2 effective Hamiltonian
+! Also returns the 1st-order perturbed model functions in the Avec
+! array
+!----------------------------------------------------------------------
+  ! H_eff and Psi^(1) calculation
+  call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
+       vec0scr(irrep),Avec,E2,nvec,ireg,regfac,dspscr,EQD,mix,heff)
   
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions

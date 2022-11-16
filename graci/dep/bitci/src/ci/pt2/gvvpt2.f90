@@ -15,6 +15,7 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   use bitglobal
   use conftype
   use hii
+  use pt2_common
   use gvvpt2_hamiltonian
   use utils
   use iomod
@@ -63,7 +64,7 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   ! averaged over spin couplings
   real(dp), allocatable    :: averageii(:)
   
-  ! ENPT2 energy and wavefunction corrections
+  ! QDPT2 A-vectors
   real(dp), allocatable    :: Avec(:,:),Avec_ortho(:,:)
   real(dp), allocatable    :: E2(:)
 
@@ -205,6 +206,12 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 !----------------------------------------------------------------------
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
 
+!----------------------------------------------------------------------
+! Compute the unscaled A-vectors <Psi_I^(0)|H|Omega>
+!----------------------------------------------------------------------
+  call avector(cfg,Avec,averageii,vec0,cfg%csfdim,cfg%confdim,refdim,&
+       nvec)
+  
 !----------------------------------------------------------------------
 ! Compute the eigenpairs of the GVVPT2 effective Hamiltonian
 ! Also returns the 1st-order perturbed model functions in the Avec

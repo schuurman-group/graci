@@ -13,6 +13,13 @@ contains
 !              Hamiltonian as well as the first-order perturbed
 !              model functions
 !######################################################################
+! *** Important ***
+!  
+! On input the A-vector array has elements <Psi_I^0|H|Omega>
+!
+! On exit, it contains FOIS contribution to the 1st-order perturbed
+! model states
+!######################################################################
   subroutine gvvpt2_heff(irrep,cfg,hdiag,averageii,csfdim,confdim,&
        vec0scr,Avec,E2,nroots,ireg,regfac,dspscr,EQD,mix,heff)
 
@@ -124,18 +131,6 @@ contains
 
     ! Subtract off E_SCF from the energies to get the true eigenvalues
     e0=e0-escf
-
-!----------------------------------------------------------------------
-! (1) 1-hole configurations -> 1I and 1E configurations
-!----------------------------------------------------------------------
-    call avec_1h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots,&
-         harr2,harr2dim)
-
-!----------------------------------------------------------------------
-! (2) 2-hole configurations -> 2I, 2E and 1I1E configurations
-!----------------------------------------------------------------------
-    call avec_2h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots,&
-         harr2,harr2dim)
 
 !----------------------------------------------------------------------
 ! Construct and diagonalise the GVVPT2 effective Hamiltonian
