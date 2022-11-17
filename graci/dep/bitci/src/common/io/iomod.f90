@@ -598,7 +598,7 @@ contains
 !                 irreps from disk
 !######################################################################
   subroutine read_ref_confs_all(scrnum,nconf0,maxconf0,conf0h,sop0h,&
-       n_int_I,nmoI,nmoE,m2c,c2m,nroots)
+       n_int_I,mapdim,nmoI,nmoE,m2c,c2m,nroots)
     
     use constants
     use bitglobal
@@ -621,7 +621,8 @@ contains
     integer(is), intent(out) :: n_int_I,nmoI,nmoE
 
     ! MO mappings
-    integer(is), intent(out) :: m2c(nmo),c2m(nmo)
+    integer(is), intent(in)  :: mapdim
+    integer(is), intent(out) :: m2c(mapdim),c2m(mapdim)
     
     ! Everything else
     integer(is)              :: i,k,iscratch,idum

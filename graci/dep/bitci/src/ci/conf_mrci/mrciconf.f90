@@ -112,7 +112,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Read the reference configurations for all irreps from disk
 !----------------------------------------------------------------------
   call read_ref_confs_all(conf0scr,nconf0,maxconf0,conf0h,sop0h,&
-       n_int_I,nmoI,nmoE,m2c,c2m,nroots)
+       n_int_I,nmo,nmoI,nmoE,m2c,c2m,nroots)
 
 !----------------------------------------------------------------------
 ! Add the reference space information to the MRCI configuration derived
