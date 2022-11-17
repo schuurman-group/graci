@@ -74,12 +74,12 @@ def type_ii(ci_method0, ci_method):
         Aunit = ci_method.Aunits[irrep]
         
         # R0 determinant bit strings and eigenvectors
-        n_int0 = ci_method0.det_strings[irrep].shape[0]
-        n_det0 = ci_method0.det_strings[irrep].shape[2]
-        n_vec0 = ci_method0.vec_det[irrep].shape[1]
-        dets0  = np.reshape(ci_method0.det_strings[irrep],
+        n_int0 = ci_method0.det_strings['adiabatic'][irrep].shape[0]
+        n_det0 = ci_method0.det_strings['adiabatic'][irrep].shape[2]
+        n_vec0 = ci_method0.vec_det['adiabatic'][irrep].shape[1]
+        dets0  = np.reshape(ci_method0.det_strings['adiabatic'][irrep],
                             (n_int0*2*n_det0), order='F')
-        vec0   = np.reshape(ci_method0.vec_det[irrep],
+        vec0   = np.reshape(ci_method0.vec_det['adiabatic'][irrep],
                             (n_det0*n_vec0), order='F')
 
         # R0 ADT matrix

@@ -165,7 +165,7 @@ def write(graci_obj, file_name=None, file_handle=None,
                 attr_str = dumps(obj_write)
                 obj_grp.attrs[name] = attr_str
             except:
-                sys.exit('Could not write list: '+str(name))
+                sys.exit('\n Could not write list: '+str(name))
             continue
         
         # if this is a dictionary, check if any
@@ -187,12 +187,12 @@ def write(graci_obj, file_name=None, file_handle=None,
                     dset_name = link_name(value, suffix=lname)
                     write_dataset(chkpt, grp_name+'/'+dset_name, value)
                     obj_write[key] = dset_name
-
+            
             # the dictionary has been rendered safe for writing
             try:
                 obj_grp.attrs[name] = dumps(obj_write)
             except:
-                sys.exit('Could not write dictionary: '+str(name))
+                sys.exit('\n Could not write dictionary: '+str(name))
             continue
 
         # everything else should be handled by json
@@ -200,7 +200,7 @@ def write(graci_obj, file_name=None, file_handle=None,
             attr_str = dumps(obj)
             obj_grp.attrs[name] = attr_str
         except TypeError:
-            sys.exit('Writing attribute = '+str(name) + 
+            sys.exit('\n Writing attribute = '+str(name) + 
                      ' to chkpt file failed')
 
     # close the chkpt file if the file_name was passed
@@ -260,7 +260,7 @@ def read(grp_name, build_subobj=True, make_mol=True,
         try:
             setattr(Chkpt_obj, name, loads(attr))
         except:
-            sys.exit('Cannot set class object, name='+str(name))
+            sys.exit('\n Cannot set class object, name='+str(name))
 
         # Scroll through lists looking for links 
         if isinstance(getattr(Chkpt_obj, name), list):
@@ -347,7 +347,7 @@ def write_dataset(chkpt_handle, dset_name, dset):
                                     compression="gzip", compression_opts=9)
     # if non-native HDf5 type, DIE
     except TypeError:
-        sys.exit('Could not create dataset: '+str(dset_name))
+        sys.exit('\n Could not create dataset: '+str(dset_name))
 
     return
 
@@ -365,12 +365,12 @@ def read_dataset(chkpt_handle, dset_name):
     """
 
     if dset_name not in chkpt_handle:
-        sys.exit('Could not locate '+str(dset_name)+' in chkpt file')
+        sys.exit('\n Could not locate '+str(dset_name)+' in chkpt file')
 
     try:
         dset = np.array(chkpt_handle[dset_name])
     except TypeError:
-        sys.exit('Could not read '+str(dset_name)+' as numpy array')
+        sys.exit('\n Could not read '+str(dset_name)+' as numpy array')
 
     return dset
 
@@ -388,12 +388,12 @@ def write_attribute(chkpt_handle, obj_name, name, value):
     """
 
     if obj_name not in chkpt_handle:
-        sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
+        sys.exit('\n Could not locate '+str(obj_name)+' in chkpt file')
 
     try:
         chkpt_handle[obj_name].attrs[name] = dumps(value)
     except:
-        sys.exit('Could not write attribute: '+str(name))
+        sys.exit('\n Could not write attribute: '+str(name))
 
     return
 
@@ -413,7 +413,7 @@ def read_attribute(chkpt_handle, obj_name, name):
     """
 
     if obj_name not in chkpt_handle:
-        sys.exit('Could not locate '+str(obj_name)+' in chkpt file')
+        sys.exit('\n Could not locate '+str(obj_name)+' in chkpt file')
 
     try:
         attr = loads(chkpt_handle[obj_name].attrs[name])

@@ -65,9 +65,11 @@ class Cimethod:
         # natural orbitals, AO basis (same shape as the density matrices)
         self.natorb_ao      = None
         # List of determinant bit strings (one per irrep)
-        self.det_strings    = None
-        # List of eigenvectors in the determinant basis (one per irrep)
-        self.vec_det        = None
+        # for various representations (adiabatic, diabatic,...)
+        self.det_strings     = {'adiabatic' : None, 'diabatic' : None}
+        # Lists of eigenvectors in the determinant basis (one per irrep)
+        # for various representations (adiabatic, diabatic,...)
+        self.vec_det         = {'adiabatic' : None, 'diabatic' : None}
         # R_n-1 - R_n MO overlaps
         self.smo            = None
         # ADT matrices (one per irrep)

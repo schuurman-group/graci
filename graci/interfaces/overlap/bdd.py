@@ -34,8 +34,8 @@ def adt(ref_obj, disp_obj):
     for irr in range(nirr):
 
         # check on the number of roots
-        nref  = ref_obj.vec_det[irr].shape[1]
-        ndisp = disp_obj.vec_det[irr].shape[1]
+        nref  = ref_obj.vec_det['adiabatic'][irr].shape[1]
+        ndisp = disp_obj.vec_det['adiabatic'][irr].shape[1]
         if nref != ndisp:
             sys.exit('\n ERROR: nroots_ref != nroots_disp in bdd.bdd')
             

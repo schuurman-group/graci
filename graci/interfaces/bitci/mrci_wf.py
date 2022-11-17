@@ -25,8 +25,8 @@ def extract_wf(ci_method):
     ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
 
     # Initialise the determinant bit string and eigenvector arrays
-    ci_method.det_strings = []
-    ci_method.vec_det     = []
+    ci_method.det_strings['adiabatic'] = []
+    ci_method.vec_det['adiabatic']     = []
     
     # Loop over irreps
     for irr in range(ci_method.n_irrep()):
@@ -78,7 +78,7 @@ def extract_wf(ci_method):
        
         # Save the determinant bit strings and eigenvectors
         # for this irrep
-        ci_method.det_strings.append(det)
-        ci_method.vec_det.append(vec)
+        ci_method.det_strings['adiabatic'].append(det)
+        ci_method.vec_det['adiabatic'].append(vec)
         
     return
