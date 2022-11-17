@@ -141,58 +141,26 @@ def write(graci_obj, file_name=None, file_handle=None,
 
         # if this is a list, replace complex objects with links
         if isinstance(obj, list):
-            obj_write = [None]*len(obj) 
-            for indx in range(len(obj)):
-                lname = str(name)+'.'+str(indx)
-                value = obj[indx]
-                if isinstance(value, comp_objs):
-                    dset_name = link_name(value, suffix=l_suffix)
-                    obj_write[indx] = dset_name
-                elif isinstance(value, sub_objs):
-                    dset_name = link_name(value, suffix=lname)
-                    write(obj[indx], file_handle=chkpt,
-                                   grp_name=grp_name+'/'+dset_name)
-                    obj_write[indx] = dset_name
-                elif isinstance(value, np.ndarray):
-                    dset_name = link_name(value, suffix=lname)
-                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
-                    obj_write[indx] = dset_name
-                else:
-                    obj_write[indx] = obj[indx]
+            lst_str = render_list(chkpt, name, obj, grp_name, l_suffix)
 
             # the list has been rendered safe for writing
             try:
-                attr_str = dumps(obj_write)
+                attr_str = dumps(lst_str)
                 obj_grp.attrs[name] = attr_str
             except:
                 sys.exit('\n Could not write list: '+str(name))
             continue
-        
-        # if this is a dictionary, check if any
-        # values are numpy arrays or class objects:
-        # things that we don't want to store as attributes
+
+        # if this is a dict, replace complex objects with links
         if isinstance(obj, dict):
-            obj_write = obj.copy()
-            for key,value in obj_write.items():
-                lname = str(name)+'.'+str(key)
-                if isinstance(value, comp_objs):
-                    dset_name = link_name(value, suffix=l_suffix)
-                    obj_write[key] = dset_name
-                elif isinstance(value, sub_objs):
-                    dset_name = link_name(value, suffix=lname)
-                    write(value, file_handle=chkpt, 
-                                 grp_name=grp_name+'/'+dset_name)
-                    obj_write[key] = dset_name
-                elif isinstance(value, np.ndarray):
-                    dset_name = link_name(value, suffix=lname)
-                    write_dataset(chkpt, grp_name+'/'+dset_name, value)
-                    obj_write[key] = dset_name
-            
-            # the dictionary has been rendered safe for writing
+            dict_str = render_dict(chkpt, name, obj, grp_name, l_suffix)
+
+            # the list has been rendered safe for writing
             try:
-                obj_grp.attrs[name] = dumps(obj_write)
+                attr_str = dumps(dict_str)
+                obj_grp.attrs[name] = attr_str
             except:
-                sys.exit('\n Could not write dictionary: '+str(name))
+                sys.exit('\n Could not write dict: '+str(name))
             continue
 
         # everything else should be handled by json
@@ -265,44 +233,23 @@ def read(grp_name, build_subobj=True, make_mol=True,
         # Scroll through lists looking for links 
         if isinstance(getattr(Chkpt_obj, name), list):
             list_obj = getattr(Chkpt_obj, name)
-            for indx in range(len(list_obj)):
-                # this is a link to a top level object
-                value = list_obj[indx]
-                gobj, sub_name = data_name(grp_name, value)
-                if sub_name is not None:
-                    if gobj:
-                        obj = read(sub_name,
-                               build_subobj = build_subobj,
-                               make_mol = make_mol,
-                               file_handle = chkpt)
-                        list_obj[indx] = obj
-                    else:
-                        list_obj[indx] = np.array(chkpt[sub_name])
+            list_obj = retrieve_list(chkpt, grp_name, 
+                                     list_obj, build_subobj, make_mol)
             continue
 
         # if this is a dictionary, run through the keys and load
         # any non-json serializable objects
         if isinstance(getattr(Chkpt_obj, name), dict):
-            dict_obj = getattr(Chkpt_obj, name)
-            for key, value in dict_obj.items():
-                gobj, sub_name = data_name(grp_name, value)
-                if sub_name is not None:
-                    if gobj:
-                        obj = read(sub_name,
-                               build_subobj = build_subobj,
-                               make_mol = make_mol,
-                               file_handle = chkpt)
-                        dict_obj[key] = obj
-                    else:
-                        dict_obj[key] = np.array(chkpt[sub_name])
+            link_dict = getattr(Chkpt_obj, name)
+            link_dict = retrieve_dict(chkpt, grp_name,
+                                      link_dict, build_subobj, make_mol)
             continue
 
         # check the for links to complex objects
         name_str = str(getattr(Chkpt_obj, name))
-
-        # attribute holds a link to a complex object
         gobj, sub_name = data_name(grp_name, name_str)
 
+        # attribute holds a link to a complex object
         if sub_name is not None:
             if gobj:
                 obj = read(sub_name,
@@ -421,6 +368,142 @@ def read_attribute(chkpt_handle, obj_name, name):
         attr = None
 
     return attr
+
+#
+def render_list(chkpt, name, obj, grp_name, l_suffix, lvl=0):
+    """renders a list of objects suitable for writing to checkpoint file
+
+       args: 
+       returns:
+
+    """
+
+    #print('rendering list: '+str(name)+' val='+str(obj),flush=True)
+    obj_write = [None]*len(obj)
+    for indx in range(len(obj)):
+        lname = str(name)+'.'+str(lvl)+'.'+str(indx)
+        value = obj[indx]
+        if isinstance(value, comp_objs):
+            dset_name = link_name(value, suffix=l_suffix)
+            obj_write[indx] = dset_name
+        elif isinstance(value, sub_objs):
+            dset_name = link_name(value, suffix=lname)
+            write(obj[indx], file_handle=chkpt,
+                           grp_name=grp_name+'/'+dset_name)
+            obj_write[indx] = dset_name
+        elif isinstance(value, list):
+            obj_write[indx] = render_list(chkpt, name, value, grp_name,
+                                                 l_suffix, lvl=lvl+1)
+        elif isinstance(value, dict):
+            obj_write[indx] = render_dict(chkpt, name, value, grp_name,
+                                                 l_suffix, lvl=lvl+1)
+        elif isinstance(value, np.ndarray):
+            dset_name = link_name(value, suffix=lname)
+            write_dataset(chkpt, grp_name+'/'+dset_name, value)
+            obj_write[indx] = dset_name
+        else:
+            obj_write[indx] = obj[indx]
+
+    return obj_write
+
+#
+def retrieve_list(chkpt, grp_name, list_obj, build_subobj, make_mol):
+
+    # roll through the list and replace any links
+    # with the saved value
+    for indx in range(len(list_obj)):
+        # this is a link to a top level object
+        value = list_obj[indx]
+
+        # check if this is a nested list call recursively
+        if isinstance(value, list):
+            list_obj[indx] = retrieve_list(chkpt, grp_name, value,
+                                           build_subobj, make_mol)
+
+        elif isinstance(value, dict):
+            list_obj[indx] = retrieve_dict(chkpt, grp_name, value,
+                                           build_subobj, make_mol)
+
+        else:
+            gobj, sub_name = data_name(grp_name, value)
+            if sub_name is not None:
+                if gobj:
+                    obj = read(sub_name,
+                           build_subobj = build_subobj,
+                           make_mol = make_mol,
+                           file_handle = chkpt)
+                    list_obj[indx] = obj
+                else:
+                    list_obj[indx] = np.array(chkpt[sub_name])
+
+    return list_obj
+
+
+#
+def render_dict(chkpt, name, obj, grp_name, l_suffix, lvl=0):
+    """renders a dictionary of objects suitable for writing to checkpoint file
+
+       args:
+       returns:
+
+    """
+    # if this is a dictionary, check if any
+    # values are numpy arrays or class objects:
+    # things that we don't want to store as attributes
+    obj_write = obj.copy()
+    for key,value in obj_write.items():
+        lname = str(name)+'.'+str(lvl)+'.'+str(key)
+        if isinstance(value, comp_objs):
+            dset_name = link_name(value, suffix=l_suffix)
+            obj_write[key] = dset_name
+        elif isinstance(value, sub_objs):
+            dset_name = link_name(value, suffix=lname)
+            write(value, file_handle=chkpt,
+                         grp_name=grp_name+'/'+dset_name)
+            obj_write[key] = dset_name
+        elif isinstance(value, list):
+            #print('in dict='+str(name)+' found list: '+str(value),flush=True)
+            obj_write[key] = render_list(chkpt, name, value, grp_name,
+                                                 l_suffix, lvl=lvl+1)
+        elif isinstance(value, dict):
+            obj_write[key] = render_dict(chkpt, name, value, grp_name,
+                                                 l_suffix, lvl=lvl+1)
+        elif isinstance(value, np.ndarray):
+            dset_name = link_name(value, suffix=lname)
+            write_dataset(chkpt, grp_name+'/'+dset_name, value)
+            obj_write[key] = dset_name
+
+    return obj_write
+
+
+def retrieve_dict(chkpt, grp_name, dict_obj, build_subobj, make_mol):
+
+    for key, value in dict_obj.items():
+
+        # check if this is a nested list call recursively
+        if isinstance(value, list):
+            dict_obj[indx] = retrieve_list(chkpt, grp_name, value, 
+                                           build_subobj, make_mol)
+
+        elif isinstance(value, dict):
+            dict_obj[indx] = retrieve_dict(chkpt, grp_name, value,
+                                           build_subobj, make_mol)
+
+        else:
+            gobj, sub_name = data_name(grp_name, value)
+            if sub_name is not None:
+                if gobj:
+                    obj = read(sub_name,
+                           build_subobj = build_subobj,
+                           make_mol = make_mol,
+                           file_handle = chkpt)
+                    dict_obj[indx] = obj
+                else:
+                    dict_obj[indx] = np.array(chkpt[sub_name])
+
+    return dict_obj
+
+
 
 #
 def data_name(grp, link_name):
