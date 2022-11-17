@@ -3,7 +3,7 @@
 ! as the 2nd-order GVVPT2 effective Hamiltonian for a set of
 ! quasi-diabatic model states
 !**********************************************************************
-module diabpot
+module heff_diabatic
 
   implicit none
 
@@ -13,7 +13,8 @@ contains
 ! heff_diab: construction of the GVVPT2 effective Hamiltonian for
 !            a quasi-diabatic model space
 !######################################################################
-  subroutine heff_diab(refdim,csfdim,nroots,hdiag,Avec,H01,ireg,regfac)
+  subroutine heff_diab(refdim,csfdim,nroots,hdiag,Avec,H01,ireg,&
+       regfac,Heff)
 
     use constants
     use bitglobal
@@ -38,12 +39,12 @@ contains
   
     ! Regularization factor
     real(dp), intent(in)    :: regfac
+
+    ! Effective Hamiltonian up to second order
+    real(dp), intent(out)   :: Heff(nroots,nroots)
     
     ! Zeroth-order effective Hamiltonian (diagonal)
     real(dp), allocatable   :: H0(:)
-    
-    ! Effective Hamiltonian up to second order
-    real(dp), allocatable   :: Heff(:,:)
     
     ! Everything else
     integer(is)             :: i,j,icsf
@@ -53,9 +54,6 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(Heff(nroots,nroots))
-    Heff=0.0d0
-
     allocate(H0(nroots))
     H0=0.0d0
 
@@ -74,9 +72,6 @@ contains
 !----------------------------------------------------------------------
 ! Second-order contributions
 !----------------------------------------------------------------------
-
-    print*,''
-
     ! Loop over pairs of roots
     do i=1,nroots
        do j=i,nroots
@@ -108,17 +103,13 @@ contains
 
           Heff(j,i)=Heff(i,j)
 
-          print*,i,j,Heff(i,j)
-          
        enddo
     enddo
 
-    STOP
-    
     return
     
   end subroutine heff_diab
   
 !######################################################################
   
-end module diabpot
+end module heff_diabatic

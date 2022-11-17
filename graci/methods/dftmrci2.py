@@ -85,7 +85,7 @@ class Dftmrci2(cimethod.Cimethod):
         # A-vector file numbers
         self.Aunits              = None
         # allowed ADT types
-        self.allowed_adt_type    = ['bdd', 'qdpt-i', 'qdpt-ii']
+        self.allowed_adt_type    = ['bdd', 'qdpt']
         # dictionary of bitci wfns
         self.bitciwfns           = {}
         
@@ -252,20 +252,25 @@ class Dftmrci2(cimethod.Cimethod):
 
         # diabatisation
         if self.diabatic:
+
             if self.adt_type == 'bdd':
+                # block diagonalisation diabatisation
                 adt_matrices = bdd.adt(guess, self)
-            elif self.adt_type == 'qdpt-i':
-                sys.exit('\n ERROR: Type-I QDPT diabatisation has not'
-                         +' been implemented')
-            elif self.adt_type == 'qdpt-ii':
-                gvvpt2_diab.type_ii(guess, self)
+                self.adt     = adt_matrices
+                self.diabatize()
+
+            elif self.adt_type == 'qdpt':
+                # QDPT diabatisation
+                diabpots, diabunits = gvvpt2_diab.diabpot(guess, self)
+                self.diabpot = diabpots
+                self.mrci_wfn.diabvec_units = diabunits
+                                
                 sys.exit('\n\n Stopping here...')
-                
-            self.adt     = adt_matrices
-            self.diabatize()
-            nroots = [self.n_states_sym(irr)
-                      for irr in range(self.n_irrep())]
+
+            # output the diabatic potentials
             if self.verbose:
+                nroots = [self.n_states_sym(irr)
+                          for irr in range(self.n_irrep())]
                 output.print_diabpot(self.diabpot, nroots,
                                      self.n_irrep(),
                                      self.scf.mol.irreplbl)

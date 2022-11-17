@@ -36,7 +36,7 @@ def diag_heff(ci_method):
     # Bitci ref space eigenvector scratch file numbers
     ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
 
-    # Initialise the list to hold the eigenvector and Q-space
+    # Initialise the lists to hold the eigenvector and Q-space
     # scratch file numbers
     ciunit   = 0
     ciunits  = []

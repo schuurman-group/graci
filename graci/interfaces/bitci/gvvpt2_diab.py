@@ -13,16 +13,21 @@ import graci.io.convert as convert
 import graci.core.molecule as molecule
 
 @timing.timed
-def type_ii(ci_method0, ci_method):
+def diabpot(ci_method0, ci_method):
     """
-    Type-II QDPT diabatisation within the DFT/MRCI(2) framework
+    QDPT diabatisation within the DFT/MRCI(2) framework
     Here, ci_method0 corresponds to the previous geometry, R_n-1,
     and ci_method to the current geometry R_n
     """
 
-    # initialise the list of ADT matrices, one per irrep
-    adt_matrices = []
-
+    # initialise the list of diabatic potentisl matrices, one per irrep
+    diabpots = []
+    
+    # initialise the list to hold the bitci diabatic state vector
+    # scratch file numbers
+    diabunit  = 0
+    diabunits = []
+    
     # GVVPT2 regularizer index
     ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
 
@@ -39,8 +44,8 @@ def type_ii(ci_method0, ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)    
-
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    
     # MO overlaps
     nmo0 = ci_method0.nmo
     nmo  = ci_method.nmo
@@ -66,7 +71,9 @@ def type_ii(ci_method0, ci_method):
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep)
-
+        if (nroots == 0):
+            continue
+        
         # Number of extra roots
         nextra = ci_method.nextra['pt2'][irrep]
 
@@ -74,25 +81,35 @@ def type_ii(ci_method0, ci_method):
         Aunit = ci_method.Aunits[irrep]
         
         # R0 determinant bit strings and eigenvectors
-        n_int0 = ci_method0.det_strings['adiabatic'][irrep].shape[0]
-        n_det0 = ci_method0.det_strings['adiabatic'][irrep].shape[2]
-        n_vec0 = ci_method0.vec_det['adiabatic'][irrep].shape[1]
-        dets0  = np.reshape(ci_method0.det_strings['adiabatic'][irrep],
+        # if there are no diabatic states for the previous geometry,
+        # then assume that it is the starting geometry
+        if ci_method0.det_strings['diabatic'] is None:
+            key = 'adiabatic'
+        else:
+            key = 'diabatic'
+        n_int0 = ci_method0.det_strings[key][irrep].shape[0]
+        n_det0 = ci_method0.det_strings[key][irrep].shape[2]
+        n_vec0 = ci_method0.vec_det[key][irrep].shape[1]
+        dets0  = np.reshape(ci_method0.det_strings[key][irrep],
                             (n_int0*2*n_det0), order='F')
-        vec0   = np.reshape(ci_method0.vec_det['adiabatic'][irrep],
+        vec0   = np.reshape(ci_method0.vec_det[key][irrep],
                             (n_det0*n_vec0), order='F')
 
-        # R0 ADT matrix
-        if ci_method0.adt is None:
-            adt0 = np.reshape(np.eye(n_vec0), (n_vec0**2), order='F')
-        else:
-            adt0 = np.reshape(ci_method0.adt[irrep], (n_vec0**2), order='F')
-
+        # Output diabatic potential matrix
+        diabpot = np.zeros((nroots*nroots), dtype=float)
+            
         args = (irrep, nroots, nextra, ireg, regfac,
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
-                ci_confunits, ref_ciunits, Aunit, adt0)
+                ci_confunits, ref_ciunits, Aunit, diabpot,
+                diabunit)
 
-        libs.lib_func('gvvpt2_diab', args)
-        
-    return
+        diabpot, diabunit = libs.lib_func('gvvpt2_diab', args)
+
+        # Bitci diabatic state vector scratch file number
+        diabunits.append(diabunit)
+
+        # Save the diabatic potential
+        diabpots.append(np.reshape(diabpot, (nroots, nroots), order='F'))
+    
+    return diabpots, diabunits

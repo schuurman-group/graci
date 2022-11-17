@@ -21,7 +21,7 @@ contains
 !                    states
 !######################################################################
   subroutine get_pds_basis(cfg,refdim,nvec,vec0,nmoR0,n_intR0,ndetR0,&
-       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,adtR0,vec_pds)
+       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds)
     
     use constants
     use bitglobal
@@ -43,8 +43,8 @@ contains
     ! Ref space wave functions
     real(dp), intent(in)     :: vec0(refdim,nvec)
 
-    ! Previous geometry eigensates expressed in a Slater determinant
-    ! basis
+    ! Previous geometry diabatic states expressed in a Slater
+    ! determinant basis
     integer(is), intent(in)  :: n_intR0,ndetR0,nrootsR0
     integer(ib), intent(in)  :: detR0(n_intR0,2,ndetR0)
     real(dp), intent(in)     :: vecR0(ndetR0,nrootsR0)
@@ -58,9 +58,6 @@ contains
     integer(is), intent(in)  :: icore(ncore)
     logical(is), intent(in)  :: lfrzcore
 
-    ! ADT matrix of the previous geometry
-    real(dp), intent(in)     :: adtR0(nrootsR0,nrootsR0)
-    
     ! Protoype diabatic states in the ref CSF basis
     real(dp), intent(out)    :: vec_pds(refdim,nrootsR0)
 
@@ -141,15 +138,15 @@ contains
 
 !----------------------------------------------------------------------
 ! Compute the overlaps of the reference space wave functions with
-! the wave functions of the previous geometry
+! the diabatic wave functions of the previous geometry
 !----------------------------------------------------------------------
 ! In the following,
 !
 ! Smat(i,j) = <psi_i^(0)(R_n)|psi_j(R_n-1)>
 !
 ! i.e., Smat(:,j) is the projection of the previous geometry
-!       wave functions in terms onto the space spanned by the current
-!       geometry reference space wave functions
+!       diabatic wave functions in terms onto the space spanned by the
+!       current geometry reference space wave functions
 !----------------------------------------------------------------------
     ! Truncation threshold
     normthrsh=0.999d0
@@ -172,20 +169,16 @@ contains
     call overlap(nmo,nmoR0,n_int,n_intR0,ndet_ref,ndetR0,nvec,&
          nrootsR0,det_ref,detR0,vec0_det,vecR0,smoT,normthrsh,&
          ncore,icore,lfrzcore,npairs,Sij,ipairs,lprint)
-  
-    ! Put the overlaps into a more useful form
+    
+!----------------------------------------------------------------------
+! Fill in the precursor state coefficients
+!----------------------------------------------------------------------
     do n=1,npairs
        i=ipairs(n,1)
        j=ipairs(n,2)
-       Smat(i,j)=Sij(n)
+       precoe(i,j)=Sij(n)
     enddo
-
-!----------------------------------------------------------------------
-! Transform the overlaps using the previous geometry ADT matrix
-! to yield the precursor states
-!----------------------------------------------------------------------
-    precoe=matmul(Smat,adtR0)
-  
+    
 !----------------------------------------------------------------------
 ! Output the squared norms of projections of the previous geometry
 ! diabatic wave functions onto the space spanned by the current

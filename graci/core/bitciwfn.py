@@ -11,20 +11,22 @@ class Bitciwfn:
     def __init__(self):
         # class variables
         # List of numbers of configurations per irrep
-        self.nconf       = None
+        self.nconf         = None
         # bitci configuration scratch file names
-        self.conf_name   = None
+        self.conf_name     = None
         # bitci configuration scratch file numbers
-        self.conf_units  = None
+        self.conf_units    = None
         # List of bitci eigenvector scratch file names (one per irrep)
-        self.ci_name     = None
+        self.ci_name       = None
         # List of bitci eigenvector scratch file numbers (one per irrep)
-        self.ci_units    = None
+        self.ci_units      = None
         # List of bitci Q-space energy correction scratch file numbers
         # (one per irrep)
-        self.eq_units    = None
+        self.eq_units      = None
+        # List of diabatic state vector scratch file numbers (one per irrep)
+        self.diabvec_units = None
         # class label
-        self.label       = 'default'
+        self.label         = 'default'
 
     def copy(self):
         """create of deepcopy of self"""

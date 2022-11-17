@@ -5,11 +5,11 @@
 #ifdef CBINDING
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr,adtR0) bind(c,name="gvvpt2_diab")
+     confscr,vec0scr,Ascr,diabpot,diabscr) bind(c,name="gvvpt2_diab")
 #else
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr,adtR0)
+     confscr,vec0scr,Ascr,diabpot,diabscr)
 #endif
 
   use constants
@@ -17,7 +17,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   use conftype
   use hii
   use protodiab
-  use diabpot
+  use heff_diabatic
   use utils
   use iomod
   use timing
@@ -40,8 +40,8 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! Regularization factor
   real(dp), intent(in)     :: regfac
 
-  ! Previous geometry eigensates expressed in a Slater determinant
-  ! basis
+  ! Previous geometry diabatic states expressed in a Slater
+  ! determinant basis
   integer(is), intent(in)  :: n_intR0,ndetR0,nrootsR0
   integer(ib), intent(in)  :: detR0(n_intR0,2,ndetR0)
   real(dp), intent(in)     :: vecR0(ndetR0,nrootsR0)
@@ -64,8 +64,11 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! A-vector scratch file number
   integer(is), intent(in)  :: Ascr
 
-  ! ADT matrix of the previous geometry
-  real(dp), intent(in)     :: adtR0(nrootsR0,nrootsR0)
+  ! Diabatic potential matrix
+  real(dp), intent(out)     :: diabpot(nrootsR0,nrootsR0)
+
+  ! Diabatic state vector scratch file number
+  integer(is), intent(out) :: diabscr
   
   ! MRCI configuration derived types
   type(mrcfg)              :: cfg
@@ -98,9 +101,11 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Zeroth- plus first-order effective Hamiltonian
   real(dp), allocatable    :: H01(:,:),H01_mod(:,:)
-  
+
   ! I/O variables
   integer(is)              :: iscratch
+  character(len=250)       :: diabfile
+  character(len=2)         :: amult,airrep
   
   ! Timing variables
   real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
@@ -110,6 +115,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   integer(is)              :: i,j,n
   integer(is)              :: nvec
   integer(is)              :: dim1,dim2
+  real(dp), allocatable    :: diabii(:)
   
 !----------------------------------------------------------------------
 ! Start timing
@@ -203,7 +209,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Compute the prototype diabatic states in the ref CSF basis
   call get_pds_basis(cfg,refdim,nvec,vec0,nmoR0,n_intR0,ndetR0,&
-       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,adtR0,vec_pds)
+       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds)
 
 !----------------------------------------------------------------------
 ! Calculation of the complement space states
@@ -236,7 +242,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! Allocate arrays
   allocate(H01(nvec,nvec))
   allocate(H01_mod(nrootsR0,nrootsR0))
-
+  
   ! Hamiltonian in the ref state basis
   ! (subtraction of E_SCF gives us the true eigenvalues)
   H01=0.0d0
@@ -278,9 +284,66 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 !----------------------------------------------------------------------
 ! Calculate the diabatic potential matrix
 !----------------------------------------------------------------------
+! On exit, the Avec_mod array will hold the FOIS contribution to the
+! diabatic states
+!----------------------------------------------------------------------
   call heff_diab(refdim,cfg%csfdim,nrootsR0,hdiag,Avec_mod,H01_mod,&
-       ireg,regfac)
+       ireg,regfac,diabpot)
 
+!----------------------------------------------------------------------
+! Add in the model states to obtain the diabatic states
+!----------------------------------------------------------------------
+  do i=1,nrootsR0
+     Avec_mod(1:refdim,i)=vec_mod(:,i)
+  enddo
+
+!----------------------------------------------------------------------
+! Add E_SCF to the on-diagonal diabatic potential matrix elements
+!----------------------------------------------------------------------
+  do i=1,nrootsR0
+     diabpot(i,i)=diabpot(i,i)+escf
+  enddo
+  
+!----------------------------------------------------------------------
+! On-diagonal diabatic potential matrix elements
+!----------------------------------------------------------------------
+  allocate(diabii(nrootsR0))
+
+  do i=1,nrootsR0
+     diabii(i)=diabpot(i,i)
+  enddo
+  
+!----------------------------------------------------------------------
+! Save the diabatic states to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('diabvec'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),diabfile)
+  call register_scratch_file(diabscr,diabfile)
+
+  ! Open the scratch file
+  iscratch=scrunit(diabscr)
+  open(iscratch,file=scrname(diabscr),form='unformatted',&
+       status='unknown')
+
+  ! Dimensions
+  write(iscratch) cfg%csfdim
+  write(iscratch) nrootsR0
+
+  ! On-diagonal diabatic potentials (included so as to be able to use
+  ! the pre-existing eigenpair parsing routines to read these files)
+  write(iscratch) diabii
+
+  ! Diabatic state vectors
+  do i=1,nrootsR0
+     write(iscratch) Avec_mod(:,i)
+  enddo
+     
+  ! Close the scratch file
+  close(iscratch)
+  
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
