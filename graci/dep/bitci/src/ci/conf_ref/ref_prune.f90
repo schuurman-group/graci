@@ -225,7 +225,7 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
 !----------------------------------------------------------------------
 ! Put the surviving configurations into the canonical MO ordering
 !----------------------------------------------------------------------
-  call reorder_confs(m2c,conf_new,nconf_tot)
+  call reorder_confs(nmo,m2c,conf_new,nconf_tot)
   
 !----------------------------------------------------------------------
 ! Update the internal-external MO spaces

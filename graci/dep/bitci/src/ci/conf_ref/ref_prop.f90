@@ -3,7 +3,6 @@
 ! the approximate re-expression of those of another geometry in terms
 ! of the MOs of the current one
 !**********************************************************************
-
 #ifdef CBINDING
 subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
      nconf,confscr) bind(c,name="ref_space_propagate")
@@ -108,7 +107,7 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
   allocate(m2c(nmo0),c2m(nmo0))
 
   call read_ref_confs_all(scrnum0,nconf0,maxconf0,conf_r0,sop_r0,&
-       n_int_I,nmoI,nmoE,m2c,c2m,nroots)
+       n_int_I,nmo0,nmoI,nmoE,m2c,c2m,nroots)
 
 !----------------------------------------------------------------------
 ! Put the ref confs into the 'canonical' MO order
@@ -126,8 +125,8 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
   ! Reorder the conf and sop arrays
   do irrep=0,nirrep-1
      n=nconf0(irrep)
-     call reorder_confs(m2c,conf(:,:,1:n,irrep),n)
-     call reorder_confs(m2c,sop(:,:,1:n,irrep),n)
+     call reorder_confs(nmo0,m2c,conf(:,:,1:n,irrep),n)
+     call reorder_confs(nmo0,m2c,sop(:,:,1:n,irrep),n)
   enddo
 
 !----------------------------------------------------------------------
@@ -305,8 +304,8 @@ subroutine ref_space_propagate(nroots,nmo0,nmo1,smat,conffile0_in,&
 !----------------------------------------------------------------------
   do irrep=0,nirrep-1
      n=nconf(irrep)
-     call reorder_confs(c2m,conf(:,:,1:n,irrep),n)
-     call reorder_confs(c2m,sop(:,:,1:n,irrep),n)
+     call reorder_confs(nmo,c2m,conf(:,:,1:n,irrep),n)
+     call reorder_confs(nmo,c2m,sop(:,:,1:n,irrep),n)
   enddo
 
 !----------------------------------------------------------------------
