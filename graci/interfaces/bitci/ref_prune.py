@@ -29,7 +29,7 @@ def prune(ci_method):
     confunit = ci_method.ref_wfn.conf_units
     
     # Bitci ref eigenvector scratch file numbers
-    ciunit   = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    ciunit   = np.array(ci_method.ref_wfn.ci_units['adiabatic'], dtype=int)
     
     # Number of ref confs for each irrep
     nconf    = ci_method.ref_wfn.nconf

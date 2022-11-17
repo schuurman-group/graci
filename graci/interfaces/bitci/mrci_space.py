@@ -48,7 +48,7 @@ def generate(ci_method):
     # DDCI flag
     ddci_flag = ci_method.ddci
     
-    ref_ciunits = np.array(ref_wfn.ci_units, dtype=int)
+    ref_ciunits = np.array(ref_wfn.ci_units['adiabatic'], dtype=int)
     nroots      = ci_method.n_states_sym()
 
     # Pruning: bitci Q-space energy correction scracth file numbers

@@ -16,15 +16,15 @@ class Bitciwfn:
         self.conf_name     = None
         # bitci configuration scratch file numbers
         self.conf_units    = None
-        # List of bitci eigenvector scratch file names (one per irrep)
-        self.ci_name       = None
+        # Lists of bitci eigenvector scratch file names (one per irrep)
+        # for various representations
+        self.ci_name       = {'adiabatic' : None, 'diabatic' : None}
         # List of bitci eigenvector scratch file numbers (one per irrep)
-        self.ci_units      = None
+        # for various representations
+        self.ci_units      = {'adiabatic' : None, 'diabatic' : None}
         # List of bitci Q-space energy correction scratch file numbers
         # (one per irrep)
         self.eq_units      = None
-        # List of diabatic state vector scratch file numbers (one per irrep)
-        self.diabvec_units = None
         # class label
         self.label         = 'default'
 
@@ -53,9 +53,9 @@ class Bitciwfn:
         return
 
     #
-    def set_ciunits(self, ciunits):
+    def set_ciunits(self, ciunits, rep='adiabatic'):
         """Adds the list of bitci eigenvector scratch file numbers"""
-        self.ci_units = ciunits
+        self.ci_units[rep] = ciunits
         return
 
     #
@@ -65,9 +65,9 @@ class Bitciwfn:
         return
 
     #
-    def set_ciname(self, ciname):
+    def set_ciname(self, ciname, rep='adiabatic'):
         """Adds the list of bitci eigenvector scratch file names"""
-        self.ci_name = ciname
+        self.ci_name[rep] = ciname
         return
 
     #

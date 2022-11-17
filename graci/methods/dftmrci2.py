@@ -263,10 +263,9 @@ class Dftmrci2(cimethod.Cimethod):
                 # QDPT diabatisation
                 diabpots, diabunits = gvvpt2_diab.diabpot(guess, self)
                 self.diabpot = diabpots
-                self.mrci_wfn.diabvec_units = diabunits
-                                
-                sys.exit('\n\n Stopping here...')
-
+                self.mrci_wfn.set_ciunits(diabunits, rep='diabatic')
+                mrci_wf.extract_wf(self, rep='diabatic')
+                
             # output the diabatic potentials
             if self.verbose:
                 nroots = [self.n_states_sym(irr)

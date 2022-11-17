@@ -54,11 +54,11 @@ def redmat(bra, ket, trans_list):
 
             # configuration and eigenvector files: bra wfn
             bra_conf = bra_wfn.conf_name[bra_irr]
-            bra_vec  = bra_wfn.ci_name[bra_irr]
+            bra_vec  = bra_wfn.ci_name['adiabatic'][bra_irr]
 
             # configuration and eigenvector files: ket wfn
             ket_conf = ket_wfn.conf_name[ket_irr]
-            ket_vec  = ket_wfn.ci_name[ket_irr]
+            ket_vec  = ket_wfn.ci_name['adiabatic'][ket_irr]
 
             # Compute the reduced matrix elements for all states in
             # this irrep

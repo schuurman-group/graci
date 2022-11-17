@@ -34,7 +34,8 @@ def diag_heff(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # Bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
+                           dtype=int)
 
     # Initialise the lists to hold the eigenvector and Q-space
     # scratch file numbers
@@ -121,7 +122,8 @@ def diag_heff_follow(ci_method, ci_method0):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # Bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
+                           dtype=int)
 
     # Initialise the list to hold the eigenvector, Q-space info
     # DSP, and A-vector scratch file numbers

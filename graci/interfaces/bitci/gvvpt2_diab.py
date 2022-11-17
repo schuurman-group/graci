@@ -44,7 +44,8 @@ def diabpot(ci_method0, ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
+                           dtype=int)
     
     # MO overlaps
     nmo0 = ci_method0.nmo
@@ -87,6 +88,7 @@ def diabpot(ci_method0, ci_method):
             key = 'adiabatic'
         else:
             key = 'diabatic'
+        
         n_int0 = ci_method0.det_strings[key][irrep].shape[0]
         n_det0 = ci_method0.det_strings[key][irrep].shape[2]
         n_vec0 = ci_method0.vec_det[key][irrep].shape[1]
@@ -111,5 +113,5 @@ def diabpot(ci_method0, ci_method):
 
         # Save the diabatic potential
         diabpots.append(np.reshape(diabpot, (nroots, nroots), order='F'))
-    
-    return diabpots, diabunits
+
+    return diabpots, np.array(diabunits, dtype=int)
