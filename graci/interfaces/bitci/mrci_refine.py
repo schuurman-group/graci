@@ -26,7 +26,7 @@ def refine_ref_space(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # Bitci eigenvector scratch file numbers
-    ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
+    ci_ciunits = np.array(mrci_wfn.ci_units['adiabatic'], dtype=int)
 
     # No. roots per irrep
     nstates = ci_method.n_states_sym()

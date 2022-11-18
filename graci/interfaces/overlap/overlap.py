@@ -30,25 +30,25 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
     nmo_ket = ket_obj.nmo
 
     # number of dets, roots, etc.
-    n_int_bra  = bra_obj.det_strings[irrep].shape[0]
-    n_int_ket  = ket_obj.det_strings[irrep].shape[0]
-    ndet_bra   = bra_obj.det_strings[irrep].shape[2]
-    ndet_ket   = ket_obj.det_strings[irrep].shape[2]
-    nroots_bra = bra_obj.vec_det[irrep].shape[1]
-    nroots_ket = ket_obj.vec_det[irrep].shape[1]
+    n_int_bra  = bra_obj.det_strings['adiabatic'][irrep].shape[0]
+    n_int_ket  = ket_obj.det_strings['adiabatic'][irrep].shape[0]
+    ndet_bra   = bra_obj.det_strings['adiabatic'][irrep].shape[2]
+    ndet_ket   = ket_obj.det_strings['adiabatic'][irrep].shape[2]
+    nroots_bra = bra_obj.vec_det['adiabatic'][irrep].shape[1]
+    nroots_ket = ket_obj.vec_det['adiabatic'][irrep].shape[1]
 
     # determinant bit strings
-    det_bra = np.reshape(bra_obj.det_strings[irrep],
+    det_bra = np.reshape(bra_obj.det_strings['adiabatic'][irrep],
                          (n_int_bra*2*ndet_bra), order='F')
 
-    det_ket = np.reshape(ket_obj.det_strings[irrep],
+    det_ket = np.reshape(ket_obj.det_strings['adiabatic'][irrep],
                           (n_int_ket*2*ndet_ket), order='F')
 
     # eigenvectors in the determinant basis
-    vec_bra = np.reshape(bra_obj.vec_det[irrep],
+    vec_bra = np.reshape(bra_obj.vec_det['adiabatic'][irrep],
                          (ndet_bra*nroots_bra), order='F')
     
-    vec_ket = np.reshape(ket_obj.vec_det[irrep],
+    vec_ket = np.reshape(ket_obj.vec_det['adiabatic'][irrep],
                           (ndet_ket*nroots_ket), order='F')
 
     # reshape the bra-ket MO overlap array

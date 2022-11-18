@@ -894,7 +894,7 @@ contains
 !                into a new MO ordering corresponding to the mapping
 !                array imap
 !######################################################################
-  subroutine reorder_confs(imap,conf,nconf)
+  subroutine reorder_confs(mapdim,imap,conf,nconf)
 
     use constants
     use bitglobal
@@ -902,7 +902,8 @@ contains
     implicit none
 
     ! MO mapping array
-    integer(is), intent(in)    :: imap(nmo)
+    integer(is), intent(in)    :: mapdim
+    integer(is), intent(in)    :: imap(mapdim)
 
     ! Configuration bit strings
     integer(is), intent(in)    :: nconf
@@ -926,7 +927,7 @@ contains
        conf_new=0_ib
 
        ! Loop over MOs
-       do imo=1,nmo
+       do imo=1,mapdim
           
           ! Block index
           k=(imo-1)/n_bits+1

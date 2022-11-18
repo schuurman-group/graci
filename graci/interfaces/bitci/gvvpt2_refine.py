@@ -27,7 +27,7 @@ def refine_ref_space(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # Bitci eigenvector scratch file numbers
-    ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
+    ci_ciunits = np.array(mrci_wfn.ci_units['adiabatic'], dtype=int)
 
     # Bitci Q-space info scratch file numbers
     ci_qunits = np.array(ci_method.qunits, dtype=int)

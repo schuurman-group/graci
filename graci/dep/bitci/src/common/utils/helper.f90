@@ -258,7 +258,7 @@ subroutine retrieve_some_energies(scrnum,nroots,ener,iroots)
   return
   
 end subroutine retrieve_some_energies
-  
+
 !######################################################################
 ! retrieve_filename: given a scratch file number, returns the
 !                    associated filename

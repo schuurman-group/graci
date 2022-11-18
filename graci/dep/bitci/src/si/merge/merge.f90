@@ -174,10 +174,10 @@ contains
 ! ordering
 !----------------------------------------------------------------------
     ! Bra
-    call reorder_confs(cfgB%m2c,confR_B,cfgB%nR)
+    call reorder_confs(nmo,cfgB%m2c,confR_B,cfgB%nR)
     
     ! Ket
-    call reorder_confs(cfgK%m2c,confR_K,cfgK%nR)
+    call reorder_confs(nmo,cfgK%m2c,confR_K,cfgK%nR)
 
 !----------------------------------------------------------------------
 ! Compute the bit string encodings of the union of the bra and ket
@@ -320,12 +320,12 @@ contains
 ! ordering
 !----------------------------------------------------------------------
     ! Bra
-    call reorder_confs(cfgB%m2c,cfgB%confall,cfgB%confdim)
-    call reorder_confs(c2m,cfgB%confall,cfgB%confdim)
+    call reorder_confs(nmo,cfgB%m2c,cfgB%confall,cfgB%confdim)
+    call reorder_confs(nmo,c2m,cfgB%confall,cfgB%confdim)
 
     ! Ket
-    call reorder_confs(cfgK%m2c,cfgK%confall,cfgK%confdim)
-    call reorder_confs(c2m,cfgK%confall,cfgK%confdim)
+    call reorder_confs(nmo,cfgK%m2c,cfgK%confall,cfgK%confdim)
+    call reorder_confs(nmo,c2m,cfgK%confall,cfgK%confdim)
 
 !----------------------------------------------------------------------
 ! Determine the complement of the intersection of the sets of bra and
@@ -890,8 +890,8 @@ contains
 
     ! Re-order to correspond to the new internal-external MO
     ! partitioning
-    call reorder_confs(cfg%m2c,conf,cfg%nR)
-    call reorder_confs(c2m,conf,cfg%nR)
+    call reorder_confs(nmo,cfg%m2c,conf,cfg%nR)
+    call reorder_confs(nmo,c2m,conf,cfg%nR)
 
     ! Write to disk
     write(iscratch) conf(1:n_int_I,:,:)
@@ -909,8 +909,8 @@ contains
     
     ! Re-order to correspond to the new internal-external MO
     ! partitioning
-    call reorder_confs(cfg%m2c,conf,cfg%n1h)
-    call reorder_confs(c2m,conf,cfg%n1h)
+    call reorder_confs(nmo,cfg%m2c,conf,cfg%n1h)
+    call reorder_confs(nmo,c2m,conf,cfg%n1h)
     
     ! Write to disk
     write(iscratch) conf(1:n_int_I,:,:)
@@ -953,8 +953,8 @@ contains
 
     ! Re-order to correspond to the new internal-external MO
     ! partitioning
-    call reorder_confs(cfg%m2c,conf,cfg%n2h)
-    call reorder_confs(c2m,conf,cfg%n2h)
+    call reorder_confs(nmo,cfg%m2c,conf,cfg%n2h)
+    call reorder_confs(nmo,c2m,conf,cfg%n2h)
 
     ! Write to disk
     write(iscratch) conf(1:n_int_I,:,:)

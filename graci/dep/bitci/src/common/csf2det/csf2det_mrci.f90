@@ -459,7 +459,7 @@ contains
        ! Put the SOP into the output MO ordering
        sop=0_ib
        sop(1:n_int_I,:)=cfg%sop0h(:,:,iconf)
-       call reorder_confs(momap,sop,1)
+       call reorder_confs(nmo,momap,sop,1)
 
        ! Determine the singly-occupied MOs
        call sop_socc_list(sop,n_int,socc,nmo,nopen)
@@ -498,7 +498,7 @@ contains
 
        ! Put the SOP into the output MO ordering
        sop=cfg%sop1I(:,:,iconf)
-       call reorder_confs(momap,sop,1)
+       call reorder_confs(nmo,momap,sop,1)
        
        ! Determine the singly-occupied MOs
        call sop_socc_list(sop,n_int,socc,nmo,nopen)
@@ -535,7 +535,7 @@ contains
 
        ! Put the SOP into the output MO ordering
        sop=cfg%sop2I(:,:,iconf)
-       call reorder_confs(momap,sop,1)
+       call reorder_confs(nmo,momap,sop,1)
        
        ! Determine the singly-occupied MOs
        call sop_socc_list(sop,n_int,socc,nmo,nopen)
@@ -572,7 +572,7 @@ contains
 
        ! Put the SOP into the output MO ordering
        sop=cfg%sop1E(:,:,iconf)
-       call reorder_confs(momap,sop,1)
+       call reorder_confs(nmo,momap,sop,1)
        
        ! Determine the singly-occupied MOs
        call sop_socc_list(sop,n_int,socc,nmo,nopen)
@@ -609,7 +609,7 @@ contains
 
        ! Put the SOP into the output MO ordering
        sop=cfg%sop2E(:,:,iconf)
-       call reorder_confs(momap,sop,1)
+       call reorder_confs(nmo,momap,sop,1)
        
        ! Determine the singly-occupied MOs
        call sop_socc_list(sop,n_int,socc,nmo,nopen)
@@ -646,7 +646,7 @@ contains
 
        ! Put the SOP into the output MO ordering
        sop=cfg%sop1I1E(:,:,iconf)
-       call reorder_confs(momap,sop,1)
+       call reorder_confs(nmo,momap,sop,1)
        
        ! Determine the singly-occupied MOs
        call sop_socc_list(sop,n_int,socc,nmo,nopen)

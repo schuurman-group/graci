@@ -11,9 +11,11 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 
 @timing.timed
-def extract_wf(ci_method):
-    """Extraction of the determinant expansions of the 
-    MRCI wave functions for all states"""
+def extract_wf(ci_method, rep='adiabatic'):
+    """
+    Extraction of the determinant expansions of the MRCI wave functions
+    in the representation rep for all states
+    """
 
     # bitci mrci wfn object
     mrci_wfn = ci_method.bitci_mrci()
@@ -22,11 +24,11 @@ def extract_wf(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
     
     # MRCI eigenvector scratch file numbers
-    ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
+    ci_ciunits = np.array(mrci_wfn.ci_units[rep], dtype=int)
 
     # Initialise the determinant bit string and eigenvector arrays
-    ci_method.det_strings = []
-    ci_method.vec_det     = []
+    ci_method.det_strings[rep] = []
+    ci_method.vec_det[rep]     = []
     
     # Loop over irreps
     for irr in range(ci_method.n_irrep()):
@@ -78,7 +80,7 @@ def extract_wf(ci_method):
        
         # Save the determinant bit strings and eigenvectors
         # for this irrep
-        ci_method.det_strings.append(det)
-        ci_method.vec_det.append(vec)
+        ci_method.det_strings[rep].append(det)
+        ci_method.vec_det[rep].append(vec)
         
     return
