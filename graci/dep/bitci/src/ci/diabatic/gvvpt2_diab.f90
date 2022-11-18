@@ -293,12 +293,17 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
        ireg,regfac,diabpot)
 
 !----------------------------------------------------------------------
-! Add in the model states to obtain the diabatic states
+! Add in the model states to obtain the diabatic states and
+! orthonormalise  
 !----------------------------------------------------------------------
+  ! Add in the model states
   do i=1,nrootsR0
      Avec_mod(1:refdim,i)=vec_mod(:,i)
   enddo
 
+  ! Lowdin's symmetric orthonormalisation
+  call symm_ortho(cfg%csfdim,nrootsR0,Avec_mod)
+  
 !----------------------------------------------------------------------
 ! Add E_SCF to the on-diagonal diabatic potential matrix elements
 !----------------------------------------------------------------------
