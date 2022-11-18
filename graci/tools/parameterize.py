@@ -386,6 +386,8 @@ class Parameterize:
         s_thrsh = 0.5
 
         eners  = {}
+
+        # this is hardwired for now, since SCF only run once. 
         smo    = np.identity(ref_ci.nmo, dtype=float)
 
         # iterate over the reference states

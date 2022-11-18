@@ -81,8 +81,8 @@ class Molecule:
 
         # the following are determined based on user
         # input
-        self.charge    = 0
-        self.mult      = 1
+        self.charge    = None 
+        self.mult      = None
         self.asym      = []
         self.crds      = None 
         self.masses    = []
@@ -147,13 +147,19 @@ class Molecule:
         else:
             pt_grp  = self.use_sym
 
+        # set the pyscf spin to self.mult-1, if not None
+        if self.mult is None:
+            spin = None
+        else:
+            spin = self.mult - 1
+
         self.mol_obj = gto.M(
                      dump_input = False,
                      parse_arg  = False,
                      verbose    = logger.NOTE,
                      atom       = mol_str,
                      charge     = self.charge,
-                     spin       = self.mult-1,
+                     spin       = spin,
                      output     = None,
                      cart       = self.ao_cart,
                      basis      = self.basis_obj,

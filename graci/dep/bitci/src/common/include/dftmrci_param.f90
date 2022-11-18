@@ -25,8 +25,8 @@ module hparam
         'heil18_short        ', &
         'cvs_standard        ', &
         'cvs_short           ', &
-        'qtp17_heil17        ', &
-        'cvs_qtp17_heil17    ']
+        'test_heil17        ', &
+        'cvs_test_heil17    ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -152,19 +152,19 @@ module hparam
        0.356986d0]    ! pF^(cv)
  
 !----------------------------------------------------------------------
-! Experimental Hamiltonians using the QTP17 functional. These are the 
+! Experimental Hamiltonians testing new functionals. These are the 
 ! standard Heil17 parameterization and the experimental CVS 
 ! parameterization for K-edge core-excited states
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(4) :: qtp17_heil17= &
+  real(dp), parameter, dimension(4) :: test_heil17= &
        [0.503001d0, & ! pJ
        0.358727d0, &  ! pF
        0.563893d0, &  ! p1
        1.8571d0]      ! p2
 
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(6) :: cvs_qtp17_heil17= &
+  real(dp), parameter, dimension(6) :: cvs_test_heil17= &
        [0.503001d0, & ! pJ^(vv)
        0.358727d0, &  ! pF^(vv)
        0.563893d0, &  ! p1
@@ -303,19 +303,19 @@ contains
        desel=0.8d0
 
     case(12)
-       ! QTP17 standard
+       ! test standard
        ldftmrci=.true.
        nhpar=4
        allocate(hpar(nhpar))
-       hpar=qtp17_heil17
+       hpar=test_heil17
        desel=1.0d0
 
     case(13)
-       ! CVS QTP17, standard
+       ! CVS test, standard
        ldftmrci=.true.
        nhpar=6
        allocate(hpar(nhpar))
-       hpar=cvs_qtp17_heil17
+       hpar=cvs_test_heil17
        desel=1.0d0
 
     case default

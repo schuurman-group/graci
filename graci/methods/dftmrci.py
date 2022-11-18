@@ -48,7 +48,7 @@ class Dftmrci(cimethod.Cimethod):
         self.diag_deflate   = False
 
         # MO energy cutoff: MOs above this value excluded
-        self.mo_cutoff      = 1.
+        self.mo_cutoff      = 1.0
         # No. extra ref space roots needed
         # for various tasks
         self.nextra         = {}
@@ -102,7 +102,7 @@ class Dftmrci(cimethod.Cimethod):
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
-            self.smo = self.scf.mo_overlaps(guess.scf)[:self.nmo,:self.nmo]
+            self.smo = self.scf.mo_overlaps(guess.scf)[:guess.nmo,:self.nmo]
        
         # initialize bitci
         bitci_init.init(self)

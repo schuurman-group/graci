@@ -107,6 +107,7 @@ def overlap_st(bra_obj, ket_obj, bra_st, ket_st, smo, norm_thresh,
 
     for irr in range(nirr):
         pairs = [[bst,kst] for bst in bsym[irr] for kst in ksym[irr]]
+
         if len(pairs) > 0:
             Sij   = overlap(bra_obj, ket_obj, smo, 
                             np.asarray(pairs, dtype=int), 
