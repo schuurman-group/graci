@@ -6,17 +6,19 @@
 #ifdef CBINDING
 subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vecscr,vec0scr,Qscr,dspscr) bind(c,name="gvvpt2_follow")
+     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr) &
+     bind(c,name="gvvpt2_follow")
 #else
 subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vecscr,vec0scr,Qscr,dspscr)
+     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr)
 #endif
 
   use constants
   use bitglobal
   use conftype
   use hii
+  use pt2_common
   use gvvpt2_hamiltonian
   use csf2det
   use mrciutils
@@ -70,6 +72,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Damped strong perturber scratch file number
   integer(is), intent(out) :: dspscr
+
+  ! A-vector scratch file number
+  integer(is), intent(out) :: Ascr
   
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
@@ -117,7 +122,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=250)       :: vecfile,Qfile
+  character(len=250)       :: vecfile,Qfile,Afile
   character(len=2)         :: amult,airrep
   
   ! Everything else
@@ -147,7 +152,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
           //trim(irreplbl(irrep,ipg)),'subspace'
      write(6,'(52a)') ('-',i=1,52)
   endif
-     
+  
 !----------------------------------------------------------------------
 ! For now, we will only support nroots = nrootsR0
 ! i.e., same numbers of roots and roots to follow
@@ -166,7 +171,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   case(2)
      if (verbose) write(6,'(/,x,a)') 'Regularizer: sigma^p'
   case default
-     errmsg='Error in gvvpt2: unrecognized regularizer index'
+     errmsg='Error in gvvpt2_follow: unrecognized regularizer index'
      call error_control
   end select
   
@@ -181,8 +186,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-  ! Total number of roots for which the ENPT2 corrections will be
-  ! calculated
+  ! Dimension of the effective Hamiltonian:
+  ! nvec = no. roots + no. buffer states
   nvec=nroots+nextra
 
   ! Number of reference space CSFs
@@ -244,6 +249,37 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
 
 !----------------------------------------------------------------------
+! Compute the unscaled A-vectors <Psi_I^(0)|H|Omega>
+!----------------------------------------------------------------------
+  call avector(cfg,Avec,averageii,vec0,cfg%csfdim,cfg%confdim,refdim,&
+       nvec)
+
+!----------------------------------------------------------------------
+! Save the A-vectors to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('Avec'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),Afile)
+  call register_scratch_file(Ascr,Afile)
+
+  ! Open the scratch file
+  iscratch=scrunit(Ascr)
+  open(iscratch,file=scrname(Ascr),form='unformatted',&
+       status='unknown')
+
+  ! Dimensions
+  write(iscratch) nvec
+  write(iscratch) cfg%csfdim
+
+  ! All A-vectors
+  write(iscratch) Avec
+  
+  ! Close the scratch file
+  close(iscratch)
+  
+!----------------------------------------------------------------------
 ! Compute the eigenpairs of the GVVPT2 effective Hamiltonian
 ! Also returns the 1st-order perturbed model functions in the Avec
 ! array
@@ -251,14 +287,14 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! H_eff and Psi^(1) calculation
   call gvvpt2_heff(irrep,cfg,hdiag,averageii,cfg%csfdim,cfg%confdim,&
        vec0scr(irrep),Avec,E2,nvec,ireg,regfac,dspscr,EQD,mix,heff)
-
+  
 !----------------------------------------------------------------------
 ! Add in the zeroth-order wave functions
 !----------------------------------------------------------------------
   do i=1,nvec
      Avec(1:refdim,i)=vec0(:,i)
   enddo
-
+  
 !----------------------------------------------------------------------
 ! Compute the 1st-order wave functions
 !----------------------------------------------------------------------

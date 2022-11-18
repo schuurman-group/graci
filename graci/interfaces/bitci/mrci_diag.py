@@ -28,7 +28,8 @@ def diag(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # Bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
+                           dtype=int)
 
     # Initialise the list to hold the eigenvector scratch file
     # numbers

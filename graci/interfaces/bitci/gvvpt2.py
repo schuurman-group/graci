@@ -34,9 +34,10 @@ def diag_heff(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # Bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
+                           dtype=int)
 
-    # Initialise the list to hold the eigenvector and Q-space
+    # Initialise the lists to hold the eigenvector and Q-space
     # scratch file numbers
     ciunit   = 0
     ciunits  = []
@@ -121,16 +122,19 @@ def diag_heff_follow(ci_method, ci_method0):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # Bitci ref space eigenvector scratch file numbers
-    ref_ciunits = np.array(ci_method.ref_wfn.ci_units, dtype=int)
+    ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
+                           dtype=int)
 
-    # Initialise the list to hold the eigenvector and Q-space
-    # scratch file numbers
+    # Initialise the list to hold the eigenvector, Q-space info
+    # DSP, and A-vector scratch file numbers
     ciunit   = 0
     ciunits  = []
     qunit    = 0
     qunits   = []
     dspunit  = 0
     dspunits = []
+    Aunit    = 0
+    Aunits   = []
 
     # MO overlaps
     nmo0 = ci_method0.nmo
@@ -162,27 +166,29 @@ def diag_heff_follow(ci_method, ci_method0):
         nextra = ci_method.nextra['pt2'][irrep]
 
         # R0 determinant bit strings and eigenvectors
-        n_int0 = ci_method0.det_strings[irrep].shape[0]
-        n_det0 = ci_method0.det_strings[irrep].shape[2]
-        n_vec0 = ci_method0.vec_det[irrep].shape[1]
-        dets0  = np.reshape(ci_method0.det_strings[irrep],
+        n_int0 = ci_method0.det_strings['adiabatic'][irrep].shape[0]
+        n_det0 = ci_method0.det_strings['adiabatic'][irrep].shape[2]
+        n_vec0 = ci_method0.vec_det['adiabatic'][irrep].shape[1]
+        dets0  = np.reshape(ci_method0.det_strings['adiabatic'][irrep],
                             (n_int0*2*n_det0), order='F')
-        vec0   = np.reshape(ci_method0.vec_det[irrep],
+        vec0   = np.reshape(ci_method0.vec_det['adiabatic'][irrep],
                             (n_det0*n_vec0), order='F')
         
         args = (irrep, nroots, nextra, ireg, regfac,
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
-                ci_confunits,ciunit, ref_ciunits, qunit,
-                dspunit)
+                ci_confunits, ciunit, ref_ciunits, qunit,
+                dspunit, Aunit)
 
-        ciunit, qunit, dspunit = libs.lib_func('gvvpt2_follow', args)
+        ciunit, qunit, dspunit, Aunit = \
+            libs.lib_func('gvvpt2_follow', args)
 
-        # Bitci eigenvector, Q-space, and intruder state
+        # Bitci eigenvector, Q-space, intruder state, and A-vector
         # scratch numbers
         ciunits.append(ciunit)
         qunits.append(qunit)
         dspunits.append(dspunit)
+        Aunits.append(Aunit)
 
     # Retrieve the DFT/MRCI(2) energies
     maxroots = max(ci_method.n_states_sym())
@@ -214,4 +220,4 @@ def diag_heff_follow(ci_method, ci_method0):
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
             
-    return ciunits, ciname, ener, qunits, dspunits
+    return ciunits, ciname, ener, qunits, dspunits, Aunits

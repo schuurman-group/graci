@@ -25,7 +25,7 @@ def truncate_wf(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
 
     # bitci MRCI eigenvector scratch file numbers
-    ciunits = mrci_wfn.ci_units
+    ciunits = mrci_wfn.ci_units['adiabatic']
     
     for irrep in range(ci_method.n_irrep()):
         thresh       = ci_method.truncate_thresh

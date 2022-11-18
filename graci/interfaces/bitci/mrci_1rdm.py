@@ -24,7 +24,7 @@ def rdm(ci_method):
     ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
     
     # MRCI eigenvector scratch file numbers
-    ci_ciunits = np.array(mrci_wfn.ci_units, dtype=int)
+    ci_ciunits = np.array(mrci_wfn.ci_units['adiabatic'], dtype=int)
     
     # 1-RDMs for all irreps
     dmat_all = []
