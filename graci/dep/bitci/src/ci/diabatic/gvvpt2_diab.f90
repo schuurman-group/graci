@@ -16,7 +16,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   use bitglobal
   use conftype
   use hii
-  use protodiab
+  use model_states
   use heff_diabatic
   use utils
   use iomod
@@ -279,8 +279,10 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 ! Transform the A-vectors to the model state representation
 !----------------------------------------------------------------------
   allocate(Avec_mod(cfg%csfdim,nrootsR0))
-  Avec_mod=matmul(Avec,ref2mod)
 
+  call dgemm('N','N',cfg%csfdim,nrootsR0,nvec,1.0d0,Avec,cfg%csfdim,&
+       ref2mod,nvec,0.0d0,Avec_mod,cfg%csfdim)
+  
 !----------------------------------------------------------------------
 ! Calculate the diabatic potential matrix
 !----------------------------------------------------------------------

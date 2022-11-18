@@ -1,7 +1,7 @@
 !**********************************************************************
-! Routines for the calculation of prototype diabatic and related states
+! Routines for the calculation of quasi-diabatic model states
 !**********************************************************************
-module protodiab
+module model_states
 
   implicit none
 
@@ -211,10 +211,9 @@ contains
 !----------------------------------------------------------------------
 ! Prototype diabatic states in the ref space CSF basis
 !----------------------------------------------------------------------
-    vec_pds(1:refdim,1:nrootsR0)=matmul(&
-         vec0(1:refdim,1:nvec),&
-         pdscoe(1:nvec,1:nrootsR0))
-
+    call dgemm('N','N',refdim,nrootsR0,nvec,1.0d0,vec0,refdim,&
+         pdscoe,nvec,0.0d0,vec_pds,refdim)
+    
     return
     
   end subroutine get_pds_basis
@@ -292,7 +291,7 @@ contains
     ! Projector, P, onto the space spanned by the prototype diabatic
     ! states
     Pmat=matmul(vec_pds,transpose(vec_pds))
-
+    
     ! Q = 1 - P
     Qmat=-Pmat
     do i=1,refdim
@@ -501,4 +500,4 @@ contains
     
 !######################################################################
   
-end module protodiab
+end module model_states
