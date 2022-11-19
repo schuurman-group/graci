@@ -450,8 +450,8 @@ def render_dict(chkpt, name, obj, grp_name, l_suffix, lvl=0):
     # if this is a dictionary, check if any
     # values are numpy arrays or class objects:
     # things that we don't want to store as attributes
-    obj_write = obj.copy()
-    for key,value in obj_write.items():
+    obj_write = {} 
+    for key,value in obj.items():
         lname = str(name)+'.'+str(lvl)+'.'+str(key)
         if isinstance(value, comp_objs):
             dset_name = link_name(value, suffix=l_suffix)
@@ -472,6 +472,8 @@ def render_dict(chkpt, name, obj, grp_name, l_suffix, lvl=0):
             dset_name = link_name(value, suffix=lname)
             write_dataset(chkpt, grp_name+'/'+dset_name, value)
             obj_write[key] = dset_name
+        else:
+            obj_write[key] = value
 
     return obj_write
 

@@ -315,7 +315,8 @@ class Parameterize:
         mo_ints   = ao2mo.Ao2mo()
 
         for i in range(len(ci_objs)):
-        
+            #print('ci_objs='+str(ci_objs[i].label),flush=True)       
+ 
             if curr_dir != scf_dirs[i]:
 
                 # change to the appropriate sub-directory
@@ -345,15 +346,18 @@ class Parameterize:
                 if ci_objs[i].hamiltonian == self.hamiltonian:
                     ci_objs[i].update_hparam(np.asarray(hparams))
                 ci_objs[i].run(scf_objs[scf_name[i]], None)
+                #print('mol='+str(ci_objs[i].label)+' run done.',flush=True)
 
                 # use overlap with ref states to identify relevant states
                 roots_found, eners = self.identify_states(molecule, 
                                    ref_state[i], ci_refs[i], ci_objs[i])
 
+                #print('roots_found='+str(roots_found),flush=True)
                 if not roots_found:
                     ci_objs[i].nstates += add_states
                     i_add              += 1
             
+            #print('mol='+str(molecule)+' eners='+str(eners),flush=True)
             # if all roots found, update the energy directory 
             if roots_found:       
                 energies[molecule].update(eners) 
