@@ -482,11 +482,11 @@ def retrieve_dict(chkpt, grp_name, dict_obj, build_subobj, make_mol):
 
         # check if this is a nested list call recursively
         if isinstance(value, list):
-            dict_obj[indx] = retrieve_list(chkpt, grp_name, value, 
+            dict_obj[key] = retrieve_list(chkpt, grp_name, value, 
                                            build_subobj, make_mol)
 
         elif isinstance(value, dict):
-            dict_obj[indx] = retrieve_dict(chkpt, grp_name, value,
+            dict_obj[key] = retrieve_dict(chkpt, grp_name, value,
                                            build_subobj, make_mol)
 
         else:
@@ -497,9 +497,9 @@ def retrieve_dict(chkpt, grp_name, dict_obj, build_subobj, make_mol):
                            build_subobj = build_subobj,
                            make_mol = make_mol,
                            file_handle = chkpt)
-                    dict_obj[indx] = obj
+                    dict_obj[key] = obj
                 else:
-                    dict_obj[indx] = np.array(chkpt[sub_name])
+                    dict_obj[key] = np.array(chkpt[sub_name])
 
     return dict_obj
 
