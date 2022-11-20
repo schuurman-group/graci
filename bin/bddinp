@@ -9,7 +9,7 @@ Currently assumes that density fitting will be used
 
 Usage: 
 
-bddinp -xyz_file 'geom_file.xyz' -nstates '[n1 n2 n3 n4]' -basis 'basis_name (-ri_basis 'auxbasis_name')'
+bddinp -xyz_file 'geom_file.xyz' -nstates '[n1 n2 n3 n4]' -basis 'basis_name (-ri_basis 'auxbasis_name' -adt_type 'algorithm')'
 
 """
 
@@ -59,8 +59,15 @@ def read_args():
         ri_basis = args[1+args.index('-ri_basis')]
     except:
         ri_basis = None
+
+    # ADT algorithm (optional)
+    # BDD by default
+    try:
+        adt_type = args[1+args.index('-adt_type')]
+    except:
+        adt_type = 'bdd'
         
-    return xyz_file, nstates, basis, ri_basis
+    return xyz_file, nstates, basis, ri_basis, adt_type
 
 
 def parse_xyz_file(xyz_file):
@@ -91,7 +98,7 @@ def parse_xyz_file(xyz_file):
     return geom_objs
 
 
-def write_input(geom_objs, nstates, basis, ri_basis, stem=None):
+def write_input(geom_objs, nstates, basis, ri_basis, adt_type, stem=None):
     """
     writes the GRaCI DFT/MRCI(2) P-BDD input file
     """
@@ -110,20 +117,20 @@ def write_input(geom_objs, nstates, basis, ri_basis, stem=None):
         label_stem = 'geom'
         
     # reference geometry
-    write_1geom(geom_objs[0], symm, nstates, basis, ri_basis,
+    write_1geom(geom_objs[0], symm, nstates, basis, ri_basis, adt_type,
                 label=label_stem+'0', diab=False)
     
     # displaced geometries
     for i in range(1, len(geom_objs)):
-        write_1geom(geom_objs[i], symm, nstates, basis, ri_basis,
+        write_1geom(geom_objs[i], symm, nstates, basis, ri_basis, adt_type,
                     label=label_stem+str(i),
                     prev_label=label_stem+str(i-1))
     
     return
 
 
-def write_1geom(geom_obj, symm, nstates, basis, ri_basis, label,
-                prev_label=None, diab=True):
+def write_1geom(geom_obj, symm, nstates, basis, ri_basis, adt_type,
+                label, prev_label=None, diab=True):
     """
     writes a set of input sections for a single geometry
     """
@@ -159,6 +166,7 @@ def write_1geom(geom_obj, symm, nstates, basis, ri_basis, label,
     print(' nstates     = '+nstates)
     if diab:
         print(' diabatic    = True')
+        print(' adt_type    = '+adt_type)
     else:
         print(' save_wf     = True')
     print('$end')
@@ -168,11 +176,11 @@ def write_1geom(geom_obj, symm, nstates, basis, ri_basis, label,
 if __name__ == '__main__':
 
     # parse the command line arguments
-    xyz_file, nstates, basis, ri_basis = read_args()
+    xyz_file, nstates, basis, ri_basis, adt_type = read_args()
 
     # set up the Geometry class objects
     geom_objs = parse_xyz_file(xyz_file)
 
     # write the GRaCI input file
     stem = xyz_file[:xyz_file.index('.xyz')]
-    write_input(geom_objs, nstates, basis, ri_basis, stem=stem)
+    write_input(geom_objs, nstates, basis, ri_basis, adt_type, stem=stem)
