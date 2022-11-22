@@ -28,7 +28,7 @@ contains
     real(dp), intent(in)    :: hdiag(csfdim)
 
     ! A-vectors
-    real(dp), intent(in)    :: Avec(csfdim,nroots)
+    real(dp), intent(inout) :: Avec(csfdim,nroots)
 
     ! Zeroth- plus first-order effecive Hamiltonian
     real(dp), intent(in)    :: H01(nroots,nroots)
@@ -58,20 +58,23 @@ contains
     H0=0.0d0
 
 !----------------------------------------------------------------------
-! Zeroth-order effective Hamiltonian elements
+! Effective Hamiltonian
 !----------------------------------------------------------------------
+    !
+    ! Zeroth-order Hamiltonian elements
+    !
     do i=1,nroots
        H0(i)=H01(i,i)
     enddo
 
-!----------------------------------------------------------------------
-! Zeroth- and first-order contributions
-!----------------------------------------------------------------------
+    !
+    ! Zeroth- and first-order contributions
+    !
     Heff=H01
 
-!----------------------------------------------------------------------
-! Second-order contributions
-!----------------------------------------------------------------------
+    !
+    ! Second-order contributions
+    !
     ! Loop over pairs of roots
     do i=1,nroots
        do j=i,nroots
@@ -106,6 +109,37 @@ contains
        enddo
     enddo
 
+!----------------------------------------------------------------------
+! First-order perturbed model states (quasi-diabatic states)
+!----------------------------------------------------------------------
+    ! Loop over roots
+    do j=1,nroots
+
+       ! Loop over CSFs (excluding the reference space ones)
+       do icsf=refdim+1,csfdim
+
+          ! E^(0) - H_ii
+          deltai=H0(j)-hdiag(icsf)
+
+          ! <I|H|i>
+          Vi=Avec(icsf,j)
+
+          ! Regularized denominators
+          if (ireg == 1) then
+             ! ISA
+             fi=deltai/(deltai**2+regfac)
+          else if (ireg == 2) then
+             ! sigma^p
+             fi=(1.0d0-exp(-abs(deltai/regfac)**2))/deltai
+          endif
+
+          ! First-order perturbed model state coefficient
+          Avec(icsf,j)=Vi*fi
+          
+       enddo
+       
+    enddo
+    
     return
     
   end subroutine heff_diab
