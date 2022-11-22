@@ -128,13 +128,16 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
-! To do: this should be called for one root at a time in order to move
-!        through the vec arrays in a contiguous manner
-!----------------------------------------------------------------------
-  call set_new_vecs(cfg,cfg_new,cfg%csfdim,cfg_new%csfdim,nroots,&
-       cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,i1I,i2I,i1E,i2E,&
-       i1I1E,vec,vec_new)
+  ! Loop over states
+  do i=1,nroots
 
+     ! Fil in the surviving CSFs for this state 
+     call set_new_vecs(cfg,cfg_new,cfg%csfdim,cfg_new%csfdim,&
+          cfg%n1I,cfg%n2I,cfg%n1E,cfg%n2E,cfg%n1I1E,i1I,i2I,i1E,i2E,&
+          i1I1E,vec(:,i),vec_new(:,i))
+
+  enddo
+  
 !----------------------------------------------------------------------
 ! Orthonormalise the truncated wave functions
 !----------------------------------------------------------------------
@@ -175,10 +178,10 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
 end subroutine truncate_mrci_wf
 
 !######################################################################
-! set_new_vecs: given lists of surviving configurations, truncates and
-!               the MRCI wave functions
+! set_new_vecs: given lists of surviving configurations, truncates a
+!               single MRCI wave function
 !######################################################################
-subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
+subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,&
      n1I_old,n2I_old,n1E_old,n2E_old,n1I1E_old,i1I,i2I,i1E,i2E,i1I1E,&
      vec_old,vec_new)
 
@@ -192,7 +195,7 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
   type(mrcfg), intent(in) :: cfg_old,cfg_new
 
   ! Dimensions
-  integer(is), intent(in) :: csfdim_old,csfdim_new,nroots
+  integer(is), intent(in) :: csfdim_old,csfdim_new
   integer(is), intent(in) :: n1I_old,n2I_old,n1E_old,n2E_old,n1I1E_old
   
   ! Surviving configuration flags
@@ -200,8 +203,8 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
        i2E(n2E_old),i1I1E(n1I1E_old)
 
   ! CSF coefficients
-  real(dp), intent(in)    :: vec_old(csfdim_old,nroots)
-  real(dp), intent(out)   :: vec_new(csfdim_new,nroots)
+  real(dp), intent(in)    :: vec_old(csfdim_old)
+  real(dp), intent(out)   :: vec_new(csfdim_new)
 
   ! Everything else
   integer(is)             :: n,icsf,ioff
@@ -228,7 +231,7 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
         inew=inew+1
         
         ! New coefficients
-        vec_new(inew,:)=vec_old(iold,:)
+        vec_new(inew)=vec_old(iold)
         
      enddo
      
@@ -251,7 +254,7 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
               do icsf=cfg_old%csfs1I(ioff),cfg_old%csfs1I(ioff+1)-1
                  iold=iold+1
                  inew=inew+1
-                 vec_new(inew,:)=vec_old(iold,:)
+                 vec_new(inew)=vec_old(iold)
               enddo
            else
               ! Removed conf
@@ -281,7 +284,7 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
               do icsf=cfg_old%csfs2I(ioff),cfg_old%csfs2I(ioff+1)-1
                  iold=iold+1
                  inew=inew+1
-                 vec_new(inew,:)=vec_old(iold,:)
+                 vec_new(inew)=vec_old(iold)
               enddo
            else
               ! Removed conf
@@ -311,7 +314,7 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
               do icsf=cfg_old%csfs1E(ioff),cfg_old%csfs1E(ioff+1)-1
                  iold=iold+1
                  inew=inew+1
-                 vec_new(inew,:)=vec_old(iold,:)
+                 vec_new(inew)=vec_old(iold)
               enddo
            else
               ! Removed conf
@@ -341,7 +344,7 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
               do icsf=cfg_old%csfs2E(ioff),cfg_old%csfs2E(ioff+1)-1
                  iold=iold+1
                  inew=inew+1
-                 vec_new(inew,:)=vec_old(iold,:)
+                 vec_new(inew)=vec_old(iold)
               enddo
            else
               ! Removed conf
@@ -371,7 +374,7 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,nroots,&
               do icsf=cfg_old%csfs1I1E(ioff),cfg_old%csfs1I1E(ioff+1)-1
                  iold=iold+1
                  inew=inew+1
-                 vec_new(inew,:)=vec_old(iold,:)
+                 vec_new(inew)=vec_old(iold)
               enddo
            else
               ! Removed conf

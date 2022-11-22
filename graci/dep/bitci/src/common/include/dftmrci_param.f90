@@ -25,8 +25,8 @@ module hparam
         'heil18_short        ', &
         'cvs_standard        ', &
         'cvs_short           ', &
-        'test_heil17        ', &
-        'cvs_test_heil17    ']
+        'test_heil17         ', &
+        'cvs_test_heil17     ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
