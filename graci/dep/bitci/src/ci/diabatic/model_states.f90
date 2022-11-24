@@ -356,40 +356,42 @@ contains
     implicit none
 
     ! Dimensions
-    integer(is), intent(in) :: nvec,nrootsR0,ncomp
-    integer(is), intent(in) :: refdim
+    integer(is), intent(in)  :: nvec,nrootsR0,ncomp
+    integer(is), intent(in)  :: refdim
 
     ! Reference space eigenpairs
-    real(dp), intent(in)    :: E0(nvec)
-    real(dp), intent(in)    :: vec0(refdim,nvec)
+    real(dp), intent(in)     :: E0(nvec)
+    real(dp), intent(in)     :: vec0(refdim,nvec)
     
     ! Prototype diabatic states
-    real(dp), intent(in)    :: vec_pds(refdim,nrootsR0)
+    real(dp), intent(in)     :: vec_pds(refdim,nrootsR0)
 
     ! Complement states
-    real(dp), intent(in)    :: vec_comp(refdim,ncomp)
+    real(dp), intent(in)     :: vec_comp(refdim,ncomp)
 
     ! Model space states
-    real(dp), intent(out)   :: vec_mod(refdim,nrootsR0)
+    real(dp), intent(out)    :: vec_mod(refdim,nrootsR0)
 
     ! Ref-state-to-model-state transformation
-    real(dp), intent(out)   :: ref2mod(nvec,nrootsR0)
+    real(dp), intent(out)    :: ref2mod(nvec,nrootsR0)
     
     ! Transformation matrices
-    real(dp), allocatable   :: ref2pds(:,:)
-    real(dp), allocatable   :: ref2comp(:,:)
-    real(dp), allocatable   :: ref2tot(:,:)
+    real(dp), allocatable    :: ref2pds(:,:)
+    real(dp), allocatable    :: ref2comp(:,:)
+    real(dp), allocatable    :: ref2tot(:,:)
 
     ! Hamiltonian matrix
-    real(dp), allocatable   :: H0(:,:),Htot(:,:)
+    real(dp), allocatable    :: H0(:,:),Htot(:,:)
 
     ! Block diagonalisation transformation
-    real(dp), allocatable   :: eigval(:),V(:,:),VBDD(:,:)
-    real(dp), allocatable   :: X(:,:),Y(:,:),invsqrtY(:,:),T(:,:)
-    real(dp), allocatable   :: vec_tot(:,:)
-    
+    integer(is), allocatable :: indx(:)
+    real(dp), allocatable    :: norm_pds(:),Vtmp(:,:)
+    real(dp), allocatable    :: eigval(:),V(:,:),VBDD(:,:)
+    real(dp), allocatable    :: X(:,:),Y(:,:),invsqrtY(:,:),T(:,:)
+    real(dp), allocatable    :: vec_tot(:,:)    
+        
     ! Everything else
-    integer(is)             :: i,j
+    integer(is)              :: i,j
     
 !----------------------------------------------------------------------
 ! Set up the transformations from the ref state to prototype diabatic
@@ -429,13 +431,37 @@ contains
     Htot=matmul(transpose(ref2tot),Htot)
 
 !----------------------------------------------------------------------
-! Eigenvectors of the  Hamiltonian matrix in the PDS U COMP basis
+! Eigenvectors of the Hamiltonian matrix in the PDS U COMP basis
 !----------------------------------------------------------------------
     allocate(eigval(nvec))
     allocate(V(nvec,nvec))
 
     call diag_matrix_real(Htot,eigval,V,nvec)
 
+!----------------------------------------------------------------------
+! Re-order the eigenvectors s.t. the ones with maximum projection
+! onto the PDS space come first
+!----------------------------------------------------------------------
+    allocate(indx(nvec))
+    allocate(norm_pds(nvec))
+    allocate(Vtmp(nvec,nvec))
+    
+    ! Norms of the eigenvectors projected onto the PDS space
+    do i=1,nvec
+       norm_pds(i)=sqrt(dot_product(V(1:nrootsR0,i),V(1:nrootsR0,i)))
+    enddo
+
+    ! Sort the eigenvectors by the norm of their projection onto
+    ! the PDS space
+    call dsortindxa1('D',nvec,norm_pds,indx)
+    
+    ! Rearrange the eigenvectors
+    do i=1,nvec
+       Vtmp(:,i)=V(:,indx(i))
+    enddo
+    
+    V=Vtmp
+    
 !----------------------------------------------------------------------
 ! Block diagonalisation transformation T satisfying ||T-1|| = min,
 !
