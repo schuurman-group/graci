@@ -859,6 +859,46 @@ def print_param_iter(cur_iter, params, error):
 
     return
 
+def print_param_scan_head(h0, lb, ub, ngrid):
+    """
+    print the head for the parameter scan
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+
+        outfile.write('\n Beginning scan run...\n\n')
+ 
+        fmt = '\n  {:>15s} {:>15s} {:>15s} {:>15s}'
+        outfile.write(fmt.format('H[param]','param[min]','param[max]','ngrid'))
+        outfile.write(fmt.format(*[''.join(['-']*15)]*4))
+        outfile.write('\n')
+
+        fmt2 = '\n  {:>15.8f} {:>15.8f} {:>15.8f} {:>15.8f}'
+        for i in range(len(h0)):
+            outfile.write(fmt2.format(h0[i], lb[i], ub[i], ngrid[i]))
+        outfile.write('\n')
+        outfile.flush()
+
+    return
+
+def print_param_scan_iter(hval, step, err):
+    """
+    print scan line
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+
+        fmt  = '\n '
+        fmt += ' hvals= ' + ''.join([' {:>15.8f}']*len(hval))
+        fmt += ' step= ' + ''.join([' {:4d}']*len(hval))
+        fmt += ' err= {:>15.8f}'
+
+        args = hval+step+[err]
+        outfile.write(fmt.format(*args)) 
+        outfile.flush()
+
+    return
+
 #
 def print_param_results(p_final, res, target, init_ener, final_ener):
     """

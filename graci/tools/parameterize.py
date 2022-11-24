@@ -29,6 +29,7 @@ class Parameterize:
         self.algorithm      = 'Nelder-Mead'
         self.label          = 'default'
 
+        self.jobtype        = 'opt'
         self.hamiltonian    = 'heil17_standard'
         self.init_params    = None
         self.graci_ref_file = ''
@@ -37,6 +38,7 @@ class Parameterize:
         self.verbose        = False 
         self.max_iter       = 1000
         self.bounds         = None
+        self.ngrid          = None
         self.freeze         = []
 
         # -------------------------------
@@ -81,11 +83,13 @@ class Parameterize:
         # reparam procedure
         self.logfile = output.file_names['out_file']
 
-        # optimize parameters using scipy routines
-        self.iiter      = 1
-        self.p_n        = self.extract_opt_param(self.p0)
+        if self.jobtype == 'opt':
 
-        res = sp_opt.minimize(self.err_func, self.p_n, 
+            # optimize parameters using scipy routines
+            self.iiter      = 1
+            self.p_n        = self.extract_opt_param(self.p0)
+
+            res = sp_opt.minimize(self.err_func, self.p_n, 
                               args = (target_data, ref_states, 
                                       scf_dirs, scf_objs, ci_objs),
                               bounds = hbounds,
@@ -93,13 +97,17 @@ class Parameterize:
                               tol = self.pthresh,
                               callback = self.status_func)
 
-        p_final = self.to_full_param_set(res.x)
-        # one final eval_energy call with the converged params
-        ener_final = self.evaluate_energies(p_final, ref_states, scf_dirs,
+            p_final = self.to_full_param_set(res.x)
+            # one final eval_energy call with the converged params
+            ener_final = self.evaluate_energies(p_final, ref_states, scf_dirs,
                                                       scf_objs, ci_objs)
 
-        output.print_param_results(p_final, res, target_data, ener_init,
+            output.print_param_results(p_final, res, target_data, ener_init,
                                                              ener_final)
+        elif self.jobtype == 'scan':
+            args = (target_data, ref_states,
+                    scf_dirs, scf_objs, ci_objs)
+            self.scan(self.p0, hbounds, self.ngrid, args)
 
         return
 
@@ -124,11 +132,12 @@ class Parameterize:
                                              ' not found. Exiting'
             self.hard_exit(msg)
 
+        npar = 0
+        args = (self.hamiltonian, npar)
+        npar = libs.lib_func('retrieve_nhpar', args)
         nfrz = len(self.freeze)
+
         if self.bounds is not None:
-            npar = 0
-            args = (self.hamiltonian, npar)
-            npar = libs.lib_func('retrieve_nhpar', args)
 
             if self.bounds.shape[0]+nfrz  != npar:
                 msg = 'Length of bounds array != number of H parameters'
@@ -148,6 +157,14 @@ class Parameterize:
                                    ub=self.bounds[:,1])
         else:
             bounds = None
+
+        if self.jobtype not in ['opt', 'scan']:
+            msg = 'jobtype: '+str(self.jobtype)+' not recognized.'
+            self.hard_exit(msg)
+
+        if self.jobtype == 'scan' and self.ngrid is None: 
+            msg = 'jobtype=scan, ngrid='+str(self.ngrid)+', error'
+            self.hard_exit(msg)
 
         return bounds
 
@@ -230,6 +247,53 @@ class Parameterize:
         if self.iiter >= self.max_iter:
             msg = 'Max. number of iterations completed.'
             self.hard_exit(msg) 
+
+        return
+
+    @timing.timed
+    def scan(self, h0, bounds, ngrid, args):
+        """
+        scan the parameter values 
+        """
+
+        nh   = len(h0)
+        for i in range(nh):
+            if ngrid[i] == 1:
+                bounds.ub[i] = h0[i]
+                bounds.lb[i] = h0[i]
+
+        delta = [(bounds.ub[i]-bounds.lb[i]) / (ngrid[i]-1)
+                  if ngrid[i] > 1 else 0. for i in range(nh)]
+        print('delta='+str(delta),flush=True)
+
+        output.print_param_scan_head(h0, bounds.lb, bounds.ub, ngrid)
+        
+        hscan = [bounds.lb[i] if delta[i] > 0. else h0[i] 
+                  for i in range(nh)]
+
+        step  = [0]*nh
+        step[-1] = -1
+
+        done = False
+        while not done:
+
+            param = nh-1
+            while step[param] == (ngrid[param]-1):
+                step[param] = 0
+                param      -= 1
+                if param < 0:
+                    done = True
+                    break
+
+            if done:
+                break
+
+            step[param] += 1
+            hscan = [bounds.lb[i] + step[i]*delta[i] for i in range(nh)]
+
+            err = self.err_func(hscan, args[0], args[1], args[2], 
+                                                args[3], args[4])
+            output.print_param_scan_iter(hscan, step, err)
 
         return
 

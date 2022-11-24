@@ -80,6 +80,11 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   integer(is)                :: ntotal(0:nirrep-1)
 
 
+  !! TEST
+  ldftmrci=.false.
+  !! TEST
+  
+  
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -374,6 +379,12 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Flush stdout
 !----------------------------------------------------------------------
   flush(6)
+
+
+  !! TEST
+  ldftmrci=.true.
+  !! TEST
+
   
   return
 

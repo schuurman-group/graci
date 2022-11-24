@@ -260,7 +260,7 @@ contains
        nhpar=4
        allocate(hpar(nhpar))
        hpar=heil17_standard
-       desel=1.0d0
+       desel=1.5d0
        
     case(7)
        ! Heil17, short

@@ -148,11 +148,13 @@ dyson_kword     = {'init_states'       : int,
 
 # used to parameterize new Hamiltonians
 parameterize_kword = {'algorithm'      : str,
+                      'jobtype'        : str,
                       'target_file'    : str,
                       'graci_ref_file' : str,
                       'init_params'    : float,
                       'bounds'         : float,
                       'verbose'        : bool,
+                      'ngrid'          : int,
                       'freeze'         : int,
                       'hamiltonian'    : str,
                       'label'          : str}

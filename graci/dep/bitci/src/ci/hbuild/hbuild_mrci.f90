@@ -315,8 +315,10 @@ contains
 !----------------------------------------------------------------------
 ! DFT/MRCI corrections
 !----------------------------------------------------------------------
-    if (ldftmrci) call hij_dftmrci_batch(harr(1:bnsp*knsp),bnsp,&
-         knsp,bavii,kavii)
+    !! TEST
+    !if (ldftmrci) call hij_dftmrci_batch(harr(1:bnsp*knsp),bnsp,&
+    !     knsp,bavii,kavii)
+    !! TEST
 
     return
     

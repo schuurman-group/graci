@@ -48,7 +48,7 @@ class Dftmrci(cimethod.Cimethod):
         self.diag_deflate   = False
 
         # MO energy cutoff: MOs above this value excluded
-        self.mo_cutoff      = 1.0
+        self.mo_cutoff      = 1.5
         # No. extra ref space roots needed
         # for various tasks
         self.nextra         = {}
