@@ -61,7 +61,7 @@ class Dftmrci2(cimethod.Cimethod):
 
         # class variables
         # MO energy cutoff: MOs above this value excluded
-        self.mo_cutoff       = 1.5
+        self.mo_cutoff           = 1.0
         # allowed regularizers
         self.allowed_regularizer = ['isa', 'sigmap']
         # allowed ref conf selection algorithms

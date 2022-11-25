@@ -80,7 +80,7 @@ module bitglobal
   !
   ! Frozen virtual MO energy threshold
   !
-  real(dp), parameter :: efreeze=1.5d0
+  real(dp), parameter :: efreeze=1.0d0
   
   !
   ! Base determinant and configuration
