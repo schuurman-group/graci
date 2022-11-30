@@ -192,6 +192,10 @@ class Parameterize:
                                         or pinit.shape[0] != npar):
                 msg = 'Cannot use '+str(pinit)+' as initial param set'
                 self.hard_exit(msg)
+            # for now, going to set pref = pinit, if user supplies
+            # pinit, else, the "reference" calculations don't 
+            # correspond to the pinit set
+            pref = pinit.copy()
 
         return pref, pinit
 
@@ -409,6 +413,7 @@ class Parameterize:
                 # is employing the Hamiltonian we're optimizing
                 if ci_objs[i].hamiltonian == self.hamiltonian:
                     ci_objs[i].update_hparam(np.asarray(hparams))
+
                 ci_objs[i].run(scf_objs[scf_name[i]], None)
                 #print('mol='+str(ci_objs[i].label)+' run done.',flush=True)
 
@@ -557,32 +562,39 @@ class Parameterize:
 
                 # name of section is 'original.name.molecule'
                 m_name = name.strip().split('.')[-1]
-                if molecule == m_name and is_ci and st_map is not None:
+                if (molecule == m_name and is_ci 
+                                           and isinstance(dict,st_map)):
 
-                    # ensure the state_map array is consistent with the 
-                    # number of states in the CI object.
-                    n_st     = chkpt.read_dataset(ref_file, 
+                    # check if any of the required state labels are
+                    # in this CI object
+                    if any([tlbl in st_map.keys() 
+                                             for tlbl in target_lbls]):
+
+                        # ensure the state_map array is consistent
+                        # with the number of states in the CI object.
+                        n_st     = chkpt.read_dataset(ref_file, 
                                               name+'/NUMPY.nstates')
-                    n_st_ref = max([int(s) for s in st_map.values()])+1     
-                    n_st_tot = np.sum(n_st)
-                    if n_st_ref > n_st_tot:
-                        msg = 'Insufficient # of states, molecule = ' +\
-                              str(molecule)+': max(state_map)=' + \
-                              str(n_st_ref) + ' > sum(nstates)=' + \
-                              str(n_st_tot)
-                        self.hard_exit(msg)
+                        n_st_ref = max([int(s) 
+                                          for s in st_map.values()])+1     
+                        n_st_tot = np.sum(n_st)
+                        if n_st_ref > n_st_tot:
+                            msg = 'Insufficient # of states -- ' +     \
+                                  'molecule = ' +str(molecule)+':' +   \
+                                  ' max(state_map)=' + str(n_st_ref) + \
+                                  ' > sum(nstates)=' + str(n_st_tot)
+                            self.hard_exit(msg)
 
-                    ci_objs[molecule].append(name)
-                    ref_states[molecule].append(st_map)
-                    states_found.extend(list(st_map.keys()))
-                    states_found.sort()
-
-                    # get the name of corresponding scf object
-                    scf_link = chkpt.read_attribute(ref_file, name, 
-                                                             'scf')
-                    is_scf, scf_name = chkpt.data_name('', scf_link)
-                    if is_scf:
-                        scf_objs[molecule].append(scf_name)
+                        ci_objs[molecule].append(name)
+                        ref_states[molecule].append(st_map)
+                        states_found.extend(list(st_map.keys()))
+                        states_found.sort()
+    
+                        # get the name of corresponding scf object
+                        scf_link = chkpt.read_attribute(ref_file, name, 
+                                                                 'scf')
+                        is_scf, scf_name = chkpt.data_name('', scf_link)
+                        if is_scf:
+                            scf_objs[molecule].append(scf_name)
 
             if target_lbls != states_found:
                 msg = 'ERROR - molecule: ' + str(molecule) + ' -- ' +\

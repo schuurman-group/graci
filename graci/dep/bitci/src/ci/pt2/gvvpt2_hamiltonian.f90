@@ -288,8 +288,8 @@ contains
                .and. abs(Avec(icsf,j)) < cthrsh) idsp(icsf)=1
 
           !! TEST
-          if (j == 2 .and. abs(Vi**2*fi) > wthrsh) &
-               write(iscratch,'(2(x,ES11.4))') Vi**2*fi,abs(deltai)
+          !if (j == 2 .and. abs(Vi**2*fi) > wthrsh) &
+          !     write(iscratch,'(2(x,ES11.4))') Vi**2*fi,abs(deltai)
           !! TEST
 
        enddo
