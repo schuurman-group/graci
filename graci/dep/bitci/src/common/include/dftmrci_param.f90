@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=13
+  integer(is), parameter :: nham=14
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -26,7 +26,8 @@ module hparam
         'cvs_standard        ', &
         'cvs_short           ', &
         'test_heil17         ', &
-        'cvs_test_heil17     ']
+        'cvs_test_heil17     ', &
+        'test_exp            ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -172,6 +173,21 @@ module hparam
        0.503001d0, &  ! pJ^(cv)
        0.358727d0]    ! pF^(cv)
 
+!----------------------------------------------------------------------
+! Experimental Hamiltonian:
+!
+! On-diagonal corrections: taken from Heil17
+!
+! Off-diagonal corrections: damped by p1*exp(-p2*DeltaE^p3)
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(5) :: test_exp= &
+       [0.508918d0, & ! pJ
+       0.362362d0, &  ! pF
+       0.558411d0, &  ! p1
+       3.0d0, &       ! p2
+       12.0d0]        ! p3
+       
 contains
 
 !######################################################################
@@ -318,6 +334,14 @@ contains
        hpar=cvs_test_heil17
        desel=1.0d0
 
+    case(14)
+       ! Exp. test
+       ldftmrci=.true.
+       nhpar=5
+       allocate(hpar(nhpar))
+       hpar=test_exp
+       desel=1.0d0
+       
     case default
        ! Unrecognised Hamiltonian
        write(errmsg,'(a,x,i0)') &

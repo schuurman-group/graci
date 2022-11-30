@@ -57,7 +57,7 @@ contains
        call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(6:9,12)
+    case(6:9,12,14)
        ! Heil's parameterisations
        call hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
@@ -114,8 +114,11 @@ contains
     case(8:9)
        ! Heil's 2018 parameterisation
        damp=damping_heil18(bav,kav)
-       
 
+    case(14)
+       ! Experimental exponential damping function
+       damp=damping_exp_test(bav,kav)
+       
     case default
        errmsg='Your Hamiltonian choice has not been implemented yet'
        call error_control
@@ -171,7 +174,7 @@ contains
        ! Grimme's parameterisation: do nothing
        return
 
-    case(4:9,12)
+    case(4:9,12,14)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's Hamiltonians
        nij=nsp*(nsp-1)/2
@@ -1517,6 +1520,38 @@ contains
     return
     
   end function damping_heil18
+
+!######################################################################
+! damping_exp_test: for two CSF-averaged on-diagonal matrix element
+!                   values, returns the value of the experimental
+!                   exponential damping function
+!######################################################################
+  function damping_exp_test(av1,av2) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+    
+    implicit none
+
+    ! Function result
+    real(dp)             :: func
+
+    ! CSF-averaged on-diagonal matrix elements
+    real(dp), intent(in) :: av1,av2
+
+    ! Everything else
+    real(dp)             :: DEp3
+    
+    !
+    !  p1 exp(-p2 DeltaE^p3)
+    !
+    DEp3=abs(av1-av2)**hpar(5)
+    func=hpar(3)*exp(-hpar(4)*DEp3)
+
+    return
+    
+  end function damping_exp_test
   
 !######################################################################
   
