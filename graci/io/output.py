@@ -834,7 +834,8 @@ def print_param_header(target_data, ci_objs, ref_states, hparams):
                           str(ref_states[molecule])+'\n')
 
         outfile.write('\n Initial Parameter Values -----\n')
-        outfile.write(' '+str(hparams)+'\n\n')
+        pstr = ''.join(['{:10.6f}']*len(hparams))
+        outfile.write(' ' + pstr.format(*hparams) + '\n\n')
 
         outfile.flush()
 

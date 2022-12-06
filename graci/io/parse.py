@@ -91,8 +91,8 @@ def parse_section(class_name, input_file):
                     kword = kword.strip().lower()
 
                     if kword in params.kwords[class_name].keys():
-                        val      = parse_value(value)
                         expected = params.kwords[class_name][kword]
+                        val      = parse_value(value, expected)
 
                         if correct_type(val, expected):
                             setattr(sec_obj, kword, val)
@@ -148,7 +148,7 @@ def correct_type(value, keyword_type):
     return correct
 
 #
-def parse_value(valstr):
+def parse_value(valstr, val_type):
     """Returns a value converted to the appropriate type and shape.
     By default, spaces and newlines will be treated as delimiters.
     """
@@ -174,25 +174,29 @@ def parse_value(valstr):
     except ValueError:
         pass
 
-    # remove commas
-    try:
-        while True:
-           val_list.remove(',')
-    except ValueError:
-        pass
+    # if type is string, don't remove characters or interpret range
+    # values
+    if val_type is not str:
 
-    # step through and replace all X:Y with range(X,Y+1)
-    while ':' in val_list:
-        indx = val_list.index(':')
+        # remove commas
         try:
-            start = int(val_list[indx-1])
-            end   = int(val_list[indx+1])+1
-        except:
-            sys.exit('cannot convert range values: '+str(valstr))
-        num_list = list(range(start, end))
-        str_list = [str(num) for num in num_list]
-        new_list = val_list[:indx-1] + str_list + val_list[indx+2:]
-        val_list = new_list
+            while True:
+               val_list.remove(',')
+        except ValueError:
+            pass
+
+        # step through and replace all X:Y with range(X,Y+1)
+        while ':' in val_list:
+            indx = val_list.index(':')
+            try:
+                start = int(val_list[indx-1])
+                end   = int(val_list[indx+1])+1
+            except:
+                sys.exit('cannot convert range values: '+str(valstr))
+            num_list = list(range(start, end))
+            str_list = [str(num) for num in num_list]
+            new_list = val_list[:indx-1] + str_list + val_list[indx+2:]
+            val_list = new_list
 
     # if this is a scalar: just convert the number
     if len(val_list) == 1:

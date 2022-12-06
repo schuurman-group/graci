@@ -185,9 +185,9 @@ contains
     call dgetrf(dim,dim,mat,dim,ipiv,info)
 
     ! Exit if the call to dgetrf failed
-    if (info /= 0) then
-       write(6,'(/,x,a)') &
-            'Error in ludet: LU decomposition failed'
+    if (info < 0) then
+       write(6,'(/,x,a,i3)') &
+            'Error in ludet: LU decomposition failed, info=',info
        stop
     endif
     

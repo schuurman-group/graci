@@ -31,20 +31,26 @@ class Parameterize:
 
         self.jobtype        = 'opt'
         self.hamiltonian    = 'heil17_standard'
-        self.init_params    = None
+        self.init_h_params  = None
+        self.init_xc_params = None
         self.graci_ref_file = ''
         self.target_file    = ''
         self.pthresh        = 1.e-3
         self.verbose        = False 
         self.max_iter       = 1000
+        self.xc_coef        = None
+        self.xc_funcs       = None
         self.bounds         = None
         self.ngrid          = None
         self.freeze         = []
 
         # -------------------------------
+        self.opt_func       = False
         self.ndata          = 0
         self.iiter          = 0
-        self.p0             = None
+        self.xc0            = None
+        self.h0             = None
+        self.nxc            = 0
         self.p_n            = None
         self.error          = 0
         self.de_thr         = 0.5
@@ -65,19 +71,19 @@ class Parameterize:
                                self.parse_graci_file(target_data)
 
         # set initial parameter set
-        pref, self.p0 = self.set_init_params()
+        p_ref, self.h0, self.xc0  = self.set_init_params()
  
         # print header info to output file defined in module output
         output.print_param_header(target_data, ci_objs, 
-                                  ref_states, self.p0)
+                                  ref_states, p_ref)
 
         # set up directory structure: each molecule gets a subdirectory
         scf_dirs = self.create_dirs(scf_objs)
 
         # the first pass sets up the orbitals and integrals -- no need
         # to recompute these every time
-        ener_init = self.evaluate_energies(pref, ref_states, scf_dirs, 
-                                     scf_objs, ci_objs, run_ao2mo=True)
+        ener_init = self.evaluate_energies(p_ref, ref_states, scf_dirs, 
+                                     scf_objs, ci_objs, gen_ref=True)
 
         # save the default logfile name for writing updates of the
         # reparam procedure
@@ -87,7 +93,7 @@ class Parameterize:
 
             # optimize parameters using scipy routines
             self.iiter      = 1
-            self.p_n        = self.extract_opt_param(self.p0)
+            self.p_n        = self.extract_opt_param(p_ref)
 
             res = sp_opt.minimize(self.err_func, self.p_n, 
                               args = (target_data, ref_states, 
@@ -107,7 +113,7 @@ class Parameterize:
         elif self.jobtype == 'scan':
             args = (target_data, ref_states,
                     scf_dirs, scf_objs, ci_objs)
-            self.scan(self.p0, hbounds, self.ngrid, args)
+            self.scan(self.h0, hbounds, self.ngrid, args)
 
         return
 
@@ -166,6 +172,19 @@ class Parameterize:
             msg = 'jobtype=scan, ngrid='+str(self.ngrid)+', error'
             self.hard_exit(msg)
 
+        # if user wants to optimize functional, confirm that
+        # input makes sense
+        if (self.init_xc_params is not None and 
+                self.xc_coef is not None and 
+                     self.xc_func is not None):
+            shp_cf = [len(self.xc_coef[i]) 
+                      for i in range(len(self.xc_coef))]
+            shp_fn = [len(self.xc_func[i])
+                      for i in range(len(self.xc_func))]
+            if shp_cf == shp_fn:
+                self.opt_func = True
+                self.nxc      = self.init_xc_params.shape[0]
+
         return bounds
 
     #
@@ -176,31 +195,48 @@ class Parameterize:
         """
 
         npar = 0
-        args = (self.hamiltonian, npar)
-        npar = libs.lib_func('retrieve_nhpar', args)
 
-        # set initial parameter set
-        pref = np.zeros(npar, dtype=float)
-        args = (self.hamiltonian, npar, pref)
-        pref = libs.lib_func('retrieve_hpar', args)
-
-        if self.init_params is None:
-            pinit = pref
+        # functional parameters
+        if self.opt_func:
+            nxc = len(self.init_xc_params)
         else:
-            pinit = self.init_params
-            if (type(pinit).__name__ != 'ndarray' 
-                                        or pinit.shape[0] != npar):
-                msg = 'Cannot use '+str(pinit)+' as initial param set'
-                self.hard_exit(msg)
-            # for now, going to set pref = pinit, if user supplies
-            # pinit, else, the "reference" calculations don't 
-            # correspond to the pinit set
-            pref = pinit.copy()
+            nxc = 0
+        npar += nxc
 
-        return pref, pinit
+        # hamiltonian parameters
+        nh   = 0
+        args = (self.hamiltonian, nh)
+        nh   = libs.lib_func('retrieve_nhpar', args)
+        npar += nh
+
+        # all parameters: functional + hamiltonian
+        p_ref = [] 
+
+        # add functional parameters to param array
+        if self.opt_func:
+            xc_init = self.init_xc_params.tolist()
+            p_ref   = xc_init.copy()
+        else:
+            xc_init = [] 
+
+        # set initial hamiltonian parameter set
+        h_ref = np.zeros(nh, dtype=float)
+        args = (self.hamiltonian, nh, h_ref)
+        h_ref = libs.lib_func('retrieve_hpar', args)
+
+        if self.init_h_params is None:
+            h_init = h_ref.tolist()
+        else:
+            h_init = self.init_h_params.tolist()
+            if (len(h_init)+nxc != npar):
+                msg = 'Cannot use '+str(h_init)+' as initial param set'
+                self.hard_exit(msg)
+        p_ref += h_init.copy()
+
+        return p_ref, h_init, xc_init
 
     #
-    def err_func(self, h_opt, target_data, ref_states, scf_dirs, 
+    def err_func(self, p_opt, target_data, ref_states, scf_dirs, 
                                                scf_objs, ci_objs):
         """
         Evaluate the error function. In this case, simple RMSD
@@ -215,10 +251,10 @@ class Parameterize:
         """
        
         # set the hamiltonian parameters: both frozen and optimized 
-        hparams = self.to_full_param_set(h_opt)
-        iter_ener = self.evaluate_energies(hparams, ref_states,
+        full_param = self.to_full_param_set(p_opt)
+        iter_ener  = self.evaluate_energies(full_param, ref_states,
                                            scf_dirs, scf_objs, ci_objs)
-        dif_vec   = np.zeros(self.ndata, dtype=float)
+        dif_vec    = np.zeros(self.ndata, dtype=float)
 
         # this approach assumes dict is ordered! Only true from Python
         # 3.6 onwards...
@@ -255,24 +291,23 @@ class Parameterize:
         return
 
     @timing.timed
-    def scan(self, h0, bounds, ngrid, args):
+    def scan(self, h_0, bounds, ngrid, args):
         """
         scan the parameter values 
         """
 
-        nh   = len(h0)
+        nh   = len(h_0)
         for i in range(nh):
             if ngrid[i] == 1:
-                bounds.ub[i] = h0[i]
-                bounds.lb[i] = h0[i]
+                bounds.ub[i] = h_0[i]
+                bounds.lb[i] = h_0[i]
 
         delta = [(bounds.ub[i]-bounds.lb[i]) / (ngrid[i]-1)
                   if ngrid[i] > 1 else 0. for i in range(nh)]
-        print('delta='+str(delta),flush=True)
 
-        output.print_param_scan_head(h0, bounds.lb, bounds.ub, ngrid)
+        output.print_param_scan_head(h_0, bounds.lb, bounds.ub, ngrid)
         
-        hscan = [bounds.lb[i] if delta[i] > 0. else h0[i] 
+        hscan = [bounds.lb[i] if delta[i] > 0. else h_0[i] 
                   for i in range(nh)]
 
         step  = [0]*nh
@@ -302,8 +337,8 @@ class Parameterize:
         return
 
     @timing.timed
-    def evaluate_energies(self, hparams, ref_states, scf_dirs,
-                                scf_names, ci_names, run_ao2mo=False):
+    def evaluate_energies(self, p_opt, ref_states, scf_dirs,
+                                scf_names, ci_names, gen_ref=False):
         """
         evaluate all the energies in the graci data set
 
@@ -318,10 +353,10 @@ class Parameterize:
                                                  root=0) as executor:
                 if executor is not None:
 
-                    args = ((hparams, molecule, topdir, 
+                    args = ((p_opt, molecule, topdir, 
                         self.graci_ref_file, ref_states[molecule], 
                          scf_dirs[molecule], scf_names[molecule], 
-                         ci_names[molecule], True, run_ao2mo)
+                         ci_names[molecule], True, gen_ref)
                                    for molecule in ref_states.keys())
 
                     for res in executor.starmap(self.eval_energy, args):
@@ -330,20 +365,20 @@ class Parameterize:
         else:
 
             for molecule in ref_states.keys():
-                mol_results = self.eval_energy(hparams, molecule,
+                mol_results = self.eval_energy(p_opt, molecule,
                                   topdir, self.graci_ref_file, 
                                   ref_states[molecule],
                                   scf_dirs[molecule], 
                                   scf_names[molecule], 
                                   ci_names[molecule], 
-                                  False, run_ao2mo)
+                                  False, gen_ref)
 
                 energies.update(mol_results)
 
         return energies
 
-    def eval_energy(self, hparams, molecule, topdir, ref_file, ref_state, 
-                          scf_dirs, scf_name, ci_name, parallel, run_ao2mo):
+    def eval_energy(self, p_opt, molecule, topdir, ref_file, ref_state, 
+                          scf_dirs, scf_name, ci_name, parallel, gen_ref):
         """
         eval_energy
         """
@@ -352,6 +387,11 @@ class Parameterize:
         if parallel:
             libs.lib_load('bitci')
             libs.lib_load('overlap')
+
+        # separate functional and hamiltonian parameters
+        if self.opt_func:
+            xc_param = p_opt[:self.nxc]
+        h_param = p_opt[self.nxc:]
 
         ref_chkpt  = h5py.File(ref_file, 'r', libver='latest')
 
@@ -369,7 +409,7 @@ class Parameterize:
 
         # these are the ci objects that get run with the current
         # values of the Hamiltonian parameters
-        ci_objs = [ci_ref.copy() for ci_ref in ci_refs]
+        ci_objs = [ci_refs[i].copy() for i in range(len(ci_refs))]
         ref_chkpt.close()
 
         # set the output file stream if we're going to do any printing
@@ -392,36 +432,59 @@ class Parameterize:
 
                 # we only need to generate MO integrals files once:
                 # orbitals don't change during this process
-                if run_ao2mo:
+                if gen_ref or self.opt_func:
                     scf_objs[scf_name[i]].verbose = self.verbose 
                     scf_objs[scf_name[i]].load()
+
+                    # if we're optimizing the functional, pass the
+                    # current functional params and re-run scf
+                    if self.opt_func:
+                        # load the reference orbitals
+                        scf_ref = scf_objs[scf_name[i]].copy()
+
+                        xc_opt = self.xc_func_str(xc_param)
+                        #print(molecule+' xc-opt='+str(xc_opt),flush=True)
+                        scf_objs[scf_name[i]].xc = xc_opt
+                        scf_objs[scf_name[i]].run(scf_objs[scf_name[i]].mol, None)
+
+                    #if molecule == 'acetaldehyde':
+                    #    print('orb eners='+str(scf_objs[scf_name[i]].orb_ener),flush=True)
                     mo_ints.emo_cut = ci_objs[i].mo_cutoff
                     mo_ints.run(scf_objs[scf_name[i]])
+                    #if molecule == 'acetaldehyde':
+                    #    print('mo_ints run, nmo='+str(mo_ints.nmo),flush=True)
+                    #    print('mo_ints run, emo='+str(mo_ints.emo),flush=True)
+
                 else:
                     mo_ints.load_bitci(scf_objs[scf_name[i]])
 
                 curr_dir = scf_dirs[i]
 
             ci_objs[i].verbose = self.verbose 
+            ci_objs[i].update_eri(mo_ints)
             roots_found = False
             i_add       = 0
-            n_add       = 5
+            n_add       = 1 
             add_states  = np.ceil(2*ci_objs[i].nstates / n_add).astype(int)  
 
             while not roots_found and i_add < n_add:
                 # only update the Hamiltonian parameters if the CI object
                 # is employing the Hamiltonian we're optimizing
                 if ci_objs[i].hamiltonian == self.hamiltonian:
-                    ci_objs[i].update_hparam(np.asarray(hparams))
+                    ci_objs[i].update_hparam(np.asarray(h_param))
 
+                #if molecule == 'acetaldehyde':
+                #    print(ci_objs[i].label+' running CI, orb eners='+str(scf_objs[scf_name[i]].orb_ener),flush=True)
+
+                #print(molecule+' ci run',flush=True)
                 ci_objs[i].run(scf_objs[scf_name[i]], None)
-                #print('mol='+str(ci_objs[i].label)+' run done.',flush=True)
+                #print(molecule+' ci done.',flush=True)
 
                 # use overlap with ref states to identify relevant states
                 roots_found, eners = self.identify_states(molecule, 
                                    ref_state[i], ci_refs[i], ci_objs[i])
 
-                #print('roots_found='+str(roots_found),flush=True)
+                #print(molecule+' roots_found='+str(roots_found),flush=True)
                 if not roots_found:
                     ci_objs[i].nstates += add_states
                     i_add              += 1
@@ -433,8 +496,10 @@ class Parameterize:
 
             # else, hard exit
             else:
-                msg = str(molecule)+' failed to match states. Current ' + \
-                      ' hparam values = ' + str(hparams)
+                msg = str(molecule)+' failed to match states.'
+                if self.opt_func:
+                    msg += ' xc = '+str(xc_param)
+                msg += ' hparam = ' + str(h_param)
                 msg += '\n ' + str(ci_objs[i].label) + ' ' + \
                         str(ci_objs[i].energies)
                 self.hard_exit(msg)
@@ -460,14 +525,24 @@ class Parameterize:
 
         eners  = {}
 
-        # this is hardwired for now, since SCF only run once. 
-        smo    = np.identity(ref_ci.nmo, dtype=float)
+        # in functional optimization runs, this will be something
+        # other than identity matrix
+        #print(molecule+' mo overlap', flush=True)
+        smo = new_ci.scf.mo_overlaps(ref_ci.scf)[:ref_ci.nmo,:new_ci.nmo]
+        #print(molecule+' mo overlap done', flush=True)
+        #stst = np.asarray([[np.dot(ref_ci.scf.orbs[:,i],new_ci.scf.orbs[:,j]) for j in range(new_ci.nmo)] for i in range(ref_ci.nmo)],dtype=float)
+        #if molecule == 'acetaldehyde':
+        #    print('stst='+str(stst[:16,:16]),flush=True)
+        #ssrt = np.absolute(smo.copy())
+        #for i in range(ref_ci.nmo):
+        #    ssrt[i,:].sort()
+        #print(molecule+': '+str(ssrt[:,-2:]),flush=True)
 
         # iterate over the reference states
         bra_st  = list(ref_st.values())
         ket_st  = list(range(new_ci.n_states()))
         Smat = overlap.overlap_st(ref_ci, new_ci, bra_st, ket_st, smo,
-                                                         0.975, False)
+                                                         0.95, False)
 
         roots_found = True
         for lbl, bst in ref_st.items():
@@ -563,7 +638,7 @@ class Parameterize:
                 # name of section is 'original.name.molecule'
                 m_name = name.strip().split('.')[-1]
                 if (molecule == m_name and is_ci 
-                                           and isinstance(dict,st_map)):
+                                           and isinstance(st_map,dict)):
 
                     # check if any of the required state labels are
                     # in this CI object
@@ -639,26 +714,62 @@ class Parameterize:
         return target_dict
 
     #
+    def xc_func_str(self, xc_param):
+        """
+        build an xc functional string given the current values 
+        in xc_param
+        """
+        
+        # first indx for exchange part, second indx for correlation part
+        n_xc   = [len(self.xc_coef[i]) for i in range(2)]
+        xc_str = ''
+        cfmt   = '{:5.3f}'
+
+        for ixc in range(2):
+            for ifunc in range(n_xc[ixc]):
+                cstr = self.xc_coef[ixc][ifunc]
+
+                if 'xc_' in cstr:
+                    fstr = self.xc_func[ixc][ifunc]
+
+                    ind  = cstr.find('xc_')+3
+                    arg  = int(cstr[ind])
+                    cf   = eval( cstr.replace('xc_'+str(arg),
+                                               str(xc_param[arg])))
+                else:
+                    cf  = eval(cstr)
+
+                xc_str += '{:5.3f}'.format(cf) + '*' + fstr
+                if ifunc != n_xc[ixc]-1:
+                    xc_str += ' + '
+
+            if ixc == 0:
+                xc_str += ','      
+
+        return xc_str
+
+    #
     def to_full_param_set(self, p_opt):
         """
         to come
         """
         # set the hamiltonian parameters: both frozen and optimized 
-        hparams = self.p0
+        p_all = self.xc0 + self.h0
+ 
         iopt    = 0
-        for i in range(len(self.p0)):
-            if not i in self.freeze:
-                hparams[i] = p_opt[iopt]
+        for i in range(len(p_all)):
+            if i not in self.freeze:
+                p_all[i]   = p_opt[iopt]
                 iopt      += 1
 
-        return hparams
+        return p_all
 
     #
-    def extract_opt_param(self, h_all):
+    def extract_opt_param(self, p_all):
         """
         to come
         """
-        return [hi for i,hi in enumerate(h_all) if i not in self.freeze]
+        return [p for i,p in enumerate(p_all) if i not in self.freeze]
 
     #
     def hard_exit(self, message):

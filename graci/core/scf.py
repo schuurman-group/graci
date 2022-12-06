@@ -244,6 +244,7 @@ class Scf:
     def run_pyscf(self, pymol, guess):
         """run a PySCF HF/KSDFT computation"""
 
+        #print(self.label+' scf.xc=|'+str(self.xc)+'|',flush=True)
         # function handle string
         if self.xc == 'hf':
             class_str  = 'scf'
