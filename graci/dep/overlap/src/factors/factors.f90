@@ -184,8 +184,15 @@ contains
 !----------------------------------------------------------------------
     call dgetrf(dim,dim,mat,dim,ipiv,info)
 
+    ! If info > 0, then the factor U is singular and the
+    ! determinant is zero
+    if (info > 0) then
+       ludet=0.0d0
+       return
+    endif
+    
     ! Exit if the call to dgetrf failed
-    if (info /= 0) then
+    if (info < 0) then
        write(6,'(/,x,a)') &
             'Error in ludet: LU decomposition failed'
        stop
