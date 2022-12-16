@@ -10,7 +10,7 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 
 @timing.timed
-def tdm(bra, ket, trans_list):
+def tdm(bra, ket, trans_list, representation='adiabatic'):
     """
     Calculation of the MRCI 1-TDMs for all pairs of states
     in trans_list
@@ -56,11 +56,11 @@ def tdm(bra, ket, trans_list):
 
             # configuration and eigenvector files: bra wfn
             bra_conf = bra_wfn.conf_name[bra_irr]
-            bra_vec  = bra_wfn.ci_name['adiabatic'][bra_irr]
+            bra_vec  = bra_wfn.ci_name[representation][bra_irr]
 
             # configuration and eigenvector files: ket wfn
             ket_conf = ket_wfn.conf_name[ket_irr]
-            ket_vec  = ket_wfn.ci_name['adiabatic'][ket_irr]
+            ket_vec  = ket_wfn.ci_name[representation][ket_irr]
 
             # compute the 1-TDMs for all states in this irrep
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 

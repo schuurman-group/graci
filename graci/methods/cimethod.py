@@ -59,7 +59,8 @@ class Cimethod:
         # irrep,state pairs sorted by energy
         self.sym_sorted     = None
         # shape: (nirr,nmo,nmo,nstates))
-        self.dmats          = None
+        #self.dmats          = None
+        self.dmats          = {'adiabatic' : None, 'diabatic' : None}
         # natural orbital occupations (shape = (nirr, nmo, nstates)
         self.natocc         = None
         # natural orbitals, AO basis (same shape as the density matrices)
@@ -179,27 +180,27 @@ class Cimethod:
         return self.energies_sym[irrep, state]
 
     #
-    def rdm(self, istate):
+    def rdm(self, istate, rep='adiabatic'):
         """return the density matrix for the state istate"""
 
-        if self.dmats is not None and istate < self.n_states():
-            return self.dmats[istate, :, :]
+        if self.dmats[rep] is not None and istate < self.n_states():
+            return self.dmats[rep][istate, :, :]
         else:
             print("rdm called but density does not exist")
             return None
 
     #
-    def rdm_sym(self, irrep, state):
+    def rdm_sym(self, irrep, state, rep='adiabatic'):
         """return the density matrix for the state in 
         the array 'states' for the irrep 'irr'"""
 
         istate = self.state_index(irrep, state)
 
-        if self.dmats is not None:
-            return self.dmats[istate, :, :]
+        if self.dmats[rep] is not None:
+            return self.dmats[rep][istate, :, :]
         else:
             print("rdm_sym called but density does not exist")
-            return self.dmats
+            return self.dmats[rep]
 
     # 
     def natorbs(self, istate, basis='ao'):

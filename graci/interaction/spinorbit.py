@@ -24,6 +24,7 @@ class Spinorbit(interaction.Interaction):
         
         # user defined quanties 
         #-----------------------------------------------------------
+        self.representation    = 'adiabatic'
         self.print_soc_thresh  = 1.
         self.mf2e          = 'atomic'
         # group of objects to couple
@@ -264,8 +265,9 @@ class Spinorbit(interaction.Interaction):
     def rdm(self, istate):
         """return the density matrix for the state istate"""
 
-        if self.dmats is not None and istate < self.n_states():
-            return self.dmats[istate, :, :]
+        if self.dmats[self.representation] is not None \
+           and istate < self.n_states():
+            return self.dmats[self.representation][istate, :, :]
         else:
             print("rdm called but density does not exist")
             return None
@@ -296,13 +298,14 @@ class Spinorbit(interaction.Interaction):
             sind = self.get_states(lbl[0]).index(lbl[1])
             wts[gind][:, sind] += soc_wts[soc_ind, :]
            
-        self.dmats = np.zeros((nst, nmo, nmo), dtype=float)
+        self.dmats[self.representation] = np.zeros((nst, nmo, nmo), dtype=float)
         for igrp in grps:
             ind    = grps.index(igrp)
             obj    = self.get_obj(igrp)
             states = self.get_states(igrp)
-            self.dmats += np.einsum('ij,jkl->ikl', wts[ind], 
-                                       obj.dmats[states,:,:])
+            self.dmats[self.representation] += \
+                np.einsum('ij,jkl->ikl', wts[ind],
+                          obj.dmats[self.representation][states,:,:])
 
         return
 

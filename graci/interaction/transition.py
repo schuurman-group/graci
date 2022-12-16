@@ -18,8 +18,8 @@ class Transition(interaction.Interaction):
     """Sotransition class for determing transition moments between spin-orbit
        coupled states. This class extends Interaction and will accept either
        spinorbit objects, or simply method objects. If the latter, will convert
-       them into trivial spin orbit objects (i.e. with a single set of states and
-       a single multiplicity)
+       them into trivial spin orbit objects (i.e. with a single set of states
+       and a single multiplicity)
     """
     def __init__(self):
         # parent attributes
@@ -44,6 +44,8 @@ class Transition(interaction.Interaction):
         # often will want to include all states in bra object
         # if so convenient to have simple boolean to select that
         self.all_final_states = False
+        # representaion (adiabatic or diabatic for now)
+        self.representation   = 'adiabatic'
 
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
@@ -51,6 +53,9 @@ class Transition(interaction.Interaction):
         self.bra_obj    = None
         self.ket_obj    = None
 
+        # allowed representations
+        self.allowed_reps = ['adiabatic', 'diabatic']
+        
         # list of state group sassociated with the ket object
         self.state_grps = {}
         # list of transitions corresponding to the tdms
@@ -96,7 +101,7 @@ class Transition(interaction.Interaction):
            transitions from all states in method object should be 
            used.
         """
- 
+
         # set the bra/ket objects and add the state groups associated
         # with each 
         self.bra_obj, self.ket_obj = self.add_state_grps(arg_list)
@@ -105,6 +110,9 @@ class Transition(interaction.Interaction):
         self.mos, self.mol = self.check_bra_ket()
         nmo = self.mos.shape[1]
 
+        # sanity check on the representation
+        self.check_representation()
+        
         # if bra and ket are the same object, only compute the unique
         # transition densities
         list_type = 'full'
@@ -251,8 +259,9 @@ class Transition(interaction.Interaction):
         add the bra and ket state groups
         """
         if len(arg_list) != 2:
-            sys.exit('transition.run() passed ' + str(len(arg_list)) +
-                     ' objects. Expecting 2')
+            sys.exit('ERROR: transition.run() passed '
+                     + str(len(arg_list))
+                     + ' objects. Expecting 2')
 
         # add both the bra and ket state groups
         lbls = ['bra', 'ket']
@@ -284,7 +293,7 @@ class Transition(interaction.Interaction):
             # if not a ci_obj and postci_obj, we don't know what to do 
             # with this
             else:
-                sys.exit(' object passed to transition neither' +
+                sys.exit('ERROR: object passed to transition neither' +
                          ' ci_obj or postci_obj. Exiting...')
 
         return arg_list[0], arg_list[1]
@@ -309,11 +318,11 @@ class Transition(interaction.Interaction):
                     # sanity check that orbitals and geometry are
                     # the same
                     if np.any(mos_b != mos_k):
-                        sys.exit('transition moments require same '+
+                        sys.exit('ERROR: transition moments require same '+
                                  ' bra/ket orbitalss')
 
                     if (mol_b.pymol().atom != mol_k.pymol().atom):
-                        sys.exit('transition moments require same '+
+                        sys.exit('ERROR: transition moments require same '+
                                  ' geometry and basis set')
 
         else:
@@ -323,13 +332,25 @@ class Transition(interaction.Interaction):
         return mos_b, mol_b
 
 
+    def check_representation(self):
+        """checks that the user-specified representation is
+        supported"""
+        
+        if self.representation not in self.allowed_reps:
+            sys.exit('\n ERROR: unsupported representation: '
+                     +self.representation
+                     +'\n Allowed values: '+str(self.allowed_reps))
+
+        return
+        
     @timing.timed
     def build_tdms(self, bra, ket, trans_list, trans_list_sym):
         """grab the TDMs from bitsi and then reshape the list of
            TDMs into a more usable format"""
 
         # grab the tdms
-        tdm_list = mrci_1tdm.tdm(bra, ket, trans_list_sym)
+        tdm_list = mrci_1tdm.tdm(bra, ket, trans_list_sym,
+                                 self.representation)
 
         # make the tdm list
         nmo    = bra.nmo

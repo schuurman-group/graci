@@ -114,4 +114,7 @@ def diabpot(ci_method0, ci_method):
         # Save the diabatic potential
         diabpots.append(np.reshape(diabpot, (nroots, nroots), order='F'))
 
+        print('\n\n', 'We also need to save the diabatic ci_names...')
+        sys.exit()
+        
     return diabpots, np.array(diabunits, dtype=int)

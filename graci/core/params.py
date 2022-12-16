@@ -124,6 +124,7 @@ transition_kword = {'init_states'      : int,
                     'all_final_states' : bool,
                     'print_orbitals'   : bool,
                     'print_orb_thresh' : float,
+                    'representation'   : str,
                     'verbose'          : bool,
                     'label'            : str}
 
