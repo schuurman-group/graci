@@ -481,6 +481,7 @@ class Transition(interaction.Interaction):
         # If so, also construct NDOs
         b_rdm = getattr(self.bra_obj, "rdm", None)
         k_rdm = getattr(self.ket_obj, "rdm", None)
+
         if b_rdm is None or k_rdm is None:
             return None, None
 
@@ -492,8 +493,9 @@ class Transition(interaction.Interaction):
             bst = self.trans_list[it][0]
             kst = self.trans_list[it][1]
 
-            wt, ndo = orbitals.build_ndos(b_rdm(bst), k_rdm(kst),
-                                         basis=basis, mos=self.mos)
+            wt, ndo = orbitals.build_ndos(b_rdm(bst, rep=self.representation),
+                                          k_rdm(kst, rep=self.representation),
+                                          basis=basis, mos=self.mos)
             ndos.append(ndo)
             wts.append(wt)
 
@@ -951,6 +953,12 @@ class Transition(interaction.Interaction):
     #
     def print_log(self, ndo_wts, ndo_orbs):
         """print summary output to log file"""
+
+        # For now, we will only print the transition
+        # table if we are working with adiabatic states
+        if self.representation != 'adiabatic':
+            return
+        
         # for each initial state, write out a table of 
         # oscillator strenghts and transition dipole moments
         # print the header
@@ -1024,7 +1032,8 @@ class Transition(interaction.Interaction):
                                           osc_str[2],
                                           osc_str[3],
                                           osc_str[4],
-                                          promo_num)
+                                          promo_num,
+                                          self.representation)
 
 
         return
