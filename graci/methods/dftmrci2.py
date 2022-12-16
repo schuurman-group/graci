@@ -261,9 +261,15 @@ class Dftmrci2(cimethod.Cimethod):
 
             elif self.adt_type == 'qdpt':
                 # QDPT diabatisation
-                diabpots, diabunits = gvvpt2_diab.diabpot(guess, self)
+                diabpots, ciunits, cinames, \
+                    confunits, confnames, nconfs = \
+                        gvvpt2_diab.diabpot(guess, self)
                 self.diabpot = diabpots
-                self.mrci_wfn.set_ciunits(diabunits, rep='diabatic')
+                self.mrci_wfn.set_ciunits(ciunits, rep='diabatic')
+                self.mrci_wfn.set_ciname(cinames, rep='diabatic')
+                self.mrci_wfn.set_confunits(confunits, rep='diabatic')
+                self.mrci_wfn.set_confname(confnames, rep='diabatic')
+                self.mrci_wfn.set_nconf(nconfs, rep='diabatic')
                 mrci_wf.extract_wf(self, rep='diabatic')
                 
             # output the diabatic potentials
@@ -278,24 +284,14 @@ class Dftmrci2(cimethod.Cimethod):
         # (this must be called _after_ the CSF-to-det
         #  transformation)
         if self.truncate:
-            n_conf_new = gvvpt2_truncate.truncate_wf(self)
-            self.mrci_wfn.set_nconf(n_conf_new)            
-        
+            for rep in ['adiabatic', 'diabatic']:
+                if self.mrci_wfn.nconf[rep] is not None:
+                    n_conf_new = gvvpt2_truncate.truncate_wf(self, rep)
+                    self.mrci_wfn.set_nconf(n_conf_new, rep)
+
         # construct density matrices
-        dmat_sym = mrci_1rdm.rdm(self)
-
-        # Finalize the bitCI library
-        bitci_init.finalize()
-
-        # store them in adiabatic energy order
-        n_tot = self.n_states()
-        (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
-
-        self.dmats['adiabatic'] = np.zeros((n_tot, nmo1, nmo2), dtype=float)
-        for istate in range(n_tot):
-            irr, st = self.state_sym(istate)
-            self.dmats['adiabatic'][istate, :, :] = dmat_sym[irr][:, :, st]
-
+        self.get_dmats()
+        
         # build the natural orbitals in AO basis by default
         self.build_nos()
 
@@ -310,6 +306,9 @@ class Dftmrci2(cimethod.Cimethod):
         # print the moments
         self.print_moments()
 
+        # Finalize the bitCI library
+        bitci_init.finalize()
+        
         return 
 
     #
@@ -342,6 +341,35 @@ class Dftmrci2(cimethod.Cimethod):
                      +self.adt_type + '\n allowed values: '
                      +str(self.allowed_adt_type))
             
+        return
+
+    #
+    def get_dmats(self):
+        """Constructs the adiabatic and, optionally, diabatic
+           density matrices"""
+
+        # diabatic WFs only currently available for QDPT diabatisation
+        if self.diabatic and self.adt_type == 'qdpt':
+            do_diabatic = True
+        else:
+            do_diabatic = False
+        
+        # calculate the 1-RDMs
+        dmat_sym = {'adiabatic' : None, 'diabatic' : None}
+        dmat_sym['adiabatic'] = mrci_1rdm.rdm(self)
+        if do_diabatic:
+            dmat_sym['diabatic'] = mrci_1rdm.rdm(self, rep='diabatic')        
+        
+        # store them in adiabatic energy order
+        n_tot = self.n_states()
+        for rep in dmat_sym.keys():
+            if dmat_sym[rep] is not None:
+                (nmo1, nmo2, n_dum) = dmat_sym[rep][0].shape  
+                self.dmats[rep] = np.zeros((n_tot, nmo1, nmo2), dtype=float)
+                for istate in range(n_tot):
+                    irr, st = self.state_sym(istate)
+                    self.dmats[rep][istate, :, :] = dmat_sym[rep][irr][:, :, st]
+                    
         return
         
     #

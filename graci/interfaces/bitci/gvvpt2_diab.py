@@ -1,6 +1,6 @@
 """
-Module for the calculation of QDPT Type-I and Type-II diabatic states
-within the DFT/MRCI(2) framework
+Module for the calculation of QDPT diabatic states within the 
+DFT/MRCI(2) framework
 """
 
 import sys
@@ -23,10 +23,19 @@ def diabpot(ci_method0, ci_method):
     # initialise the list of diabatic potentisl matrices, one per irrep
     diabpots = []
     
+    # initialise the list to hold the bitci diabatic configuration
+    # scratch file numbers
+    diab_ciunit  = 0
+    diab_ciunits = []
+
     # initialise the list to hold the bitci diabatic state vector
     # scratch file numbers
-    diabunit  = 0
-    diabunits = []
+    diab_confunit  = 0
+    diab_confunits = []
+
+    # initialise the list to hold the numbers of diabatic confs
+    diab_nconf  = 0
+    diab_nconfs = []
     
     # GVVPT2 regularizer index
     ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
@@ -41,7 +50,7 @@ def diabpot(ci_method0, ci_method):
     mrci_wfn = ci_method.bitci_mrci()
 
     # bitci MRCI configuration scratch file numbers
-    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
+    ci_confunits = np.array(mrci_wfn.conf_units['adiabatic'], dtype=int)
 
     # bitci ref space eigenvector scratch file numbers
     ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
@@ -104,17 +113,38 @@ def diabpot(ci_method0, ci_method):
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
                 ci_confunits, ref_ciunits, Aunit, diabpot,
-                diabunit)
+                diab_ciunit, diab_confunit, diab_nconf)
 
-        diabpot, diabunit = libs.lib_func('gvvpt2_diab', args)
+        diabpot, diab_ciunit, diab_confunit, diab_nconf = \
+            libs.lib_func('gvvpt2_diab', args)
 
         # Bitci diabatic state vector scratch file number
-        diabunits.append(diabunit)
+        diab_ciunits.append(diab_ciunit)
 
+        # Bitci diabatic configuration scratch file number
+        diab_confunits.append(diab_confunit)
+
+        # Number of diabatic confs
+        diab_nconfs.append(diab_nconf)
+        
         # Save the diabatic potential
         diabpots.append(np.reshape(diabpot, (nroots, nroots), order='F'))
 
-        print('\n\n', 'We also need to save the diabatic ci_names...')
-        sys.exit()
-        
-    return diabpots, np.array(diabunits, dtype=int)
+    # Retrieve the DFT/MRCI(2) diabatic state vector scratch file names
+    diab_cinames = []
+    name      = ''
+    for irrep in range(nirr):
+        args = (diab_ciunits[irrep], name)
+        name = libs.lib_func('retrieve_filename', args)
+        diab_cinames.append(name)
+
+    # Retrieve the DFT/MRCI(2) diabatic configuration scratch file names
+    diab_confnames = []
+    name      = ''
+    for irrep in range(nirr):
+        args = (diab_confunits[irrep], name)
+        name = libs.lib_func('retrieve_filename', args)
+        diab_confnames.append(name)
+    
+    return diabpots, np.array(diab_ciunits, dtype=int), diab_cinames,\
+        np.array(diab_confunits, dtype=int), diab_confnames, diab_nconfs

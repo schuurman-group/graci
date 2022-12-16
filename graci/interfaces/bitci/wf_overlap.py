@@ -10,7 +10,7 @@ import graci.utils.timing as timing
 import graci.core.molecule as molecule
 
 @timing.timed
-def extract(bra, ket):
+def extract(bra, ket, rep='adiabatic'):
     """
     Extraction of the determinant representation of the bra and
     ket MRCI wave functions
@@ -37,7 +37,7 @@ def extract(bra, ket):
             continue
     
         # bitci configuration and eigenvectos scratch files
-        conf_file = wfn_bra.conf_name[irr]
+        conf_file = wfn_bra.conf_name[rep][irr]
         vec_file  = wfn_bra.ci_name['adiabatic'][irr]
     
         # bitwf determinant wave function file number
@@ -59,7 +59,7 @@ def extract(bra, ket):
             continue
     
         # bitci configuration and eigenvectos scratch files
-        conf_file = wfn_ket.conf_name[irr]
+        conf_file = wfn_ket.conf_name[rep][irr]
         vec_file  = wfn_ket.ci_name['adiabatic'][irr]
     
         # bitwf determinant wave function file number

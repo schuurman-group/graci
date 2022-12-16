@@ -227,7 +227,7 @@ def autoras(ci_method):
     return
 
 @timing.timed
-def propagate(ci_method, ci_method0):
+def propagate(ci_method, ci_method0, rep='adiabatic'):
     """
     propagates forwards the reference space from a previous
     CI calculation
@@ -247,7 +247,7 @@ def propagate(ci_method, ci_method0):
     confunits = np.zeros(nirr, dtype=int)
 
     # Names of the previous reference space configuration files
-    confnames0 = ci_method0.ref_wfn.conf_name
+    confnames0 = ci_method0.ref_wfn.conf_name[rep]
 
     # No. previous geometry ref space roots
     nroots = [ci_method0.n_states_sym(irr) for irr in range(nirr)]

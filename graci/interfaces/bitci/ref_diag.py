@@ -28,10 +28,10 @@ def diag(ci_method):
         output.print_refdiag_header()
     
     # Bitci reference configuration scratch file numbers
-    confunits = np.array(ref_wfn.conf_units, dtype=int)
+    confunits = np.array(ref_wfn.conf_units['adiabatic'], dtype=int)
 
     # Numbers of configurations
-    nconf = np.array(ref_wfn.nconf, dtype=int)
+    nconf = np.array(ref_wfn.nconf['adiabatic'], dtype=int)
 
     # Bitci eigenvector scratch file numbers
     ciunit  = 0
@@ -146,10 +146,10 @@ def diag_follow(ci_method, ci_method0):
         output.print_refdiag_header()
     
     # Bitci reference configuration scratch file numbers
-    confunits = np.array(ref_wfn.conf_units, dtype=int)
+    confunits = np.array(ref_wfn.conf_units['adiabatic'], dtype=int)
 
     # Numbers of configurations
-    nconf = np.array(ref_wfn.nconf, dtype=int)
+    nconf = np.array(ref_wfn.nconf['adiabatic'], dtype=int)
 
     # Bitci eigenvector scratch file numbers
     ciunit  = 0

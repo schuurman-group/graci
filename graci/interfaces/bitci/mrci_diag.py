@@ -25,7 +25,7 @@ def diag(ci_method):
     iguess, ialg, tol, niter, blocksize, deflate = diag_vars(ci_method)
 
     # Bitci MRCI configuration scratch file numbers
-    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
+    ci_confunits = np.array(mrci_wfn.conf_units['adiabatic'], dtype=int)
 
     # Bitci ref space eigenvector scratch file numbers
     ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],

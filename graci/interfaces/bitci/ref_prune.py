@@ -26,13 +26,13 @@ def prune(ci_method):
     nextra = np.array(ci_method.nextra['max'])
 
     # Bitci ref conf scratch file numbers
-    confunit = ci_method.ref_wfn.conf_units
+    confunit = ci_method.ref_wfn.conf_units['adiabatic']
     
     # Bitci ref eigenvector scratch file numbers
     ciunit   = np.array(ci_method.ref_wfn.ci_units['adiabatic'], dtype=int)
     
     # Number of ref confs for each irrep
-    nconf    = ci_method.ref_wfn.nconf
+    nconf    = ci_method.ref_wfn.nconf['adiabatic']
 
     # Call to the bitci ref space pruning routine
     args = (nroots, nextra, confunit, nconf, ciunit)
