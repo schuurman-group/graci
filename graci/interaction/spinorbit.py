@@ -46,7 +46,9 @@ class Spinorbit(interaction.Interaction):
         self.so_vec       = None
         # vector to hold spin-orbit energies
         self.so_ener      = None
-
+        # RDMs for the spin-orbit coupled states
+        self.dmats        = {'adiabatic' : None, 'diabatic' : None}
+        
     def copy(self):
         """create of deepcopy of self"""
         new = self.Spinorbit()
@@ -264,7 +266,7 @@ class Spinorbit(interaction.Interaction):
     #
     def rdm(self, istate):
         """return the density matrix for the state istate"""
-
+    
         if self.dmats[self.representation] is not None \
            and istate < self.n_states():
             return self.dmats[self.representation][istate, :, :]
