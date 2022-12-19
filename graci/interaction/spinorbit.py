@@ -46,7 +46,7 @@ class Spinorbit(interaction.Interaction):
         self.so_vec       = None
         # vector to hold spin-orbit energies
         self.so_ener      = None
-        # RDMs for the spin-orbit coupled states
+        # 1-RDMs for the spin-orbit coupled states
         self.dmats        = {'adiabatic' : None, 'diabatic' : None}
         
     def copy(self):
@@ -281,7 +281,7 @@ class Spinorbit(interaction.Interaction):
     #
     def build_rdms(self):
         """
-        construct the 1RDMs 
+        construct the 1-RDMs 
         """
         nst     = self.n_states()
         nmo     = self.get_obj(self.grp_lbls[0]).nmo
