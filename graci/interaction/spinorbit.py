@@ -264,12 +264,12 @@ class Spinorbit(interaction.Interaction):
             return self.so_ener[state]
 
     #
-    def rdm(self, istate):
+    def rdm(self, istate, rep='adiabatic'):
         """return the density matrix for the state istate"""
     
-        if self.dmats[self.representation] is not None \
+        if self.dmats[rep] is not None \
            and istate < self.n_states():
-            return self.dmats[self.representation][istate, :, :]
+            return self.dmats[rep][istate, :, :]
         else:
             print("rdm called but density does not exist")
             return None
