@@ -29,9 +29,11 @@ class Interaction:
         # all state interaction sub-classes must have a 
         # bra object and a ket object
 
-        # no user set variables (abstract class-like)
+        # user set variables that are common to
+        # _all_ child classes
         #-----------------------------------------
-
+        self.representation = 'adiabatic'
+        
         # Internal class variables (should not be accessed directly)
         #-----------------------------------------------------------
         # list of objects from which to pull states

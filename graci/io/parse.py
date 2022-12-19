@@ -276,6 +276,11 @@ def check_input(run_list):
             if isinstance(obj.icvs, int):
                 obj.icvs = np.array([obj.icvs], dtype=int)
 
+        # Shift ref_state by -1 to get the Python indexing
+        if 'ref_state' in params.kwords[obj_name].keys():
+            if obj.ref_state != -1:
+                obj.ref_state -= 1
+                
         # the basis set definition should actually be a dictionary
         if 'basis' in params.kwords[obj_name].keys():
             # construct basis dictionary

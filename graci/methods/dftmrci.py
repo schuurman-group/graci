@@ -211,10 +211,10 @@ class Dftmrci(cimethod.Cimethod):
         n_tot = self.n_states()
         (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
 
-        self.dmats = np.zeros((n_tot, nmo1, nmo2), dtype=float)
+        self.dmats['adiabatic'] = np.zeros((n_tot, nmo1, nmo2), dtype=float)
         for istate in range(n_tot):
             irr, st = self.state_sym(istate)
-            self.dmats[istate, :, :] = dmat_sym[irr][:, :, st]
+            self.dmats['adiabatic'][istate, :, :] = dmat_sym[irr][:, :, st]
 
         # build the natural orbitals in AO basis by default
         self.build_nos()

@@ -10,7 +10,7 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 
 @timing.timed
-def truncate_wf(ci_method):
+def truncate_wf(ci_method, rep='adiabatic'):
     """
     Removal of deadwood configurations from the DFT/MRCI(2)
     1st-order corrected wave functions
@@ -19,13 +19,13 @@ def truncate_wf(ci_method):
     mrci_wfn = ci_method.bitci_mrci()
     
     # number of configurations per irrep
-    nconf = np.array(mrci_wfn.nconf, dtype=int)
+    nconf = np.array(mrci_wfn.nconf[rep], dtype=int)
 
     # bitci MRCI configuration scratch file numbers
-    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
+    ci_confunits = np.array(mrci_wfn.conf_units[rep], dtype=int)
 
     # bitci MRCI eigenvector scratch file numbers
-    ciunits = mrci_wfn.ci_units['adiabatic']
+    ciunits = mrci_wfn.ci_units[rep]
     
     for irrep in range(ci_method.n_irrep()):
         thresh       = ci_method.truncate_thresh

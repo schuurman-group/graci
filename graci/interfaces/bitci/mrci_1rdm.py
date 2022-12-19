@@ -11,9 +11,9 @@ import graci.utils.timing as timing
 import graci.io.convert as convert
 
 @timing.timed
-def rdm(ci_method):
+def rdm(ci_method, rep='adiabatic'):
     """Calculation of the MRCI 1-RDMs for all states"""
-
+    
     # number of molecular orbitals
     nmo = ci_method.nmo
 
@@ -21,11 +21,11 @@ def rdm(ci_method):
     mrci_wfn = ci_method.bitci_mrci()
 
     # MRCI configuration file scratch file numbers
-    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
+    ci_confunits = np.array(mrci_wfn.conf_units[rep], dtype=int)
     
     # MRCI eigenvector scratch file numbers
-    ci_ciunits = np.array(mrci_wfn.ci_units['adiabatic'], dtype=int)
-    
+    ci_ciunits = np.array(mrci_wfn.ci_units[rep], dtype=int)
+
     # 1-RDMs for all irreps
     dmat_all = []
     

@@ -59,11 +59,11 @@ class Cimethod:
         # irrep,state pairs sorted by energy
         self.sym_sorted     = None
         # shape: (nirr,nmo,nmo,nstates))
-        self.dmats          = None
+        self.dmats          = {'adiabatic' : None, 'diabatic' : None}
         # natural orbital occupations (shape = (nirr, nmo, nstates)
-        self.natocc         = None
+        self.natocc         = {'adiabatic' : None, 'diabatic' : None}
         # natural orbitals, AO basis (same shape as the density matrices)
-        self.natorb_ao      = None
+        self.natorb_ao      = {'adiabatic' : None, 'diabatic' : None}
         # List of determinant bit strings (one per irrep)
         # for various representations (adiabatic, diabatic,...)
         self.det_strings     = {'adiabatic' : None, 'diabatic' : None}
@@ -179,45 +179,45 @@ class Cimethod:
         return self.energies_sym[irrep, state]
 
     #
-    def rdm(self, istate):
+    def rdm(self, istate, rep='adiabatic'):
         """return the density matrix for the state istate"""
 
-        if self.dmats is not None and istate < self.n_states():
-            return self.dmats[istate, :, :]
+        if self.dmats[rep] is not None and istate < self.n_states():
+            return self.dmats[rep][istate, :, :]
         else:
             print("rdm called but density does not exist")
             return None
 
     #
-    def rdm_sym(self, irrep, state):
+    def rdm_sym(self, irrep, state, rep='adiabatic'):
         """return the density matrix for the state in 
         the array 'states' for the irrep 'irr'"""
 
         istate = self.state_index(irrep, state)
 
-        if self.dmats is not None:
-            return self.dmats[istate, :, :]
+        if self.dmats[rep] is not None:
+            return self.dmats[rep][istate, :, :]
         else:
             print("rdm_sym called but density does not exist")
-            return self.dmats
+            return self.dmats[rep]
 
     # 
-    def natorbs(self, istate, basis='ao'):
+    def natorbs(self, istate, basis='ao', rep='adiabatic'):
         """return natural orbitals and occupations for state 'istate' """
 
-        if basis == 'ao' and self.natorb_ao is None:
+        if basis == 'ao' and self.natorb_ao[rep] is None:
             return None
 
         if basis == 'mo':
             return None
 
-        (nst, nmo) = self.natocc.shape
+        (nst, nmo) = self.natocc[rep].shape
         if istate >= nst:
             return None
 
         # always return the contents of the natorb/natocc arrays in wfn
-        occ = self.natocc[istate, :]
-        nos = self.natorb_ao[istate, :, :]
+        occ = self.natocc[rep][istate, :]
+        nos = self.natorb_ao[rep][istate, :, :]
 
         return occ, nos
 
@@ -250,7 +250,7 @@ class Cimethod:
 
 #########################################################################
     #
-    def build_nos(self):
+    def build_nos(self, rep='adiabatic'):
         """calls routines in orbitals module to construct natural
            orbitals and occupation vectors for each state.
 
@@ -267,18 +267,18 @@ class Cimethod:
         else:
             return
 
-        self.natorb_ao = np.zeros((n_tot, nao, nmo), dtype=float)
-        self.natocc    = np.zeros((n_tot, nmo), dtype=float)
+        self.natorb_ao[rep] = np.zeros((n_tot, nao, nmo), dtype=float)
+        self.natocc[rep]    = np.zeros((n_tot, nmo), dtype=float)
         for i in range(n_tot):
             occ, nos = orbitals.build_nos(self.rdm(i), basis='ao',
                                                  mos=self.mos)
-            self.natorb_ao[i,:,:] = nos
-            self.natocc[i,:]      = occ
+            self.natorb_ao[rep][i,:,:] = nos
+            self.natocc[rep][i,:]      = occ
 
         return
 
     # 
-    def print_nos(self):
+    def print_nos(self, rep='adiabatic'):
         """Calls routines in orbitals module to print natural orbitals
            to file. Default file format is molden
 
@@ -296,8 +296,8 @@ class Cimethod:
         for i in range(n_tot):
             fname = 'nos_'+str(i+1)+'_'+syms[i]+'_molden'
             orbitals.export_orbitals(fname, self.scf.mol, 
-                   self.natorb_ao[i,:,:],
-                   orb_occ=self.natocc[i,:], 
+                   self.natorb_ao[rep][i,:,:],
+                   orb_occ=self.natocc[rep][i,:], 
                    orb_dir=str(type(self).__name__)+'.'+str(self.label),
                    fmt='molden')
 
@@ -331,8 +331,7 @@ class Cimethod:
             rdm_i = self.rdm(i)
             # also compute attachment and detachment numbers
             # (relative to ground state)
-            wt, ndo  = orbitals.build_ndos(rdm_i, rdm_ref, 
-                                           thresh=0.01, basis='mo')
+            wt, ndo  = orbitals.build_ndos(rdm_i, rdm_ref)
             pd[i], pa[i] = orbitals.promotion_numbers(wt, ndo)
 
         if self.verbose:
@@ -341,7 +340,7 @@ class Cimethod:
         return
 
     #
-    def print_moments(self):
+    def print_moments(self, rep='adiabatic'):
         """ print the moments using the natural orbitals and occupation
             vector
 
@@ -355,7 +354,7 @@ class Cimethod:
         # we'll also compute 1-electron properties by
         # default.
         momts = moments.Moments()
-        momts.run(self.scf.mol, self.natocc, self.natorb_ao)
+        momts.run(self.scf.mol, self.natocc[rep], self.natorb_ao[rep])
 
         n_tot  = self.n_states()
         states = [i for i in range(n_tot)]

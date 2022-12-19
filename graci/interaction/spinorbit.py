@@ -45,7 +45,9 @@ class Spinorbit(interaction.Interaction):
         self.so_vec       = None
         # vector to hold spin-orbit energies
         self.so_ener      = None
-
+        # 1-RDMs for the spin-orbit coupled states
+        self.dmats        = {'adiabatic' : None, 'diabatic' : None}
+        
     def copy(self):
         """create of deepcopy of self"""
         new = self.Spinorbit()
@@ -261,11 +263,12 @@ class Spinorbit(interaction.Interaction):
             return self.so_ener[state]
 
     #
-    def rdm(self, istate):
+    def rdm(self, istate, rep='adiabatic'):
         """return the density matrix for the state istate"""
-
-        if self.dmats is not None and istate < self.n_states():
-            return self.dmats[istate, :, :]
+    
+        if self.dmats[rep] is not None \
+           and istate < self.n_states():
+            return self.dmats[rep][istate, :, :]
         else:
             print("rdm called but density does not exist")
             return None
@@ -277,7 +280,7 @@ class Spinorbit(interaction.Interaction):
     #
     def build_rdms(self):
         """
-        construct the 1RDMs 
+        construct the 1-RDMs 
         """
         nst     = self.n_states()
         nmo     = self.get_obj(self.grp_lbls[0]).nmo
@@ -296,13 +299,14 @@ class Spinorbit(interaction.Interaction):
             sind = self.get_states(lbl[0]).index(lbl[1])
             wts[gind][:, sind] += soc_wts[soc_ind, :]
            
-        self.dmats = np.zeros((nst, nmo, nmo), dtype=float)
+        self.dmats[self.representation] = np.zeros((nst, nmo, nmo), dtype=float)
         for igrp in grps:
             ind    = grps.index(igrp)
             obj    = self.get_obj(igrp)
             states = self.get_states(igrp)
-            self.dmats += np.einsum('ij,jkl->ikl', wts[ind], 
-                                       obj.dmats[states,:,:])
+            self.dmats[self.representation] += \
+                np.einsum('ij,jkl->ikl', wts[ind],
+                          obj.dmats[self.representation][states,:,:])
 
         return
 
