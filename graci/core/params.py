@@ -113,6 +113,7 @@ spinorbit_kword = {'couple_groups'     : str,
                    'couple_states'     : int,
                    'print_soc_thresh'  : float,
                    'mf2e'              : str,
+                   'representation'    : str,
                    'verbose'           : bool,
                    'label'             : str}
 
@@ -142,6 +143,7 @@ dyson_kword     = {'init_states'       : int,
                    'final_label'       : str,
                    'norm_thresh'       : float,
                    'print_orbitals'    : bool,
+                   'representation'    : str,
                    'verbose'           : bool,
                    'label'             : str}
 

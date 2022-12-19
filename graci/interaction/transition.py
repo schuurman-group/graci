@@ -44,9 +44,7 @@ class Transition(interaction.Interaction):
         # often will want to include all states in bra object
         # if so convenient to have simple boolean to select that
         self.all_final_states = False
-        # representaion (adiabatic or diabatic for now)
-        self.representation   = 'adiabatic'
-
+        
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly

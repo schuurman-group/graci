@@ -24,7 +24,6 @@ class Spinorbit(interaction.Interaction):
         
         # user defined quanties 
         #-----------------------------------------------------------
-        self.representation    = 'adiabatic'
         self.print_soc_thresh  = 1.
         self.mf2e          = 'atomic'
         # group of objects to couple
