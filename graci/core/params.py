@@ -153,13 +153,16 @@ parameterize_kword = {'algorithm'      : str,
                       'graci_ref_file' : str,
                       'init_h_params'  : float,
                       'init_xc_params' : float,
+                      'xc'             : str,
                       'xc_coef'        : str,
+                      'conv'           : float,
                       'xc_func'        : str,
                       'bounds'         : float,
                       'verbose'        : bool,
                       'ngrid'          : int,
                       'freeze'         : int,
                       'hamiltonian'    : str,
+                      'swap_hamiltonian' : str,
                       'label'          : str}
 
 ######################################################################

@@ -907,6 +907,7 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
     """
 
     with output_file(file_names['out_file'], 'a+') as outfile:
+
         outfile.write('\n\n Results\n')
         outfile.write(' -----------------------------------------')
         outs = [str(res['message']), res['fun'], res['nfev']]
@@ -923,46 +924,119 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
         outfile.write('\n\n Reference Data')
         outfile.write('\n -----------------------------------------')
 
-        tstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:>10s}']*4)+'\n'
-        fstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:10.5f}']*4)
+        tstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:>10s}']*5)+'\n'
+        fstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:10.5f}']*5)
         estr = '\n {:<52s} {:10.5f} {:10.5f}'
 
         outfile.write(tstr.format('Molecule', 'istate', 'fstate', 
                                   'Reference', 'Initial', 'Final', 
-                                  '|Change|'))
+                                  '\u0394[Final]', '\u0394|Error|'))
 
         au_ev = constants.au2ev
 
-        rmsd = np.asarray([0.,0.], dtype=float)
-        mae  = np.asarray([0.,0.], dtype=float)
+        n = 0
+        for mol,st in target.items():
+            n += len(target[mol].keys())        
+
+        err  = np.zeros((2, n), dtype=float)
         n    = 0
         for molecule, states in target.items():
             for trans, ener in target[molecule].items():
                 init, final  = trans.strip().split()
-                exc_i     = (init_ener[molecule][final] - 
+                exc_i = (init_ener[molecule][final] - 
                                init_ener[molecule][init]) * au_ev
-                exc_f    = (final_ener[molecule][final] - 
+                exc_f = (final_ener[molecule][final] - 
                                final_ener[molecule][init]) * au_ev
-                err_i    = abs(exc_i - ener)
-                err_f    = abs(exc_f - ener)
+                err_i = exc_i - ener
+                err_f = exc_f - ener
 
-                mae     += np.asarray([err_i, err_f], dtype=float)
-                rmsd    += np.asarray([err_i**2, err_f**2], dtype=float)
+                (err[0,n], err[1,n]) = (err_i, err_f)
+
                 n       += 1
                 outfile.write(fstr.format(molecule, init, final, ener, 
-                                        exc_i, exc_f, err_f - err_i ))
+                                   exc_i, exc_f, err_f, err_f - err_i ))
 
-        mae  = mae / n
-        rmsd = np.sqrt(rmsd/n)
+        mae   = [ np.sum(np.absolute(err[i,:])) / n 
+                                                      for i in range(2)]
+        rmsd  = [ np.sqrt(np.dot(err[i,:], err[i,:]) / n) 
+                                                      for i in range(2)] 
+        maxe  = [ err[i, np.argmax( np.absolute( err[i,:]))]
+                                                      for i in range(2)]
+        mean  = [ np.sum(err[i,:]) / n for i in range(2)]
+        stdev = [ np.sqrt( np.dot( err[i,:] - mean[i], 
+                                   err[i,:] - mean[i] ) / n) 
+                                                      for i in range(2)]
 
         outfile.write('\n'+'-'*(86))
-        outfile.write(estr.format('RMSD', rmsd[0], rmsd[1]))
         outfile.write(estr.format('MAE', mae[0], mae[1]))
+        outfile.write(estr.format('RMSD', rmsd[0], rmsd[1]))
+        outfile.write(estr.format('STD. DEV.', stdev[0], stdev[1]))
+        outfile.write(estr.format('MAX ERR.',maxe[0], maxe[1]))
         outfile.write('\n')
 
         outfile.flush()
 
     return
+
+def print_param_analysis(params, target, eners):
+    """
+    print result of a parameterization run
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+
+        outfile.write('\n\n Parameter Values')
+        outfile.write('\n -----------------------------------------')
+        fstr = '\n '+' '.join(['{:10.8f} ']*len(params))
+        outfile.write(fstr.format(*list(params)))
+
+        outfile.write('\n\n Error Analysis')
+        outfile.write('\n -----------------------------------------')
+
+        tstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:>10s}']*3)+'\n'
+        fstr = '\n {:<20s} {:>10s} {:>10s}'+' '.join(['{:10.5f}']*3)
+        estr = '\n {:<52s} {:10.5f}'
+
+        outfile.write(tstr.format('Molecule', 'istate', 'fstate',
+                                  'Reference', 'Computed', 
+                                  '\u0394[Energy]'))
+
+        au_ev = constants.au2ev
+
+        n = 0
+        for mol,st in target.items():
+            n += len(target[mol].keys())
+
+        err  = np.zeros(n, dtype=float)
+        n    = 0
+        for molecule, states in target.items():
+            for trans, ener in target[molecule].items():
+                init, final  = trans.strip().split()
+                exc          = (eners[molecule][final] -
+                                eners[molecule][init]) * au_ev
+                err[n]       = exc - ener
+
+                outfile.write(fstr.format(molecule, init, final, ener,
+                                          exc, err[n] ))
+                n += 1
+
+        mae   = np.sum(np.absolute(err)) / n
+        rmsd  = np.sqrt(np.dot(err, err) / n)
+        maxe  = err[np.argmax( np.absolute( err))]
+        mean  = np.sum(err) / n
+        stdev = np.sqrt( np.dot( err - mean, err - mean ) / n)
+
+        outfile.write('\n'+'-'*(86))
+        outfile.write(estr.format('MAE', mae))
+        outfile.write(estr.format('RMSD', rmsd))
+        outfile.write(estr.format('STD. DEV.', stdev))
+        outfile.write(estr.format('MAX ERR.',maxe))
+        outfile.write('\n')
+
+        outfile.flush()
+
+    return
+
 
 
 #

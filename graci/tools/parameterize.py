@@ -26,30 +26,32 @@ class Parameterize:
         # the following is determined from user input 
         # (or subject to user input) -- these are keywords
         # in params module
-        self.algorithm      = 'Nelder-Mead'
-        self.label          = 'default'
+        self.algorithm       = 'Nelder-Mead'
+        self.label           = 'default'
 
-        self.jobtype        = 'opt'
-        self.hamiltonian    = 'heil17_standard'
-        self.init_h_params  = None
-        self.init_xc_params = None
-        self.graci_ref_file = ''
-        self.target_file    = ''
-        self.pthresh        = 1.e-3
-        self.verbose        = False 
-        self.max_iter       = 1000
-        self.xc_coef        = None
-        self.xc_funcs       = None
-        self.bounds         = None
-        self.ngrid          = None
-        self.freeze         = []
+        self.jobtype         = 'opt'
+        self.hamiltonian     = 'heil17_standard'
+        self.swap_hamiltonian = None
+        self.init_h_params   = None
+        self.init_xc_params  = None
+        self.graci_ref_file  = ''
+        self.target_file     = ''
+        self.conv            = 1.e-3
+        self.verbose         = False 
+        self.max_iter        = 1000
+        self.xc              = None
+        self.xc_coef         = None
+        self.xc_func         = None
+        self.bounds          = None
+        self.ngrid           = None
+        self.freeze          = []
 
         # -------------------------------
-        self.opt_func       = False
+        self.set_xc_func    = False
         self.ndata          = 0
         self.iiter          = 0
-        self.xc0            = None
-        self.h0             = None
+        self.xc0            = [] 
+        self.h0             = []
         self.nxc            = 0
         self.p_n            = None
         self.error          = 0
@@ -72,7 +74,7 @@ class Parameterize:
 
         # set initial parameter set
         p_ref, self.h0, self.xc0  = self.set_init_params()
- 
+
         # print header info to output file defined in module output
         output.print_param_header(target_data, ci_objs, 
                                   ref_states, p_ref)
@@ -100,7 +102,7 @@ class Parameterize:
                                       scf_dirs, scf_objs, ci_objs),
                               bounds = hbounds,
                               method = 'Nelder-Mead',
-                              tol = self.pthresh,
+                              tol = self.conv,
                               callback = self.status_func)
 
             p_final = self.to_full_param_set(res.x)
@@ -114,6 +116,9 @@ class Parameterize:
             args = (target_data, ref_states,
                     scf_dirs, scf_objs, ci_objs)
             self.scan(self.h0, hbounds, self.ngrid, args)
+
+        elif self.jobtype == 'analysis':
+            output.print_param_analysis(p_ref, target_data, ener_init)
 
         return
 
@@ -138,9 +143,24 @@ class Parameterize:
                                              ' not found. Exiting'
             self.hard_exit(msg)
 
+       # if user wants to optimize functional, confirm that
+        # input makes sense
+        if (self.init_xc_params is not None and
+                self.xc_coef is not None and
+                     self.xc_func is not None):
+            shp_cf = [len(self.xc_coef[i])
+                      for i in range(len(self.xc_coef))]
+            shp_fn = [len(self.xc_func[i])
+                      for i in range(len(self.xc_func))]
+            if shp_cf == shp_fn:
+                self.set_xc_func = True
+                self.nxc         = self.init_xc_params.shape[0]
+        elif self.xc is not None:
+            self.set_xc_func
+
         npar = 0
         args = (self.hamiltonian, npar)
-        npar = libs.lib_func('retrieve_nhpar', args)
+        npar = libs.lib_func('retrieve_nhpar', args) + self.nxc
         nfrz = len(self.freeze)
 
         if self.bounds is not None:
@@ -164,26 +184,13 @@ class Parameterize:
         else:
             bounds = None
 
-        if self.jobtype not in ['opt', 'scan']:
+        if self.jobtype not in ['opt', 'scan', 'analysis']:
             msg = 'jobtype: '+str(self.jobtype)+' not recognized.'
             self.hard_exit(msg)
 
         if self.jobtype == 'scan' and self.ngrid is None: 
             msg = 'jobtype=scan, ngrid='+str(self.ngrid)+', error'
             self.hard_exit(msg)
-
-        # if user wants to optimize functional, confirm that
-        # input makes sense
-        if (self.init_xc_params is not None and 
-                self.xc_coef is not None and 
-                     self.xc_func is not None):
-            shp_cf = [len(self.xc_coef[i]) 
-                      for i in range(len(self.xc_coef))]
-            shp_fn = [len(self.xc_func[i])
-                      for i in range(len(self.xc_func))]
-            if shp_cf == shp_fn:
-                self.opt_func = True
-                self.nxc      = self.init_xc_params.shape[0]
 
         return bounds
 
@@ -197,7 +204,7 @@ class Parameterize:
         npar = 0
 
         # functional parameters
-        if self.opt_func:
+        if self.init_xc_params is not None:
             nxc = len(self.init_xc_params)
         else:
             nxc = 0
@@ -213,7 +220,7 @@ class Parameterize:
         p_ref = [] 
 
         # add functional parameters to param array
-        if self.opt_func:
+        if self.init_xc_params is not None:
             xc_init = self.init_xc_params.tolist()
             p_ref   = xc_init.copy()
         else:
@@ -229,7 +236,8 @@ class Parameterize:
         else:
             h_init = self.init_h_params.tolist()
             if (len(h_init)+nxc != npar):
-                msg = 'Cannot use '+str(h_init)+' as initial param set'
+                msg = 'Cannot use '+str(h_init)+' as initial param set:'
+                msg += str(len(h_init)+nxc) + ' != ' + str(npar)
                 self.hard_exit(msg)
         p_ref += h_init.copy()
 
@@ -282,7 +290,7 @@ class Parameterize:
         output.print_param_iter(self.iiter, xk_full, self.error)
 
         self.iiter += 1
-        self.p_n    = xk
+        self.p_n    = xk.copy()
 
         if self.iiter >= self.max_iter:
             msg = 'Max. number of iterations completed.'
@@ -389,8 +397,10 @@ class Parameterize:
             libs.lib_load('overlap')
 
         # separate functional and hamiltonian parameters
-        if self.opt_func:
+        if self.nxc > 0:
             xc_param = p_opt[:self.nxc]
+        else:
+            xc_param = []
         h_param = p_opt[self.nxc:]
 
         ref_chkpt  = h5py.File(ref_file, 'r', libver='latest')
@@ -423,7 +433,6 @@ class Parameterize:
         mo_ints   = ao2mo.Ao2mo()
 
         for i in range(len(ci_objs)):
-            #print('ci_objs='+str(ci_objs[i].label),flush=True)       
  
             if curr_dir != scf_dirs[i]:
 
@@ -432,72 +441,63 @@ class Parameterize:
 
                 # we only need to generate MO integrals files once:
                 # orbitals don't change during this process
-                if gen_ref or self.opt_func:
+                if gen_ref or self.set_xc_func:
                     scf_objs[scf_name[i]].verbose = self.verbose 
                     scf_objs[scf_name[i]].load()
 
                     # if we're optimizing the functional, pass the
                     # current functional params and re-run scf
-                    if self.opt_func:
+                    if self.set_xc_func:
                         # load the reference orbitals
                         scf_ref = scf_objs[scf_name[i]].copy()
 
                         xc_opt = self.xc_func_str(xc_param)
-                        #print(molecule+' xc-opt='+str(xc_opt),flush=True)
                         scf_objs[scf_name[i]].xc = xc_opt
                         scf_objs[scf_name[i]].run(scf_objs[scf_name[i]].mol, None)
 
-                    #if molecule == 'acetaldehyde':
-                    #    print('orb eners='+str(scf_objs[scf_name[i]].orb_ener),flush=True)
                     mo_ints.emo_cut = ci_objs[i].mo_cutoff
                     mo_ints.run(scf_objs[scf_name[i]])
-                    #if molecule == 'acetaldehyde':
-                    #    print('mo_ints run, nmo='+str(mo_ints.nmo),flush=True)
-                    #    print('mo_ints run, emo='+str(mo_ints.emo),flush=True)
 
                 else:
                     mo_ints.load_bitci(scf_objs[scf_name[i]])
 
                 curr_dir = scf_dirs[i]
 
-            ci_objs[i].verbose = self.verbose 
             ci_objs[i].update_eri(mo_ints)
+            ci_objs[i].verbose = self.verbose 
             roots_found = False
             i_add       = 0
-            n_add       = 1 
+            n_add       = 5 
             add_states  = np.ceil(2*ci_objs[i].nstates / n_add).astype(int)  
 
             while not roots_found and i_add < n_add:
+ 
+                if self.jobtype == 'analysis':
+                    ci_objs[i].hamiltonian = self.hamiltonian
+
                 # only update the Hamiltonian parameters if the CI object
                 # is employing the Hamiltonian we're optimizing
                 if ci_objs[i].hamiltonian == self.hamiltonian:
                     ci_objs[i].update_hparam(np.asarray(h_param))
-
-                #if molecule == 'acetaldehyde':
-                #    print(ci_objs[i].label+' running CI, orb eners='+str(scf_objs[scf_name[i]].orb_ener),flush=True)
-
-                #print(molecule+' ci run',flush=True)
+ 
                 ci_objs[i].run(scf_objs[scf_name[i]], None)
-                #print(molecule+' ci done.',flush=True)
 
                 # use overlap with ref states to identify relevant states
                 roots_found, eners = self.identify_states(molecule, 
                                    ref_state[i], ci_refs[i], ci_objs[i])
 
-                #print(molecule+' roots_found='+str(roots_found),flush=True)
                 if not roots_found:
                     ci_objs[i].nstates += add_states
                     i_add              += 1
             
-            #print('mol='+str(molecule)+' eners='+str(eners),flush=True)
             # if all roots found, update the energy directory 
             if roots_found:       
                 energies[molecule].update(eners) 
 
             # else, hard exit
             else:
-                msg = str(molecule)+' failed to match states.'
-                if self.opt_func:
+                msg = str(molecule)+' failed to match states.\n'
+                if self.set_xc_func:
                     msg += ' xc = '+str(xc_param)
                 msg += ' hparam = ' + str(h_param)
                 msg += '\n ' + str(ci_objs[i].label) + ' ' + \
@@ -520,23 +520,16 @@ class Parameterize:
         """
         compute overlaps to identify states
         """
-        #s_thrsh = 1./np.sqrt(2.)
-        s_thrsh = 0.5
+        s_thrsh = 1./np.sqrt(2.)
+        i#s_thrsh = 0.7
 
         eners  = {}
 
         # in functional optimization runs, this will be something
         # other than identity matrix
-        #print(molecule+' mo overlap', flush=True)
         smo = new_ci.scf.mo_overlaps(ref_ci.scf)[:ref_ci.nmo,:new_ci.nmo]
-        #print(molecule+' mo overlap done', flush=True)
-        #stst = np.asarray([[np.dot(ref_ci.scf.orbs[:,i],new_ci.scf.orbs[:,j]) for j in range(new_ci.nmo)] for i in range(ref_ci.nmo)],dtype=float)
-        #if molecule == 'acetaldehyde':
-        #    print('stst='+str(stst[:16,:16]),flush=True)
-        #ssrt = np.absolute(smo.copy())
-        #for i in range(ref_ci.nmo):
-        #    ssrt[i,:].sort()
-        #print(molecule+': '+str(ssrt[:,-2:]),flush=True)
+        #if ref_ci.nmo != new_ci.nmo:
+        #    print(molecule+' ref.nmo='+str(ref_ci.nmo)+','+str(new_ci.nmo),flush=True)
 
         # iterate over the reference states
         bra_st  = list(ref_st.values())
@@ -551,6 +544,7 @@ class Parameterize:
 
             if s_max <= s_thrsh:
                 roots_found = False
+                #print(molecule+' lbl='+str(lbl)+' Sij[max]='+str(s_max))
 
             kst = ket_st[np.argmax(Sij)]
             eners[lbl] = new_ci.energies[kst]
@@ -719,11 +713,14 @@ class Parameterize:
         build an xc functional string given the current values 
         in xc_param
         """
-        
+
+        if self.xc is not None and xc_param is None:
+            return self.xc        
+
         # first indx for exchange part, second indx for correlation part
         n_xc   = [len(self.xc_coef[i]) for i in range(2)]
         xc_str = ''
-        cfmt   = '{:5.3f}'
+        cfmt   = '{:7.5f}'
 
         for ixc in range(2):
             for ifunc in range(n_xc[ixc]):
@@ -739,7 +736,7 @@ class Parameterize:
                 else:
                     cf  = eval(cstr)
 
-                xc_str += '{:5.3f}'.format(cf) + '*' + fstr
+                xc_str += cfmt.format(cf) + '*' + fstr
                 if ifunc != n_xc[ixc]-1:
                     xc_str += ' + '
 
