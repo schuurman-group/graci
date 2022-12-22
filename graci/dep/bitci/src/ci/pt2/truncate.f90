@@ -21,6 +21,7 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
   use bitglobal
   use conftype
   use pspace
+  use utils
   use iomod
     
   implicit none
@@ -139,9 +140,9 @@ subroutine truncate_mrci_wf(irrep,nroots,confscr,vecscr,thrsh,&
   enddo
   
 !----------------------------------------------------------------------
-! Orthonormalise the truncated wave functions
+! Symmetric orthonormalisation the truncated wave functions
 !----------------------------------------------------------------------
-  call ortho_new_vecs(cfg_new%csfdim,nroots,vec_new)
+  call symm_ortho(cfg_new%csfdim,nroots,vec_new)
   
 !----------------------------------------------------------------------
 ! Write the truncated wave functions to disk
@@ -390,74 +391,3 @@ subroutine set_new_vecs(cfg_old,cfg_new,csfdim_old,csfdim_new,&
   return
   
 end subroutine set_new_vecs
-
-!######################################################################
-! ortho_new_vecs: orthonormalisation of the truncated wave functions
-!######################################################################
-subroutine ortho_new_vecs(csfdim,nroots,vec)
-
-  use constants
-  use bitglobal
-  use utils
-  
-  implicit none
-
-  ! Dimensions
-  integer(is), intent(in) :: csfdim,nroots
-
-  ! CSF coefficients
-  real(dp), intent(inout) :: vec(csfdim,nroots)
-
-  ! Working arrays
-  real(dp), allocatable   :: Smat(:,:),Sinvsq(:,:),work(:,:)
-
-  ! Everything else
-  integer(is)             :: i,j
-  real(dp)                :: norm
-  
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-  allocate(Smat(nroots,nroots))
-  Smat=0.0d0
-
-  allocate(Sinvsq(nroots,nroots))
-  Sinvsq=0.0d0
-
-  allocate(work(csfdim,nroots))
-  work=0.0d0
-  
-!----------------------------------------------------------------------
-! Normalisation
-!----------------------------------------------------------------------
-  do i=1,nroots
-     norm=sqrt(dot_product(vec(:,i),vec(:,i)))
-     vec(:,i)=vec(:,i)/norm
-  enddo
-  
-!----------------------------------------------------------------------
-! Overlaps of the truncated wave functions
-!----------------------------------------------------------------------
-  call dgemm('T','N',nroots,nroots,csfdim,1.0d0,vec,csfdim,vec,csfdim,&
-       0.0d0,Smat,nroots)
-
-!----------------------------------------------------------------------
-! Inverse overlap matrix
-!----------------------------------------------------------------------
-  call invsqrt_matrix(Smat,Sinvsq,nroots)
-
-!----------------------------------------------------------------------
-! Orthogonalisation
-!----------------------------------------------------------------------
-  work=vec
-  call dgemm('N','N',csfdim,nroots,nroots,1.0d0,work,csfdim,Sinvsq,&
-       nroots,0.0d0,vec,csfdim)
-  
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-  deallocate(Smat, Sinvsq, work)
-  
-  return
-  
-end subroutine ortho_new_vecs

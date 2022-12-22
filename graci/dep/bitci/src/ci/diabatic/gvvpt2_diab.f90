@@ -5,11 +5,13 @@
 #ifdef CBINDING
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr,diabpot,diabscr) bind(c,name="gvvpt2_diab")
+     confscr,vec0scr,Ascr,diabpot,diab_vecscr,diab_confscr,&
+     diab_nconf) bind(c,name="gvvpt2_diab")
 #else
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr,diabpot,diabscr)
+     confscr,vec0scr,Ascr,diabpot,diab_vecscr,diab_confscr,&
+     diab_nconf)
 #endif
 
   use constants
@@ -65,10 +67,16 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   integer(is), intent(in)  :: Ascr
 
   ! Diabatic potential matrix
-  real(dp), intent(out)     :: diabpot(nrootsR0,nrootsR0)
+  real(dp), intent(out)    :: diabpot(nrootsR0,nrootsR0)
 
   ! Diabatic state vector scratch file number
-  integer(is), intent(out) :: diabscr
+  integer(is), intent(out) :: diab_vecscr
+
+  ! Diabatic configuration scratch file number
+  integer(is), intent(out) :: diab_confscr
+
+  ! Number of diabatic configurations
+  integer(is), intent(out) :: diab_nconf
   
   ! MRCI configuration derived types
   type(mrcfg)              :: cfg
@@ -104,7 +112,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=250)       :: diabfile
+  character(len=250)       :: diab_vecfile,diab_conffile
   character(len=2)         :: amult,airrep
   
   ! Timing variables
@@ -327,12 +335,12 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   write(amult,'(i0)') imult
   write(airrep,'(i0)') irrep
   call scratch_name('diabvec'//'.mult'//trim(amult)//&
-       '.sym'//trim(airrep),diabfile)
-  call register_scratch_file(diabscr,diabfile)
+       '.sym'//trim(airrep),diab_vecfile)
+  call register_scratch_file(diab_vecscr,diab_vecfile)
 
   ! Open the scratch file
-  iscratch=scrunit(diabscr)
-  open(iscratch,file=scrname(diabscr),form='unformatted',&
+  iscratch=scrunit(diab_vecscr)
+  open(iscratch,file=scrname(diab_vecscr),form='unformatted',&
        status='unknown')
 
   ! Dimensions
@@ -350,6 +358,86 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      
   ! Close the scratch file
   close(iscratch)
+
+!----------------------------------------------------------------------
+! Write the configuration scratch file for the diabatic states
+! At this point, this will simply be the same as for the (adiabatic)
+! MRCI configurations; however, due to the use of wave function
+! truncation or the like, this may change in later steps of the
+! calculation
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('diabconf.mult'//trim(amult)//&
+       '.sym'//trim(airrep),diab_vecfile)
+  call register_scratch_file(diab_confscr,diab_vecfile)
+
+  ! Open the scratch file
+  iscratch=scrunit(diab_confscr)
+  open(iscratch,file=scrname(diab_confscr),form='unformatted',&
+       status='unknown')
+  
+  ! Subspace dimensions
+  write(iscratch) cfg%n_int_I
+  write(iscratch) cfg%nmoI
+  write(iscratch) cfg%nmoE
+  write(iscratch) cfg%confdim
+  write(iscratch) cfg%nR
+  write(iscratch) cfg%n1h
+  write(iscratch) cfg%n2h
+  write(iscratch) cfg%n0h
+  write(iscratch) cfg%n1I
+  write(iscratch) cfg%n2I
+  write(iscratch) cfg%n1E
+  write(iscratch) cfg%n2E
+  write(iscratch) cfg%n1I1E
+  
+  ! Configuration information
+  write(iscratch) cfg%confR
+  write(iscratch) cfg%conf1h
+  write(iscratch) cfg%a1h
+  write(iscratch) cfg%off1h
+  write(iscratch) cfg%conf2h
+  write(iscratch) cfg%a2h
+  write(iscratch) cfg%off2h
+  write(iscratch) cfg%conf0h
+  if (cfg%n1I > 0) then
+     write(iscratch) cfg%a1I
+     write(iscratch) cfg%off1I
+  endif
+  if (cfg%n2I > 0) then
+     write(iscratch) cfg%a2I
+     write(iscratch) cfg%off2I
+  endif
+  if (cfg%n1E > 0) then
+     write(iscratch) cfg%a1E
+     write(iscratch) cfg%off1E
+  endif
+  if (cfg%n2E > 0) then
+     write(iscratch) cfg%a2E
+     write(iscratch) cfg%off2E
+  endif
+  if (cfg%n1I1E > 0 ) then
+     write(iscratch) cfg%a1I1E
+     write(iscratch) cfg%off1I1E
+  endif
+  
+  ! MO mapping arrays
+  write(iscratch) cfg%m2c
+  write(iscratch) cfg%c2m
+  
+  ! Number of CSFs as a function of the the number of open shells
+  write(iscratch) cfg%ncsfs
+  
+  ! Close the scratch file
+  close(iscratch)
+
+!----------------------------------------------------------------------
+! Number of diabatic configurations
+! Again, this may change in later steps of the calculation  
+!----------------------------------------------------------------------
+  diab_nconf=cfg%confdim
   
 !----------------------------------------------------------------------
 ! Stop timing and print report

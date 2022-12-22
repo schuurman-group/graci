@@ -63,6 +63,11 @@ class Dyson(interaction.Interaction):
         bra and ket states
         """
 
+        # for now, only adiabatic states are supported
+        if self.representation != 'adiabatic':
+            sys.exit('\n ERROR: Dyson orbitals not yet available for'
+                     +' representation != adiabatic')
+        
         # set the bra and ket objects
         self.bra_obj, self.ket_obj = self.set_objs(obj_list)
         
@@ -160,7 +165,8 @@ class Dyson(interaction.Interaction):
         """
 
         # extract the determinant representation of the wave functions
-        self.bra_wfunit, self.ket_wfunit = wf_overlap.extract(bra, ket)
+        self.bra_wfunit, self.ket_wfunit = \
+            wf_overlap.extract(bra, ket, rep=self.representation)
 
         # compute the Dyson orbitals
         dyson_list = wf_dyson.dyson(bra, ket, self.mo_basis,

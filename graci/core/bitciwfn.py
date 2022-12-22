@@ -11,11 +11,11 @@ class Bitciwfn:
     def __init__(self):
         # class variables
         # List of numbers of configurations per irrep
-        self.nconf         = None
+        self.nconf         = {'adiabatic' : None, 'diabatic' : None}
         # bitci configuration scratch file names
-        self.conf_name     = None
+        self.conf_name     = {'adiabatic' : None, 'diabatic' : None}
         # bitci configuration scratch file numbers
-        self.conf_units    = None
+        self.conf_units    = {'adiabatic' : None, 'diabatic' : None}
         # Lists of bitci eigenvector scratch file names (one per irrep)
         # for various representations
         self.ci_name       = {'adiabatic' : None, 'diabatic' : None}
@@ -41,15 +41,15 @@ class Bitciwfn:
         return new
 
     #
-    def set_nconf(self, nconf):
+    def set_nconf(self, nconf, rep='adiabatic'):
         """Sets the numbers of configurations"""
-        self.nconf = nconf
+        self.nconf[rep] = nconf
         return
 
     #
-    def set_confunits(self, confunits):
+    def set_confunits(self, confunits, rep='adiabatic'):
         """Sets the bitci configuration scratch file numbers"""
-        self.conf_units = confunits
+        self.conf_units[rep] = confunits
         return
 
     #
@@ -59,9 +59,9 @@ class Bitciwfn:
         return
 
     #
-    def set_confname(self, confname):
+    def set_confname(self, confname, rep='adiabatic'):
         """Sets the bitci configuration scratch file names"""
-        self.conf_name = confname
+        self.conf_name[rep] = confname
         return
 
     #

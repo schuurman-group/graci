@@ -68,7 +68,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   
   ! Scratch file variables
   integer(is)                :: iscratch
-  character(len=250)         :: vecfile
+  character(len=250)         :: conffile
   character(len=2)           :: amult,airrep
 
   ! Timing variables
@@ -224,8 +224,8 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
      write(amult,'(i0)') imult
      write(airrep,'(i0)') irrep
      call scratch_name('mrciconf.mult'//trim(amult)//&
-          '.sym'//trim(airrep),vecfile)
-     call register_scratch_file(confscr(irrep),vecfile)
+          '.sym'//trim(airrep),conffile)
+     call register_scratch_file(confscr(irrep),conffile)
      
      ! Open the scratch file
      iscratch=scrunit(confscr(irrep))

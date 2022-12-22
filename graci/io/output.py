@@ -479,7 +479,8 @@ def print_transition_header(label):
 
 #
 def print_transition_table(init_st, init_sym, final_st, final_sym, 
-                            exc_ener, f0l, f2l, f0v, f2v, f0xyz, promo): 
+                           exc_ener, f0l, f2l, f0v, f2v, f0xyz,
+                           promo, rep): 
     """print out the summary files for the transition moments"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
@@ -488,7 +489,8 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
 
         fstr = '\n\n Transitions, initial state = {:3d}({:>3})'
         outfile.write(fstr.format(init_st, init_sym))
-        outfile.write(    '\n ------------------------------------------')
+        outfile.write(', representation: '+rep)
+        outfile.write('\n '+65*'-')
 
         header  = '\n\n  Initial     Final    Exc Ener                  '
         header += '             Oscillator Strength (V)'

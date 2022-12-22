@@ -21,7 +21,7 @@ def extract_wf(ci_method, rep='adiabatic'):
     mrci_wfn = ci_method.bitci_mrci()
 
     # MRCI configuration file scratch file numbers
-    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
+    ci_confunits = np.array(mrci_wfn.conf_units[rep], dtype=int)
     
     # MRCI eigenvector scratch file numbers
     ci_ciunits = np.array(mrci_wfn.ci_units[rep], dtype=int)

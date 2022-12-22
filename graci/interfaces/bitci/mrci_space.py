@@ -29,7 +29,7 @@ def generate(ci_method):
         output.print_mrcispace_header()
     
     # Bitci reference configuration scratch file numbers
-    ref_confunits = np.array(ref_wfn.conf_units, dtype=int)
+    ref_confunits = np.array(ref_wfn.conf_units['adiabatic'], dtype=int)
 
     # Bitci MRCI configuration scratch file numbers
     ci_confunits = np.zeros(nirr, dtype=int)

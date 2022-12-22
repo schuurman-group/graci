@@ -23,7 +23,7 @@ def refine_ref_space(ci_method):
     ref_wfn  = ci_method.bitci_ref()
 
     # Bitci MRCI configuration scratch file numbers
-    ci_confunits = np.array(mrci_wfn.conf_units, dtype=int)
+    ci_confunits = np.array(mrci_wfn.conf_units['adiabatic'], dtype=int)
 
     # Bitci eigenvector scratch file numbers
     ci_ciunits = np.array(mrci_wfn.ci_units['adiabatic'], dtype=int)
@@ -42,7 +42,7 @@ def refine_ref_space(ci_method):
     min_norm = 0.
 
     # Scratch file numbers for the updated reference configurations
-    ref_confunits = np.array(ref_wfn.conf_units, dtype=int)
+    ref_confunits = np.array(ref_wfn.conf_units['adiabatic'], dtype=int)
 
     # New number of reference space configurations per irrep
     ref_nconf = np.zeros(nirr, dtype=int)
