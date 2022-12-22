@@ -287,7 +287,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ipairs=0
   
   ! Truncation threshold
-  normthrsh=0.99d0
+  normthrsh=0.95d0
 
   ! Fill in the array of bra-ket overlaps required
   n=0

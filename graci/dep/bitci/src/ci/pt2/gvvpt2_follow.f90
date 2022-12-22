@@ -352,7 +352,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ipairs=0
 
   ! Truncation threshold
-  normthrsh=0.99d0
+  normthrsh=0.95d0
 
   ! Fill in the array of bra-ket overlaps required
   n=0
