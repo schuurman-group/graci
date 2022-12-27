@@ -168,10 +168,43 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra-ket overlaps
   allocate(smo(nmoB,nmoK))
   smo=smo1
+
+  
+  ! TEST
+  write(6,'(/,a)') 'MO overlaps in overlap:'
+  do i=1,nmoK
+     print*,''
+     do j=1,nmoB
+        write(6,'(2(i0,x),F10.7)') j,i,smo(j,i)
+     enddo
+  enddo
+  ! TEST
+
   
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
   call get_nel(n_intK,detK1(:,:,1),nelK,nel_alphaK,nel_betaK)
+
+  
+  ! TEST
+  write(6,'(/,a,x,i0)') 'nmoB:',nmoB
+  write(6,'(a,x,i0)') 'nmoK',nmoK
+  write(6,'(/,a,x,i0)') 'n_intB',n_intB
+  write(6,'(a,x,i0)') 'n_intK',n_intK
+  write(6,'(/,a,x,i0)') 'ndetB',ndetB
+  write(6,'(a,x,i0)') 'ndetK:',ndetK
+  write(6,'(/,a,x,i0)') 'nrootsB:',nrootsB
+  write(6,'(a,x,i0)') 'nrootsK',nrootsK
+  
+  write(6,'(/,a,x,i0)') 'nelB:',nelB
+  write(6,'(a,x,i0)') 'nel_alphaB:',nel_alphaB
+  write(6,'(a,x,i0)') 'nel_betaB:',nel_betaB
+
+  write(6,'(/,a,x,i0)') 'nelK:',nelK
+  write(6,'(a,x,i0)') 'nel_alphaK:',nel_alphaK
+  write(6,'(a,x,i0)') 'nel_betaK:',nel_betaK
+  ! TEST
+
   
   ! Verbosity flag
   verbose=verbose1
