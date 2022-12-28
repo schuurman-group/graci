@@ -30,10 +30,6 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   use iomod
   use conftype
 
-  ! TEST
-  use det_print
-  ! TEST
-  
   implicit none
 
   ! Irrep number and the requested number of roots
@@ -281,17 +277,6 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   call det_trans(cfg,m2c,nsave,ncsf,ndet,vec_csf,vec_det,det)
 
 !----------------------------------------------------------------------
-! TEST: print out the dominant dets and coefficients
-!----------------------------------------------------------------------
-  ! Ref. eigenstates
-  write(6,'(/,x,a)') 'Reference space eigenstates'
-  call print_eigvec_det(ndet,nsave,n_int,vec_det,det)
-
-  ! R0 eigenstates
-  write(6,'(/,x,a)') 'R0 eigenstates'
-  call print_eigvec_det(ndetR0,nrootsR0,n_intR0,vecR0,detR0)
-
-!----------------------------------------------------------------------
 ! Compute the overlaps with the input/target wave functions
 !----------------------------------------------------------------------
   ! Allocate arrays
@@ -320,14 +305,6 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
        detR0,det,vecR0,vec_det,smat,normthrsh,ncore,icore,lfrzcore,&
        npairs,Sij,ipairs,lprint)
 
-!----------------------------------------------------------------------
-! TEST: output the overlaps
-!----------------------------------------------------------------------
-  write(6,'(/,x,a)') 'Overlaps, <R0|Rcurr>'
-  do n=1,npairs
-     write(6,'(2(x,i0),x,F10.7)') ipairs(n,1),ipairs(n,2),Sij(n)
-  enddo
-  
 !----------------------------------------------------------------------
 ! Determine the reference eigenfunctions of interest
 !----------------------------------------------------------------------

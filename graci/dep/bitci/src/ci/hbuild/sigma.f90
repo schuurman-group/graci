@@ -39,10 +39,6 @@ contains
     ! Everything else
     integer(is)              :: iscratch,ivec,irec,nbuf,m,n,i,j
 
-    ! TEST
-    real(dp) :: tmp1,tmp2
-    ! TEST
-    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------

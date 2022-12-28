@@ -127,7 +127,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   real(dp)                :: tmpB, tmpK
 
   ! TEST
-  integer(is) :: iscratch
+  integer(is) :: iscratch,n,k
   ! TEST
   
 !----------------------------------------------------------------------
@@ -138,35 +138,35 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
 ! TEST: dump all input to disk for debugging and exit
 !----------------------------------------------------------------------
-  iscratch=9999
-  open(unit=iscratch,file='overlap_input.dat',form='unformatted',&
-       status='unknown')
-
-  write(iscratch) nmoB1
-  write(iscratch) nmoK1
-  write(iscratch) n_intB1
-  write(iscratch) n_intK1
-  write(iscratch) ndetB1
-  write(iscratch) ndetK1
-  write(iscratch) nrootsB1
-  write(iscratch) nrootsK1
-  write(iscratch) detB1
-  write(iscratch) detK1
-  write(iscratch) vecB1
-  write(iscratch) vecK1
-  write(iscratch) smo1
-  write(iscratch) normthrsh
-  write(iscratch) ncore
-  write(iscratch) icore
-  write(iscratch) lfrzcore
-  write(iscratch) npairs
-  write(iscratch) Sij
-  write(iscratch) ipairs
-  write(iscratch) verbose1
-  
-  close(iscratch)
-
-  STOP
+  !iscratch=9999
+  !open(unit=iscratch,file='overlap_input.dat',form='unformatted',&
+  !     status='unknown')
+  !
+  !write(iscratch) nmoB1
+  !write(iscratch) nmoK1
+  !write(iscratch) n_intB1
+  !write(iscratch) n_intK1
+  !write(iscratch) ndetB1
+  !write(iscratch) ndetK1
+  !write(iscratch) nrootsB1
+  !write(iscratch) nrootsK1
+  !write(iscratch) detB1
+  !write(iscratch) detK1
+  !write(iscratch) vecB1
+  !write(iscratch) vecK1
+  !write(iscratch) smo1
+  !write(iscratch) normthrsh
+  !write(iscratch) ncore
+  !write(iscratch) icore
+  !write(iscratch) lfrzcore
+  !write(iscratch) npairs
+  !write(iscratch) Sij
+  !write(iscratch) ipairs
+  !write(iscratch) verbose1
+  !
+  !close(iscratch)
+  !
+  !STOP
   
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
@@ -236,7 +236,18 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      write(6,'(x,a,x,i0)') &
           'No. ket determinants after truncation:',ndetK
   endif
-     
+
+!----------------------------------------------------------------------
+! TEST: print out the truncated wave functions
+!----------------------------------------------------------------------
+  !! Bra
+  !write(6,'(/,x,a)') 'Bra wave functions:'
+  !call print_eigvec_det(ndetB,nrootsB,n_intB,vecB,detB)
+  !
+  !! Ket
+  !write(6,'(/,x,a)') 'Ket wave functions:'
+  !call print_eigvec_det(ndetK,nrootsK,n_intK,vecK,detK)
+
 !----------------------------------------------------------------------
 ! Optional freezing/removal of the core MOs
 !----------------------------------------------------------------------
