@@ -29,7 +29,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   use utils
   use iomod
   use conftype
-  
+
   implicit none
 
   ! Irrep number and the requested number of roots
@@ -275,7 +275,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   
   ! Compute the determinant representation of the wave functions
   call det_trans(cfg,m2c,nsave,ncsf,ndet,vec_csf,vec_det,det)
-  
+
 !----------------------------------------------------------------------
 ! Compute the overlaps with the input/target wave functions
 !----------------------------------------------------------------------
@@ -300,7 +300,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   enddo
 
   ! Compute the overlaps
-  lprint=.false.
+  lprint=.true.
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nsave,&
        detR0,det,vecR0,vec_det,smat,normthrsh,ncore,icore,lfrzcore,&
        npairs,Sij,ipairs,lprint)
