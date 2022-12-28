@@ -126,10 +126,47 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   integer(is)             :: i,ic,j
   real(dp)                :: tmpB, tmpK
 
+  ! TEST
+  integer(is) :: iscratch
+  ! TEST
+  
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
   call get_times(twall_start,tcpu_start)
+
+!----------------------------------------------------------------------
+! TEST: dump all input to disk for debugging and exit
+!----------------------------------------------------------------------
+  iscratch=9999
+  open(unit=iscratch,file='overlap_input.dat',form='unformatted',&
+       status='unknown')
+
+  write(iscratch) nmoB1
+  write(iscratch) nmoK1
+  write(iscratch) n_intB1
+  write(iscratch) n_intK1
+  write(iscratch) ndetB1
+  write(iscratch) ndetK1
+  write(iscratch) nrootsB1
+  write(iscratch) nrootsK1
+  write(iscratch) detB1
+  write(iscratch) detK1
+  write(iscratch) vecB1
+  write(iscratch) vecK1
+  write(iscratch) smo1
+  write(iscratch) normthrsh
+  write(iscratch) ncore
+  write(iscratch) icore
+  write(iscratch) lfrzcore
+  write(iscratch) npairs
+  write(iscratch) Sij
+  write(iscratch) ipairs
+  write(iscratch) verbose1
+  
+  close(iscratch)
+
+  STOP
   
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
@@ -168,43 +205,10 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra-ket overlaps
   allocate(smo(nmoB,nmoK))
   smo=smo1
-
-  
-  ! TEST
-  write(6,'(/,a)') 'MO overlaps in overlap:'
-  do i=1,nmoK
-     print*,''
-     do j=1,nmoB
-        write(6,'(2(i0,x),F10.7)') j,i,smo(j,i)
-     enddo
-  enddo
-  ! TEST
-
   
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
   call get_nel(n_intK,detK1(:,:,1),nelK,nel_alphaK,nel_betaK)
-
-  
-  ! TEST
-  write(6,'(/,a,x,i0)') 'nmoB:',nmoB
-  write(6,'(a,x,i0)') 'nmoK',nmoK
-  write(6,'(/,a,x,i0)') 'n_intB',n_intB
-  write(6,'(a,x,i0)') 'n_intK',n_intK
-  write(6,'(/,a,x,i0)') 'ndetB',ndetB
-  write(6,'(a,x,i0)') 'ndetK:',ndetK
-  write(6,'(/,a,x,i0)') 'nrootsB:',nrootsB
-  write(6,'(a,x,i0)') 'nrootsK',nrootsK
-  
-  write(6,'(/,a,x,i0)') 'nelB:',nelB
-  write(6,'(a,x,i0)') 'nel_alphaB:',nel_alphaB
-  write(6,'(a,x,i0)') 'nel_betaB:',nel_betaB
-
-  write(6,'(/,a,x,i0)') 'nelK:',nelK
-  write(6,'(a,x,i0)') 'nel_alphaK:',nel_alphaK
-  write(6,'(a,x,i0)') 'nel_betaK:',nel_betaK
-  ! TEST
-
   
   ! Verbosity flag
   verbose=verbose1
