@@ -35,7 +35,7 @@ hamiltonians   = ['canonical',
 
 class Dftmrci2(cimethod.Cimethod):
     """Class constructor for DFT/MRCI(2) objects"""
-    def __init__(self):        
+    def __init__(self, ci_obj=None):        
          # parent attributes
         super().__init__()
 
@@ -88,7 +88,11 @@ class Dftmrci2(cimethod.Cimethod):
         self.allowed_adt_type    = ['bdd', 'qdpt']
         # dictionary of bitci wfns
         self.bitciwfns           = {}
-        
+       
+        if isinstance(ci_obj, cimethod.Cimethod):
+            for name,obj in ci_obj.__dict__.items():
+                if hasattr(self, name):
+                    setattr(self, name, obj)
         
 # Required functions #############################################################
     def copy(self):

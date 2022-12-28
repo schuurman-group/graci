@@ -80,7 +80,7 @@ def print_header(run_list):
             # outfile.write the keyword input
             ostr = '\n'
             for kword in params.kwords[calc_name].keys():
-                ostr += ' '+kword.ljust(12,' ')+\
+                ostr += ' '+kword.ljust(20,' ')+\
                         ' = '+str(getattr(calc_obj,kword))+'\n'
             outfile.write(ostr)
 
@@ -805,7 +805,7 @@ def print_dyson_table(init_st, init_sym, final_st, final_sym,
     return
     
 #
-def print_param_header(target_data, ci_objs, ref_states, hparams):
+def print_param_header(p_ref, exc_ref, init_ci, final_ci):
     """
     print header for reparameterization run
     """
@@ -825,20 +825,26 @@ def print_param_header(target_data, ci_objs, ref_states, hparams):
         outfile.write('\n N_proc x N_thread:                     '+
                                  str(int(params.nproc)*int(n_omp)))
 
-        outfile.write('\n\n Reference Data -------------\n\n')
-        for molecule, states in target_data.items():
+        outfile.write('\n\n Reference Data ------------\n\n')
+        for molecule, states in exc_ref.items():
             outfile.write(' '+str(molecule)+': '+str(states)+'\n')
 
         outfile.write('\n Found Reference States -----\n\n')
-        for molecule in ci_objs.keys():
+        for molecule in init_ci.keys():
             outfile.write(' '+str(molecule) + ': ' + 
-                          str(ci_objs[molecule]) + ': ' + 
-                          str(ref_states[molecule])+'\n')
+                          str(init_ci[molecule]) + ': ' + 
+                          str(final_ci[molecule])+'\n')
 
-        outfile.write('\n Initial Parameter Values -----\n')
-        pstr = ''.join(['{:10.6f}']*len(hparams))
-        outfile.write(' ' + pstr.format(*hparams) + '\n\n')
-
+        outfile.write('\n Initial Parameter Values\n')
+        outfile.write(  ' --------------------------------------\n\n')
+        for key,value in p_ref.items():
+            if isinstance(value,str):
+                outfile.write(' {:12s}'.format(key) + ' ' + value + '\n')
+            else:
+                pstr = ''.join(['{:10.6f}']*len(value))
+                outfile.write(' {:12s}'.format(key) + ' ' + 
+                               pstr.format(*value) + '\n')
+        outfile.write('\n\n')
         outfile.flush()
 
     return
@@ -862,23 +868,23 @@ def print_param_iter(cur_iter, params, error):
 
     return
 
-def print_param_scan_head(h0, lb, ub, ngrid):
+def print_param_scan_head(label, p0, bnds, ngrid):
     """
     print the head for the parameter scan
     """
 
     with output_file(file_names['out_file'], 'a+') as outfile:
 
-        outfile.write('\n Beginning scan run...\n\n')
- 
-        fmt = '\n  {:>15s} {:>15s} {:>15s} {:>15s}'
-        outfile.write(fmt.format('H[param]','param[min]','param[max]','ngrid'))
-        outfile.write(fmt.format(*[''.join(['-']*15)]*4))
+        fmt = '\n {:>15s} {:>15s} {:>15s} {:>15s} {:>15s}'
+        outfile.write(fmt.format('type', '[param]', 'param[min]', 
+                                                'param[max]', 'ngrid'))
+        outfile.write(fmt.format(*[''.join(['-']*15)]*5))
         outfile.write('\n')
 
-        fmt2 = '\n  {:>15.8f} {:>15.8f} {:>15.8f} {:>15.8f}'
-        for i in range(len(h0)):
-            outfile.write(fmt2.format(h0[i], lb[i], ub[i], ngrid[i]))
+        fmt2 = '\n {:>15s} {:>15.8f} {:>15.8f} {:>15.8f} {:>15.8f}'
+        for i in range(len(p0)):
+            outfile.write(fmt2.format(label[i], p0[i], bnds[i][0], 
+                                                 bnds[i][1], ngrid[i]))
         outfile.write('\n')
         outfile.flush()
 
@@ -892,7 +898,7 @@ def print_param_scan_iter(hval, step, err):
     with output_file(file_names['out_file'], 'a+') as outfile:
 
         fmt  = '\n '
-        fmt += ' hvals= ' + ''.join([' {:>15.8f}']*len(hval))
+        fmt += ' params= ' + ''.join([' {:>15.8f}']*len(hval))
         fmt += ' step= ' + ''.join([' {:4d}']*len(hval))
         fmt += ' err= {:>15.8f}'
 
@@ -919,9 +925,14 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
         outfile.write('\n # of Evaluations:  {:50d}'.format(outs[2]))
 
         outfile.write('\n\n Final Parameter Values')
-        outfile.write('\n -----------------------------------------')
-        fstr = '\n '+' '.join(['{:10.8f} ']*len(p_final))
-        outfile.write(fstr.format(*list(p_final)))
+        outfile.write('\n -----------------------------------------\n')
+        for key,value in p_final.items():
+            if isinstance(value, str):
+                outfile.write(' {:12s}'.format(key) + ' ' + value + '\n')
+            else:
+                pstr = ''.join(['{:10.6f}']*len(value))
+                outfile.write(' {:12s}'.format(key) + ' ' +
+                                pstr.format(*value) + '\n')
 
         outfile.write('\n\n Reference Data')
         outfile.write('\n -----------------------------------------')
@@ -980,17 +991,12 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
 
     return
 
-def print_param_analysis(params, target, eners):
+def print_param_analysis(p_vals, target, eners):
     """
     print result of a parameterization run
     """
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-
-        outfile.write('\n\n Parameter Values')
-        outfile.write('\n -----------------------------------------')
-        fstr = '\n '+' '.join(['{:10.8f} ']*len(params))
-        outfile.write(fstr.format(*list(params)))
 
         outfile.write('\n\n Error Analysis')
         outfile.write('\n -----------------------------------------')
