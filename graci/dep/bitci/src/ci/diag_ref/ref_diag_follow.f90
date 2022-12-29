@@ -300,7 +300,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   enddo
 
   ! Compute the overlaps
-  lprint=.true.
+  lprint=.false.
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nsave,&
        detR0,det,vecR0,vec_det,smat,normthrsh,ncore,icore,lfrzcore,&
        npairs,Sij,ipairs,lprint)

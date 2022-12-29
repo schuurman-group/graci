@@ -126,48 +126,11 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   integer(is)             :: i,ic,j
   real(dp)                :: tmpB, tmpK
 
-  ! TEST
-  integer(is) :: iscratch,n,k
-  ! TEST
-  
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
   call get_times(twall_start,tcpu_start)
 
-!----------------------------------------------------------------------
-! TEST: dump all input to disk for debugging and exit
-!----------------------------------------------------------------------
-  !iscratch=9999
-  !open(unit=iscratch,file='overlap_input.dat',form='unformatted',&
-  !     status='unknown')
-  !
-  !write(iscratch) nmoB1
-  !write(iscratch) nmoK1
-  !write(iscratch) n_intB1
-  !write(iscratch) n_intK1
-  !write(iscratch) ndetB1
-  !write(iscratch) ndetK1
-  !write(iscratch) nrootsB1
-  !write(iscratch) nrootsK1
-  !write(iscratch) detB1
-  !write(iscratch) detK1
-  !write(iscratch) vecB1
-  !write(iscratch) vecK1
-  !write(iscratch) smo1
-  !write(iscratch) normthrsh
-  !write(iscratch) ncore
-  !write(iscratch) icore
-  !write(iscratch) lfrzcore
-  !write(iscratch) npairs
-  !write(iscratch) Sij
-  !write(iscratch) ipairs
-  !write(iscratch) verbose1
-  !
-  !close(iscratch)
-  !
-  !STOP
-  
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
 ! not allocated

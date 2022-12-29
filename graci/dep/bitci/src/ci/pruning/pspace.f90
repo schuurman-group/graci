@@ -47,21 +47,24 @@ contains
     integer(is), intent(in)  :: nexplicit
     integer(is), intent(in)  :: iexplicit(csfdim)
     
-    ! Working array
+    ! Working arrays
     real(dp), allocatable    :: work(:)
+    integer(is), allocatable :: iwork(:)
     
     ! Everything else
-    integer(is)              :: i,n,n1,ioff,csf,root
+    integer(is)              :: i,n,n1,ioff,csf,ntrim
     integer(is), allocatable :: indx(:),iok(:)
     integer(is)              :: refdim
-    real(dp)                 :: sumsq,goal
-
+    real(dp)                 :: sumsq,A2,goal,trim_thrsh
+    
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
     allocate(indx(csfdim), iok(csfdim))
 
     allocate(work(csfdim))
+
+    allocate(iwork(csfdim))
     
     i1I=0; i2I=0; i1E=0; i2E=0; i1I1E=0
 
@@ -70,29 +73,35 @@ contains
 !----------------------------------------------------------------------
     ! Dimension of the ref space
     refdim=cfg%csfs0h(cfg%n0h+1)-1
-
+    
     iok=0
     
     ! Loop over roots
     do n1=1,nroots
        n=vecmap(n1)
 
-       ! Makesure that the first refdim elements are zeroed
+       ! Makesure that the first refdim elements are zeroed and
+       ! take the absolute values of the coefficients
        work=0.0d0
-       work(refdim+1:csfdim)=Avec(refdim+1:csfdim,n)
+       work(refdim+1:csfdim)=abs(Avec(refdim+1:csfdim,n))
+       
+       ! Truncation threshold
+       A2=dot_product(work,work)
+       goal=Athrsh*A2
+
+       ! Trimming threshold
+       trim_thrsh=sqrt((1.0d0-Athrsh)*A2/(csfdim-refdim))
        
        ! Sort the A-vector elements in order of decreasing absolute
-       ! value
-       call dsortindxa1('D',csfdim,abs(work),indx)
-
-       ! Truncation threshold
-       goal=Athrsh*dot_product(work,work)
-
+       ! value _after_ trimming out the CSFs that cannot possibly
+       ! survive
+       call trim_and_sort(csfdim,work,indx,ntrim,trim_thrsh,iwork)
+       
        ! Determine which CSFs need to be included to reach the
        ! desired squared A-vector norm
        sumsq=0.0d0
-       do i=1,csfdim
-          
+       do i=1,ntrim
+       
           sumsq=sumsq+work(indx(i))**2
           
           iok(indx(i))=1
