@@ -282,7 +282,15 @@ class Dftmrci2(cimethod.Cimethod):
                 self.mrci_wfn.set_confname(confnames, rep='diabatic')
                 self.mrci_wfn.set_nconf(nconfs, rep='diabatic')
                 mrci_wf.extract_wf(self, rep='diabatic')
-                
+
+            # temporary: delete the previous geometry wave functions
+            # now that they are no longer needed
+            # this will be moved to the diabatisation class once it
+            # has been written
+            for key in guess.det_strings.keys():
+                guess.det_strings[key] = None
+                guess.vec_det[key]     = None
+
             # output the diabatic potentials
             if self.verbose:
                 nroots = [self.n_states_sym(irr)

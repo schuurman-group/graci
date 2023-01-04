@@ -29,7 +29,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   use utils
   use iomod
   use conftype
-  
+
   implicit none
 
   ! Irrep number and the requested number of roots
@@ -275,7 +275,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   
   ! Compute the determinant representation of the wave functions
   call det_trans(cfg,m2c,nsave,ncsf,ndet,vec_csf,vec_det,det)
-  
+
 !----------------------------------------------------------------------
 ! Compute the overlaps with the input/target wave functions
 !----------------------------------------------------------------------
@@ -287,7 +287,7 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ipairs=0
   
   ! Truncation threshold
-  normthrsh=0.99d0
+  normthrsh=0.95d0
 
   ! Fill in the array of bra-ket overlaps required
   n=0

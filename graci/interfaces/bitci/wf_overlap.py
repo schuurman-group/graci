@@ -36,9 +36,9 @@ def extract(bra, ket, rep='adiabatic'):
         if nstates == 0:
             continue
     
-        # bitci configuration and eigenvectos scratch files
+        # bitci configuration and eigenvector scratch files
         conf_file = wfn_bra.conf_name[rep][irr]
-        vec_file  = wfn_bra.ci_name['adiabatic'][irr]
+        vec_file  = wfn_bra.ci_name[rep][irr]
     
         # bitwf determinant wave function file number
         wf_scr = 0
@@ -60,7 +60,7 @@ def extract(bra, ket, rep='adiabatic'):
     
         # bitci configuration and eigenvectos scratch files
         conf_file = wfn_ket.conf_name[rep][irr]
-        vec_file  = wfn_ket.ci_name['adiabatic'][irr]
+        vec_file  = wfn_ket.ci_name[rep][irr]
     
         # bitwf determinant wave function file number
         wf_scr = 0

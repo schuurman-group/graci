@@ -130,7 +130,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! Start timing
 !----------------------------------------------------------------------
   call get_times(twall_start,tcpu_start)
-  
+
 !----------------------------------------------------------------------
 ! Make sure that all globally accessible allocatable arrays are
 ! not allocated
@@ -199,7 +199,18 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      write(6,'(x,a,x,i0)') &
           'No. ket determinants after truncation:',ndetK
   endif
-     
+
+!----------------------------------------------------------------------
+! TEST: print out the truncated wave functions
+!----------------------------------------------------------------------
+  !! Bra
+  !write(6,'(/,x,a)') 'Bra wave functions:'
+  !call print_eigvec_det(ndetB,nrootsB,n_intB,vecB,detB)
+  !
+  !! Ket
+  !write(6,'(/,x,a)') 'Ket wave functions:'
+  !call print_eigvec_det(ndetK,nrootsK,n_intK,vecK,detK)
+
 !----------------------------------------------------------------------
 ! Optional freezing/removal of the core MOs
 !----------------------------------------------------------------------

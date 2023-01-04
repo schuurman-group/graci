@@ -5,6 +5,85 @@ module utils
 contains
 
 !######################################################################
+! trim_and_sort: for a given eigenvector, sorts a trimmed subset where
+!                the trimming is based on an absolute value threshold,
+!                thrsh
+!######################################################################
+  subroutine trim_and_sort(dim,vec,indx,ntrim,thrsh,iwork)
+
+    use constants
+    
+    implicit none
+    
+    ! Dimensions
+    integer(is), intent(in)    :: dim
+
+    ! Input eigenvector
+    real(dp), intent(in)       :: vec(dim)
+
+    ! Indices of the determinants/CSFs in order of increasing absolute
+    ! coefficient value
+    integer(is), intent(out)   :: indx(dim)
+
+    ! Size of the trimmed basis
+    integer(is), intent(out)   :: ntrim
+    
+    ! Trimming threshold
+    real(dp), intent(in)       :: thrsh
+
+    ! Work array
+    integer(is), intent(inout) :: iwork(dim)
+    
+    ! Everything else
+    integer(is)                :: i,n
+    integer(is), allocatable   :: imap(:)
+    real(dp), allocatable      :: cabs(:)
+
+!----------------------------------------------------------------------
+! Determine the indices of the surviving determinants/CSFs
+!----------------------------------------------------------------------
+    iwork=0
+    do i=1,dim
+       if (abs(vec(i)) > thrsh) iwork(i)=1
+    enddo
+
+    ! Size of the trimmed basis
+    ntrim=sum(iwork)
+
+!----------------------------------------------------------------------
+! Fill in the truncated vector of absolute coefficient values
+!----------------------------------------------------------------------
+    allocate(cabs(ntrim))
+    allocate(imap(ntrim))
+    
+    n=0
+    do i=1,dim
+       if (iwork(i) == 1) then
+          n=n+1
+          cabs(n)=abs(vec(i))
+          imap(n)=i
+       endif
+    enddo
+
+!----------------------------------------------------------------------
+! Sort the truncated vector of absolute coefficient values
+!----------------------------------------------------------------------
+    iwork=0
+    call dsortindxa1('D',ntrim,cabs,iwork(1:ntrim))
+
+!----------------------------------------------------------------------
+! Fill in the output array of sorted deteminant/CSF indices
+!----------------------------------------------------------------------
+    indx=0
+    do i=1,ntrim
+       indx(i)=imap(iwork(i))
+    enddo
+    
+    return
+    
+  end subroutine trim_and_sort
+  
+!######################################################################
 ! dsortindxa1: heap sort for 8-byte real arrays
 !######################################################################
   subroutine dsortindxa1(order,ndim,arrin,indx)

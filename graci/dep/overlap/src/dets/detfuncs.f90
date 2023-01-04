@@ -39,24 +39,25 @@ contains
     
     ! Sorting
     integer(is), allocatable :: indx(:)
-    real(dp), allocatable    :: cabs(:)
+    integer(is), allocatable :: iwork(:)
 
     ! Surviving determinants
     integer(is), allocatable :: idet(:)
 
     ! Everything else
-    integer(is)              :: i,k,n
+    integer(is)              :: i,k,n,ntrim
     real(dp)                 :: normsq,targ,diff
-    real(dp), parameter      :: epsilon=1e-6_dp
-
+    real(dp), parameter      :: epsilon=1e-8_dp
+    real(dp)                 :: trim_thrsh
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
+    allocate(iwork(ndet))
+    iwork=0
+    
     allocate(indx(ndet))
     indx=0
-
-    allocate(cabs(ndet))
-    cabs=0.0d0
 
     allocate(idet(ndet))
     idet=0
@@ -66,18 +67,20 @@ contains
 !----------------------------------------------------------------------
     ! Target squared norm
     targ=normthrsh**2
+
+    ! Wave function trimming threshold
+    trim_thrsh=sqrt((1.0d0-normthrsh)**2/ndet)
     
     ! Loop over roots
     do i=1,nroots
 
-       ! Sort the coefficients by absolute value
-       cabs=abs(vec(:,i))
-       call dsortindxa1('D',ndet,cabs,indx)
-
+       ! Trim and sort the eigenvector for this state
+       call trim_and_sort(ndet,vec(:,i),indx,ntrim,trim_thrsh,iwork)
+       
        ! Fill in the surviving determinants for this state
        normsq=0.0d0
-       do k=1,ndet
-
+       do k=1,ntrim
+          
           ! Update the squared norm
           normsq=normsq+vec(indx(k),i)**2
 
@@ -87,10 +90,13 @@ contains
           ! Exit if:
           ! (1) we have hit the target squared norm, and;
           ! (2) this determinant is not degenerate with the next one
-          diff = 10.*epsilon
-          if(k.lt.ndet) diff=abs(vec(indx(k),i)-vec(indx(k+1),i))
+          if (k < ntrim) then
+             diff=abs(vec(indx(k),i)-vec(indx(k+1),i))
+          else
+             diff=10*epsilon
+          endif
           if (normsq >= targ .and. diff > epsilon) exit
-
+          
        enddo
        
     enddo
@@ -152,6 +158,91 @@ contains
     
   end subroutine truncate_wave_functions
 
+!######################################################################
+! trim_and_sort: for a given eigenvector, sorts a trimmed subset where
+!                the trimming is based on an absolute value threshold,
+!                thrsh
+!######################################################################
+  subroutine trim_and_sort(ndet,vec,indx,ntrim,thrsh,iwork)
+
+    use constants
+    use utils
+    
+    implicit none
+    
+    ! Dimensions
+    integer(is), intent(in)    :: ndet
+
+    ! Input eigenvector
+    real(dp), intent(in)       :: vec(ndet)
+
+    ! Indices of the determinants in order of increasing absolute
+    ! coefficient value
+    integer(is), intent(out)   :: indx(ndet)
+
+    ! Size of the trimmed determinant basis
+    integer(is), intent(out)   :: ntrim
+    
+    ! Trimming threshold
+    real(dp), intent(in)       :: thrsh
+
+    ! Work array
+    integer(is), intent(inout) :: iwork(ndet)
+    
+    ! Everything else
+    integer(is)                :: i,n
+    integer(is), allocatable   :: imap(:)
+    real(dp), allocatable      :: cabs(:)
+
+!----------------------------------------------------------------------
+! Determine the indices of the surviving determinants
+!----------------------------------------------------------------------
+    ! Initialisation
+    iwork=0
+        
+    ! Loop over determinants
+    do i=1,ndet
+       
+       if (abs(vec(i)) > thrsh) iwork(i)=1
+       
+    enddo
+
+    ! Number of surviving determinants
+    ntrim=sum(iwork)
+
+!----------------------------------------------------------------------
+! Fill in the truncated vector of absolute coefficient values
+!----------------------------------------------------------------------
+    allocate(cabs(ntrim))
+    allocate(imap(ntrim))
+    
+    n=0
+    do i=1,ndet
+       if (iwork(i) == 1) then
+          n=n+1
+          cabs(n)=abs(vec(i))
+          imap(n)=i
+       endif
+    enddo
+
+!----------------------------------------------------------------------
+! Sort the truncated vector of absolute coefficient values
+!----------------------------------------------------------------------
+    iwork=0
+    call dsortindxa1('D',ntrim,cabs,iwork(1:ntrim))
+
+!----------------------------------------------------------------------
+! Fill in the output array of sorted determinant indices
+!----------------------------------------------------------------------
+    indx=0
+    do i=1,ntrim
+       indx(i)=imap(iwork(i))
+    enddo
+    
+    return
+    
+  end subroutine trim_and_sort
+  
 !######################################################################
 ! symm_ortho: Orthonormalisation of a set of wave functions using
 !             Lowdin's symmetric orthogonalisation
@@ -359,6 +450,301 @@ contains
     return
     
   end function annihilate_electron_string
+
+!######################################################################
+! print_eigvec_det: Outputs a set of eigenvectors in the determinant
+!                   representation. For the sake of brevity, the
+!                   dominant determinants are output as their
+!                   difference wrt the base determinant.
+!######################################################################
+  subroutine print_eigvec_det(ndet,nroots,n_int,vec,det)
+
+    use constants
+    use utils
+    
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in)  :: ndet,nroots,n_int
+
+    ! Eigenvectors
+    real(dp), intent(in)     :: vec(ndet,nroots)
+
+    ! Determinant bit strings
+    integer(ib), intent(in)  :: det(n_int,2,ndet)
+
+    ! Sorting
+    integer(is), allocatable :: indx(:)
+    real(dp), allocatable    :: absvec(:)
+
+    ! Base determinant
+    integer(ib)              :: det0(n_int,2)
+    
+    ! Everything else
+    integer(is)              :: i,j,k
+    real(dp), parameter      :: pthrsh=0.03d0
+    real(dp)                 :: coe
+    character(len=60)        :: string
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(indx(ndet))
+    allocate(absvec(ndet))
+    indx=0
+    absvec=0.0d0
+
+!----------------------------------------------------------------------
+! Set up the base determinant
+! For now, we will take this as the dominant determinant in first state
+!----------------------------------------------------------------------
+    absvec=abs(vec(:,1))
+    call dsortindxa1('D',ndet,absvec,indx)
+    det0=det(:,:,indx(1))
+        
+!----------------------------------------------------------------------
+! Output the dominant determinants and coefficients
+!----------------------------------------------------------------------
+    ! Loop over roots
+    do i=1,nroots
+
+       ! Sort the eigenvector by absolute coefficient value
+       absvec=abs(vec(:,i))
+       call dsortindxa1('D',ndet,absvec,indx)
+
+       ! Header
+       write(6,'(/,x,50a)') ('-',k=1,50)
+       write(6,'(x,a,x,i0)') 'State',i
+       write(6,'(x,50a)') ('-',k=1,50)
+
+       ! Output the dominant determinants
+       do j=1,ndet
+
+          ! Coefficient
+          coe=vec(indx(j),i)
+
+          ! Exit if we have reached the end of the dominant
+          ! coefficients
+          if (abs(coe) < pthrsh) exit
+
+          ! Get the determinant difference character string
+          call get_diff_string(n_int,det0,det(:,:,indx(j)),string)          
+          
+          ! Output the coefficient, difference string pair
+          write(6,'(x,F10.7,x,a,x,a)') coe,'|',trim(string)
+          
+       enddo
+          
+       ! Footer
+       write(6,'(x,50a)') ('-',k=1,50)
+       
+    enddo
+       
+    return
+    
+  end subroutine print_eigvec_det
+
+!######################################################################
+! diff_string: Given a determinant bit string, det, returns a
+!              character string corresponding to the excitation wrt
+!              the base determinant
+!######################################################################
+  subroutine get_diff_string(n_int,det0,det,string)
+
+    use constants
+
+    implicit none
+
+    ! Input determinant bit string
+    integer(is), intent(in)        :: n_int
+    integer(ib), intent(in)        :: det0(n_int,2)
+    integer(ib), intent(in)        :: det(n_int,2)
+
+    ! Output character string
+    character(len=60), intent(out) :: string
+
+    ! Particle and hole indices
+    integer(ib)                    :: p(n_int,2),h(n_int,2)
+    integer(is), parameter         :: nexmax=10
+    integer(is)                    :: plist(nexmax,2),hlist(nexmax,2)
+    integer(is)                    :: nexci(2)
+
+    ! Everything else
+    integer(is)                    :: i,i1,dim
+        
+!----------------------------------------------------------------------
+! Get the bit string encodings of the particle and hole MOs relative
+! base determinant
+!----------------------------------------------------------------------
+    call exc(n_int,det0,det,p,h)
+
+!----------------------------------------------------------------------
+! Get the alpha and beta excitation degrees
+!----------------------------------------------------------------------
+    nexci=0
+    nexci(1)=exc_degree_string(n_int,det0(:,1),det(:,1))
+    nexci(2)=exc_degree_string(n_int,det0(:,2),det(:,2))
+
+!----------------------------------------------------------------------
+! Get the lists of alpha and beta particle/hole MO indices
+!----------------------------------------------------------------------
+    ! alpha particles
+    call list_from_bitstring(n_int,p(:,1),plist(:,1),nexmax)
+
+    ! alpha holes
+    call list_from_bitstring(n_int,h(:,1),hlist(:,1),nexmax)
+
+    ! beta particles
+    call list_from_bitstring(n_int,p(:,2),plist(:,2),nexmax)
+
+    ! beta holes
+    call list_from_bitstring(n_int,h(:,2),hlist(:,2),nexmax)
+
+!----------------------------------------------------------------------
+! Write the excitation character string
+!----------------------------------------------------------------------
+    ! Is this the base determinant?
+    if (sum(nexci) == 0) then
+       string=' base det'
+       return
+    endif
+
+    ! Initialisation
+    string=''
+
+    ! Aplha holes
+    do i=1,nexci(1)
+       i1=len_trim(string)
+       write(string(i1+1:),'(x,i0,a1)') hlist(i,1),'a'
+    enddo
+
+    ! Beta holes
+    do i=1,nexci(2)
+       i1=len_trim(string)
+       write(string(i1+1:),'(x,i0,a1)') hlist(i,2),'b'
+    enddo
+
+    ! Hole-particle delimiter
+    i1=len_trim(string)
+    write(string(i1+1:),'(x,a)') '->'
+
+    ! Aplha particles
+    do i=1,nexci(1)
+       i1=len_trim(string)
+       write(string(i1+1:),'(x,i0,a1)') plist(i,1),'a'
+    enddo
+
+    ! Beta particles
+    do i=1,nexci(2)
+       i1=len_trim(string)
+       write(string(i1+1:),'(x,i0,a1)') plist(i,2),'b'
+    enddo
+    
+    return
+    
+  end subroutine get_diff_string
+
+!######################################################################
+! exc: Given two determinants d1 and d2, returns bitstrings p and h
+!      encoding, respectively, the indices of the particles and holes
+!      created by the excitation linking d1 and d2
+!######################################################################
+  subroutine exc(n_int,d1,d2,p,h)
+
+    use constants
+    
+    implicit none
+
+    integer(is), intent(in)  :: n_int
+    integer(ib), intent(in)  :: d1(n_int,2),d2(n_int,2)
+    integer(ib), intent(out) :: p(n_int,2),h(n_int,2)
+    integer(ib)              :: c
+    integer(is)              :: ispin,k
+    
+    ! Loop over spins
+    do ispin=1,2
+       ! Loop over blocks
+       do k=1,n_int
+          c=ieor(d1(k,ispin),d2(k,ispin))
+          p(k,ispin)=iand(c,d2(k,ispin))
+          h(k,ispin)=iand(c,d1(k,ispin))
+       enddo
+    enddo
+    
+    return
+    
+  end subroutine exc
+
+!######################################################################
+! exc_degree_string: Computes the excitation degree between two alpha
+!                    or beta strings s1 and s2
+!######################################################################  
+  function exc_degree_string(n_int,s1,s2) result(nexci)
+
+    use constants
+    
+    implicit none
+
+    integer(is)             :: nexci
+
+    integer(is), intent(in) :: n_int
+    integer(ib), intent(in) :: s1(n_int),s2(n_int)
+    integer(is)             :: ispin,k
+
+    ! Compute the number of creation and annihilation operators
+    ! connecting s1 and s2
+    nexci=popcnt(ieor(s1(1),s2(1)))
+    do k=2,n_int
+       nexci=nexci+popcnt(ieor(s1(k),s2(k)))
+    enddo
+
+    ! Divide by 2 to get the no. excitations connecting s1 and s2
+    ! Note that this is equivalent to performing a right bit shift
+    ! by 1 place
+    nexci=shiftr(nexci,1)
+
+    return
+    
+  end function exc_degree_string
+
+!######################################################################
+! list_from_bitstring: Given a bitstring I, fills in the array list
+!                      with the indices of the set bits in I. Note
+!                      that I is destroyed on output.
+!######################################################################
+  subroutine list_from_bitstring(n_int,I,list,listdim)
+
+    use constants
+    
+    implicit none
+
+    integer(is), intent(in)    :: n_int
+    integer(is), intent(in)    :: listdim
+    integer(ib), intent(inout) :: I(n_int)
+    integer(is), intent(out)   :: list(listdim)
+    integer(is)                :: ispin,k,n
+    integer(is)                :: e
+    
+    ! Initialisation
+    list=0
+    n=1
+    
+    ! Loop over blocks
+    do k=1,n_int
+       
+       ! Determine the indices of any set bits
+       do while (I(k)/=0_ib)
+          e=trailz(I(k))
+          I(k)=ibclr(I(k),e)
+          list(n)=e+(k-1)*n_bits+1
+          n=n+1
+       enddo
+       
+    enddo
+
+    return
+    
+  end subroutine list_from_bitstring
   
 !######################################################################
   

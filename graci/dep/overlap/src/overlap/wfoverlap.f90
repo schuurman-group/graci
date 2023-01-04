@@ -87,11 +87,11 @@ contains
           ! Get the ket occupied MO indices
           call mo_occ_string(n_intB,alphaB(:,iaB),nel_alphaB,&
                noccB,occB)
-          
+
           ! Compute the alpha factor for this pair of strings
           call get_one_factor(nel_alphaB,alphaB(:,iaB),alphaK(:,iaK),&
                occB,occK,fwork,iwork,afac)
-    
+
           ! Cycle if the alpha factor is below threshold
           if (abs(afac) < fthrsh) cycle
     
