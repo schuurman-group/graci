@@ -92,7 +92,14 @@ class Dftmrci2(cimethod.Cimethod):
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
                 if hasattr(self, name):
-                    setattr(self, name, obj)
+                    # pass a copy of mutable objects
+                    if isinstance(obj, (dict, list, np.ndarray)):
+                        setattr(self, name, copy.deepcopy(obj))
+                    # pass a copy of graci object
+                    elif obj.__class__.__name__ in params.valid_objs:
+                        setattr(self, name, obj.copy()) 
+                    else:
+                        setattr(self, name, obj)
         
 # Required functions #############################################################
     def copy(self):

@@ -112,6 +112,7 @@ def overlap_st(bra_obj, ket_obj, bra_st, ket_st, smo, norm_thresh,
             Sij   = overlap(bra_obj, ket_obj, smo, 
                             np.asarray(pairs, dtype=int), 
                             irr, norm_thresh, verbose)
+
         for pindx in range(len(pairs)):
             badia = bra_obj.state_index(irr, pairs[pindx][0])
             bindx = bra_st.index(badia)

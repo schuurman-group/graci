@@ -34,10 +34,18 @@ class Parameterize:
         self.verbose         = False
         #  hamiltonian to use for initial state calculation
         self.init_state_h    = None
+        # cimethod for initial states
+        self.init_ci_method  = None
+        # keyword arguments for initial ci method
+        self.init_ci_args    = None
         #  parameters to use for initial state hamiltonian
         self.h_init_params   = None
         #  hamiltonian to use the final state calculation 
         self.final_state_h   = None
+        # ci method type for final states
+        self.final_ci_method = None
+        # keyword arguments for final ci method
+        self.final_ci_args   = None
         #  parameters to use for the final state hamiltonian
         self.h_final_params  = None
         # couple h_init and h_final, i.e. same hamiltonian
@@ -71,6 +79,8 @@ class Parameterize:
         self.scan_var        = []
 
         # -------------------------------
+        self.init_kwords    = {}
+        self.final_kwords   = {}
         self.n_opt          = 0
         self.p_ref          = None
         self.n_ref          = 0
@@ -431,13 +441,60 @@ class Parameterize:
  
         # loop over unique ci state objects
         for ci_name in ci_unique:     
-            ci_ref = chkpt.read(ci_name, file_handle=wfn_chkpt)
-            ci_obj = ci_ref.copy()
 
+            # ci_ref contains the wfns corresponding to the target
+            # states
+            ci_ref = chkpt.read(ci_name, file_handle=wfn_chkpt)
+           
+            ref_states = {}
+            # if this hamiltonian is for the initial states, apply
+            # arguments that apply to the initial states
+            if ci_name in init_ci.keys():
+
+                if self.init_ci_method is None:
+                    ci_opt = ci_ref.copy()
+                else:
+                    ci_class = self.init_ci_method.lower().capitalize()
+                    ci_opt = getattr(globals()[ci_class.lower()], ci_class)(ci_ref)               
+
+                for kword,val in self.init_kwords.items():
+                    if hasattr(ci_opt, kword):
+                        setattr(ci_opt, kword, val)
+                ci_opt.update_hparam(np.asarray(p_full['h_init']))
+                ref_states.update(init_ci[ci_name])
+
+            elif ci_name in final_ci.keys():
+
+                if self.final_ci_method is None:
+                    ci_opt = ci_ref.copy()
+                else:
+                    ci_class = self.final_ci_method.lower().capitalize()
+                    ci_opt = getattr(globals()[ci_class.lower()], ci_class)(ci_ref)
+
+                for kword,val in self.final_kwords.items():
+                    if hasattr(ci_opt, kword):
+                        setattr(ci_opt, kword, val)
+                ci_opt.update_hparam(np.asarray(p_full['h_final']))
+
+            # this feels a little hacky: if same hamiltonian for 
+            # init and final states -- make sure we add final 
+            # states to the list we search for
+            if ci_name in final_ci.keys():
+                ref_states.update(final_ci[ci_name])
+
+            # set verbosity to match requested output level
+            ci_opt.verbose = self.verbose
+
+            # move into the directory with the correspoinding scf
+            # object (and MO integrals)
             os.chdir(mol_dir+'/'+scf_dirs[ci_name])
 
+            # if scf_objs is None that means we need to generate it...
             if scf_objs[ci_name] is None:
 
+                #...either by re-running it b/c it's the first time
+                # function is called, or, b/c we're optimizing the
+                # functional
                 if gen_orbs or self.opt_xc:
                     scf_obj = chkpt.read(scf_name[ci_name],
                                          file_handle=wfn_chkpt)
@@ -447,15 +504,17 @@ class Parameterize:
                     scf_obj.run(scf_obj.mol, None)
                     scf_objs[ci_name] = scf_obj
 
-                    mo_ints.emo_cut = ci_obj.mo_cutoff
+                    mo_ints.emo_cut = ci_opt.mo_cutoff
                     mo_ints.run(scf_obj)
     
                     # if only running scf once, save the orbs to file
                     if not self.opt_xc:
                         fname = 'TMP_'+scf_name[ci_name]+'.chkpt.h5'
                         chkpt.write(scf_obj,
-                           file_name=fname, grp_name = scf_name[i])
+                         file_name=fname, grp_name = scf_name[ci_name])
 
+                #...or by loading the scf object from a temporary
+                # chkpt file
                 else:
                     fname = 'TMP_'+scf_name[ci_name]+'.chkpt.h5'
                     scf_obj = chkpt.read(scf_name[ci_name],
@@ -465,38 +524,28 @@ class Parameterize:
                     scf_objs[ci_name] = scf_obj
 
                     # set the mo_cutoff to ensure orb count is correct
-                    mo_ints.emo_cut = ci_obj[i].mo_cutoff
+                    mo_ints.emo_cut = ci_opt.mo_cutoff
                     mo_ints.load_bitci(scf_obj)
 
-            # if we're using a single Hamiltonian for the initial and
-            # final states, determine both in a single calculation
-            ref_states = {}
-            if ci_name in init_ci.keys():             
-                ci_obj.hamiltonian = self.init_state_h
-                ci_obj.update_hparam(np.asarray(p_full['h_init']))
-                ref_states.update(init_ci[ci_name])
-            if ci_name in final_ci.keys():
-                ci_obj.hamiltonian = self.final_state_h
-                ci_obj.update_hparam(np.asarray(p_full['h_final']))
-                ref_states.update(final_ci[ci_name])
-            ci_obj.update_eri(mo_ints)
-            ci_obj.verbose = self.verbose
-            
+            ci_opt.update_eri(mo_ints)
             roots_found = False
             i_add       = 0
             n_add       = 5 
-            add_states  = np.ceil(2*ci_obj.nstates / n_add).astype(int)  
+            add_states  = np.ceil(2*ci_opt.nstates / n_add).astype(int)  
 
+            # iterate a couple times, in case we need to add roots to
+            # find the states of interest
             while not roots_found and i_add < n_add:
 
-                ci_obj.run(scf_objs[ci_name], None)
+                ci_opt.run(scf_objs[ci_name], None)
 
                 # use overlap with ref states to identify t states
                 roots_found, eners = self.identify_states(molecule, 
-                                             ci_ref, ref_states, ci_obj)
+                                             ci_ref, ref_states, ci_opt)
+                
 
                 if not roots_found:
-                    ci_obj.nstates += add_states
+                    ci_opt.nstates += add_states
                     i_add          += 1
             
             # if all roots found, update the energy directory 
@@ -505,7 +554,8 @@ class Parameterize:
 
             # else, hard exit
             else:
-                msg = str(molecule)+' failed to match states.\n'
+                msg = str(molecule)+' failed to match states: ' + \
+                      str(ref_states)+'\n'
                 self.hard_exit(msg)
 
         libs.lib_func('bitci_int_finalize', [])
@@ -521,7 +571,7 @@ class Parameterize:
 
 
     @timing.timed
-    def identify_states(self, molecule, ref_ci, ref_states, new_ci):
+    def identify_states(self, molecule, ci_ref, ref_states, ci_new):
         """
         compute overlaps to identify states
         """
@@ -532,15 +582,15 @@ class Parameterize:
 
         # in functional optimization runs, this will be something
         # other than identity matrix
-        smo = new_ci.scf.mo_overlaps(ref_ci.scf)[:ref_ci.nmo,:new_ci.nmo]
+        smo = ci_new.scf.mo_overlaps(ci_ref.scf)[:ci_ref.nmo,:ci_new.nmo]
         #if ref_ci.nmo != new_ci.nmo:
         #    print(molecule+' ref.nmo='+str(ref_ci.nmo)+','+str(new_ci.nmo),flush=True)
 
         # iterate over the reference states
         bra_st  = list(ref_states.values())
-        ket_st  = list(range(new_ci.n_states()))
-        Smat = overlap.overlap_st(ref_ci, new_ci, bra_st, ket_st, smo,
-                                                         0.95, False)
+        ket_st  = list(range(ci_new.n_states()))
+        Smat = overlap.overlap_st(ci_ref, ci_new, bra_st, ket_st, smo,
+                                                      0.975, self.verbose) 
 
         roots_found = True
         for lbl, bst in ref_states.items():
@@ -552,7 +602,7 @@ class Parameterize:
                 #print(molecule+' lbl='+str(lbl)+' Sij[max]='+str(s_max))
 
             kst = ket_st[np.argmax(Sij)]
-            eners[lbl] = new_ci.energies[kst]
+            eners[lbl] = ci_new.energies[kst]
 
         return roots_found, eners
 
@@ -766,6 +816,18 @@ class Parameterize:
             msg = 'No functional specified.'
             self.hard_exit(msg)
 
+        if self.init_ci_method is not None:
+            ci_class = self.init_ci_method.lower().capitalize()
+            if ci_class not in params.ci_objs:
+                msg = ci_class+' not a valid CI method.'
+                self.hard_exit(msg)
+
+        if self.final_ci_method is not None:
+            ci_class = self.final_ci_method.lower().capitalize()
+            if ci_class not in params.ci_objs:
+                msg = ci_class+' not a valid CI method.'
+                self.hard_exit(msg)
+
         # if single hamiltonian is requested, we're going to reset
         # some values to ensure internal consistency
         if self.single_hamiltonian:
@@ -851,6 +913,37 @@ class Parameterize:
         if self.job_type == 'scan' and self.ngrid is None:
             msg = 'job_type=scan, ngrid='+str(self.ngrid)+', error'
             self.hard_exit(msg)
+
+        # going to set initial and final ci object keywords here as
+        # well. This should be moved eventually.
+        if (self.init_ci_args is not None and 
+             isinstance(self.init_ci_args, (list, np.ndarray))):
+            for k in range(0,len(self.init_ci_args),2):
+                [key, val_str] = self.init_ci_args[k:k+2]
+                if '[' in val_str and ']' in val_str:
+                    self.init_kwords[key] = parse.convert_array(val_str)
+                else:
+                    self.init_kwords[key] = parse.convert_value(val_str) 
+        self.init_kwords['hamiltonian'] = self.init_state_h
+ 
+        # going to set initial and final ci object keywords here as
+        # well. This should be moved eventually.
+        if (self.final_ci_args is not None and
+             isinstance(self.final_ci_args, (list, np.ndarray))):
+            for k in range(0,len(self.final_ci_args),2):
+                [key, val_str] = self.final_ci_args[k:k+2]
+                if '[' in val_str and ']' in val_str:
+                    self.final_kwords[key] = parse.convert_array(val_str)
+                else:
+                    self.final_kwords[key] = parse.convert_value(val_str)
+        self.final_kwords['hamiltonian'] = self.final_state_h
+
+        # if there is a single hamiltonian for both initial and 
+        # final states, the args dicts are made identifical and 
+        # are the union of the two arg lists
+        if self.single_hamiltonian:
+            self.init_kwords.update(self.final_kwords)
+            self.final_kwords = self.init_kwords
 
         return
 
