@@ -89,6 +89,7 @@ class Parameterize:
         self.error          = 0
         self.de_thr         = 0.5
         self.log_file       = None
+        self.valid_algos    = ['Nelder-Mead','DifferentialEvolution']
 
     #
     def run(self):
@@ -130,13 +131,23 @@ class Parameterize:
             self.p_n, p_bnds = self.extract_opt_param(self.p_ref, 
                                                               p_bounds)
 
-            res = sp_opt.minimize(self.err_func, self.p_n, 
+            if self.opt_algorithm != 'DifferentialEvolution':
+                res = sp_opt.minimize(self.err_func, self.p_n, 
                               args = (exc_ref, scf_dirs, scf_objs,
-                                                     init_ci, final_ci),
-                              bounds = p_bnds,
-                              method = 'Nelder-Mead',
-                              tol = self.conv,
+                                                init_ci, final_ci),
+                              bounds   = p_bnds,
+                              method   = self.opt_algorithm,
+                              tol      = self.conv,
                               callback = self.status_func)
+            else:
+                res = sp_opt.differential_evolution(
+                                   self.err_func, p_bnds,
+                                   args = (exc_ref, scf_dirs, scf_objs,
+                                                    init_ci, final_ci),
+                                   callback = self.status_func,
+                                   polish   = False,
+                                   tol      = self.conv,
+                                   x0       = self.p_n)
 
             p_final = self.to_full_param_set(res.x)
             # one final eval_energy call with the converged params
@@ -289,7 +300,7 @@ class Parameterize:
                                ener_i[molecule][init]
                 dif_vec[ide] = de_iter*constants.au2ev - ener
                 ide         += 1
- 
+
         self.error    = np.linalg.norm(dif_vec)
 
         return self.error
@@ -317,12 +328,14 @@ class Parameterize:
         for p_str in self.scan_var:
             p_val = int(p_str[-1])
             if 'xc' in p_str:
+                self.opt_xc = True
                 self.freeze_xc.remove(p_val)
                 p0.append(self.xc_params[p_val])
                 bounds.append(self.bounds_xc[p_val])
                 lbl = 'xc'
                 label.append('xc')
             if 'h_init' in p_str:
+                self.opt_h_init = True
                 self.freeze_h_init.remove(p_val)
                 if self.single_hamiltonian:
                     self.freeze_h_final.remove(p_val)
@@ -332,6 +345,7 @@ class Parameterize:
                 p0.append(self.h_init_params[p_val])
                 bounds.append(self.bounds_h_init[p_val])
             if 'h_final' in p_str:
+                self.opt_h_final = True
                 self.freeze_h_final.remove(p_val)
                 if self.single_hamiltonian:
                     self.freeze_h_init.remove(p_val)
@@ -397,7 +411,6 @@ class Parameterize:
 
                     for res in executor.starmap(self.eval_energy, args):
                         energies.update(res)
-
         else:
 
             for molecule in init_ci.keys():
@@ -531,7 +544,7 @@ class Parameterize:
             roots_found = False
             i_add       = 0
             n_add       = 5 
-            add_states  = np.ceil(2*ci_opt.nstates / n_add).astype(int)  
+            add_states  = np.asarray([1]*len(ci_opt.nstates), dtype=int)
 
             # iterate a couple times, in case we need to add roots to
             # find the states of interest
@@ -540,23 +553,34 @@ class Parameterize:
                 ci_opt.run(scf_objs[ci_name], None)
 
                 # use overlap with ref states to identify t states
+                #print(molecule+' identify start',flush=True)
                 roots_found, eners = self.identify_states(molecule, 
                                              ci_ref, ref_states, ci_opt)
-                
 
                 if not roots_found:
                     ci_opt.nstates += add_states
                     i_add          += 1
-            
-            # if all roots found, update the energy directory 
-            if roots_found:       
-                energies[molecule].update(eners) 
+         
+            energies[molecule].update(eners)
 
-            # else, hard exit
-            else:
-                msg = str(molecule)+' failed to match states: ' + \
-                      str(ref_states)+'\n'
-                self.hard_exit(msg)
+            # give a heads up that we failed to match roots:
+            if not roots_found:
+                fail_st = [st for st,en in eners.items() if en == 0.]
+                msg  = str(molecule) + ' failed to match states: '
+                msg += str(fail_st)  + ' h_param = '+str(ci_opt.hparam)
+                output.print_message(msg)
+
+            # if all roots found, update the energy directory 
+            #if roots_found:       
+            #    energies[molecule].update(eners) 
+
+            # if we fail to match states, set energies to zero, thereby
+            # resulting in very large errors
+            #else:
+            #    msg = str(molecule)+' failed to match states: ' + \
+            #          str(ref_states) + ' hparam=' + str(ci_opt.hparam)
+            #         
+            #    self.hard_exit(msg)
 
         libs.lib_func('bitci_int_finalize', [])
         wfn_chkpt.close()
@@ -576,7 +600,7 @@ class Parameterize:
         compute overlaps to identify states
         """
         s_thrsh = 1./np.sqrt(2.)
-        #s_thrsh = 0.7
+        #s_thrsh = 0.6
 
         eners  = {}
 
@@ -590,20 +614,32 @@ class Parameterize:
         bra_st  = list(ref_states.values())
         ket_st  = list(range(ci_new.n_states()))
         Smat = overlap.overlap_st(ci_ref, ci_new, bra_st, ket_st, smo,
-                                                      0.975, self.verbose) 
+                                                   0.975, self.verbose) 
 
-        roots_found = True
+        roots_found  = True
+        states_found = []
         for lbl, bst in ref_states.items():
-            Sij   = np.absolute(Smat[bra_st.index(bst),:])
-            s_max = np.amax(Sij)
+            Sij     = np.absolute(Smat[bra_st.index(bst),:])
+            s_srt   = np.flip(np.argsort(Sij))
+            ind     = 0
+            max_ind = s_srt[ind]
+            while (ind < len(s_srt)-1 and Sij[max_ind] >= s_thrsh and 
+                                            max_ind in states_found):
+                ind    += 1
+                max_ind = s_srt[ind]
 
-            if s_max <= s_thrsh:
+            # if we can't find the state, set the energy to
+            # 0.95*E[0]. This is undeniably arbitrary/hacky,
+            # but empirically, this works reasaonbly well as a 
+            # penalty function value for the optimizers 
+            if Sij[max_ind] <= s_thrsh:
                 roots_found = False
-                #print(molecule+' lbl='+str(lbl)+' Sij[max]='+str(s_max))
-
-            kst = ket_st[np.argmax(Sij)]
-            eners[lbl] = ci_new.energies[kst]
-
+                eners[lbl] = 0.95*ci_new.energies[0] 
+            else:
+                kst = ket_st[max_ind]
+                eners[lbl] = ci_new.energies[kst]
+                states_found.append(kst)
+ 
         return roots_found, eners
 
     #
@@ -905,9 +941,9 @@ class Parameterize:
                 msg = 'job_type=op, but no parameters to be optimized'
                 self.hard_exit(msg)
 
-            algos = ['Nelder-Mead']
-            if self.opt_algorithm not in algos:
-                msg = str(self.opt_algorithm)+' not in '+str(algos)
+            if self.opt_algorithm not in self.valid_algos:
+                msg = str(self.opt_algorithm) + ' not in ' + \
+                      str(self.valid_algos)
                 self.hard_exit(msg)
 
         if self.job_type == 'scan' and self.ngrid is None:
@@ -1075,13 +1111,23 @@ class Parameterize:
         return p_opt, bnd_opt
 
     #
-    def status_func(self, xk):
+    def status_func(self, xk, convergence=None):
         """
         Give status of optimization
         """
 
         dif     = np.linalg.norm(xk - self.p_n)
-        output.print_param_iter(self.iiter, xk, self.error)
+
+        # some optimization methods want an optional
+        # 'convergence' argument. If set, pass that
+        # to print status function, else, last value
+        # of the error function
+        if convergence is not None:
+            status_err = convergence
+        else:
+            status_err = self.error
+
+        output.print_param_iter(self.iiter, xk, status_err)
 
         self.iiter += 1
         self.p_n    = xk.copy()
