@@ -541,14 +541,14 @@ class Parameterize:
                     mo_ints.load_bitci(scf_obj)
 
             ci_opt.update_eri(mo_ints)
-            roots_found = False
-            i_add       = 0
-            n_add       = 5 
-            add_states  = np.asarray([1]*len(ci_opt.nstates), dtype=int)
+            all_found  = False
+            i_add      = 0
+            n_add      = 5 
+            add_states = np.asarray([1]*len(ci_opt.nstates), dtype=int)
 
             # iterate a couple times, in case we need to add roots to
             # find the states of interest
-            while not roots_found and i_add < n_add:
+            while not all_found and i_add < n_add:
 
                 ci_opt.run(scf_objs[ci_name], None)
 
@@ -557,17 +557,18 @@ class Parameterize:
                 roots_found, eners = self.identify_states(molecule, 
                                              ci_ref, ref_states, ci_opt)
 
-                if not roots_found:
+                all_found = all(roots_found.values())
+                if not all_found:
                     ci_opt.nstates += add_states
                     i_add          += 1
          
             energies[molecule].update(eners)
 
             # give a heads up that we failed to match roots:
-            if not roots_found:
-                fail_st = [st for st,en in eners.items() if en == 0.]
+            if not all_found:
+                fail = [st for st,fnd in roots_found.items() if not fnd]
                 msg  = str(molecule) + ' failed to match states: '
-                msg += str(fail_st)  + ' h_param = '+str(ci_opt.hparam)
+                msg += str(fail)  + ' h_param = '+str(ci_opt.hparam)
                 output.print_message(msg)
 
             # if all roots found, update the energy directory 
@@ -616,7 +617,7 @@ class Parameterize:
         Smat = overlap.overlap_st(ci_ref, ci_new, bra_st, ket_st, smo,
                                                    0.975, self.verbose) 
 
-        roots_found  = True
+        root_found   = {st:True for st in ref_states.keys()}
         states_found = []
         for lbl, bst in ref_states.items():
             Sij     = np.absolute(Smat[bra_st.index(bst),:])
@@ -633,14 +634,14 @@ class Parameterize:
             # but empirically, this works reasaonbly well as a 
             # penalty function value for the optimizers 
             if Sij[max_ind] <= s_thrsh:
-                roots_found = False
-                eners[lbl] = 0.95*ci_new.energies[0] 
+                root_found[lbl] = False
+                eners[lbl]      = 0.95*ci_new.energies[0] 
             else:
-                kst = ket_st[max_ind]
+                kst        = ket_st[max_ind]
                 eners[lbl] = ci_new.energies[kst]
                 states_found.append(kst)
  
-        return roots_found, eners
+        return root_found, eners
 
     #
     def create_dirs(self, scf_objs):
