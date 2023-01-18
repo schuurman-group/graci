@@ -529,6 +529,7 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
                              *f0xyz[i][:],
                              *promo[i]))
 
+        outfile.flush()
     return
 
 
