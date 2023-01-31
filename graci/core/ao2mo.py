@@ -27,18 +27,7 @@ class Ao2mo:
         """perform AO to MO integral transformation using the current
            orbitals"""
 
-        # if mo energy cutoff not set, include all orbitals
-        if self.emo_cut is None:
-            self.emo_cut = scf.orb_ener[-1]
-
-        self.nmo = sum(map(lambda x : x <= self.emo_cut, scf.orb_ener))
-        self.orbs    = scf.orbs[:,:self.nmo]
-        self.emo     = scf.orb_ener[:self.nmo]
-        self.mosym   = scf.orb_sym[:self.nmo]
-
-        # set default file names
-        self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
-        self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
+        self.load_scf(scf)
 
         # Do the AO -> MO transformation
         if scf.mol.use_df:
@@ -78,9 +67,7 @@ class Ao2mo:
         Reload bitci with the current integral files
         """
 
-        # set default file names
-        self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
-        self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
+        self.load_scf(scf)
 
         libs.lib_func('bitci_int_finalize', [])
         if scf.mol.use_df:
@@ -90,5 +77,26 @@ class Ao2mo:
 
         libs.lib_func('bitci_int_initialize',
                 ['pyscf', type_str, self.moint_1e, self.moint_2e_eri])
+
+        return
+
+    def load_scf(self, scf):
+        """
+        load an scf object and set internal variables based on
+        scf variables
+        """
+
+        # if mo energy cutoff not set, include all orbitals
+        if self.emo_cut is None:
+            self.emo_cut = scf.orb_ener[-1]
+
+        self.nmo = sum(map(lambda x : x <= self.emo_cut, scf.orb_ener))
+        self.orbs    = scf.orbs[:,:self.nmo]
+        self.emo     = scf.orb_ener[:self.nmo]
+        self.mosym   = scf.orb_sym[:self.nmo]
+
+        # set default file names
+        self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
+        self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
 
         return

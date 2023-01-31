@@ -68,7 +68,7 @@ class Driver:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')
 
-        # Molecule sections 
+        # Generate PySCF objects 
         # ----------------------------------------------------
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
@@ -78,6 +78,14 @@ class Driver:
 
         # print output file header
         output.print_header(calc_array)
+
+        # Molecule Sections
+        # ----------------------------------------------------
+        #
+        for mol_obj in mol_objs:
+            # if we need to perform run-time basis set modifications
+            if mol_obj.add_rydberg is not None:
+                mol_obj = self.modify_basis(calc_array, mol_obj)
 
         # SCF Sections 
         # -----------------------------------------------------
@@ -122,14 +130,10 @@ class Driver:
 
                 # if we can't match a mol object, exit
                 if mol_obj is None:
-                    ostr = '\nCannot for molecule object for Scf ' + \
+                    ostr = '\nCannot find molecule object for Scf ' + \
                     str(scf_obj.label) + ': Exiting...'
                     output.print_message(ostr)
                     sys.exit(1)
-
-                # if we need to perform run-time basis set modifications
-                if mol_obj.add_rydberg is not None:
-                    mol_obj = self.modify_basis(calc_array, mol_obj)
 
                 # guess SCF object
                 scf_guess = self.match_sections(scf_obj.guess_label, 

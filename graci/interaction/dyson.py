@@ -110,6 +110,8 @@ class Dyson(interaction.Interaction):
                                   self.trans_list,
                                   self.trans_list_sym)
 
+        bitwf_init.finalize()
+
         # output the ionisation energies and squared Dyson orbital
         # norms
         if self.verbose:

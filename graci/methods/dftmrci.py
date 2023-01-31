@@ -21,7 +21,7 @@ import graci.interfaces.bitci.mrci_wf as mrci_wf
 
 class Dftmrci(cimethod.Cimethod):
     """Class constructor for DFT/MRCI object"""
-    def __init__(self):
+    def __init__(self, ci_obj=None):
         # parent attributes
         super().__init__()
 
@@ -63,6 +63,17 @@ class Dftmrci(cimethod.Cimethod):
         # dictionary of bitci wfns
         self.bitciwfns      = {}
 
+        if isinstance(ci_obj, cimethod.Cimethod):
+            for name,obj in ci_obj.__dict__.items():
+                if hasattr(self, name):
+                    # pass a copy of mutable objects
+                    if isinstance(obj, (dict, list, np.ndarray)):
+                        setattr(self, name, copy.deepcopy(obj))
+                    # pass a copy of graci object
+                    elif obj.__class__.__name__ in params.valid_objs:
+                        setattr(self, name, obj.copy())
+                    else:
+                        setattr(self, name, obj)
 
 # Required functions #############################################################
     def copy(self):
@@ -103,10 +114,10 @@ class Dftmrci(cimethod.Cimethod):
         # MO overlaps
         if guess is not None:
             self.smo = self.scf.mo_overlaps(guess.scf)[:guess.nmo,:self.nmo]
-       
+     
         # initialize bitci
         bitci_init.init(self)
-        
+
         # create the reference space and mrci wfn objects
         self.ref_wfn  = bitciwfn.Bitciwfn()
         self.mrci_wfn = bitciwfn.Bitciwfn()
@@ -121,7 +132,7 @@ class Dftmrci(cimethod.Cimethod):
         else:
             n_ref_conf, ref_conf_units, ref_conf_files = \
                 ref_space.generate(self)
-        
+
         # set the number of configurations and the scratch file numbers
         # and names
         self.ref_wfn.set_nconf(n_ref_conf)
@@ -143,7 +154,7 @@ class Dftmrci(cimethod.Cimethod):
                 output.print_refdiag_summary(self)
             
             # optional removal of deadwood from the
-            # guess reference space
+            # guess reference space:
             if self.ref_prune and self.niter == 0 \
                and guess is None:
                 # remove the deadwood

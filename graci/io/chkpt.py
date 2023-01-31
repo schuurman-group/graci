@@ -114,8 +114,13 @@ def write(graci_obj, file_name=None, file_handle=None,
         # is preferable to storing the same object
         # repeatedly
         if isinstance(obj, comp_objs):
-            obj_grp.attrs[name] = dumps(link_name(obj, 
-                                        suffix=l_suffix))
+            glink_name = dumps(link_name(obj, suffix=l_suffix))
+            obj_grp.attrs[name] = glink_name
+ 
+            # if the object doesn't already exist, write it
+            gobj, obj_name = data_name(grp_name, glink_name)
+            if gobj and obj_name not in chkpt:
+                write(obj, file_handle=chkpt) 
             continue
 
         # if this is a class object, create a subgroup and write it there

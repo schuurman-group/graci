@@ -245,6 +245,7 @@ class Cimethod:
         self.emo   = ao2mo.emo
         self.mosym = ao2mo.mosym
         self.mos   = ao2mo.orbs
+        #print(self.label+' update_eri, nmo, emo, mosym, mos='+str(self.nmo)+','+str(self.emo)+','+str(self.mosym)+','+str(self.mos.shape),flush=True)
 
         return
 

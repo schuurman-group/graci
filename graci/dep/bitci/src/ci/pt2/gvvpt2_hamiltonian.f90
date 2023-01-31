@@ -232,6 +232,12 @@ contains
     integer(is)              :: j,icsf
     real(dp)                 :: dj,Aold,ediff
     real(dp)                 :: deltai,Vi,fi
+
+    !! TEST
+    !integer(is) :: iscratch
+    !real(dp)    :: wthrsh=1e-8_dp
+    !! TEST
+
     
 !----------------------------------------------------------------------
 ! Compute the 1st-order perturbed model states (projected onto the
@@ -243,6 +249,12 @@ contains
     
     ! Loop over roots
     do j=1,nroots
+
+       !! TEST
+       !iscratch=1234
+       !if (j == 2)
+       !open(iscratch,file='e2.dat',form='formatted',status='unknown')
+       !! TEST
 
        ! Loop over CSFs (excluding the reference space ones)
        do icsf=refdim+1,csfdim
@@ -274,8 +286,17 @@ contains
           ! Make sure that all strong perturbers are captured
           if (abs(Aold) >= cthrsh &
                .and. abs(Avec(icsf,j)) < cthrsh) idsp(icsf)=1
-          
+
+          !! TEST
+          !if (j == 2 .and. abs(Vi**2*fi) > wthrsh) &
+          !     write(iscratch,'(2(x,ES11.4))') Vi**2*fi,abs(deltai)
+          !! TEST
+
        enddo
+
+       !! TEST
+       !if (j == 2) close(iscratch)
+       !! TEST
        
     enddo
 

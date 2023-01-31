@@ -35,7 +35,7 @@ hamiltonians   = ['canonical',
 
 class Dftmrci2(cimethod.Cimethod):
     """Class constructor for DFT/MRCI(2) objects"""
-    def __init__(self):        
+    def __init__(self, ci_obj=None):        
          # parent attributes
         super().__init__()
 
@@ -61,7 +61,7 @@ class Dftmrci2(cimethod.Cimethod):
 
         # class variables
         # MO energy cutoff: MOs above this value excluded
-        self.mo_cutoff       = 1.
+        self.mo_cutoff           = 1.0
         # allowed regularizers
         self.allowed_regularizer = ['isa', 'sigmap']
         # allowed ref conf selection algorithms
@@ -88,7 +88,18 @@ class Dftmrci2(cimethod.Cimethod):
         self.allowed_adt_type    = ['bdd', 'qdpt']
         # dictionary of bitci wfns
         self.bitciwfns           = {}
-        
+       
+        if isinstance(ci_obj, cimethod.Cimethod):
+            for name,obj in ci_obj.__dict__.items():
+                if hasattr(self, name):
+                    # pass a copy of mutable objects
+                    if isinstance(obj, (dict, list, np.ndarray)):
+                        setattr(self, name, copy.deepcopy(obj))
+                    # pass a copy of graci object
+                    elif obj.__class__.__name__ in params.valid_objs:
+                        setattr(self, name, obj.copy()) 
+                    else:
+                        setattr(self, name, obj)
         
 # Required functions #############################################################
     def copy(self):

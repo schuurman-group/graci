@@ -62,7 +62,7 @@ contains
        call hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(10:11,13)
+    case(10:11,13,15)
        ! Ottawa CVS parameterisation
        call hii_dftmrci_cvs(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
@@ -115,7 +115,7 @@ contains
        ! Heil's 2018 parameterisation
        damp=damping_heil18(bav,kav)
 
-    case(14)
+    case(14,15)
        ! Experimental exponential damping function
        damp=damping_exp_test(bav,kav)
        
@@ -181,7 +181,7 @@ contains
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
 
-    case(10:11,13)
+    case(10:11,13,15)
        ! Ottawa CVS parameterisation
        call hij_same_dftmrci_cvs(hij,nsp,sop,socc,nsocc,nbefore,m2c)
        
@@ -246,8 +246,12 @@ contains
     pFvv=hpar(2)
 
     ! Core-valence interactions
-    pFcv=hpar(6)
-    
+    if(nhpar==6) then
+      pFcv = hpar(6)
+    elseif(nhpar == 7) then
+      pFcv = hpar(7)    
+    endif
+
 !----------------------------------------------------------------------
 ! Numbers of 'intermediate' CSFs entering into the contractions of the
 ! fibers of the spin-coupling coefficient tensor
@@ -1095,8 +1099,13 @@ contains
     pFvv=hpar(2)
 
     ! Core-valence interactions
-    pJcv=hpar(5)
-    pFcv=hpar(6)
+    if(nhpar == 6) then
+      pJcv=hpar(5)
+      pFcv=hpar(6)
+    elseif(nhpar == 7) then
+      pJcv=hpar(6)
+      pFcv=hpar(7)
+    endif
 
 !----------------------------------------------------------------------
 ! Sum_i F_ii^KS - F_ii^HF Delta w_i
