@@ -52,6 +52,8 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   integer(is)              :: nvecB,nvecK
   integer(is), allocatable :: iBra(:),iKet(:)
   integer(is), allocatable :: ireadB(:),ireadK(:)
+  integer(is), allocatable :: imapB(:),imapK(:)
+  integer(is), allocatable :: ipairs(:,:)
   
 !----------------------------------------------------------------------
 ! Output what we are doing
@@ -83,20 +85,19 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   allocate(iBra(nrootsB), iKet(nrootsK))
   iBra=0; iKet=0
 
+  allocate(ipairs(npairs,2))
+  ipairs=0
+
 !----------------------------------------------------------------------
 ! Which eigenvectors are needed?
 !----------------------------------------------------------------------
-  !
-  ! Bra and ket states appearing in the requested 1-TDMs
-  !
+  ! Bra and ket states appearing in the requested Dyson orbitals
   do i=1,npairs
      iBra(iroots(i,1))=1
      iKet(iroots(i,2))=1
   enddo
 
-  !
   ! Number of bra and ket eigenvectors
-  !
   nvecB=sum(iBra)
   nvecK=sum(iKet)
 
@@ -145,11 +146,39 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   call read_detwf(wfscrK,ndetK,nvecK,n_intK,detK,vecK,ireadK)
 
 !----------------------------------------------------------------------
+! Fill in the array of vecB-vecK pairs for which Dyson orbitals are
+! required
+!----------------------------------------------------------------------
+  ! Mapping arrays
+  allocate(imapB(nrootsB))
+  allocate(imapK(nrootsK))
+  imapB=0; imapK=0
+
+  ! Bra root-to-vecB index mapping
+  do i=1,nvecB
+     k=ireadB(i)
+     imapB(k)=i
+  enddo
+
+  ! Ket root-to-vecK index mapping
+  do i=1,nvecK
+     k=ireadK(i)
+     imapK(k)=i
+  enddo
+
+  ! Fill in the ipairs array with the indices of the vecB and vecK
+  ! vectors for which Dyson orbitals are required
+  do i=1,npairs
+     ipairs(i,1)=imapB(iroots(i,1))
+     ipairs(i,2)=imapK(iroots(i,2))
+  enddo
+  
+!----------------------------------------------------------------------
 ! Call to liboverlap
 !----------------------------------------------------------------------
   call dyson(irrepB,irrepK,nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,&
        nvecK,detB,detK,vecB,vecK,mosymB,mosymK,smo,norm_thresh,npairs,&
-       n_basis,dysorb,iroots,verbose)
+       n_basis,dysorb,ipairs,verbose)
   
 !----------------------------------------------------------------------
 ! Flush stdout

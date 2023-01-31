@@ -132,13 +132,13 @@ contains
                       ! Bra and ket state indices
                       istaB=ipairs(n,1)
                       istaK=ipairs(n,2)
-
+                      
                       ! Contribution to the Dyson orbital
                       dysorb(imo,n)=dysorb(imo,n) &
                            +prefac*vecTB(istaB,idB)*vecTK(istaK,idK)
                       
                    enddo
-                                      
+                   
                 enddo
                    
              enddo
