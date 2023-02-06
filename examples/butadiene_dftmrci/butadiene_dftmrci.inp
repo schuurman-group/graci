@@ -17,7 +17,7 @@
  $scf section
  charge       = 0
  mult         = 1
- xc           = bhandhlyp
+ xc           = bhandh
  $end
 
  $dftmrci section
