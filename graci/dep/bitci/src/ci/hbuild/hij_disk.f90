@@ -111,35 +111,35 @@ contains
 !----------------------------------------------------------------------
     call save_hij_0h_1h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
-    
+
 !----------------------------------------------------------------------
 ! (3) Ket: reference configurations
 !     Bra: 2-hole configurations -> 2I, 2E and 1I1E configurations
 !----------------------------------------------------------------------
     call save_hij_0h_2h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
-    
+
 !----------------------------------------------------------------------
 ! (4) Ket: 1-hole configurations -> 1I and 1E configurations
 !     Bra: 1-hole configurations -> 1I and 1E configurations
 !----------------------------------------------------------------------
     call save_hij_1h_1h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
-    
+
 !----------------------------------------------------------------------
 ! (5)  Ket: 2-hole configurations -> 2I, 2E and 1I1E configurations
 !      Bra: 1-hole configurations -> 1I and 1E configurations
 !----------------------------------------------------------------------
     call save_hij_2h_1h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
-
+    
 !----------------------------------------------------------------------
 ! (6)  Ket: 2-hole configurations -> 2I, 2E and 1I1E configurations
 !      Bra: 2-hole configurations -> 2I, 2E and 1I1E configurations
 !----------------------------------------------------------------------
     call save_hij_2h_2h(iscratch,ibuffer,hbuffer,nrec,nbuf,averageii,&
          confdim,cfg)
-    
+
 !----------------------------------------------------------------------
 ! Number of saved Hamiltonian matrix elements
 !----------------------------------------------------------------------
@@ -823,7 +823,23 @@ contains
     integer(is)                :: knopen,nac
     integer(is)                :: n,bnsp,knsp
     integer(is)                :: n_int_I
-        
+    logical                    :: do1I,do1E
+
+!----------------------------------------------------------------------
+! Checks on whether any of the various conf classes are empty
+!----------------------------------------------------------------------
+    if (cfg%n1I == 0) then
+       do1I=.false.
+    else
+       do1I=.true.
+    endif
+
+    if (cfg%n1E == 0) then
+       do1E=.false.
+    else
+       do1E=.true.
+    endif
+    
 !----------------------------------------------------------------------
 ! Off-diagonal elements in the R-1I and R-1E classes
 !----------------------------------------------------------------------
@@ -858,23 +874,25 @@ contains
                cfg%conf1h(1:n_int_I,:,n),n_int_I)
 
           ! Ref - 1I matrix elements
-          if (nac <= 5 .and. cfg%n1I > 0) then
-             call save_hij_0h_1I(n,ikconf,ksop_full,&
-                  ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                  averageii,confdim,iscratch,hbuffer,ibuffer,&
-                  nbuf,nrec,n_int_I,cfg)
+          if (do1I) then
+             if (nac <= 5) then
+                call save_hij_0h_1I(n,ikconf,ksop_full,&
+                     ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                     averageii,confdim,iscratch,hbuffer,ibuffer,&
+                     nbuf,nrec,n_int_I,cfg)
+             endif
           endif
-                 
+             
           ! Ref - 1E matrix elements
-          if (nac <= 3) then
-             if (cfg%n1E > 0) then
+          if (do1E) then
+             if (nac <= 3) then
                 call save_hij_0h_1E(n,ikconf,ibconf1E,n_int_I,&
                      kconf_full,ksop_full,ndiff,Dw,nbefore,socc,nsocc,&
                      knopen,knsp,averageii,confdim,iscratch,hbuffer,&
                      ibuffer,nbuf,nrec,cfg)
+             else
+                ibconf1E=ibconf1E+cfg%off1E(n+1)-cfg%off1E(n)
              endif
-          else
-             ibconf1E=ibconf1E+cfg%off1E(n+1)-cfg%off1E(n)
           endif
              
        enddo
@@ -936,6 +954,28 @@ contains
     integer(is)                :: n,bnsp,knsp,nac,nexci
     integer(is)                :: n_int_I
     integer(is)                :: bref
+    logical                    :: do2I,do2E,do1I1E
+
+!----------------------------------------------------------------------
+! Checks on whether any of the various conf classes are empty
+!----------------------------------------------------------------------
+    if (cfg%n2I == 0) then
+       do2I=.false.
+    else
+       do2I=.true.
+    endif
+
+    if (cfg%n2E == 0) then
+       do2E=.false.
+    else
+       do2E=.true.
+    endif
+
+    if (cfg%n1I1E == 0) then
+       do1I1E=.false.
+    else
+       do1I1E=.true.
+    endif
     
 !----------------------------------------------------------------------
 ! Off-diagonal elements in the R-2I, R-2E and R-1I1E classes
@@ -973,39 +1013,39 @@ contains
                cfg%conf2h(1:n_int_I,:,n),n_int_I)
           
           ! Ref - 2I matrix elements
-          if (nac <= 6) then
-             if (cfg%n2I > 0) then
+          if (do2I) then
+             if (nac <= 6) then
                 call save_hij_0h_2I(n,kconf,ibconf2I,n_int_I,&
                      ksop_full,ndiff,Dw,nbefore,socc,nsocc,knopen,&
                      knsp,averageii,confdim,iscratch,hbuffer,ibuffer,&
                      nbuf,nrec,cfg)
+             else
+                ibconf2I=ibconf2I+cfg%off2I(n+1)-cfg%off2I(n)
              endif
-          else
-             ibconf2I=ibconf2I+cfg%off2I(n+1)-cfg%off2I(n)
           endif
              
           ! Ref - 2E matrix elements
-          if (nac <= 2) then
-             if (cfg%n2E > 0) then
+          if (do2E) then
+             if (nac <= 2) then
                 call save_hij_0h_2E(n,kconf,ibconf2E,n_int_I,&
                      kconf_full,ksop_full,ndiff,Dw,nbefore,socc,&
                      nsocc,knopen,knsp,averageii,confdim,iscratch,&
                      hbuffer,ibuffer,nbuf,nrec,cfg)
+             else
+                ibconf2E=ibconf2E+cfg%off2E(n+1)-cfg%off2E(n)
              endif
-          else
-             ibconf2E=ibconf2E+cfg%off2E(n+1)-cfg%off2E(n)
           endif
           
           ! Ref - 1I1E matrix elements
-          if (nac <= 4) then
-             if (cfg%n1I1E > 0) then
+          if (do1I1E) then
+             if (nac <= 4) then
                 call save_hij_0h_1I1E(n,kconf,ibconf1I1E,n_int_I,&
                      kconf_full,ksop_full,ndiff,Dw,nbefore,socc,nsocc,&
                      knopen,knsp,averageii,confdim,iscratch,hbuffer,&
                      ibuffer,nbuf,nrec,cfg)
+             else
+                ibconf1I1E=ibconf1I1E+cfg%off1I1E(n+1)-cfg%off1I1E(n)
              endif
-          else
-             ibconf1I1E=ibconf1I1E+cfg%off1I1E(n+1)-cfg%off1I1E(n)
           endif
           
        enddo
@@ -1072,7 +1112,8 @@ contains
     integer(is)                :: n_int_I
     integer(is)                :: bref
     integer(is)                :: ioff
-
+    logical                    :: do1I,do1E
+    
     integer(is) :: i
     
 !----------------------------------------------------------------------
@@ -1084,6 +1125,21 @@ contains
     allocate(ksop_int(n_int_I,2))
     kconf_int=0_ib
     ksop_int=0_ib
+
+!----------------------------------------------------------------------
+! Checks on whether any of the various conf classes are empty
+!----------------------------------------------------------------------
+    if (cfg%n1I == 0) then
+       do1I=.false.
+    else
+       do1I=.true.
+    endif
+
+    if (cfg%n1E == 0) then
+       do1E=.false.
+    else
+       do1E=.true.
+    endif
     
 !----------------------------------------------------------------------
 ! Off-diagonal elements in the 1I-1I, 1I-1E and 1E-1E classes
@@ -1120,7 +1176,7 @@ contains
           !
           ! Ket 1I, bra 1I and 1E matrix elements
           !
-          if (cfg%n1I > 0) then
+          if (do1I) then
              ! Loop over ket 1I configurations
              do ioff=cfg%off1I(kn),cfg%off1I(kn+1)-1
           
@@ -1163,15 +1219,17 @@ contains
                 endif
                 
                 ! 1I - 1E matrix elements
-                if (nac <= 3 .and. cfg%n1E > 0 &
-                     .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
-                   call save_hij_1I_1E(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1E) then
+                   if (nac <= 3 &
+                        .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
+                      call save_hij_1I_1E(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
-          
+                   
              enddo
           
           endif
@@ -1191,7 +1249,7 @@ contains
           if (bn < kn) cycle
 
           ! Skip if there are no 1E configurations
-          if (cfg%n1E == 0) cycle
+          if (.not. do1E) cycle
           
           ! Loop over ket 1E configurations
           do ioff=cfg%off1E(kn),cfg%off1E(kn+1)-1
@@ -1292,6 +1350,7 @@ contains
     integer(is)                :: n_int_I
     integer(is)                :: bref
     integer(is)                :: ioff
+    logical                    :: do1I,do1E,do2I,do2E,do1I1E
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1303,6 +1362,39 @@ contains
     kconf_int=0_ib
     ksop_int=0_ib
 
+!----------------------------------------------------------------------
+! Checks on whether any of the various conf classes are empty
+!----------------------------------------------------------------------
+    if (cfg%n1I == 0) then
+       do1I=.false.
+    else
+       do1I=.true.
+    endif
+
+    if (cfg%n1E == 0) then
+       do1E=.false.
+    else
+       do1E=.true.
+    endif
+
+    if (cfg%n2I == 0) then
+       do2I=.false.
+    else
+       do2I=.true.
+    endif
+
+    if (cfg%n2E == 0) then
+       do2E=.false.
+    else
+       do2E=.true.
+    endif
+
+    if (cfg%n1I1E == 0) then
+       do1I1E=.false.
+    else
+       do1I1E=.true.
+    endif
+    
 !----------------------------------------------------------------------
 ! Off-diagonal elements in the 1I-2I, 1I-2E, 1I-1I1E, 1E-2I, 1E-2E,
 ! and 1I-1I1E classes
@@ -1343,7 +1435,7 @@ contains
           ! Ket: 2I
           ! Bra: 1I and 1E
           !
-          if (cfg%n2I > 0) then
+          if (do2I) then
 
              ! Loop over ket 2I configurations
              do ioff=cfg%off2I(kn),cfg%off2I(kn+1)-1
@@ -1377,23 +1469,27 @@ contains
                      socc,nsocc,Dw,ndiff,nbefore)
 
                 ! 2I - 1I matrix elements
-                if (nac <= 5 &
-                     .and. cfg%off1I(bn) /= cfg%off1I(bn+1)) then
-                   call save_hij_2I_1I(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1I) then
+                   if (nac <= 5 &
+                        .and. cfg%off1I(bn) /= cfg%off1I(bn+1)) then
+                      call save_hij_2I_1I(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
                 
                 ! 2I - 1E matrix elements
-                if (nac <= 3 &
-                     .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
-                   call save_hij_2I_1E(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1E) then
+                   if (nac <= 3 &
+                        .and. cfg%off1E(bn) /= cfg%off1E(bn+1)) then
+                      call save_hij_2I_1E(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
                 
              enddo
@@ -1404,7 +1500,7 @@ contains
           ! Ket: 2E
           ! Bra: 1I and 1E
           !
-          if (cfg%n2E > 0 .and. nac1 <= 3) then
+          if (do2E .and. nac1 <= 3) then
              
              ! Loop over ket 2E configurations
              do ioff=cfg%off2E(kn),cfg%off2E(kn+1)-1
@@ -1433,7 +1529,7 @@ contains
                      socc,nsocc,Dw,ndiff,nbefore)
 
                 ! 2E - 1I matrix elements
-                if (cfg%n1I > 0) then
+                if (do1I) then
                    if (cfg%off1I(bn) /= cfg%off1I(bn+1)) then
                       call save_hij_2E_1I(bn,ioff,kconf_full,&
                            ksop_full,kconf_int,ksop_int,n_int_I,&
@@ -1444,14 +1540,16 @@ contains
                 endif
                    
                 ! 2E - 1E matrix elements
-                if (cfg%off1E(bn) /= cfg%off1E(bn+1)) then
-                   call save_hij_2E_1E(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1E) then
+                   if (cfg%off1E(bn) /= cfg%off1E(bn+1)) then
+                      call save_hij_2E_1E(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
-                
+                   
              enddo
              
           endif
@@ -1460,7 +1558,7 @@ contains
           ! Ket: 1I1E
           ! Bra: 1I and 1E
           !
-          if (cfg%n1I1E > 0) then
+          if (do1I1E) then
 
              ! Loop over ket 1I1E configurations
              do ioff=cfg%off1I1E(kn),cfg%off1I1E(kn+1)-1
@@ -1489,23 +1587,27 @@ contains
                      socc,nsocc,Dw,ndiff,nbefore)
 
                 ! 1I1E - 1I matrix elements
-                if (cfg%off1I(bn) /= cfg%off1I(bn+1)) then
-                   call save_hij_1I1E_1I(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1I) then
+                   if (cfg%off1I(bn) /= cfg%off1I(bn+1)) then
+                      call save_hij_1I1E_1I(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
-
+                   
                 ! 1I1E - 1E matrix elements
-                if (cfg%off1E(bn) /= cfg%off1E(bn+1)) then
-                   call save_hij_1I1E_1E(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1E) then
+                   if (cfg%off1E(bn) /= cfg%off1E(bn+1)) then
+                      call save_hij_1I1E_1E(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
-                
+                   
              enddo
                 
           endif
@@ -1580,6 +1682,7 @@ contains
     integer(is)                :: n_int_I
     integer(is)                :: bref
     integer(is)                :: ioff
+    logical                    :: do2I,do2E,do1I1E
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1591,6 +1694,27 @@ contains
     kconf_int=0_ib
     ksop_int=0_ib
 
+!----------------------------------------------------------------------
+! Checks on whether any of the various conf classes are empty
+!----------------------------------------------------------------------
+    if (cfg%n2I == 0) then
+       do2I=.false.
+    else
+       do2I=.true.
+    endif
+
+    if (cfg%n2E == 0) then
+       do2E=.false.
+    else
+       do2E=.true.
+    endif
+
+    if (cfg%n1I1E == 0) then
+       do1I1E=.false.
+    else
+       do1I1E=.true.
+    endif
+    
 !----------------------------------------------------------------------
 ! Off-diagonal elements in the 2I-2I, 2I-2E, 2I-1I1E, 2E-2E,
 ! 2I-1I1E, and 1I1E-1I1E classes
@@ -1627,7 +1751,7 @@ contains
           ! Ket: 2I
           ! Bra: 2I, 2E and 1I1E
           !
-          if (cfg%n2I > 0) then
+          if (do2I) then
           
              ! Loop over ket 2I configurations
              do ioff=cfg%off2I(kn),cfg%off2I(kn+1)-1
@@ -1671,25 +1795,27 @@ contains
                 endif
           
                 ! 2I - 2E matrix elements
-                if (nac <= 2 &
-                     .and. cfg%n2E > 0 &
-                     .and. cfg%off2E(bn) /= cfg%off2E(bn+1)) then
-                   call save_hij_2I_2E(nac,bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do2E) then
+                   if (nac <= 2 &
+                        .and. cfg%off2E(bn) /= cfg%off2E(bn+1)) then
+                      call save_hij_2I_2E(nac,bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
           
                 ! 2I - 1I1E matrix elements
-                if (nac <= 4 &
-                     .and. cfg%n1I1E > 0 &
-                     .and. cfg%off1I1E(bn) /= cfg%off1I1E(bn+1)) then
-                   call save_hij_2I_1I1E(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1I1E) then
+                   if (nac <= 4 &
+                        .and. cfg%off1I1E(bn) /= cfg%off1I1E(bn+1)) then
+                      call save_hij_2I_1I1E(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
                    
              enddo
@@ -1700,7 +1826,7 @@ contains
           ! Ket: 2E
           ! Bra: 2E and 1I1E
           !
-          if (cfg%n2E > 0 .and. nac1 <= 5) then
+          if (do2E .and. nac1 <= 5) then
 
              ! Loop over ket 2E configurations
              do ioff=cfg%off2E(kn),cfg%off2E(kn+1)-1
@@ -1744,13 +1870,14 @@ contains
                 endif
           
                 ! 2E - 1I1E matrix elements
-                if (cfg%off1I1E(bn) /= cfg%off1I1E(bn+1) &
-                     .and. cfg%n1I1E /= 0) then
-                   call save_hij_2E_1I1E(bn,ioff,kconf_full,&
-                        ksop_full,kconf_int,ksop_int,n_int_I,&
-                        ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
-                        averageii,confdim,iscratch,hbuffer,ibuffer,&
-                        nbuf,nrec,cfg)
+                if (do1I1E) then
+                   if (cfg%off1I1E(bn) /= cfg%off1I1E(bn+1)) then
+                      call save_hij_2E_1I1E(bn,ioff,kconf_full,&
+                           ksop_full,kconf_int,ksop_int,n_int_I,&
+                           ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,&
+                           averageii,confdim,iscratch,hbuffer,ibuffer,&
+                           nbuf,nrec,cfg)
+                   endif
                 endif
                    
              enddo
@@ -1761,7 +1888,7 @@ contains
           ! Ket: 1I1E
           ! Bra: 1I1E
           !
-          if (cfg%n1I1E > 0 .and. bn >= kn) then
+          if (do1I1E .and. bn >= kn) then
           
              ! Loop over ket 1I1E configurations
              do ioff=cfg%off1I1E(kn),cfg%off1I1E(kn+1)-1
