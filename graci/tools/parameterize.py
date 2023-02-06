@@ -603,8 +603,8 @@ class Parameterize:
         """
         compute overlaps to identify states
         """
-        s_thrsh = 1./np.sqrt(2.)
-        #s_thrsh = 0.6
+        #s_thrsh = 1./np.sqrt(2.)
+        s_thrsh = 0.65
 
         eners  = {}
 
@@ -644,7 +644,7 @@ class Parameterize:
                 # descent, or equiv., print a warning if we
                 # can't match the state
                 if self.opt_algorithm != 'DifferentialEvolution':
-                    msg = molecule+': Sij='
+                    msg = molecule+' '+str(lbl)+': Sij='
                     msg += ''.join(['{:8.4f}']*len(Sij)).format(*Sij)
                     print(msg) 
             else:

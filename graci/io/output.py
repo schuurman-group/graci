@@ -968,7 +968,7 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
 
                 n       += 1
                 outfile.write(fstr.format(molecule, init, final, ener, 
-                                   exc_i, exc_f, err_f, err_f - err_i ))
+                            exc_i, exc_f, err_f, abs(err_f)-abs(err_i)))
 
         mae   = [ np.sum(np.absolute(err[i,:])) / n 
                                                       for i in range(2)]
