@@ -119,7 +119,7 @@ class Parameterize:
         # to recompute these every time
         exc_init = self.evaluate_energies(self.p_ref, scf_dirs, scf_objs,
                                         init_ci, final_ci, gen_orbs=True)
-
+ 
         # save the default logfile name for writing updates of the
         # reparam procedure
         self.logfile = output.file_names['out_file']
@@ -394,6 +394,8 @@ class Parameterize:
 
         """
 
+        # init_ci and final_ci should have same key list
+        mol_names = init_ci.keys()
         topdir = os.getcwd()
         energies = {}
 
@@ -407,20 +409,18 @@ class Parameterize:
                              scf_dirs[molecule], scf_names[molecule], 
                              init_ci[molecule], final_ci[molecule], 
                              True, gen_orbs)
-                             for molecule in init_ci.keys())
+                             for molecule in mol_names)
 
                     for res in executor.starmap(self.eval_energy, args):
                         energies.update(res)
         else:
 
-            for molecule in init_ci.keys():
-                mol_results = self.eval_energy(p_full, molecule,
-                                  topdir, self.wfn_lib, 
-                                  scf_dirs[molecule], 
-                                  scf_names[molecule], 
-                                  init_ci[molecule],
-                                  final_ci[molecule], 
-                                  False, gen_orbs)
+            for molecule in mol_names:
+                mol_results = self.eval_energy(
+                             p_full, molecule, topdir, self.wfn_lib, 
+                             scf_dirs[molecule], scf_names[molecule], 
+                             init_ci[molecule], final_ci[molecule], 
+                             False, gen_orbs)
 
                 energies.update(mol_results)
 
@@ -443,6 +443,10 @@ class Parameterize:
         mol_dir = topdir+'/'+str(molecule) 
 
         os.chdir(mol_dir)
+
+        # set PYSCF_TMPDIR to current directory
+        os.environ['PYSCF_TMPDIR'] = mol_dir
+
         energies  = {molecule : {}}
         mo_ints   = ao2mo.Ao2mo()
         
@@ -553,7 +557,6 @@ class Parameterize:
                 ci_opt.run(scf_objs[ci_name], None)
 
                 # use overlap with ref states to identify t states
-                #print(molecule+' identify start',flush=True)
                 roots_found, eners = self.identify_states(molecule, 
                                              ci_ref, ref_states, ci_opt)
 
@@ -600,8 +603,8 @@ class Parameterize:
         """
         compute overlaps to identify states
         """
-        s_thrsh = 1./np.sqrt(2.)
-        #s_thrsh = 0.6
+        #s_thrsh = 1./np.sqrt(2.)
+        s_thrsh = 0.65
 
         eners  = {}
 
@@ -635,7 +638,15 @@ class Parameterize:
             # penalty function value for the optimizers 
             if Sij[max_ind] <= s_thrsh:
                 root_found[lbl] = False
-                eners[lbl]      = 0.95*ci_new.energies[0] 
+                eners[lbl]      = 0.95*ci_new.energies[0]
+                # global optimizers will go to weird places,
+                # gradient descent, not so much. If grad.
+                # descent, or equiv., print a warning if we
+                # can't match the state
+                if self.opt_algorithm != 'DifferentialEvolution':
+                    msg = molecule+' '+str(lbl)+': Sij='
+                    msg += ''.join(['{:8.4f}']*len(Sij)).format(*Sij)
+                    print(msg) 
             else:
                 kst        = ket_st[max_ind]
                 eners[lbl] = ci_new.energies[kst]
