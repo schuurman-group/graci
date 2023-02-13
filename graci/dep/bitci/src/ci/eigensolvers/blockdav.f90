@@ -15,6 +15,7 @@ contains
     use conftype
     use iomod
     use timing
+    use bitglobal, only: verbose
     
     implicit none
 
@@ -101,9 +102,13 @@ contains
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'block_davidson')
+    if (verbose) then
+
+        call get_times(twall_end,tcpu_end)
+        call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+             'block_davidson')
+
+    endif
 
 !----------------------------------------------------------------------
 ! Flush stdout
