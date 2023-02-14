@@ -28,16 +28,18 @@ subroutine override_hparam(npar,par)
      call error_control
   endif
 
-  ! Has the correct no. parameters been passed
-  if (npar /= nhpar) then
+  ! Has the correct no. parameters been passed (including desel)
+  if (npar /= nhpar + 1) then
      errmsg='Error in override_hparam: incorrect number of parameters'
      call error_control
   endif
 
 !----------------------------------------------------------------------
 ! Set the new parameter values
+! Note that the last parameter is desel
 !----------------------------------------------------------------------
-  hpar=par
+  hpar=par(1:npar-1)
+  desel=par(npar)
   
   return
   
