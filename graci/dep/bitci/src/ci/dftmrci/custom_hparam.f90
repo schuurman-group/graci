@@ -74,7 +74,7 @@ subroutine get_hparam(npar,par)
   endif
 
   ! Has the correct no. parameters been passed
-  if (npar /= nhpar) then
+  if (npar /= nhpar+1) then
      errmsg='Error in get_hparam: incorrect number of parameters'
      call error_control
   endif
@@ -82,8 +82,9 @@ subroutine get_hparam(npar,par)
 !----------------------------------------------------------------------
 ! Copy over the Hamiltonian parameter values
 !----------------------------------------------------------------------
-  par=hpar
-
+  par(1:npar-1)=hpar
+  par(npar)=desel
+  
   return
   
 end subroutine get_hparam
