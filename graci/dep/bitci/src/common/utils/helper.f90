@@ -314,7 +314,7 @@ end subroutine retrieve_filename
 
 !######################################################################
 ! retrieve_nhpar: given a Hamiltonian name, returns the corresponding
-!                   parameter values
+!                 number of parameter values (including desel)
 !######################################################################
 #ifdef CBINDING
   subroutine retrieve_nhpar(ham1,npar) &
@@ -391,7 +391,12 @@ end subroutine retrieve_filename
      errmsg='Error in retrieve_nhpar: unrecognised Hamiltonian name'
      call error_control
   end select
-     
+
+!----------------------------------------------------------------------
+! Account for desel
+!----------------------------------------------------------------------
+  npar=npar+1
+  
   return
   
 end subroutine retrieve_nhpar
@@ -444,70 +449,75 @@ subroutine retrieve_hpar(ham1,dim,params)
 #endif
 
 !----------------------------------------------------------------------
-! Package up the Hamiltonian parameters
+! Package up the Hamiltonian parameters excluding desel
 !----------------------------------------------------------------------
   select case(trim(ham))
   case('grimme_standard')
-     npar=size(grimme1_standard)
+     npar=size(grimme1_standard)+1
      if (npar > dim) goto 999
-     params(1:npar)=grimme1_standard
+     params(1:npar-1)=grimme1_standard
   case('grimme_short')
-     npar=size(grimme1_short)
+     npar=size(grimme1_short)+1
      if (npar > dim) goto 999
-     params(1:npar)=grimme1_short
+     params(1:npar-1)=grimme1_short
   case('lyskov_standard')
-     npar=size(lyskov_standard)
+     npar=size(lyskov_standard)+1
      if (npar > dim) goto 999
-     params(1:npar)=lyskov_standard
+     params(1:npar-1)=lyskov_standard
   case('lyskov_short')
-     npar=size(lyskov_short)
+     npar=size(lyskov_short)+1
      if (npar > dim) goto 999
-     params(1:npar)=lyskov_short
+     params(1:npar-1)=lyskov_short
   case('heil17_standard')
-     npar=size(heil17_standard)
+     npar=size(heil17_standard)+1
      if (npar > dim) goto 999
-     params(1:npar)=heil17_standard
+     params(1:npar-1)=heil17_standard
   case('heil17_short')
-     npar=size(heil17_short)
+     npar=size(heil17_short)+1
      if (npar > dim) goto 999
-     params(1:npar)=heil17_short
+     params(1:npar-1)=heil17_short
   case('heil18_standard')
-     npar=size(heil18_standard)
+     npar=size(heil18_standard)+1
      if (npar > dim) goto 999
-     params(1:npar)=heil18_standard
+     params(1:npar-1)=heil18_standard
   case('heil18_short')
-     npar=size(heil18_short)
+     npar=size(heil18_short)+1
      if (npar > dim) goto 999
-     params(1:npar)=heil18_short
+     params(1:npar-1)=heil18_short
   case('cvs_standard')
-     npar=size(cvs_standard)
+     npar=size(cvs_standard)+1
      if (npar > dim) goto 999
-     params(1:npar)=cvs_standard
+     params(1:npar-1)=cvs_standard
   case('cvs_short')
-     npar=size(cvs_short)
+     npar=size(cvs_short)+1
      if (npar > dim) goto 999
-     params(1:npar)=cvs_short
+     params(1:npar-1)=cvs_short
   case('test_heil17')
-     npar=size(test_heil17)
+     npar=size(test_heil17)+1
      if (npar > dim) goto 999
-     params(1:npar)=test_heil17
+     params(1:npar-1)=test_heil17
   case('cvs_test_heil17')
-     npar=size(cvs_test_heil17)
+     npar=size(cvs_test_heil17)+1
      if (npar > dim) goto 999
-     params(1:npar)=cvs_test_heil17
+     params(1:npar-1)=cvs_test_heil17
   case('test_exp')
-     npar=size(test_exp)
+     npar=size(test_exp)+1
      if (npar > dim) goto 999
-     params(1:npar)=test_exp
+     params(1:npar-1)=test_exp
   case('cvs_test_exp')
-     npar=size(cvs_test_exp)
+     npar=size(cvs_test_exp)+1
      if (npar > dim) goto 999
-     params(1:npar)=cvs_test_exp
+     params(1:npar-1)=cvs_test_exp
   case default
      errmsg='Error in retrieve_hpar: unrecognised Hamiltonian name'
      call error_control
   end select
-     
+
+!----------------------------------------------------------------------
+! Package desel
+!----------------------------------------------------------------------
+  params(npar)=desel
+  
   return
 
 999 continue
