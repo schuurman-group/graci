@@ -398,7 +398,7 @@ class Parameterize:
         mol_names = init_ci.keys()
         topdir = os.getcwd()
         energies = {}
-        print('p_full='+str(p_full),flush=True)
+        #print('p_full='+str(p_full),flush=True)
 
         if params.nproc > 1:
 
@@ -434,7 +434,7 @@ class Parameterize:
         eval_energy
         """
 
-        print(molecule+' energy on rank='+str(MPI.COMM_WORLD.Get_rank()),flush=True)
+        #print(molecule+' energy on rank='+str(MPI.COMM_WORLD.Get_rank()),flush=True)
         # if parallel, this is run on a worker and libraries need to be 
         if parallel:
             libs.lib_load('bitci')
