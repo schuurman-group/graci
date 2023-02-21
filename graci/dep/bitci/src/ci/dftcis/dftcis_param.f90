@@ -10,12 +10,13 @@ module dftcis_param
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham = 2
+  integer(is), parameter :: nham = 3
 
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
        ['grimme1_b3lyp',&
-       'ottawa1_bhlyp']
+       'ottawa1_bhlyp',&
+       'ottawa1_qtp17']
 
   ! Hamiltonian integer label
   integer(is)            :: ihamiltonian
@@ -47,6 +48,18 @@ module dftcis_param
        [0.59596d0, & ! c1
        0.0033d0,   & ! c2
        1.27e+7_dp]   ! c3
+
+!----------------------------------------------------------------------
+! Our parameterisation for singlet states and the QTP17 functional
+!----------------------------------------------------------------------
+  !***************************
+  !* Temporary parameter set *
+  !* These need optimising   *
+  !***************************
+  real(dp), parameter, dimension(3) :: ottawa1_qtp17= &
+       [0.725d0,  & ! c1
+       0.0033d0, & ! c2
+       1.27e+7_dp] ! c3 
   
 contains
   
@@ -76,18 +89,22 @@ contains
 
     case(1)
        ! Grimme's original parameterisation
-       ihamiltonian=1
        nhpar=3
        allocate(hpar(nhpar))
        hpar=grimme1_b3lyp
 
     case(2)
        ! Our singlet/BHLYP parameterisation
-       ihamiltonian=2
        nhpar=3
        allocate(hpar(nhpar))
        hpar=ottawa1_bhlyp
-       
+
+    case(3)
+       ! Our singlet/QTP17 parameterisation
+       nhpar=3
+       allocate(hpar(nhpar))
+       hpar=ottawa1_qtp17
+
     case default
        ! Unrecognised Hamiltonian
        write(errmsg,'(a,x,i0)') &

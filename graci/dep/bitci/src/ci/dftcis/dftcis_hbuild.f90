@@ -218,7 +218,13 @@ contains
        ! Our singlet/BHLYP parameterisation
        hij =-hpar(1)*bitci_ints%mo_int(i,j,a,b)&
             +2.0d0*bitci_ints%mo_int(i,a,j,b)
-            
+
+    case(3)
+       
+       ! Our singlet/QTP17 parameterisation
+       hij =-hpar(1)*bitci_ints%mo_int(i,j,a,b)&
+            +2.0d0*bitci_ints%mo_int(i,a,j,b)
+       
     end select
     
     return
@@ -277,6 +283,14 @@ contains
                +2.0d0*Vx(i,a) &
                -0.025d0*moen(i)+hpar(2)*exp(-hpar(3)*Vx(i,a)**4)
 
+       case(3)
+
+          ! Our singlet/QTP17 parameterisation
+          hii(n)=moen(a)-moen(i) &
+               -hpar(1)*Vc(i,a) &
+               +2.0d0*Vx(i,a) &
+               -0.025d0*moen(i)+hpar(2)*exp(-hpar(3)*Vx(i,a)**4)
+          
        end select
        
     enddo

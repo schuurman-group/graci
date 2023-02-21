@@ -129,6 +129,19 @@ def autoras(ci_method):
 
     # Aggressively loose integral screening
     loose = True
+
+    # DFT/CIS Hamiltonian index - anchored to the
+    # DFT XC functional for now
+    hamiltonians = {'b3lyp'            : 1,
+                    'bhandhlyp'        : 2,
+                    'hyb_gga_xc_qtp17' : 3,
+                    'qtp17'            : 3}
+    try:
+        iham = hamiltonians[ci_method.scf.xc.lower()]
+    except:
+        print('\n', 'WARNING: unsupported XC functional in autoras',
+              flush=True)
+        iham = 2
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -137,7 +150,7 @@ def autoras(ci_method):
         nroots = ci_method.n_states_sym(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
-        args = (irrep, nroots, cvsflag, dftcis_vec, loose)
+        args = (irrep, nroots, cvsflag, dftcis_vec, loose, iham)
         dftcis_vec = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number

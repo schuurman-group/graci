@@ -12,10 +12,10 @@
 !              for a given symmetry subspace
 !######################################################################
 #ifdef CBINDING
-subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose) &
+subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose,iham) &
      bind(c,name='diag_dftcis')
 #else
-subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
+subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose,iham)
 #endif
 
   use constants
@@ -46,6 +46,9 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
   ! Loose integral screening: only to be used for the generation
   ! of RAS spaces
   logical, intent(in)      :: loose
+
+  ! DFT/CIS Hamiltonian index
+  integer(is), intent(in)  :: iham
   
   ! No. CIS CSFs
   integer(is)              :: ncsf
@@ -78,7 +81,6 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
   
   ! Everything else
   integer(is)              :: i
-  integer(is)              :: iham
   integer(is)              :: isigma(3)
 
   ! Dummy MRCI configuration derived type: temporarily required
@@ -115,9 +117,6 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
 !----------------------------------------------------------------------
 ! Load the DFT/MRCI Hamiltonian parameters
 !----------------------------------------------------------------------
-  ! Temporary hardwiring of the Hamiltonian index
-  iham=2
-  
   ! Load the parameters
   call load_hpar_dftcis(iham)
     
