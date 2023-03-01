@@ -96,10 +96,15 @@ def autoras(ci_method):
     """determination of the RAS subspaces via preliminary
     DFT/CIS calculations"""
 
-    # Print the section header
+    # print the section header
     if ci_method.verbose:
         output.print_autoras_header()
-   
+
+    # for now only singlets and triplets are supported
+    if ci_method.mult not in [1, 3]:
+        sys.exit('\n ERROR in autoras: only singlets and triplets are' 
+                 +' supported')
+        
     # number of irreps
     nirr = ci_method.n_irrep()
 
@@ -107,8 +112,15 @@ def autoras(ci_method):
     nmo = ci_method.nmo
 
     # orbital occupations
-    orb_occ = ci_method.ref_occ
+    orb_occ = np.copy(ci_method.ref_occ)
 
+    # if this is a triplet calculation, then adjust the (singlet)
+    # SCF MO occupations to correspond to S=1
+    if ci_method.mult == 3:
+        isomo = np.array(np.where(orb_occ == 0))[0][0]
+        orb_occ[isomo-1] = 1
+        orb_occ[isomo]   = 1
+        
     # orbital energies
     orb_ener = ci_method.emo
 
@@ -183,6 +195,7 @@ def autoras(ci_method):
     # RAS1 & RAS3 MO indices
     ras1 = []
     ras3 = []
+        
     for n in range(nmo):
         if iph[n] == 1:
             if orb_occ[n] == 0:
@@ -236,7 +249,7 @@ def autoras(ci_method):
         if ci_method.verbose:
             print('\n Setting nelec3 = 2', flush=True) 
         ci_method.nelec3 = 2
-        
+
     return
 
 @timing.timed

@@ -107,13 +107,6 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose,iham)
      call error_control
   endif
 
-  ! Triplets not yet coded up
-  if (imult == 3) then
-     errmsg='Error in diag_dftcis: triplet calculations are not yet'&
-          //' supported'
-     call error_control
-  endif
-  
 !----------------------------------------------------------------------
 ! Load the DFT/MRCI Hamiltonian parameters
 !----------------------------------------------------------------------

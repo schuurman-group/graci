@@ -44,11 +44,16 @@ module dftcis_param
   !* Temporary parameter set *
   !* These need optimising   *
   !***************************
-  real(dp), parameter, dimension(3) :: ottawa1_bhlyp= &
+  real(dp), parameter, dimension(3) :: ottawa1_bhlyp_singlet= &
        [0.59596d0, & ! c1
        0.0033d0,   & ! c2
        1.27e+7_dp]   ! c3
 
+  real(dp), parameter, dimension(3) :: ottawa1_bhlyp_triplet= &
+       [0.49596d0, & ! c1
+       0.0033d0,   & ! c2
+       1.27e+7_dp]   ! c3
+  
 !----------------------------------------------------------------------
 ! Our parameterisation for singlet states and the QTP17 functional
 !----------------------------------------------------------------------
@@ -56,11 +61,16 @@ module dftcis_param
   !* Temporary parameter set *
   !* These need optimising   *
   !***************************
-  real(dp), parameter, dimension(3) :: ottawa1_qtp17= &
+  real(dp), parameter, dimension(3) :: ottawa1_qtp17_singlet= &
        [0.725d0,  & ! c1
        0.0033d0, & ! c2
        1.27e+7_dp] ! c3 
-  
+
+  real(dp), parameter, dimension(3) :: ottawa1_qtp17_triplet= &
+       [0.625d0, & ! c1
+       0.0033d0, & ! c2
+       1.27e+7_dp] ! c3
+    
 contains
   
 !######################################################################
@@ -94,17 +104,25 @@ contains
        hpar=grimme1_b3lyp
 
     case(2)
-       ! Our singlet/BHLYP parameterisation
+       ! Our BHLYP parameterisation
        nhpar=3
        allocate(hpar(nhpar))
-       hpar=ottawa1_bhlyp
-
+       if (imult == 1) then
+          hpar=ottawa1_bhlyp_singlet
+       else
+          hpar=ottawa1_bhlyp_triplet
+       endif
+          
     case(3)
-       ! Our singlet/QTP17 parameterisation
+       ! Our QTP17 parameterisation
        nhpar=3
        allocate(hpar(nhpar))
-       hpar=ottawa1_qtp17
-
+       if (imult == 1) then
+          hpar=ottawa1_qtp17_singlet
+       else
+          hpar=ottawa1_qtp17_triplet
+       endif
+       
     case default
        ! Unrecognised Hamiltonian
        write(errmsg,'(a,x,i0)') &
