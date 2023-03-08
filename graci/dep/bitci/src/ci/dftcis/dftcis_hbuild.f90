@@ -207,18 +207,12 @@ contains
 
     select case(ihamiltonian)
 
-    case(1)
+    case(1:3) ! B3LYP, BHLYP and QTP17 parameterisations
 
-       ! Grimme's original parameterisation
-       hij =-hpar(1)*bitci_ints%mo_int(i,j,a,b)&
-            +2.0d0*bitci_ints%mo_int(i,a,j,b)
+       hij=-hpar(1)*bitci_ints%mo_int(i,j,a,b)
 
-    case(2)
+       if (imult == 1) hij=hij+2.0d0*bitci_ints%mo_int(i,a,j,b)
 
-       ! Our singlet/BHLYP parameterisation
-       hij =-hpar(1)*bitci_ints%mo_int(i,j,a,b)&
-            +2.0d0*bitci_ints%mo_int(i,a,j,b)
-            
     end select
     
     return
@@ -261,21 +255,12 @@ contains
        ! Compute the Hamiltonian matrix element
        select case(ihamiltonian)
 
-       case(1)
+       case(1:3) ! B3LYP, BHLYP and QTP17 parameterisations
 
-          ! Grimme's original parameterisation
-          hii(n)=moen(a)-moen(i) &
-               -hpar(1)*Vc(i,a) &
-               +2.0d0*Vx(i,a) &
-               -0.025d0*moen(i)+hpar(2)*exp(-hpar(3)*Vx(i,a)**4)
-
-       case(2)
-
-          ! Our singlet/BHLYP parameterisation
-          hii(n)=moen(a)-moen(i) &
-               -hpar(1)*Vc(i,a) &
-               +2.0d0*Vx(i,a) &
-               -0.025d0*moen(i)+hpar(2)*exp(-hpar(3)*Vx(i,a)**4)
+          hii(n)=moen(a)-moen(i)-hpar(1)*Vc(i,a)-0.025d0*moen(i)
+          
+          if (imult == 1) hii(n)=hii(n)+2.0d0*Vx(i,a) &
+               +hpar(2)*exp(-hpar(3)*Vx(i,a)**4)
 
        end select
        

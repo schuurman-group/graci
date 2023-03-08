@@ -13,6 +13,7 @@ import graci.core.orbitals as orbitals
 import graci.io.output as output
 import graci.utils.timing as timing
 import graci.core.solvents as solvents
+import graci.core.functionals as functionals
 from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 
@@ -243,6 +244,12 @@ class Scf:
     @timing.timed
     def run_pyscf(self, pymol, guess):
         """run a PySCF HF/KSDFT computation"""
+
+        # catch the use of XC functional aliases
+        try:
+            self.xc = functionals.aliases[self.xc.lower()]
+        except:
+            pass
 
         #print(self.label+' scf.xc=|'+str(self.xc)+'|',flush=True)
         # function handle string

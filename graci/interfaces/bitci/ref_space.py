@@ -96,10 +96,15 @@ def autoras(ci_method):
     """determination of the RAS subspaces via preliminary
     DFT/CIS calculations"""
 
-    # Print the section header
+    # print the section header
     if ci_method.verbose:
         output.print_autoras_header()
-   
+
+    # for now only singlets and triplets are supported
+    if ci_method.mult not in [1, 3]:
+        sys.exit('\n ERROR in autoras: only singlets and triplets are' 
+                 +' supported')
+        
     # number of irreps
     nirr = ci_method.n_irrep()
 
@@ -107,8 +112,15 @@ def autoras(ci_method):
     nmo = ci_method.nmo
 
     # orbital occupations
-    orb_occ = ci_method.ref_occ
+    orb_occ = np.copy(ci_method.ref_occ)
 
+    # if this is a triplet calculation, then adjust the (singlet)
+    # SCF MO occupations to correspond to S=1
+    if ci_method.mult == 3:
+        isomo = np.array(np.where(orb_occ == 0))[0][0]
+        orb_occ[isomo-1] = 1
+        orb_occ[isomo]   = 1
+        
     # orbital energies
     orb_ener = ci_method.emo
 
@@ -129,6 +141,19 @@ def autoras(ci_method):
 
     # Aggressively loose integral screening
     loose = True
+
+    # DFT/CIS Hamiltonian index - anchored to the
+    # DFT XC functional for now
+    hamiltonians = {'b3lyp'            : 1,
+                    'bhandhlyp'        : 2,
+                    'hyb_gga_xc_qtp17' : 3,
+                    'qtp17'            : 3}
+    try:
+        iham = hamiltonians[ci_method.scf.xc.lower()]
+    except:
+        print('\n', 'WARNING: unsupported XC functional in autoras',
+              flush=True)
+        iham = 2
     
     # Loop over irreps
     for irrep in range(nirr):
@@ -137,7 +162,7 @@ def autoras(ci_method):
         nroots = ci_method.n_states_sym(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
-        args = (irrep, nroots, cvsflag, dftcis_vec, loose)
+        args = (irrep, nroots, cvsflag, dftcis_vec, loose, iham)
         dftcis_vec = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number
@@ -170,6 +195,7 @@ def autoras(ci_method):
     # RAS1 & RAS3 MO indices
     ras1 = []
     ras3 = []
+        
     for n in range(nmo):
         if iph[n] == 1:
             if orb_occ[n] == 0:
@@ -223,7 +249,7 @@ def autoras(ci_method):
         if ci_method.verbose:
             print('\n Setting nelec3 = 2', flush=True) 
         ci_method.nelec3 = 2
-        
+
     return
 
 @timing.timed

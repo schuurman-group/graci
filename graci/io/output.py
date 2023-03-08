@@ -33,7 +33,7 @@ def print_message(message_str):
     """Print a message string to the output file"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('ATTN: '+str(message_str)+'\n')
+        outfile.write('\n\n ATTENTION: '+str(message_str)+'\n')
         outfile.flush()
 
     return

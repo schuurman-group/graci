@@ -10,12 +10,13 @@ module dftcis_param
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham = 2
+  integer(is), parameter :: nham = 3
 
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
        ['grimme1_b3lyp',&
-       'ottawa1_bhlyp']
+       'ottawa1_bhlyp',&
+       'ottawa1_qtp17']
 
   ! Hamiltonian integer label
   integer(is)            :: ihamiltonian
@@ -43,11 +44,33 @@ module dftcis_param
   !* Temporary parameter set *
   !* These need optimising   *
   !***************************
-  real(dp), parameter, dimension(3) :: ottawa1_bhlyp= &
+  real(dp), parameter, dimension(3) :: ottawa1_bhlyp_singlet= &
        [0.59596d0, & ! c1
        0.0033d0,   & ! c2
        1.27e+7_dp]   ! c3
+
+  real(dp), parameter, dimension(3) :: ottawa1_bhlyp_triplet= &
+       [0.49596d0, & ! c1
+       0.0033d0,   & ! c2
+       1.27e+7_dp]   ! c3
   
+!----------------------------------------------------------------------
+! Our parameterisation for singlet states and the QTP17 functional
+!----------------------------------------------------------------------
+  !***************************
+  !* Temporary parameter set *
+  !* These need optimising   *
+  !***************************
+  real(dp), parameter, dimension(3) :: ottawa1_qtp17_singlet= &
+       [0.725d0,  & ! c1
+       0.0033d0, & ! c2
+       1.27e+7_dp] ! c3 
+
+  real(dp), parameter, dimension(3) :: ottawa1_qtp17_triplet= &
+       [0.625d0, & ! c1
+       0.0033d0, & ! c2
+       1.27e+7_dp] ! c3
+    
 contains
   
 !######################################################################
@@ -76,17 +99,29 @@ contains
 
     case(1)
        ! Grimme's original parameterisation
-       ihamiltonian=1
        nhpar=3
        allocate(hpar(nhpar))
        hpar=grimme1_b3lyp
 
     case(2)
-       ! Our singlet/BHLYP parameterisation
-       ihamiltonian=2
+       ! Our BHLYP parameterisation
        nhpar=3
        allocate(hpar(nhpar))
-       hpar=ottawa1_bhlyp
+       if (imult == 1) then
+          hpar=ottawa1_bhlyp_singlet
+       else
+          hpar=ottawa1_bhlyp_triplet
+       endif
+          
+    case(3)
+       ! Our QTP17 parameterisation
+       nhpar=3
+       allocate(hpar(nhpar))
+       if (imult == 1) then
+          hpar=ottawa1_qtp17_singlet
+       else
+          hpar=ottawa1_qtp17_triplet
+       endif
        
     case default
        ! Unrecognised Hamiltonian
