@@ -155,7 +155,10 @@ def write_1geom(geom_obj, symm, nstates, basis, ri_basis, adt_type,
         print(' guess_label = '+prev_label)
     print(' charge      = 0')
     print(' mult        = 1')
-    print(' xc          = bhandhlyp')
+
+    # TEST
+    print(' xc          = qtp17')
+
     print('$end')
 
     print('\n$dftmrci2 section')
@@ -169,6 +172,12 @@ def write_1geom(geom_obj, symm, nstates, basis, ri_basis, adt_type,
         print(' adt_type    = '+adt_type)
     else:
         print(' save_wf     = True')
+
+    # TEST
+    print(' hamiltonian = cvs_standard')
+    print(' hparam      = [0.409163 0.261965 0.473496 0.868451 0.548201 0.26525 1.]')
+    print(' icvs        = [1]')
+        
     print('$end')
     
     return
