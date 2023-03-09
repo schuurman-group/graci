@@ -231,7 +231,7 @@ def autoras(ci_method):
         ras1 = ras1 + [n+1 for n in range(istart, iend+1)]
 
     # Fill in the RAS arrays
-    ci_method.ras1 = np.array(ras1, dtype=int)
+    ci_method.ras1 = np.unique(np.array(ras1, dtype=int))
     ci_method.ras3 = np.array(ras3, dtype=int)
 
     # Output the selected RAS1 & RAS3 spaces
