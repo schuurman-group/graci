@@ -156,7 +156,7 @@ def write_1geom(geom_obj, symm, nstates, basis, ri_basis, adt_type,
     print(' charge      = 0')
     print(' mult        = 1')
 
-    #print(' xc          = bhandhlyp')
+    print(' xc          = bhandhlyp')
     # TEST
     #print(' xc          = qtp17')
 
