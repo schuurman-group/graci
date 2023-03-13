@@ -427,51 +427,35 @@ def replicate_sections(run_list):
 
     # check for multi-geometry xyz files
     for mol in mol_objs:
+
+        # list of scf, ci, postci and si objects
+        # associated with this molecule object
+        scf_list   = [obj for obj in scf_objs
+                      if obj.mol_label == mol.label]
+        scf_labels = [obj.label for obj in scf_list]        
+        ci_list   = [obj for obj in ci_objs
+                     if obj.scf_label in scf_labels]
+        ci_labels = [obj.label for obj in ci_list]
+        postci_list = [obj for obj in postci_objs
+                       if any(lbl in obj.couple_groups
+                              for lbl in ci_labels)]
+        postci_labels = [obj.label for obj in postci_list]
+        all_ci_labels = list(set(ci_labels).union(set(postci_labels)))
+        si_list = [obj for obj in si_objs
+                   if obj.init_label in all_ci_labels
+                   or obj.final_label in all_ci_labels]
+        
         if mol.multi_geom:
             # Create replicate objects for all geometries
             
-            # parse the whole xyz file
-            with open(mol.xyz_file, 'r') as xyzfile:
-                xyz = xyzfile.readlines()
-                
-            # remove the leading no. atom and blank lines
-            xyz_clean = [string.split() for string in xyz
-                         if string.split() != []
-                         and len(string.split()) != 1]
-            n_atm  = len(mol.crds)
-            n_geom = int(len(xyz_clean) / n_atm)
-
-            # get the array of nuclear geometries
-            coords = np.array([float(xx)
-                               for x in xyz_clean
-                               for xx in x[1:]]).reshape(n_geom,n_atm,3)
-
-            # list of scf objects to be replicated
-            scf_list   = [obj for obj in scf_objs
-                          if obj.mol_label == mol.label]
-            scf_labels = [obj.label for obj in scf_list]
-            
-            # list of ci objects to be replicated
-            ci_list   = [obj for obj in ci_objs
-                         if obj.scf_label in scf_labels]
-            ci_labels = [obj.label for obj in ci_list]
-
-            # list of post-ci objects to be replicated
-            postci_list = [obj for obj in postci_objs
-                           if any(lbl in obj.couple_groups
-                                  for lbl in ci_labels)]
-            postci_labels = [obj.label for obj in postci_list]
-                        
-            # list of si objects to be replicated
-            all_ci_labels = list(set(ci_labels).union(set(postci_labels)))
-            si_list = [obj for obj in si_objs
-                       if obj.init_label in all_ci_labels
-                       or obj.final_label in all_ci_labels]
+            # read the complete set of Cartestian coordinates
+            # from the xyz file
+            coords = parse_all_geoms(mol)
 
             # append the new run list with replicates of the
             # class objects corresponding to this molecule
             # object
-            for i in range(n_geom):
+            for i in range(coords.shape[0]):
 
                 # molecule object
                 new_mol       = mol.copy()
@@ -484,6 +468,8 @@ def replicate_sections(run_list):
                     new_scf           = scf.copy()
                     new_scf.label     = scf.label+str(i+1)
                     new_scf.mol_label = scf.mol_label+str(i+1)
+                    if i > 0:
+                        new_scf.guess_label = scf.label+str(i)
                     new_run_list.append(new_scf)
                     
                 # ci object(s)
@@ -491,6 +477,15 @@ def replicate_sections(run_list):
                     new_ci           = ci.copy()
                     new_ci.label     = ci.label+str(i+1)
                     new_ci.scf_label = ci.scf_label+str(i+1)
+                    try:
+                        if (new_ci.diabatic):
+                            new_ci.save_wf = True
+                            if i > 0:
+                                new_ci.guess_label = ci.label+str(i)
+                            else:
+                                new_ci.diabatic = False
+                    except:
+                        pass
                     new_run_list.append(new_ci)
 
                 # post-ci objects
@@ -510,32 +505,6 @@ def replicate_sections(run_list):
                     new_run_list.append(new_si)
                     
         else:
-            # list of scf objects and their labels for this
-            # single-geometry molecule object
-            scf_list   = [obj for obj in scf_objs
-                          if obj.mol_label == mol.label]
-            scf_labels = [obj.label for obj in scf_list]
-            
-            # list of ci objects and their labels for this
-            # single-geometry molecule object
-            ci_list   = [obj for obj in ci_objs
-                         if obj.scf_label in scf_labels]
-            ci_labels = [obj.label for obj in ci_list]
-
-            # list of post-ci objects and their labels for this
-            # single-geometry molecule object
-            postci_list = [obj for obj in postci_objs
-                           if any(lbl in obj.couple_groups
-                                  for lbl in ci_labels)]
-            postci_labels = [obj.label for obj in postci_list]
-            
-            # list of si objects and their labels for this
-            # single-geometry molecule object
-            all_ci_labels = list(set(ci_labels).union(set(postci_labels)))
-            si_list = [obj for obj in si_objs
-                       if obj.init_label in all_ci_labels
-                       or obj.final_label in all_ci_labels]
-                        
             # add the single-geometry objects to the list
             new_run_list.append(mol)
             for scf in scf_list:
@@ -548,3 +517,27 @@ def replicate_sections(run_list):
                 new_run_list.append(si)
                 
     return new_run_list
+
+#
+def parse_all_geoms(mol):
+    """
+    given a molecule object, reads in all geometries in mol.xyz_file file
+    """
+
+    # parse the xyz file
+    with open(mol.xyz_file, 'r') as xyzfile:
+        xyz = xyzfile.readlines()
+        
+    # remove the leading no. atom and blank lines
+    xyz_clean = [string.split() for string in xyz
+                if string.split() != []
+                 and len(string.split()) != 1]
+    n_atm  = len(mol.crds)
+    n_geom = int(len(xyz_clean) / n_atm)
+    
+    # get the array of nuclear geometries
+    coords = np.array([float(xx)
+                       for x in xyz_clean
+                       for xx in x[1:]]).reshape(n_geom,n_atm,3)
+
+    return coords
