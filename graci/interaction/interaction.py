@@ -550,70 +550,38 @@ class Interaction:
     
         return pair_list
 
-    #
     @timing.timed
-    def rotate_tensors2(self, b_lbl, k_lbl, blk_lst, tensors):
+    def build_grp_tensor(self, bra_grp, bra_ci, ket_grp, ket_ci,
+                                             ci_air, ci_tens, grp_tens):
         """
         Rotate a tensor in the basis of ci states into one in the
         basis of group states.
         """
 
-        # this will work for now, but feels inelegant
-        if type(self.bra_obj).__name__ == 'Spinorbit':
-            bra_spin = self.get_spins(b_lbl)
-            grp_indx = self.state_grps['bra'].index(b_lbl)
-            bra_lbl  = self.bra_obj.get_lbls()[grp_indx]
-        else:
-            bra_spin = None
+        if ci_tens.shape[1:] != grp_tens[1:]:
+            sys.exit('ERROR tensor shape mis-match. ci_tens.shape = ' + 
+                      str(ci_tens.shape[1:]) + '/ grp_tens.shape = ' + 
+                      str(grp_tens.shape[1:]))
 
-        if type(self.ket_obj).__name__ == 'Spinorbit':
-            ket_spin = self.get_spins(k_lbl)
-            grp_indx = self.state_grps['ket'].index(k_lbl)
-            ket_lbl  = self.ket_obj.get_lbls()[grp_indx]
-        else:
-            ket_spin = None
+        # tensor is assumed to be in basis of ci states. Compute the 
+        # contribution of each CI pair to each GROUP pair
+        for i in range(len(ci_pair)):
+            cpair   = ci_pair[i]
+            bra_ind = self.get_group_index(bra_grp, bra_ci, cpair[0])
+            ket_ind = self.get_group_index(ket_grp, ket_ci, cpair[1])
 
-        # run through trans_list and contribute each #
-        for blk_pair in blk_lst:
-            blk_ind = blk_lst.index(blk_pair)
-            tdm     = tensors[blk_ind, :, :]
+            for j in range(len(self.trans_list)):
+                gpair = self.trans_list[j]
+                bvec  = self.get_vector(bra_grp, gpair[0])
+                kvec  = self.get_vector(ket_grp, gpair[1])
 
-            for pair in self.trans_list:
-                ind = self.trans_list.index(pair)
+                b_cf = [bvec[b] for b in bra_ind]
+                k_cf = [kvec[k] for k in ket_ind]
 
-                # if the bra state doesn't contribute, skip
-                if bra_spin is None and blk_pair[0] != pair[0]:
-                    continue
-                else:
-                    b_cf = [1.+0.j]
+                cf = sum( [b*k for k in k_cf for b in b_cf] )
 
-                # if the ket state doesn't contribute, skip
-                if ket_spin is None and blk_pair[1] != pair[1]:
-                    continue
-                else:
-                    k_cf = [1.+0.j]
-
-                # pull the coefficients from the state vectors
-                # we need to calculate contribution of this spin-free
-                # pair to the transition density
-                if bra_spin is not None:
-                    b_indxs = [self.bra_obj.soc_index(bra_lbl,
-                                                blk_pair[0], ms)
-                                                for ms in bra_spin.M]
-                    b_cf   = [self.bra_obj.soc_state(pair[0])[b_indx]
-                                                for b_indx in b_indxs]
-
-                if ket_spin is not None:
-                    k_indxs = [self.ket_obj.soc_index(ket_lbl,
-                                                blk_pair[1], ms)
-                                                for ms in ket_spin.M]
-                    k_cf   = [self.bra_obj.soc_state(pair[1])[k_indx]
-                                                for k_indx in k_indxs]
-
-                cf = sum( [bcf*kcf for kcf in k_cf for bcf in b_cf] )
-
-                if abs(cf) > 1.e-16:
-                    self.tdms[ind, :, :] += cf * tdm
+                if abs(cf) > 1.e-12:
+                    grp_tens[j, ...] += cf * ci_tens[i, ...]
 
         return
 

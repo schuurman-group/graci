@@ -27,7 +27,8 @@ class Dyson(interaction.Interaction):
         self.final_label    = None
         self.norm_thresh    = 0.999
         self.print_orbitals = False
-        
+        self.representation = 'adiabatic'
+
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly
@@ -118,9 +119,10 @@ class Dyson(interaction.Interaction):
 
                 # accumulate the dyson orbital in terms of the 
                 # bra/ket states 
-                self.build_spin_orbs('bra', b_lbl, 
-                                     'ket', k_lbl,
-                                      ci_tran, dys_orbs)
+                self.build_grp_tensor('bra', b_lbl, 
+                                      'ket', k_lbl,
+                                      ci_tran, dys_orbs, 
+                                      self.dyson_orbs)
 
                 bitwf_init.finalize()
 
@@ -128,15 +130,36 @@ class Dyson(interaction.Interaction):
         self.dyson_norms = np.array([np.linalg.norm(self.dyson_orbs[i,:])
                                    for i in range(len(self.trans_list))]) 
 
+        # print the Dyson orbitals to file
+        if self.print_orbitals:
+            self.export_dyson_orbs()
+
         # output the ionisation energies and squared Dyson orbital
         # norms
         if self.verbose:
             self.print_log()
 
-        # print the Dyson orbitals to file
-        if self.print_orbitals:
-            self.export_dysorbs()
-            
+
+    #
+    def get_dyson_norms(self, istate=None, fstate=None):
+        """
+        Return requested dyson orbital norms
+        """
+
+        if istate is None and fstate is None:
+            return self.dyson_norms
+        else:
+            if istate is None:
+                chk_st  = fstate
+                chk_ind = 1
+            else:
+                chk_st  = istate
+                chk_ind = 0
+            lst = [self.trans_list.index(pair)
+                  for pair in self.trans_list if pair[chk_ind]==chk_st]
+            return self.dyson_norms[lst]
+
+
 #----------------------------------------------------------------------
 # "Private" class methods
 #
@@ -240,86 +263,8 @@ class Dyson(interaction.Interaction):
         return dyson_orbs, dyson_norms
 
     #
-    @timing.timed
-    def build_spin_orbs(self, bra_grp, bra_ci, ket_grp, ket_ci,
-                                                      ci_pair, ci_orbs):
-        """
-        Rotate a tensor in the basis of ci states into one in the
-        basis of group states.
-        """
-
-        # tensor is assumed to be in basis of ci states. Compute the 
-        # contribution of each CI pair to each GROUP pair
-        for i in range(len(ci_pair)):
-            cpair   = ci_pair[i]
-            bra_ind = self.get_group_index(bra_grp, bra_ci, cpair[0])
-            ket_ind = self.get_group_index(ket_grp, ket_ci, cpair[1])
-
-            for j in range(len(self.trans_list)):
-                gpair = self.trans_list[j]
-                bvec  = self.get_vector(bra_grp, gpair[0])
-                kvec  = self.get_vector(ket_grp, gpair[1])
-
-                b_cf = [bvec[b] for b in bra_ind]
-                k_cf = [kvec[k] for k in ket_ind]
-
-                cf = sum( [b*k for k in k_cf for b in b_cf] )
-
-                if abs(cf) > 1.e-12:
-                    self.dyson_orbs[j, :] += cf * ci_orbs[i, :]
-
-        return
-
     #
-    def print_log(self):
-        """
-        print a summary of the ionisation energies and
-        squared Dyson orbital norms to the log file
-        """
-
-        # get the ket states and energies
-        ket_states = self.get_states('ket')
-        ket_eners  = self.get_energy('ket')
-
-        # get the bra states and energies
-        bra_states = self.get_states('bra')
-        bra_eners  = self.get_energy('bra')
-
-        # get state symmetries. If not defined, use C1 sym labels
-        bsym_lbl = self.get_sym_lbl('bra')
-        ksym_lbl = self.get_sym_lbl('ket')
-
-        # print an 'ionisation table' for each initial state
-        for iket in range(len(ket_states)):
-
-            # shift state indices from 0..n-1 to 1..n
-            init_st   = ket_states[iket]+1
-            init_sym  = ksym_lbl[iket]
-            final_st  = []
-            final_sym = []
-            exc_ener  = []
-            sqnorm    = []     
-
-            for ibra in range(len(bra_states)):
-
-                # shift state indices from 0..n-1 to 1..n
-                final_st.append(bra_states[ibra]+1)
-                final_sym.append(bsym_lbl[ibra])
-                exc_ener.append(bra_eners[ibra] - ket_eners[iket]) 
-                sqnorm.append(self.dyson_norms[indx]**2)
-
-            # print an 'ionisation table' for each initial state
-            output.print_dyson_table(init_st,
-                                     init_sym,
-                                     final_st,
-                                     final_sym,
-                                     exc_ener, 
-                                     sqnorm)
-        
-        return
-
-    #
-    def export_dysorbs(self):
+    def export_dyson_orbs(self):
         """
         Writing of the Dyson orbitals to molden files
         """
@@ -361,5 +306,56 @@ class Dyson(interaction.Interaction):
                                          orb_ener=sqnorm,
                                          orb_dir='Dyson.'+str(self.label),
                                          fmt='molden')
-            
+
+        return
+
+
+    #
+    def print_log(self):
+        """
+        print a summary of the ionisation energies and
+        squared Dyson orbital norms to the log file
+        """
+
+        # get the ket states and energies
+        ket_states = self.get_states('ket')
+        ket_eners  = self.get_energy('ket')
+
+        # get the bra states and energies
+        bra_states = self.get_states('bra')
+        bra_eners  = self.get_energy('bra')
+
+        # get state symmetries. If not defined, use C1 sym labels
+        bsym_lbl = self.get_sym_lbl('bra')
+        ksym_lbl = self.get_sym_lbl('ket')
+
+        # print an 'ionisation table' for each initial state
+        for iket in range(len(ket_states)):
+
+            # shift state indices from 0..n-1 to 1..n
+            init_st   = ket_states[iket]+1
+            init_sym  = ksym_lbl[iket]
+            final_st  = []
+            final_sym = []
+            exc_ener  = []
+            sqnorm    = []     
+
+            for ibra in range(len(bra_states)):
+
+                indx = self.trans_list.index([bra_states[ibra], 
+                                              ket_states[iket]])
+                # shift state indices from 0..n-1 to 1..n
+                final_st.append(bra_states[ibra]+1)
+                final_sym.append(bsym_lbl[ibra])
+                exc_ener.append(bra_eners[ibra] - ket_eners[iket]) 
+                sqnorm.append(self.dyson_norms[indx]**2)
+
+            # print an 'ionisation table' for each initial state
+            output.print_dyson_table(init_st,
+                                     init_sym,
+                                     final_st,
+                                     final_sym,
+                                     exc_ener, 
+                                     sqnorm)
+        
         return

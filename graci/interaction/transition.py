@@ -162,9 +162,10 @@ class Transition(interaction.Interaction):
                                          ci_tran, ci_tran_sym)
 
                 # rotate tdms into spin states, if need be
-                self.build_spin_tdms('bra', b_lbl, 
-                                     'ket', k_lbl, 
-                                      ci_tran, tdm)
+                self.build_grp_tensor('bra', b_lbl, 
+                                      'ket', k_lbl, 
+                                      ci_tran, tdm, 
+                                      self.tdms)
 
                 del(tdm)
                 # finalize the bitsi library
@@ -301,38 +302,6 @@ class Transition(interaction.Interaction):
             tdm[indx, :,:] = tdm_list[bir][kir][:, :, sym_indx]
 
         return tdm
-
-    #
-    @timing.timed
-    def build_spin_tdms(self, bra_grp, bra_ci, ket_grp, ket_ci,
-                                                      ci_pair, ci_tens):
-        """
-        Rotate a tensor in the basis of ci states into one in the
-        basis of group states.
-        """
-
-        # tensor is assumed to be in basis of ci states. Compute the 
-        # contribution of each CI pair to each GROUP pair
-        for i in range(len(ci_pair)):
-            cpair   = ci_pair[i]
-            bra_ind = self.get_group_index(bra_grp, bra_ci, cpair[0])
-            ket_ind = self.get_group_index(ket_grp, ket_ci, cpair[1])
-
-            for j in range(len(self.trans_list)):
-                gpair = self.trans_list[j]
-                bvec  = self.get_vector(bra_grp, gpair[0])
-                kvec  = self.get_vector(ket_grp, gpair[1])
-
-                b_cf = [bvec[b] for b in bra_ind]
-                k_cf = [kvec[k] for k in ket_ind]
-
-                cf = sum( [b*k for k in k_cf for b in b_cf] )
-
-                if abs(cf) > 1.e-12:
-                    self.tdms[j, :, :] += cf * ci_tens[i, :, :]
-
-        return
-
 
     #-----------------------------------------------------------------------
     # N-pole moments
