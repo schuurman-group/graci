@@ -72,9 +72,12 @@ def diabpot(ci_method0, ci_method):
     # use Fortran indexing)
     icore = np.arange(0, ncore_mo, 1) + 1
     ncore = icore.size
-
+    
     # deleted core orbital flag
-    delete_core = True
+    if len(ci_method.icvs) > 0:
+        delete_core = False
+    else:
+        delete_core = True
 
     # Loop over irreps
     for irrep in range(nirr):
