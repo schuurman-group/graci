@@ -122,7 +122,6 @@ transition_kword = {'init_states'      : int,
                     'init_label'       : str,
                     'final_states'     : int,
                     'final_label'      : str,
-                    'all_final_states' : bool,
                     'print_orbitals'   : bool,
                     'print_orb_thresh' : float,
                     'representation'   : str,
@@ -192,7 +191,7 @@ parameterize_kword = {'label'          : str,
 ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap', 'Dyson']
-support_objs = ['Bitciwfn','Moments','SpinInfo']
+support_objs = ['Bitciwfn','Moments', 'Cigroup']
 valid_objs   = ['Molecule', 'Rydano', 'Scf', 'Parameterize'] + \
                ci_objs + postci_objs + si_objs
 

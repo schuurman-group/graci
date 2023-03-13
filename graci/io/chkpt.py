@@ -17,7 +17,7 @@ import graci.tools.parameterize as parameterize
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
 import graci.properties.moments as moments
-import graci.interaction.interaction as spininfo # this makes me uncomfortable...
+import graci.interaction.interaction as cigroup # still makes me uncomfortable 
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
@@ -295,8 +295,9 @@ def write_dataset(chkpt_handle, dset_name, dset):
         del chkpt_handle[dset_name]
 
     try:
-        chkpt_handle.create_dataset(dset_name, data=dset, dtype=dset.dtype,
-                                    compression="gzip", compression_opts=9)
+        chkpt_handle.create_dataset(dset_name, data=dset, 
+               dtype=dset.dtype, compression="gzip", compression_opts=9)
+
     # if non-native HDf5 type, DIE
     except TypeError:
         sys.exit('\n Could not create dataset: '+str(dset_name))

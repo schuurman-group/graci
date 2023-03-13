@@ -41,21 +41,13 @@ class Transition(interaction.Interaction):
         self.final_states     = None
         # label of section to get final states 
         self.final_label      = None
-        # often will want to include all states in bra object
-        # if so convenient to have simple boolean to select that
-        self.all_final_states = False
         
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly
-        self.bra_obj    = None
-        self.ket_obj    = None
-
         # allowed representations
         self.allowed_reps = ['adiabatic', 'diabatic']
         
-        # list of state group sassociated with the ket object
-        self.state_grps = {}
         # list of transitions corresponding to the tdms
         self.trans_list = []
         # the tdms
@@ -69,6 +61,9 @@ class Transition(interaction.Interaction):
         self.multipole  = {}
         # oscillator strengths -- all gauges
         self.oscstr     = {}
+        # bra and ket arguments to run
+        self.bra_obj    = None
+        self.ket_obj    = None
 
         # we currently require the same orbitals and mol objects
         # for the bra and ket -- this is them
@@ -93,43 +88,34 @@ class Transition(interaction.Interaction):
 
     #
     @timing.timed
-    def run(self, arg_list):
+    def run(self, bra, ket):
         """return the transition dipole moments between the bra and
            ket states. If b_state and k_state are None, assume 
            transitions from all states in method object should be 
            used.
         """
 
+        # sanity check on the representation
+        self.check_representation()
+
         # set the bra/ket objects and add the state groups associated
         # with each 
-        self.bra_obj, self.ket_obj = self.add_state_grps(arg_list)
+        self.bra_obj = bra
+        self.ket_obj = ket
+        self.add_group('bra', [bra], states = [self.final_states])
+        self.add_group('ket', [ket], states = [self.init_states])
 
         # do some sanity checks on the bra/ket objects
         self.mos, self.mol = self.check_bra_ket()
         nmo = self.mos.shape[1]
 
-        # sanity check on the representation
-        self.check_representation()
-        
         # if bra and ket are the same object, only compute the unique
         # transition densities
-        list_type = 'full'
-        if self.same_obj(self.bra_obj, self.ket_obj):
-            list_type = 'nodiag'
+        ltype = 'full'
+        if self.same_group('bra', 'ket'): 
+            ltype = 'nodiag'
 
-        # if all_final_states is true, over-ride current contents of
-        # self.final_states
-        if self.all_final_states:
-            self.final_states = np.asarray(range(self.bra_obj.n_states()))
-
-        # these are the initial and final states -- in whatever form
-        # the bra and ket objects take (ci or postci objects)
-        self.add_group('ket', self.ket_obj, self.init_states)
-        self.add_group('bra', self.bra_obj, self.final_states)
-
-        self.trans_list = self.build_pair_list('bra',
-                                               'ket',
-                                                pairs=list_type)
+        self.trans_list = self.grp_pair_list('bra', 'ket', pairs=ltype)
 
         # initialize the transition density matrices
         # These will be complex for spin-orbit coupled states
@@ -139,45 +125,48 @@ class Transition(interaction.Interaction):
         # loop over all pairs of spin free states in both the bra
         # and ket objects. In the future, may be prudent to check
         # init and final states and just which states are necessary
-        for k_lbl in self.state_grps['ket']:
-            ket_spin = self.get_spins(k_lbl)
-            ket_ci   = self.get_obj(k_lbl) 
+        for k_lbl in self.get_ci_lbls('ket'):
+            ket_ci            = self.get_ci_obj('ket', k_lbl)
+            k_mult, k_s, k_m  = self.get_ci_spins('ket', k_lbl)
 
-            for b_lbl in self.state_grps['bra']:
-                bra_spin = self.get_spins(b_lbl)
-                bra_ci   = self.get_obj(b_lbl)
+            for b_lbl in self.get_ci_lbls('bra'):
+                bra_ci            = self.get_ci_obj('bra', b_lbl) 
+                b_mult, b_s, b_m  = self.get_ci_spins('bra', b_lbl)
 
                 # if different spin manifold, tdm contribution is zero
-                if ket_spin.mult != bra_spin.mult:
+                if b_mult != k_mult: 
                     continue
 
                 # if the same object, only build lower diagonal
+                pair_type = 'full'
                 if self.same_obj(ket_ci, bra_ci): 
                     pair_type = 'nodiag'
-                else:
-                    pair_type = 'full'
                 
-                # initialize the bitsi library for the calculation of 1-TDMs
+                # initialize the bitsi library for the calculation 
+                # of 1-TDMs
                 bitsi_init.init(bra_ci, ket_ci, 'tdm', self.verbose)
         
                 # this is main transition_list: stored by adiabatic label
-                blks      = self.build_pair_list(b_lbl,
-                                                 k_lbl, 
-                                                 pairs=pair_type)
+                ci_tran = self.ci_pair_list('bra', b_lbl, 'ket', k_lbl, 
+                                                    pairs=pair_type)
 
                 # the transitions, ordered by interacting irreps, is how
                 # we call bitsi
-                blks_sym  = self.build_pair_list(b_lbl, 
-                                                 k_lbl, 
+                ci_tran_sym = self.ci_pair_list('bra', b_lbl, 
+                                                'ket', k_lbl, 
                                                  pairs=pair_type, 
                                                  sym_blk=True)
 
                 # tdms is a vector of nmo x nmo transition densities
-                tdm_blk = self.build_tdms(bra_ci, ket_ci, blks, blks_sym)
+                tdm = self.build_ci_tdms(b_lbl, k_lbl, 
+                                         ci_tran, ci_tran_sym)
 
                 # rotate tdms into spin states, if need be
-                self.rotate_tdms(b_lbl, k_lbl, blks, tdm_blk)
+                self.build_spin_tdms('bra', b_lbl, 
+                                     'ket', k_lbl, 
+                                      ci_tran, tdm)
 
+                del(tdm)
                 # finalize the bitsi library
                 bitsi_init.finalize()
 
@@ -252,51 +241,6 @@ class Transition(interaction.Interaction):
 # "Private" class methods
 #
     #
-    def add_state_grps(self, arg_list):
-        """
-        add the bra and ket state groups
-        """
-        if len(arg_list) != 2:
-            sys.exit('ERROR: transition.run() passed '
-                     + str(len(arg_list))
-                     + ' objects. Expecting 2')
-
-        # add both the bra and ket state groups
-        lbls = ['bra', 'ket']
-        for indx in range(len(arg_list)):
-            arg_obj                     = arg_list[indx]
-            self.state_grps[lbls[indx]] = []
-
-            # if this is a ci method, create a new group associated
-            # with the CI states
-            if type(arg_obj).__name__ in params.ci_objs:
-                lbl = str(lbls[indx]+'_grp0')
-                self.state_grps[lbls[indx]].append(lbl)
-                self.add_group(lbl, arg_obj, 
-                               np.asarray(range(arg_obj.n_states())))
-
-            # if this is a postci object, should already extend
-            # interaction and have groups set up. Add all of them
-            # here
-            elif type(arg_obj).__name__ in params.postci_objs:
-                grp_lbls = arg_obj.get_lbls()
-
-                for ibk in range(len(grp_lbls)):
-                    lbl  = lbls[indx]+'_'+grp_lbls[ibk]
-                    self.state_grps[lbls[indx]].append(lbl)
-                    self.add_group(lbl,
-                                   arg_obj.get_obj(grp_lbls[ibk]),
-                                   arg_obj.get_states(grp_lbls[ibk]))
-
-            # if not a ci_obj and postci_obj, we don't know what to do 
-            # with this
-            else:
-                sys.exit('ERROR: object passed to transition neither' +
-                         ' ci_obj or postci_obj. Exiting...')
-
-        return arg_list[0], arg_list[1]
-
-    #
     def check_bra_ket(self):
         """
         do some sanity checks on the arguments passed to run
@@ -304,133 +248,94 @@ class Transition(interaction.Interaction):
 
         # now that we have bra and ket groups set up, do some
         # sanity checking on the orbitals/geometries involved
-        if not self.same_obj(self.bra_obj, self.ket_obj):
-            for bra_lbl in self.state_grps['bra']:
-                mos_b = self.get_obj(bra_lbl).mos
-                mol_b = self.get_obj(bra_lbl).scf.mol
+        if not self.same_group('bra', 'ket'):
+            for b_lbl in self.get_ci_lbls('bra'):
+                mos_b = self.get_ci_obj('bra', b_lbl).mos
+                mol_b = self.get_ci_obj('bra', b_lbl).scf.mol
 
-                for ket_lbl in self.state_grps['ket']:
-                    mos_k = self.get_obj(ket_lbl).mos
-                    mol_k = self.get_obj(ket_lbl).scf.mol
+                for k_lbl in self.get_ci_lbls('ket'):
+                    mos_k = self.get_ci_obj('ket', k_lbl).mos
+                    mol_k = self.get_ci_obj('ket', k_lbl).scf.mol
 
                     # sanity check that orbitals and geometry are
                     # the same
                     if np.any(mos_b != mos_k):
                         sys.exit('ERROR: transition moments require same '+
-                                 ' bra/ket orbitalss')
+                                 ' bra/ket orbitals')
 
                     if (mol_b.pymol().atom != mol_k.pymol().atom):
                         sys.exit('ERROR: transition moments require same '+
                                  ' geometry and basis set')
 
         else:
-            mol_b = self.get_obj(self.state_grps['bra'][0]).scf.mol
-            mos_b = self.get_obj(self.state_grps['bra'][0]).mos
+            b_lbl = self.get_ci_lbls('bra')[0]
+            mol_b = self.get_ci_obj('bra', b_lbl).scf.mol
+            mos_b = self.get_ci_obj('bra', b_lbl).mos
 
         return mos_b, mol_b
 
 
-    def check_representation(self):
-        """checks that the user-specified representation is
-        supported"""
-        
-        if self.representation not in self.allowed_reps:
-            sys.exit('\n ERROR: unsupported representation: '
-                     +self.representation
-                     +'\n Allowed values: '+str(self.allowed_reps))
-
-        return
-        
     @timing.timed
-    def build_tdms(self, bra, ket, trans_list, trans_list_sym):
+    def build_ci_tdms(self, b_lbl, k_lbl, ci_trans, ci_trans_sym):
         """grab the TDMs from bitsi and then reshape the list of
            TDMs into a more usable format"""
 
+        # get the ci objects
+        bra = self.get_ci_obj('bra', b_lbl) 
+        ket = self.get_ci_obj('ket', k_lbl)
+
         # grab the tdms
-        tdm_list = mrci_1tdm.tdm(bra, ket, trans_list_sym,
+        tdm_list = mrci_1tdm.tdm(bra, ket, ci_trans_sym,
                                  self.representation)
 
         # make the tdm list
         nmo    = bra.nmo
-        npairs = len(trans_list)
+        npairs = len(ci_trans)
         tdm    = np.zeros((npairs, nmo, nmo), dtype=float)
 
-        for indx in range(len(trans_list)):
-            bk_st          = trans_list[indx]
-            [birr, bst]    = bra.state_sym(bk_st[0])
-            [kirr, kst]    = ket.state_sym(bk_st[1])
-            sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
-            tdm[indx, :,:] = tdm_list[birr][kirr][:, :, sym_indx]
+        for indx in range(npairs):
+            bk_st          = ci_trans[indx]
+            [bir, bst]     = self.get_ci_sym('bra', b_lbl, bk_st[0])
+            [kir, kst]     = self.get_ci_sym('ket', k_lbl, bk_st[1])     
+            sym_indx       = ci_trans_sym[bir][kir].index([bst, kst])
+            tdm[indx, :,:] = tdm_list[bir][kir][:, :, sym_indx]
 
         return tdm
 
+    #
     @timing.timed
-    def rotate_tdms(self, b_lbl, k_lbl, blk_lst, tdm_blk):
+    def build_spin_tdms(self, bra_grp, bra_ci, ket_grp, ket_ci,
+                                                      ci_pair, ci_tens):
         """
-        Rotate the spin-free tdms to the spin-orbit states. The 
-        bra and/or ket object may be spin-free or spin-orbit
-        coupled objects
+        Rotate a tensor in the basis of ci states into one in the
+        basis of group states.
         """
 
-        # this will work for now, but feels inelegant
-        if type(self.bra_obj).__name__ == 'Spinorbit':
-            bra_spin = self.get_spins(b_lbl)
-            grp_indx = self.state_grps['bra'].index(b_lbl)
-            bra_lbl  = self.bra_obj.get_lbls()[grp_indx]
-        else:
-            bra_spin = None
+        # tensor is assumed to be in basis of ci states. Compute the 
+        # contribution of each CI pair to each GROUP pair
+        for i in range(len(ci_pair)):
+            cpair   = ci_pair[i]
+            bra_ind = self.get_group_index(bra_grp, bra_ci, cpair[0])
+            ket_ind = self.get_group_index(ket_grp, ket_ci, cpair[1])
 
-        if type(self.ket_obj).__name__ == 'Spinorbit':
-            ket_spin = self.get_spins(k_lbl)
-            grp_indx = self.state_grps['ket'].index(k_lbl)
-            ket_lbl  = self.ket_obj.get_lbls()[grp_indx] 
-        else:
-            ket_spin = None
+            for j in range(len(self.trans_list)):
+                gpair = self.trans_list[j]
+                bvec  = self.get_vector(bra_grp, gpair[0])
+                kvec  = self.get_vector(ket_grp, gpair[1])
 
-        # run through trans_list and contribute each #
-        for blk_pair in blk_lst:
-            blk_ind = blk_lst.index(blk_pair)
-            tdm     = tdm_blk[blk_ind, :, :]
+                b_cf = [bvec[b] for b in bra_ind]
+                k_cf = [kvec[k] for k in ket_ind]
 
-            for pair in self.trans_list:
-                ind = self.trans_list.index(pair)
+                cf = sum( [b*k for k in k_cf for b in b_cf] )
 
-                # if the bra state doesn't contribute, skip
-                if bra_spin is None and blk_pair[0] != pair[0]:
-                    continue
-                else:
-                    b_cf = [1.+0.j]
-
-                # if the ket state doesn't contribute, skip
-                if ket_spin is None and blk_pair[1] != pair[1]:
-                    continue
-                else:
-                    k_cf = [1.+0.j]
-
-                # pull the coefficients from the state vectors
-                # we need to calculate contribution of this spin-free
-                # pair to the transition density
-                if bra_spin is not None:
-                    b_indxs = [self.bra_obj.soc_index(bra_lbl,
-                                                blk_pair[0], ms)
-                                                for ms in bra_spin.M]
-                    b_cf   = [self.bra_obj.soc_state(pair[0])[b_indx]
-                                                for b_indx in b_indxs]
-
-                if ket_spin is not None:
-                    k_indxs = [self.ket_obj.soc_index(ket_lbl,
-                                                blk_pair[1], ms)
-                                                for ms in ket_spin.M]
-                    k_cf   = [self.bra_obj.soc_state(pair[1])[k_indx]
-                                                for k_indx in k_indxs]
-
-                cf = sum( [bcf*kcf for kcf in k_cf for bcf in b_cf] )
-
-                if abs(cf) > 1.e-16:
-                    self.tdms[ind, :, :] += cf * tdm
+                if abs(cf) > 1.e-12:
+                    self.tdms[j, :, :] += cf * ci_tens[i, :, :]
 
         return
 
+
+    #-----------------------------------------------------------------------
+    # N-pole moments
 
     #
     @timing.timed
@@ -967,26 +872,15 @@ class Transition(interaction.Interaction):
         bra_states = self.get_states('bra')
 
         # get state symmetries. If not defined, use C1 sym labels
-        ket_syms = self.get_syms('ket')
-        if ket_syms is None:
-            ket_syms = [0]*len(ket_states)
-            ksym_lbl = ['A']*len(ket_states)
-        else:
-            ksym_lbl = self.mol.irreplbl
-
-        bra_syms = self.get_syms('bra')
-        if bra_syms is None:
-            bra_syms = [0]*len(bra_states)
-            bsym_lbl = ['A']*len(bra_states)
-        else:
-            bsym_lbl = self.mol.irreplbl
+        bsym_lbl = self.get_sym_lbl('bra')
+        ksym_lbl = self.get_sym_lbl('ket')
 
         # print a 'transition table' for each initial state
         for iket in range(len(ket_states)):
             
             # shift state indices from 0..n-1 to 1..n
             init_st   = ket_states[iket]+1
-            init_sym  = ksym_lbl[ket_syms[iket]]
+            init_sym  = ksym_lbl[iket]
             final_st  = []
             final_sym = []
             exc_ener  = []
@@ -1005,7 +899,7 @@ class Transition(interaction.Interaction):
 
                 # shift state indices from 0..n-1 to 1..n
                 final_st.append(bra_states[ibra]+1)
-                final_sym.append(bsym_lbl[bra_syms[ibra]])
+                final_sym.append(bsym_lbl[ibra])
                 exc_ener.append(self.bra_obj.energy(bra_states[ibra]) - 
                                 self.ket_obj.energy(ket_states[iket])) 
                 osc_str[0].append(self.oscstr['f0iso_l'][indx])

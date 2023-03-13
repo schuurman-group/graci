@@ -3,6 +3,7 @@
 import sys
 import re as re
 import numpy as np 
+import h5py as h5py
 import graci.utils.constants as constants
 import graci.core.params as params
 import graci.io.output as output
@@ -394,4 +395,5 @@ def convert_array(val_list):
     except ValueError:
         pass
 
-    return np.array(val_list, dtype=str)
+    return np.array(val_list, dtype=h5py.string_dtype(encoding='utf-8'))
+

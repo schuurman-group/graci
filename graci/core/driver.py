@@ -185,19 +185,21 @@ class Driver:
         # -- these can take ci_objects as arguments
         # ----------------------------------------------------
         for postci_obj in postci_objs:
-            arg_list = self.get_postscf_objs(postci_obj, ci_objs)
+            obj_list = self.get_postscf_objs(postci_obj, ci_objs)
 
-            postci_obj.run(arg_list)
+            postci_obj.run(obj_list)
             if save_to_chkpt:
                 chkpt.write(postci_obj)
 
         # State Interaction sections
         # -- these can take ci_objects or postci_objects as arguments
+        #    ...but expect exactly two arguments: a bra object and
+        #    a ket object
         #------------------------------------------------------------
         for si_obj in si_objs:
-            arg_list = self.get_postscf_objs(si_obj, 
-                                             ci_objs + postci_objs)            
-            si_obj.run(arg_list)
+            [bra, ket] = self.get_postscf_objs(si_obj, 
+                                               ci_objs + postci_objs)            
+            si_obj.run(bra, ket)
             if save_to_chkpt:
                 chkpt.write(si_obj)
 

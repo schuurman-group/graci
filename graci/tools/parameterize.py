@@ -902,7 +902,7 @@ class Parameterize:
             # frozen parameters union of initial and final sets
             freeze = set(self.freeze_h_init).union(
                                      set(self.freeze_h_final))
-            self.freeze_h_init = self.freeze_h_final = freeze
+            self.freeze_h_init = self.freeze_h_final = list(freeze)
  
             # unify the bounds for initial and final hamiltonian
             bounds = None
@@ -1057,8 +1057,10 @@ class Parameterize:
         if self.opt_h_init:
             nall  = len(p_vals)
             ni    = nall - len(self.freeze_h_init)
+            #print('nall, p_vals='+str(nall)+','+str(p_vals)+','+str(self.freeze_h_init), flush=True)
             opt_p = np.setdiff1d(np.array(range(nall)), 
                                  self.freeze_h_init)
+            #print('ni, opt_p='+str(ni)+','+str(opt_p)+','+str(p_opt),flush=True)
             p_vals[opt_p] = p_opt[n : n + ni]
             n    += ni
         p_full['h_init']  = p_vals 
