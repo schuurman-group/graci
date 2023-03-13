@@ -219,7 +219,7 @@ class Parameterize:
             hp   = libs.lib_func('retrieve_hpar', args)
             pfull['h_final'] = hp
 
-        if self.opt_h_final and self.final_state_h != self.init_state_h:
+        if self.opt_h_final and not self.single_hamiltonian:
             self.n_opt += len(pfull['h_final']) - len(self.freeze_h_final)
 
         #---------------------------------------------------------------
@@ -398,6 +398,7 @@ class Parameterize:
         mol_names = init_ci.keys()
         topdir = os.getcwd()
         energies = {}
+        #print('p_full='+str(p_full),flush=True)
 
         if params.nproc > 1:
 
@@ -433,6 +434,7 @@ class Parameterize:
         eval_energy
         """
 
+        #print(molecule+' energy on rank='+str(MPI.COMM_WORLD.Get_rank()),flush=True)
         # if parallel, this is run on a worker and libraries need to be 
         if parallel:
             libs.lib_load('bitci')
@@ -604,7 +606,7 @@ class Parameterize:
         compute overlaps to identify states
         """
         #s_thrsh = 1./np.sqrt(2.)
-        s_thrsh = 0.65
+        s_thrsh = 0.6
 
         eners  = {}
 
@@ -900,7 +902,7 @@ class Parameterize:
             # frozen parameters union of initial and final sets
             freeze = set(self.freeze_h_init).union(
                                      set(self.freeze_h_final))
-            self.freeze_h_init = self.freeze_h_final = freeze
+            self.freeze_h_init = self.freeze_h_final = list(freeze)
  
             # unify the bounds for initial and final hamiltonian
             bounds = None
@@ -1055,8 +1057,10 @@ class Parameterize:
         if self.opt_h_init:
             nall  = len(p_vals)
             ni    = nall - len(self.freeze_h_init)
+            #print('nall, p_vals='+str(nall)+','+str(p_vals)+','+str(self.freeze_h_init), flush=True)
             opt_p = np.setdiff1d(np.array(range(nall)), 
                                  self.freeze_h_init)
+            #print('ni, opt_p='+str(ni)+','+str(opt_p)+','+str(p_opt),flush=True)
             p_vals[opt_p] = p_opt[n : n + ni]
             n    += ni
         p_full['h_init']  = p_vals 

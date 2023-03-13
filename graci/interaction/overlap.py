@@ -25,16 +25,16 @@ class Overlap(interaction.Interaction):
         self.bra_states   = None
         self.ket_states   = None
         self.norm_thresh  = 0.999
+        self.representation = 'adiabatic'
 
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly
-        self.bra_obj       = None
-        self.ket_obj       = None
         self.bra_wfunit    = None
         self.ket_wfunit    = None
         self.overlaps      = None
-        
+        self.allowed_reps  = ['adiabatic']        
+
     def copy(self):
         """create of deepcopy of self"""
         new = Overlap()
@@ -52,46 +52,84 @@ class Overlap(interaction.Interaction):
 
     #
     @timing.timed
-    def run(self, obj_list):
+    def run(self, bra, ket):
         """
         computes the overlap matrix elements between the
         bra and ket states
         """
-
-        # set the bra and ket objects
-        self.bra_obj, self.ket_obj = self.set_objs(obj_list)
-
         # section header
         if self.verbose:
             output.print_overlap_header(self.label)
-        
+
+        # sanity check on the representation
+        self.check_representation()
+
+        # set the bra/ket objects and add the state groups associated
+        # with each 
+        self.bra_obj = bra
+        self.ket_obj = ket
+        self.add_group('bra', [bra], states = [self.bra_states])
+        self.add_group('ket', [ket], states = [self.ket_states])
+
         # check on the requested calculation
-        self.check_calc()
-        
-        # initialise the bitwf library
-        bitwf_init.init(self.bra_obj, self.ket_obj, 'overlap',
-                        self.verbose)
+        self.check_bra_ket()
 
         # if bra and ket are the same object, only compute the unique
-        # overlaps
-        list_type = 'full'
-        if self.same_obj(self.bra_obj, self.ket_obj):
-            list_type = 'lower'
+        # overlaps 
+        ltype = 'full'
+        if self.same_group('bra', 'ket'):
+            ltype = 'lower'
 
-        # construct the list of state pairs between which we
-        # will compute overlaps
-        self.add_group('bra', self.bra_obj, self.bra_states)
-        self.add_group('ket', self.ket_obj, self.ket_states)
-        self.trans_list = self.build_pair_list('bra', 'ket',
-                                               pairs=list_type)
-        self.trans_list_sym = self.build_pair_list('bra', 'ket',
-                                               pairs=list_type,
-                                               sym_blk=True)
-        
-        # compute the wave function overlaps
-        self.overlaps = self.build_overlaps(self.bra_obj, self.ket_obj,
-                                            self.trans_list,
-                                            self.trans_list_sym)
+        # initialize the list of overlaps to compute
+        self.trans_list = self.grp_pair_list('bra', 'ket', pairs=ltype)
+        ntrans = len(self.trans_list)
+        self.overlaps = np.zeros((ntrans), dtype=complex)      
+
+        # loop over all pairs of spin free states in both the bra
+        # and ket objects. In the future, may be prudent to check
+        # init and final states and just which states are necessary
+        for k_lbl in self.get_ci_lbls('ket'):
+            ket_ci            = self.get_ci_obj('ket', k_lbl)
+            k_mult, k_s, k_m  = self.get_ci_spins('ket', k_lbl)
+
+            for b_lbl in self.get_ci_lbls('bra'):
+                bra_ci            = self.get_ci_obj('bra', b_lbl)
+                b_mult, b_s, b_m  = self.get_ci_spins('bra', b_lbl)
+
+                # if the same object, only build lower diagonal
+                pair_type = 'full'
+                if self.same_obj(ket_ci, bra_ci):
+                    pair_type = 'lower'
+
+                # initialise the bitwf library
+                bitwf_init.init(bra_ci, ket_ci, 'overlap', self.verbose)
+
+                # this state pair list for the current pair of CI 
+                # objects, stored by adiabatic label
+                ci_tran = self.ci_pair_list('bra', b_lbl, 
+                                            'ket', k_lbl,
+                                             pairs=pair_type)
+
+                # the state pairs, ordered by interacting irreps, is how
+                # we call bitwf
+                ci_tran_sym = self.ci_pair_list('bra', b_lbl,
+                                                'ket', k_lbl,
+                                                 pairs=pair_type,
+                                                 sym_blk=True)
+
+                # overlaps over the spin-free CI states
+                ci_ovrlp =  self.build_ci_overlaps(b_lbl, k_lbl,
+                                                  ci_tran, ci_tran_sym)
+
+                # rotate overlaps to final state basis
+                self.build_grp_tensor('bra', b_lbl,
+                                      'ket', k_lbl,
+                                       ci_tran, ci_ovrlp,
+                                       self.overlaps)
+
+                # finalize the bitwf library
+                bitwf_init.finalize()
+
 
         # output the overlaps
         bra_state_sym = [self.bra_obj.state_sym(n)
@@ -104,57 +142,24 @@ class Overlap(interaction.Interaction):
                                   self.ket_label, self.bra_label,
                                   self.bra_obj.scf.mol.irreplbl,
                                   bra_state_sym, ket_state_sym)
-                
-        # finalize the bitwf library
-        bitwf_init.finalize()
-         
-#----------------------------------------------------------------------
-# "Private" class methods
-#
 
     #
-    def set_objs(self, obj_list):
+    def get_overlap(bra_st=None, ket_st=None, spin_state=False):
         """
-        Determines the bra and ket CI objects based on their labels
+        Return requested overlaps.
+ 
+        If spin_state is False, real overlaps are assume and
+        only the real component is returned. If spin_state
+        is True, the complex overlap is returned.
         """
-
-        bra_obj = None
-        ket_obj = None
-
-        if obj_list[0].label == self.bra_label:
-            bra_obj = obj_list[0]
-            ket_obj = obj_list[1]
+        if spin_state:
+            olap = self.overlaps
         else:
-            ket_obj = obj_list[0]
-            bra_obj = obj_list[1]
-            
-        return bra_obj, ket_obj
+            olap = self.overlaps.real
 
-    #
-    def check_calc(self):
-        """
-        Sanity check on the requested calculation
-        """
-
-        # make sure that we have equal numbers of bra and ket
-        # electrons
-        if self.bra_obj.nel != self.ket_obj.nel:
-            sys.exit('Error: unequal bra and ket N_el')
-        
-        # bitwf currently only supports equal bra and ket point groups
-        if self.bra_obj.scf.mol.sym_indx != self.ket_obj.scf.mol.sym_indx:
-            sys.exit('Error: unequal bra and ket point groups')
-        
-        return
-
-    #
-    def get_overlap(bra_st=None, ket_st=None):
-        """
-        Return requested overlaps
-        """
 
         if bra_st is None and ket_st is None:
-            return self.overlaps
+            return olap
         else:
             if bra_st is None:
                 chk_st  = ket_st
@@ -162,16 +167,50 @@ class Overlap(interaction.Interaction):
             else:
                 chk_st  = bra_st
                 chk_ind = 0
-            lst = [self.trans_list.index(pair) 
+            lst = [self.trans_list.index(pair)
                   for pair in self.trans_list if pair[chk_ind]==chk_st]
-            return self.overlaps[lst]
+            return olap[lst]
+
+
+                
+#----------------------------------------------------------------------
+# "Private" class methods
+#
 
     #
-    def build_overlaps(self, bra, ket, trans_list, trans_list_sym):
+    def check_bra_ket(self):
+        """
+        Sanity check on the requested calculation
+        """
+
+        # make sure that we have equal numbers of bra and ket
+        # electrons
+        for b_lbl in self.get_ci_lbls('bra'):
+            for k_lbl in self.get_ci_lbls('ket'):
+
+                # make sure that we have equal numbers of bra and ket
+                # electrons
+                if (self.get_ci_obj('bra', b_lbl).nel != 
+                        self.get_ci_obj('ket',k_lbl).nel):
+                    sys.exit('Error: unequal bra and ket N_el')
+        
+                # bitwf currently only supports equal bra and ket point groups
+                if (self.get_ci_obj('bra', b_lbl).scf.mol.sym_indx != 
+                        self.get_ci_obj('ket',k_lbl).scf.mol.sym_indx):
+                    sys.exit('Error: unequal bra and ket point groups')                
+
+        return
+
+    #
+    def build_ci_overlaps(self, b_lbl, k_lbl, ci_trans, ci_trans_sym):
         """
         Grab the wave function overlaps from bitwf and then reshape the
         list of these into a more usable format
         """
+
+        # get ci objects
+        bra = self.get_ci_obj('bra', b_lbl)
+        ket = self.get_ci_obj('ket', k_lbl)
 
         # extract the determinant representation of the wave functions
         self.bra_wfunit, self.ket_wfunit = wf_overlap.extract(bra, ket)
@@ -180,17 +219,18 @@ class Overlap(interaction.Interaction):
         overlap_list = wf_overlap.overlap(bra, ket,
                                           self.bra_wfunit,
                                           self.ket_wfunit,
-                                          trans_list_sym,
+                                          ci_trans_sym,
                                           self.norm_thresh)
         # make the overlap list
-        npairs   = len(trans_list)
+        npairs   = len(ci_trans)
         overlaps = np.zeros((npairs), dtype=float)
 
-        for indx in range(len(trans_list)):
-            bk_st          = trans_list[indx]
-            [birr, bst]    = bra.state_sym(bk_st[0])
-            [kirr, kst]    = ket.state_sym(bk_st[1])
-            sym_indx       = trans_list_sym[birr][kirr].index([bst,kst])
+        for indx in range(npairs):
+            bk_st          = ci_trans[indx]
+            [bir, bst]     = self.get_ci_sym('bra', b_lbl, bk_st[0])
+            [kir, kst]     = self.get_ci_sym('ket', k_lbl, bk_st[1])
+            sym_indx       = ci_trans_sym[bir][kir].index([bst, kst])
             overlaps[indx] = overlap_list[birr][kirr][sym_indx]
                 
         return overlaps
+

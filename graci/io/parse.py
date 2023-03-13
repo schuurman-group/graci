@@ -3,6 +3,7 @@
 import sys
 import re as re
 import numpy as np 
+import h5py as h5py
 import graci.utils.constants as constants
 import graci.core.params as params
 import graci.io.output as output
@@ -336,6 +337,12 @@ def check_input(run_list):
             # shift statesby 1 to internal/C ordering
             obj.couple_states -= 1
 
+            # if a single range of states is provided, rehape array to
+            # to a 2D array with shape[0] = 1
+            if len(obj.couple_states.shape) == 1:
+                ns = obj.couple_states.shape[0]
+                obj.couple_states = obj.couple_states.reshape(1,ns)
+
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
         if type(obj).__name__ == 'Transition' \
@@ -398,8 +405,8 @@ def convert_array(val_list):
     except ValueError:
         pass
 
-    return np.array(val_list, dtype=str)
-
+    return np.array(val_list, dtype=h5py.string_dtype(encoding='utf-8'))
+    
 #
 def replicate_sections(run_list):
     """

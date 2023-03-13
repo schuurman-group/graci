@@ -29,19 +29,17 @@ class Dyson(interaction.Interaction):
         self.final_label    = None
         self.norm_thresh    = 0.999
         self.print_orbitals = False
-        
+        self.representation = 'adiabatic'
+
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly
-        self.bra_obj       = None
-        self.ket_obj       = None
-        self.bra_wfunit    = None
-        self.ket_wfunit    = None
         self.dyson_orbs    = None
         self.dyson_norms   = None
         self.mo_basis      = None
         self.n_basis       = 0
-                
+        self.allowed_reps = ['adiabatic']    
+            
     def copy(self):
         """create of deepcopy of self"""
         new = Dyson()
@@ -59,134 +57,206 @@ class Dyson(interaction.Interaction):
 
     #
     @timing.timed
-    def run(self, obj_list):
+    def run(self, bra, ket):
         """
         Computes the Dyson orbitals between the given
         bra and ket states
         """
 
-        # for now, only adiabatic states are supported
-        if self.representation != 'adiabatic':
-            sys.exit('\n ERROR: Dyson orbitals not yet available for'
-                     +' representation != adiabatic')
-        
-        # set the bra and ket objects
-        self.bra_obj, self.ket_obj = self.set_objs(obj_list)
-        
         # section header
         if self.verbose:
             output.print_dyson_header(self.label)
 
+        # sanity check on the representation
+        self.check_representation()
+
+        # set the bra/ket objects and add the state groups associated
+        # with each 
+        self.add_group('bra', [bra], states = [self.final_states])
+        self.add_group('ket', [ket], states = [self.init_states])
+
         # check on the requested calculation
-        self.check_calc()
+        self.mol = self.check_bra_ket()
 
-        # mol object (has to be the same for both bra and ket)
-        self.mol = self.ket_obj.scf.mol
-        
-        # initialise the bitwf library
-        bitwf_init.init(self.bra_obj, self.ket_obj, 'dyson',
-                        self.verbose)
+        # can't be same object -- pairs = full
+        self.trans_list = self.grp_pair_list('bra', 'ket', pairs='full')
 
-        # set the MO basis: take the N-electron WF MOs
-        # as the basis for now
-        if self.bra_obj.nel < self.ket_obj.nel:
-            self.mo_basis = 'ket'
-            self.n_basis  = self.ket_obj.nmo
-        else:
-            self.mo_basis = 'bra'
-            self.n_basis  = self.bra_obj.nmo
-            
-        # construct the list of bra-ket pairs
-        self.add_group('ket', self.ket_obj, self.init_states)
-        self.add_group('bra', self.bra_obj, self.final_states)
-        self.trans_list = self.build_pair_list('bra', 'ket',
-                                               pairs='full')
-        self.trans_list_sym = self.build_pair_list('bra', 'ket',
-                                               pairs='full',
-                                               sym_blk=True)
+        # initialize the dyson orbs
+        ntrans = len(self.trans_list)
+        self.dyson_orbs = np.zeros((ntrans, self.n_basis),dtype=complex)
 
-        # compute the Dyson orbitals
-        self.dyson_orbs, self.dyson_norms = \
-            self.build_dyson_orbs(self.bra_obj,
-                                  self.ket_obj,
-                                  self.trans_list,
-                                  self.trans_list_sym)
+        # loop over all pairs of spin free states in both the bra
+        # and ket objects. In the future, may be prudent to check
+        # init and final states and just which states are necessary
+        for k_lbl in self.get_ci_lbls('ket'):
+            mult_k, S_k, M_k = self.get_ci_spins('ket', k_lbl)
+            ci_k             = self.get_ci_obj('ket', k_lbl)
 
-        bitwf_init.finalize()
+            for b_lbl in self.get_ci_lbls('bra'):
+                mult_b, S_b, M_b = self.get_ci_spins('bra', b_lbl)
+                ci_b             = self.get_ci_obj('bra', b_lbl)
+
+                if abs(mult_k - mult_b) != 1:
+                    continue
+
+                # initialise the bitwf library
+                bitwf_init.init(ci_b, ci_k, 'dyson', self.verbose)
+
+                # this is main transition_list: stored by adiabatic label
+                ci_tran = self.ci_pair_list('bra', b_lbl, 
+                                            'ket', k_lbl, 
+                                             pairs='full')
+
+                # the transitions, ordered by interacting irreps, is how
+                # we call bitsi
+                ci_tran_sym = self.ci_pair_list('bra', b_lbl, 
+                                                'ket', k_lbl, 
+                                                 pairs='full', 
+                                                 sym_blk=True)
+
+                # compute the Dyson orbitals
+                dys_orbs, dys_nrms = self.build_ci_orbs(b_lbl, k_lbl, 
+                                                        ci_tran, 
+                                                        ci_tran_sym)
+
+                # accumulate the dyson orbital in terms of the 
+                # bra/ket states 
+                self.build_grp_tensor('bra', b_lbl, 
+                                      'ket', k_lbl,
+                                      ci_tran, dys_orbs, 
+                                      self.dyson_orbs)
+
+                bitwf_init.finalize()
+
+        # determine the norms of the orbitals
+        self.dyson_norms = np.array([np.linalg.norm(self.dyson_orbs[i,:])
+                                   for i in range(len(self.trans_list))]) 
+
+        # print the Dyson orbitals to file
+        if self.print_orbitals:
+            self.export_dyson_orbs()
 
         # output the ionisation energies and squared Dyson orbital
         # norms
         if self.verbose:
             self.print_log()
 
-        # print the Dyson orbitals to file
-        if self.print_orbitals:
-            self.export_dysorbs()
-            
+
+    #
+    def get_dyson_norms(self, istate=None, fstate=None):
+        """
+        Return requested dyson orbital norms
+        """
+
+        if istate is None and fstate is None:
+            return self.dyson_norms
+        else:
+            if istate is None:
+                chk_st  = fstate
+                chk_ind = 1
+            else:
+                chk_st  = istate
+                chk_ind = 0
+            lst = [self.trans_list.index(pair)
+                  for pair in self.trans_list if pair[chk_ind]==chk_st]
+            return self.dyson_norms[lst]
+
+
 #----------------------------------------------------------------------
 # "Private" class methods
 #
 
     #
-    def set_objs(self, obj_list):
-        """
-        Determines the bra and ket CI objects based on their labels
-        """
-
-        bra_obj = None
-        ket_obj = None
-
-        if obj_list[0].label == self.final_label:
-            bra_obj = obj_list[0]
-            ket_obj = obj_list[1]
-        else:
-            ket_obj = obj_list[0]
-            bra_obj = obj_list[1]
-            
-        return bra_obj, ket_obj
-
-    #
-    def check_calc(self):
+    def check_bra_ket(self):
         """
         Sanity check on the requested calculation
         """
 
-        # make sure that |S_bra - S_ket| = 0.5
-        if abs(self.bra_obj.mult - self.ket_obj.mult) != 1:
-            sys.exit('Error: |S_bra - S_ket| != 0.5')
+        valid_pair    = False
+        self.mo_basis = ''
+        self.n_basis  = 0
+
+        for b_lbl in self.get_ci_lbls('bra'):
+            mol_b            = self.get_ci_obj('bra',b_lbl).scf.mol
+            mult_b, S_b, M_b = self.get_ci_spins('bra',b_lbl)
+
+            for k_lbl in self.get_ci_lbls('ket'):
+                mol_k            = self.get_ci_obj('ket',k_lbl).scf.mol
+                mult_k, S_k, M_k = self.get_ci_spins('ket',k_lbl)
+
+                # make sure that |S_bra - S_ket| = 0.5
+                if abs(mult_b - mult_k) == 1:
+                    valid_pair = True
+
+                # right now, we're going to assume that all bra states and
+                # all ket states have same number of mos and same number of 
+                # electrons
+                nel_b = self.get_ci_obj('bra', b_lbl).nel
+                nmo_b = self.get_ci_obj('bra', b_lbl).nmo
+                nel_k = self.get_ci_obj('ket', k_lbl).nel
+                nmo_k = self.get_ci_obj('ket', k_lbl).nmo
+                if nel_b < nel_k:
+                    if self.mo_basis == 'bra':
+                        msg = 'ERROR: not all bra objects have '+\
+                              ' nel_bra < nel_ket'
+                        sys.exit(msg)
+                    self.mo_basis = 'ket'
+                    self.n_basis  = nmo_k
+                else:
+                    if self.mo_basis == 'ket':
+                        msg = 'ERROR: not all ket objects have '+\
+                              ' nel_ket < nel_bra'
+                        sys.exit(msg)
+                    self.mo_basis = 'bra'
+                    self.n_basis  = nmo_b        
+
+                # bitwf currently only supports equal bra and ket point groups
+                if mol_b.sym_indx != mol_k.sym_indx:
+                    sys.exit('Error: unequal bra and ket point groups')
         
-        # bitwf currently only supports equal bra and ket point groups
-        if self.bra_obj.scf.mol.sym_indx != self.ket_obj.scf.mol.sym_indx:
-            sys.exit('Error: unequal bra and ket point groups')
-            
-        return
+                # sanity check that orbitals and geometry are
+                # the same
+                if (mol_b.pymol().atom != mol_k.pymol().atom):
+                    sys.exit('ERROR: transition moments require same '+
+                             ' geometry and basis set')
+
+        if not valid_pair:
+            sys.exit('Error: |S_bra - S_ket| != 0.5')
+
+        return mol_b
 
     #
-    def build_dyson_orbs(self, bra, ket, trans_list, trans_list_sym):
+    def build_ci_orbs(self, b_lbl, k_lbl, ci_trans, ci_trans_sym):
         """
         Grab the Dyson orbitals from bitwf and then reshape the list
         of these into a more usable format
         """
 
+        # get ci objects
+        bra = self.get_ci_obj('bra', b_lbl)
+        ket = self.get_ci_obj('ket', k_lbl) 
+
         # extract the determinant representation of the wave functions
-        self.bra_wfunit, self.ket_wfunit = \
+        bra_wfunit, ket_wfunit = \
             wf_overlap.extract(bra, ket, rep=self.representation)
 
         # compute the Dyson orbitals
-        dyson_list = wf_dyson.dyson(bra, ket, self.mo_basis,
-                                    self.n_basis, self.bra_wfunit,
-                                    self.ket_wfunit, self.norm_thresh,
-                                    trans_list_sym)
+        dys_list = wf_dyson.dyson(bra, ket, 
+                                  self.mo_basis, self.n_basis,
+                                  bra_wfunit, ket_wfunit, 
+                                  self.norm_thresh,
+                                  ci_trans_sym)
 
         # make the Dyson orbital list
-        npairs     = len(trans_list)
+        npairs = len(ci_trans)         
         dyson_orbs = np.zeros((npairs, self.n_basis), dtype=float)
+
         for indx in range(npairs):
-            bk_st               = trans_list[indx]
-            [birr, bst]         = bra.state_sym(bk_st[0])
-            [kirr, kst]         = ket.state_sym(bk_st[1])
-            sym_indx            = trans_list_sym[birr][kirr].index([bst,kst])
-            dyson_orbs[indx, :] = dyson_list[birr][kirr][:, sym_indx]
+            bk_st          = ci_trans[indx]
+            [bir, bst]     = self.get_ci_sym('bra', b_lbl, bk_st[0])
+            [kir, kst]     = self.get_ci_sym('ket', k_lbl, bk_st[1])
+            sym_indx       = ci_trans_sym[bir][kir].index([bst, kst])
+            dyson_orbs[indx, :] = dys_list[bir][kir][:, sym_indx]
 
         # Dyson orbital norms
         dyson_norms = np.array([np.linalg.norm(dyson_orbs[i, :])
@@ -195,71 +265,8 @@ class Dyson(interaction.Interaction):
         return dyson_orbs, dyson_norms
 
     #
-    def print_log(self):
-        """
-        print a summary of the ionisation energies and
-        squared Dyson orbital norms to the log file
-        """
-
-        # get the lists of bra ket states
-        ket_states = self.get_states('ket')
-        bra_states = self.get_states('bra')
-
-        # get state symmetries. If not defined, use C1 sym labels
-        ket_syms = self.get_syms('ket')
-        if ket_syms is None:
-            ket_syms = [0]*len(ket_states)
-            ksym_lbl = ['A']*len(ket_states)
-        else:
-            ksym_lbl = self.mol.irreplbl
-
-        bra_syms = self.get_syms('bra')
-        if bra_syms is None:
-            bra_syms = [0]*len(bra_states)
-            bsym_lbl = ['A']*len(bra_states)
-        else:
-            bsym_lbl = self.mol.irreplbl
-
-        # print an 'ionisation table' for each initial state
-        for iket in range(len(ket_states)):
-
-            # shift state indices from 0..n-1 to 1..n
-            init_st   = ket_states[iket]+1
-            init_sym  = ksym_lbl[ket_syms[iket]]
-            final_st  = []
-            final_sym = []
-            exc_ener  = []
-            sqnorm    = []     
-
-            for ibra in range(len(bra_states)):
-
-                # if [iket,ibra] not in trans_list, continue to
-                # next pair
-                try:
-                    indx = self.trans_list.index([bra_states[ibra], 
-                                                  ket_states[iket]])
-                except:
-                    continue
-
-                # shift state indices from 0..n-1 to 1..n
-                final_st.append(bra_states[ibra]+1)
-                final_sym.append(bsym_lbl[bra_syms[ibra]])
-                exc_ener.append(self.bra_obj.energy(bra_states[ibra]) - 
-                                self.ket_obj.energy(ket_states[iket])) 
-                sqnorm.append(self.dyson_norms[indx]**2)
-
-            # print an 'ionisation table' for each initial state
-            output.print_dyson_table(init_st,
-                                     init_sym,
-                                     final_st,
-                                     final_sym,
-                                     exc_ener, 
-                                     sqnorm)
-        
-        return
-
     #
-    def export_dysorbs(self):
+    def export_dyson_orbs(self):
         """
         Writing of the Dyson orbitals to molden files
         """
@@ -267,10 +274,15 @@ class Dyson(interaction.Interaction):
         # AO representation of the Dyson orbitals
         nmo = self.dyson_orbs.shape[1]
         nao = self.mol.nao
+
         if self.mo_basis == 'ket':
-            dysao = np.matmul(self.dyson_orbs, self.ket_obj.scf.orbs.T[:nmo,:])
+            ci_lbl = self.get_ci_lbls('ket')[0]
+            orbs   = self.get_ci_obj('ket', ci_lbl).scf.orbs
+            dysao  = np.matmul(self.dyson_orbs, orbs.T[:nmo,:])
         else:
-            dysao = np.matmul(self.dyson_orbs, self.bra_obj.scf.orbs.T[:nmo,:])
+            ci_lbl = self.get_ci_lbls('bra')[0]
+            orbs   = self.get_ci_obj('bra', ci_lbl).scf.orbs
+            dysao  = np.matmul(self.dyson_orbs, orbs.T[:nmo,:])
 
         # export the (normalised) non-zero Dyson orbitals to Molden files
         sqnorm = np.zeros((1), dtype=float)
@@ -284,9 +296,68 @@ class Dyson(interaction.Interaction):
             orb       = dysao[ido,:].reshape(nao,1) / self.dyson_norms[ido]
             orbitals.export_orbitals(fname,
                                      self.mol,
-                                     orb,
+                                     orb.real,
                                      orb_ener=sqnorm,
                                      orb_dir='Dyson.'+str(self.label),
                                      fmt='molden')
-            
+
+            if np.linalg.norm(orb.imag) > 0.2:
+                orbitals.export_orbitals(fname+'_imag',
+                                         self.mol,
+                                         orb.imag,
+                                         orb_ener=sqnorm,
+                                         orb_dir='Dyson.'+str(self.label),
+                                         fmt='molden')
+
+        return
+
+
+    #
+    def print_log(self):
+        """
+        print a summary of the ionisation energies and
+        squared Dyson orbital norms to the log file
+        """
+
+        # get the ket states and energies
+        ket_states = self.get_states('ket')
+        ket_eners  = self.get_energy('ket')
+
+        # get the bra states and energies
+        bra_states = self.get_states('bra')
+        bra_eners  = self.get_energy('bra')
+
+        # get state symmetries. If not defined, use C1 sym labels
+        bsym_lbl = self.get_sym_lbl('bra')
+        ksym_lbl = self.get_sym_lbl('ket')
+
+        # print an 'ionisation table' for each initial state
+        for iket in range(len(ket_states)):
+
+            # shift state indices from 0..n-1 to 1..n
+            init_st   = ket_states[iket]+1
+            init_sym  = ksym_lbl[iket]
+            final_st  = []
+            final_sym = []
+            exc_ener  = []
+            sqnorm    = []     
+
+            for ibra in range(len(bra_states)):
+
+                indx = self.trans_list.index([bra_states[ibra], 
+                                              ket_states[iket]])
+                # shift state indices from 0..n-1 to 1..n
+                final_st.append(bra_states[ibra]+1)
+                final_sym.append(bsym_lbl[ibra])
+                exc_ener.append(bra_eners[ibra] - ket_eners[iket]) 
+                sqnorm.append(self.dyson_norms[indx]**2)
+
+            # print an 'ionisation table' for each initial state
+            output.print_dyson_table(init_st,
+                                     init_sym,
+                                     final_st,
+                                     final_sym,
+                                     exc_ener, 
+                                     sqnorm)
+        
         return
