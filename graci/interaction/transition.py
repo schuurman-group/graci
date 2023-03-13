@@ -4,6 +4,7 @@ module to compute functions of the 1-TDM
 
 import numpy as np
 import sys as sys
+import copy
 from sympy import LeviCivita
 import graci.core.params as params
 import graci.core.orbitals as orbitals
@@ -77,7 +78,7 @@ class Transition(interaction.Interaction):
 
     def copy(self):
         """create of deepcopy of self"""
-        new = self.Transition()
+        new = Transition()
 
         var_dict = {key:value for key,value in self.__dict__.items()
                    if not key.startswith('__') and not callable(key)}

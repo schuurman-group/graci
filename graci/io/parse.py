@@ -412,18 +412,19 @@ def replicate_sections(run_list):
     # initialise the new list of class objects to run
     new_run_list = []
 
-    # list of molecule objects
+    # list of all class objects of the various different
+    # types
     mol_objs = [obj for obj in run_list
                 if type(obj).__name__ == 'Molecule']
-
-    # list of scf objects
     scf_objs = [obj for obj in run_list
                 if type(obj).__name__ == 'Scf']
-
-    # list of ci objects
     ci_objs = [obj for obj in run_list
                if type(obj).__name__ in params.ci_objs]
-    
+    postci_objs = [obj for obj in run_list
+                   if type(obj).__name__ in params.postci_objs]
+    si_objs = [obj for obj in run_list
+               if type(obj).__name__ in params.si_objs]
+
     # check for multi-geometry xyz files
     for mol in mol_objs:
         if mol.multi_geom:
@@ -446,21 +447,27 @@ def replicate_sections(run_list):
                                for xx in x[1:]]).reshape(n_geom,n_atm,3)
 
             # list of scf objects to be replicated
-            # and their labels
             scf_list   = [obj for obj in scf_objs
                           if obj.mol_label == mol.label]
             scf_labels = [obj.label for obj in scf_list]
             
             # list of ci objects to be replicated
-            # and their labels
             ci_list   = [obj for obj in ci_objs
                          if obj.scf_label in scf_labels]
             ci_labels = [obj.label for obj in ci_list]
 
-            #
-            # same for postci and si...
-            #
-            
+            # list of post-ci objects to be replicated
+            postci_list = [obj for obj in postci_objs
+                           if any(lbl in obj.couple_groups
+                                  for lbl in ci_labels)]
+            postci_labels = [obj.label for obj in postci_list]
+                        
+            # list of si objects to be replicated
+            all_ci_labels = list(set(ci_labels).union(set(postci_labels)))
+            si_list = [obj for obj in si_objs
+                       if obj.init_label in all_ci_labels
+                       or obj.final_label in all_ci_labels]
+
             # append the new run list with replicates of the
             # class objects corresponding to this molecule
             # object
@@ -486,6 +493,22 @@ def replicate_sections(run_list):
                     new_ci.scf_label = ci.scf_label+str(i+1)
                     new_run_list.append(new_ci)
 
+                # post-ci objects
+                for postci in postci_list:
+                    new_postci           = postci.copy()
+                    new_postci.label     = postci.label+str(i+1)
+                    new_postci.couple_groups = [lbl+str(i+1)
+                                                for lbl in postci.couple_groups]
+                    new_run_list.append(new_postci)
+                    
+                # si object(s)
+                for si in si_list:
+                    new_si             = si.copy()
+                    new_si.label       = ci.label+str(i+1)
+                    new_si.init_label  = si.init_label+str(i+1)
+                    new_si.final_label = si.final_label+str(i+1)
+                    new_run_list.append(new_si)
+                    
         else:
             # list of scf objects and their labels for this
             # single-geometry molecule object
@@ -499,15 +522,29 @@ def replicate_sections(run_list):
                          if obj.scf_label in scf_labels]
             ci_labels = [obj.label for obj in ci_list]
 
-            #
-            # same for postci and si...
-            #
-
+            # list of post-ci objects and their labels for this
+            # single-geometry molecule object
+            postci_list = [obj for obj in postci_objs
+                           if any(lbl in obj.couple_groups
+                                  for lbl in ci_labels)]
+            postci_labels = [obj.label for obj in postci_list]
+            
+            # list of si objects and their labels for this
+            # single-geometry molecule object
+            all_ci_labels = list(set(ci_labels).union(set(postci_labels)))
+            si_list = [obj for obj in si_objs
+                       if obj.init_label in all_ci_labels
+                       or obj.final_label in all_ci_labels]
+                        
             # add the single-geometry objects to the list
             new_run_list.append(mol)
             for scf in scf_list:
                 new_run_list.append(scf)
             for ci in ci_list:
                 new_run_list.append(ci)
-            
+            for postci in postci_list:
+                new_run_list.append(postci)
+            for si in si_list:
+                new_run_list.append(si)
+                
     return new_run_list
