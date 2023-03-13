@@ -39,11 +39,16 @@ def parse_input():
 
         # parse all section keywords
         run_list.extend(parse_section(obj_name, 
-                                      input_file)) 
+                                      input_file))
 
+    # check for multiple-geometry molecule sections
+    # and create all required replicate class objects
+    # if any are found
+    run_list = replicate_sections(run_list)
+        
     # check the input
     check_input(run_list)
-
+    
     return run_list
 
 #
@@ -70,7 +75,6 @@ def parse_section(class_name, input_file):
                 cart = []
                 atom = []
 
-            # first line is charge and multiplicity
             while iline < nlines:
                 if '$end' in input_file[iline] or iline == nlines-1:
                     # if we hit end of section, or end of file,
@@ -232,7 +236,7 @@ def parse_value(valstr, val_type):
         return convert_array(vec_str[0])
     else:
         return convert_array(vec_str)
-
+    
 #
 def check_sections(input_file):
     """checks for the existense of invalid sections in the input file"""
@@ -395,3 +399,115 @@ def convert_array(val_list):
         pass
 
     return np.array(val_list, dtype=str)
+
+#
+def replicate_sections(run_list):
+    """
+    checks for the existence of multi-geometry molecule objects
+    if any are found, then replicate molecule objects are creates for
+    each geometry along with any associated scf, dftmrci, si, etc.
+    objects
+    """
+
+    # initialise the new list of class objects to run
+    new_run_list = []
+
+    # list of molecule objects
+    mol_objs = [obj for obj in run_list
+                if type(obj).__name__ == 'Molecule']
+
+    # list of scf objects
+    scf_objs = [obj for obj in run_list
+                if type(obj).__name__ == 'Scf']
+
+    # list of ci objects
+    ci_objs = [obj for obj in run_list
+               if type(obj).__name__ in params.ci_objs]
+    
+    # check for multi-geometry xyz files
+    for mol in mol_objs:
+        if mol.multi_geom:
+            # Create replicate objects for all geometries
+            
+            # parse the whole xyz file
+            with open(mol.xyz_file, 'r') as xyzfile:
+                xyz = xyzfile.readlines()
+                
+            # remove the leading no. atom and blank lines
+            xyz_clean = [string.split() for string in xyz
+                         if string.split() != []
+                         and len(string.split()) != 1]
+            n_atm  = len(mol.crds)
+            n_geom = int(len(xyz_clean) / n_atm)
+
+            # get the array of nuclear geometries
+            coords = np.array([float(xx)
+                               for x in xyz_clean
+                               for xx in x[1:]]).reshape(n_geom,n_atm,3)
+
+            # list of scf objects to be replicated
+            # and their labels
+            scf_list   = [obj for obj in scf_objs
+                          if obj.mol_label == mol.label]
+            scf_labels = [obj.label for obj in scf_list]
+            
+            # list of ci objects to be replicated
+            # and their labels
+            ci_list   = [obj for obj in ci_objs
+                         if obj.scf_label in scf_labels]
+            ci_labels = [obj.label for obj in ci_list]
+
+            #
+            # same for postci and si...
+            #
+            
+            # append the new run list with replicates of the
+            # class objects corresponding to this molecule
+            # object
+            for i in range(n_geom):
+
+                # molecule object
+                new_mol       = mol.copy()
+                new_mol.label = mol.label+str(i+1)
+                new_mol.crds  = 1. * coords[i]
+                new_run_list.append(new_mol)
+                
+                # scf object(s)
+                for scf in scf_list:
+                    new_scf           = scf.copy()
+                    new_scf.label     = scf.label+str(i+1)
+                    new_scf.mol_label = scf.mol_label+str(i+1)
+                    new_run_list.append(new_scf)
+                    
+                # ci object(s)
+                for ci in ci_list:
+                    new_ci           = ci.copy()
+                    new_ci.label     = ci.label+str(i+1)
+                    new_ci.scf_label = ci.scf_label+str(i+1)
+                    new_run_list.append(new_ci)
+
+        else:
+            # list of scf objects and their labels for this
+            # single-geometry molecule object
+            scf_list   = [obj for obj in scf_objs
+                          if obj.mol_label == mol.label]
+            scf_labels = [obj.label for obj in scf_list]
+            
+            # list of ci objects and their labels for this
+            # single-geometry molecule object
+            ci_list   = [obj for obj in ci_objs
+                         if obj.scf_label in scf_labels]
+            ci_labels = [obj.label for obj in ci_list]
+
+            #
+            # same for postci and si...
+            #
+
+            # add the single-geometry objects to the list
+            new_run_list.append(mol)
+            for scf in scf_list:
+                new_run_list.append(scf)
+            for ci in ci_list:
+                new_run_list.append(ci)
+            
+    return new_run_list

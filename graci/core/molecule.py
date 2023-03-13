@@ -81,19 +81,20 @@ class Molecule:
 
         # the following are determined based on user
         # input
-        self.charge    = None 
-        self.mult      = None
-        self.asym      = []
-        self.crds      = None 
-        self.masses    = []
-        self.full_sym  = ''
-        self.comp_sym  = ''
-        self.sym_indx  = -1
-        self.irreplbl  = None
-        self.enuc      = 0.
-        self.mol_obj   = None
-        self.nao       = None
-        self.basis_obj = None
+        self.multi_geom = False
+        self.charge     = None 
+        self.mult       = None
+        self.asym       = []
+        self.crds       = None 
+        self.masses     = []
+        self.full_sym   = ''
+        self.comp_sym   = ''
+        self.sym_indx   = -1
+        self.irreplbl   = None
+        self.enuc       = 0.
+        self.mol_obj    = None
+        self.nao        = None
+        self.basis_obj  = None
 
     def copy(self):
         """create of deepcopy of self"""
@@ -274,7 +275,9 @@ class Molecule:
 
     #
     def read_xyz(self):
-        """read the xyz_file specified by 'xyz_file'"""
+        """
+        read the geometry from the xyz_file specified by 'xyz_file'
+        """
 
         # parse contents of xyz file
         try:
@@ -290,10 +293,18 @@ class Molecule:
         self.asym  = []
         xyz        = []
 
+        # do we have a multi-geometry xyz file?
+        xyz_gm_cleaned = [string.split() for string in xyz_gm
+                          if string.split() != []]
+        if len(xyz_gm_cleaned) != natm + 1:
+            self.multi_geom = True
+
+        # parse the geometry
         for i in range(2, natm+2):
             line = xyz_gm[i].strip().split()
             try:
-                atm_indx = atom_name.index(line[0].upper())
+                name_capitalized = line[0][0].upper()+line[0][1:]                
+                atm_indx = atom_name.index(name_capitalized)
                 self.asym.append(atom_name[atm_indx])
             except ValueError:
                 sys.exit('atom '+str(line.strip()[0])+' not found.')
@@ -304,6 +315,7 @@ class Molecule:
                 sys.exit('Cannot interpret input as a geometry')
 
         self.crds = np.array(xyz, dtype=float)
+
         return
 
     # 
