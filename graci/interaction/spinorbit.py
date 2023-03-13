@@ -93,6 +93,8 @@ class Spinorbit(interaction.Interaction):
 
         # set the bra/ket objects and add the state groups associated
         # with each 
+        print('ci_objs='+str(ci_objs))
+        print('couple_states='+str(self.couple_states))
         nsoc = self.get_nsoc_states(ci_objs, self.couple_states)
         hsoc = np.zeros((nsoc, nsoc), dtype=np.cdouble)
 
@@ -207,37 +209,31 @@ class Spinorbit(interaction.Interaction):
         Perform some sanity checks on all objs in list
         """
         for i in range(len(soc_objs)):
-            for j in range(i):
-                if not self.same_obj(soc_objs[i], soc_objs[j]):
+            for j in range(i+1):
 
-                    # sanity check that orbitals are the same
-                    if np.any(soc_objs[i].mos != soc_objs[j].mos):
-                        sys.exit('spin-orbit coupling requires same'+
-                                 'bra/ket orbs')
-                    else:
-                        mos = soc_objs[i].mos
+                # sanity check that orbitals are the same
+                if np.any(soc_objs[i].mos != soc_objs[j].mos):
+                    sys.exit('spin-orbit coupling requires same'+
+                             'bra/ket orbs')
+                else:
+                    mos = soc_objs[i].mos
 
-                    # sanity check that the geometry is the same
-                    if (soc_objs[i].scf.mol.pymol().atom !=
-                                     soc_objs[j].scf.mol.pymol().atom):
-                        sys.exit('spin-orbit coupling requires same '+
-                                 'geometry and basis set')
-                    else:
-                        mol = soc_objs[i].scf.mol
+                # sanity check that the geometry is the same
+                if (soc_objs[i].scf.mol.pymol().atom !=
+                                 soc_objs[j].scf.mol.pymol().atom):
+                    sys.exit('spin-orbit coupling requires same '+
+                             'geometry and basis set')
+                else:
+                    mol = soc_objs[i].scf.mol
 
-                    # sanity check that the spins are compatible
-                    S_i = 0.5 * (soc_objs[i].mult - 1.)
-                    S_j = 0.5 * (soc_objs[j].mult - 1.)
+                # sanity check that the spins are compatible
+                S_i = 0.5 * (soc_objs[i].mult - 1.)
+                S_j = 0.5 * (soc_objs[j].mult - 1.)
 
-                    # Delta S = -1, 0 or +1 must hold
-                    if S_i - S_j not in [-1., 0., 1.]:
-                        sys.exit('\n ERROR: S_bra, S_ket spin combo ' \
-                              ' not currently supported in spinorbit')
-
-                    # In the case of Delta S = 0, S > 0 must hold
-                    #if S_i == S_j and S_i == 0.:
-                    #    sys.exit('\n ERROR: non-sensical S_bra, S_ket '\
-                    #          ' combination in spinorbit')
+                # Delta S = -1, 0 or +1 must hold
+                if S_i - S_j not in [-1., 0., 1.]:
+                    sys.exit('\n ERROR: S_bra, S_ket spin combo ' \
+                          ' not currently supported in spinorbit')
 
         # check on the MF 2e integral scheme
         if self.mf2e not in self.allowed_mf2e:

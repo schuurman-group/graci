@@ -55,14 +55,26 @@ class Cigroup:
                     msg = 'Cannot construct Cigroup from complex postci_obj'
                     sys.exit(msg)
                 grp = grp_names[0]
-       
+
+                # add the ci objects from the passed group as they 
+                # are      
                 for lbl in ci_objs[ci].get_ci_lbls(grp):
                     self._add_ciobj(ci_objs[ci].get_ci_obj(grp, lbl),
                                     ci_objs[ci].get_ci_states(grp, lbl))
 
-                self.grp_vecs   =  ci_objs[ci].get_vectors(grp)
-                self.grp_states =  ci_objs[ci].get_states(grp)
-                self.grp_energy =  ci_objs[ci].get_energy(grp)
+                # only add those group vectors requested by ci_states
+                n_g_states = len(ci_objs[ci].get_energy(grp))
+                if ci_states[ci] is None:
+                    g_states = np.array(range(n_g_states), dtype=int)
+                else:
+                    if max(ci_states[ci]) > n_g_states:
+                        sys.exit('Too many states requested from ' + 
+                                  str(ci_objs[ci].label))
+                    g_states = ci_states[ci]
+                  
+                self.grp_vecs = ci_objs[ci].get_vectors(grp)[:,g_states]
+                self.grp_states = ci_objs[ci].get_states(grp)[g_states]
+                self.grp_energy = ci_objs[ci].get_energy(grp)[g_states]
                 self.grp_spin_states = \
                             ci_objs[ci].groups[grp].grp_spin_states
 
@@ -140,6 +152,10 @@ class Cigroup:
             return None
         else:
             (sind, ) = np.where(self.ci_st[ci_lbl] == ci_st)
+
+            if len(sind) == 0:
+                return None
+
             ciind    = self.ci_lbls.index(ci_lbl)
             cilen    = [len(self.ci_st[self.ci_lbls[i]]) 
                                   for i in range(ciind)]
@@ -285,6 +301,13 @@ class Interaction:
         return list(self.groups.keys())
 
     #
+    def is_spin_states(self, grp_name):
+        """ 
+        return true if the group contains spin-states
+        """
+        return self.groups[grp_name].grp_spin_states
+
+    #
     def get_states(self, grp_name):
         """return the states and symmetries corresponding to grp lbl"""
         return self.groups[grp_name].grp_states
@@ -298,27 +321,35 @@ class Interaction:
             (ind,) = np.where(self.groups[grp_name].grp_states==state)
             return self.groups[grp_name].grp_energy[ind[0]]
 
+    #
     def get_vectors(self, grp_name):
         """ return group vectors """
         return self.groups[grp_name].grp_vecs
 
+    #
     def get_vector(self, grp_name, g_state):
         """return the gropu vector"""
         (ind,) = np.where(self.groups[grp_name].grp_states == g_state)
-        return self.groups[grp_name].grp_vecs[:, ind]
+        return self.groups[grp_name].grp_vecs[:, ind[0]]
 
     #
     def get_syms(self, grp_name):
         """ return the symmetries of the grp states """
 
-        # if group is a single CI method object, return
-        # the symmetries of the ci states
-        lbls = self.get_ci_lbls(grp_name)
-        if len(lbls) == 1:
-            return self.groups[grp_name].ci_st_irr[lbls[0]]
-
         # currently can't handle symmetry of SO objects: return
         # C1 symmetry labels
+        if self.is_spin_states(grp_name):
+            syms = [0]*len(self.get_energy(grp_name))
+            return np.array(syms, dtype=int)
+
+        # if group is a single set of spin-free states, return
+        # the symmetries of the ci states
+        elif len(self.get_ci_lbls(grp_name)) == 1:
+            lbls = self.get_ci_lbls(grp_name)
+            return self.groups[grp_name].ci_st_irr[lbls[0]]
+
+        # else, we don't have a way to assign symmetry of group
+        # states, return None
         else:
             return None
 
@@ -326,18 +357,23 @@ class Interaction:
     def get_sym_lbl(self, grp_name):
         """ return the symmetry lables of the grp states """
 
-        # if group is a single CI method object, return
+        # currently can't handle symmetry of SO objects: return
+        # C1 symmetry labels
+        if self.is_spin_states(grp_name):
+            return ['A']*len(self.get_states(grp_name))
+
+        # if group is a single set of spin-free states, return
         # the symmetries of the ci states
-        lbls = self.get_ci_lbls(grp_name)
-        if len(lbls) == 1:
+        elif len(self.get_ci_lbls(grp_name)) == 1:
+            lbls    = self.get_ci_lbls(grp_name)
             irr_lbl = self.get_ci_obj(grp_name,lbls[0]).scf.mol.irreplbl
             st_sym  = self.get_syms(grp_name)
             return [irr_lbl[st_sym[i]] for i in range(len(st_sym))]
-
-        # currently can't handle symmetry of SO objects: return
-        # C1 symmetry labels
+            
+        # else, we don't have a way to assign symmetry of group
+        # states, return None
         else:
-            return ['A']*len(self.groups[grp_name].grp_states) 
+            return None
 
     #
     def set_group_states(self, grp_name, grp_vectors, grp_energy): 
@@ -552,13 +588,13 @@ class Interaction:
 
     @timing.timed
     def build_grp_tensor(self, bra_grp, bra_ci, ket_grp, ket_ci,
-                                             ci_air, ci_tens, grp_tens):
+                                            ci_pair, ci_tens, grp_tens):
         """
         Rotate a tensor in the basis of ci states into one in the
         basis of group states.
         """
 
-        if ci_tens.shape[1:] != grp_tens[1:]:
+        if ci_tens.shape[1:] != grp_tens.shape[1:]:
             sys.exit('ERROR tensor shape mis-match. ci_tens.shape = ' + 
                       str(ci_tens.shape[1:]) + '/ grp_tens.shape = ' + 
                       str(grp_tens.shape[1:]))
