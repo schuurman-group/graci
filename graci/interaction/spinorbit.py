@@ -93,8 +93,6 @@ class Spinorbit(interaction.Interaction):
 
         # set the bra/ket objects and add the state groups associated
         # with each 
-        print('ci_objs='+str(ci_objs))
-        print('couple_states='+str(self.couple_states))
         nsoc = self.get_nsoc_states(ci_objs, self.couple_states)
         hsoc = np.zeros((nsoc, nsoc), dtype=np.cdouble)
 
