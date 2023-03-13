@@ -46,7 +46,7 @@ class Driver:
                 si_objs.append(obj)
             elif type(obj).__name__ == 'Parameterize':
                 param_objs.append(obj)
-
+        
         # Sanity check that sections of the same type have 
         # distinct label identifiers
         #-----------------------------------------------------

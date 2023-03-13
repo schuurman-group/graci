@@ -178,7 +178,8 @@ def write_1geom(geom_obj, symm, nstates, basis, ri_basis, adt_type,
     #print(' hamiltonian = cvs_standard')
     #print(' hparam      = [0.409163 0.261965 0.473496 0.868451 0.548201 0.26525 1.]')
     #print(' icvs        = [1]')
-        
+    #print(' hparam      = [0.409163 0.261965 0.647968 1.073562 1.0]')
+    
     print('$end')
     
     return
