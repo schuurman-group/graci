@@ -4,6 +4,8 @@ Dyson orbital class
 
 import sys as sys
 import numpy as np
+import copy
+import graci.core.params as params
 import graci.utils.timing as timing
 import graci.interaction.interaction as interaction
 import graci.interfaces.bitci.bitwf_init as bitwf_init
@@ -40,7 +42,7 @@ class Dyson(interaction.Interaction):
             
     def copy(self):
         """create of deepcopy of self"""
-        new = self.Dyson()
+        new = Dyson()
 
         var_dict = {key:value for key,value in self.__dict__.items()
                    if not key.startswith('__') and not callable(key)}

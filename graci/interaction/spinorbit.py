@@ -6,6 +6,7 @@ elements
 import sys as sys
 import numpy as np
 import copy as copy
+import graci.core.params as params
 import graci.interaction.interaction as interaction
 import graci.utils.timing as timing
 import graci.interfaces.bitci.bitsi_init as bitsi_init
@@ -58,7 +59,7 @@ class Spinorbit(interaction.Interaction):
  
     def copy(self):
         """create of deepcopy of self"""
-        new = self.Spinorbit()
+        new = Spinorbit()
 
         var_dict = {key:value for key,value in self.__dict__.items()
                    if not key.startswith('__') and not callable(key)}
