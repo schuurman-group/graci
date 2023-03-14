@@ -12,7 +12,8 @@ from pyscf import gto, ao2mo, df
 class Ao2mo:
     """Class constructor for ao2mo object"""
 
-    def __init__(self):
+    def __init__(self, precision='double'):
+        self.precision    = precision
         self.moint_2e_eri = None
         self.moint_1e     = None
         self.nmo          = None
@@ -21,9 +22,10 @@ class Ao2mo:
         self.emo_cut      = None
         self.orbs         = None
         self.label        = 'default'
+        self.allowed_precision = ['single','double']
 
     @timing.timed
-    def run(self, scf):
+    def run(self, scf, precision=None):
         """perform AO to MO integral transformation using the current
            orbitals"""
 
@@ -57,6 +59,9 @@ class Ao2mo:
 
         # by default, reload bitci using newly generate MO integral
         # files
+        if (precision is not None and 
+                         precision in self.allowed_precision):
+            self.precision = precision
         self.load_bitci(scf)
 
         return
@@ -76,7 +81,8 @@ class Ao2mo:
             type_str = 'exact'
 
         libs.lib_func('bitci_int_initialize',
-                ['pyscf', type_str, self.moint_1e, self.moint_2e_eri])
+                ['pyscf', type_str, self.precision, 
+                           self.moint_1e, self.moint_2e_eri])
 
         return
 

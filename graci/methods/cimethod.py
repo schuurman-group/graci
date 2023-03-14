@@ -44,6 +44,7 @@ class Cimethod:
         self.hparam         = None
         self.scf_label      = 'default'
         self.label          = 'default'
+        self.precision      = 'double'
 
         # class variables
         # total number of electrons

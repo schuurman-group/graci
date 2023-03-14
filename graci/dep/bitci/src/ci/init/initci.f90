@@ -245,10 +245,10 @@ end subroutine bitci_initialise
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_int_initialize(integral_src, integral_method, &
-     hcore_file, eri_file) bind(c,name="bitci_int_initialize")
+     integral_precision, hcore_file, eri_file) bind(c,name="bitci_int_initialize")
 #else
 subroutine bitci_int_initialize(integral_src, integral_method, &
-     hcore_file, eri_file)
+     integral_precision, hcore_file, eri_file)
 #endif
 
   use constants
@@ -260,11 +260,13 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: integral_src(*)
   character(kind=C_CHAR), intent(in) :: integral_method(*)
+  character(kind=C_CHAR), intent(in) :: integral_precision(*)
   character(kind=C_CHAR), intent(in) :: hcore_file(*)
   character(kind=C_CHAR), intent(in) :: eri_file(*)
 
   character(len=255)                 :: int_src
   character(len=255)                 :: int_method
+  character(len=255)                 :: int_precision
   character(len=255)                 :: f_core
   character(len=255)                 :: f_eri
 
@@ -272,11 +274,13 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 #else
   character(len=*), intent(in)       :: integral_src
   character(len=*), intent(in)       :: integral_method
+  character(len=*), intent(in)       :: integral_precision
   character(len=*), intent(in)       :: hcore_file
   character(len=*), intent(in)       :: eri_file
 
   character(len=255)                 :: int_src
   character(len=255)                 :: int_method
+  character(len=255)                 :: int_precision
   character(len=255)                 :: hcore
   character(len=255)                 :: eri
 #endif
@@ -290,15 +294,18 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
   call c2fstr(integral_src, int_src,length)
   length=cstrlen(integral_method)
   call c2fstr(integral_method, int_method,length)
+  length=cstrlen(integral_precision)
+  call c2fstr(integral_precision, int_precision, length)
   length=cstrlen(hcore_file)
   call c2fstr(hcore_file, f_core,length)
   length=cstrlen(eri_file)
   call c2fstr(eri_file, f_eri,length)
 #else
-  int_src    = adjustl(trim(integral_src))
-  int_method = adjustl(trim(integral_method))
-  f_core     = adjustl(trim(hcore_file))
-  f_eri      = adjustl(trim(eri_file))
+  int_src       = adjustl(trim(integral_src))
+  int_method    = adjustl(trim(integral_method))
+  int_precision = adjustl(trim(integral_precision))
+  f_core        = adjustl(trim(hcore_file))
+  f_eri         = adjustl(trim(eri_file))
 #endif
 
 !----------------------------------------------------------------------
@@ -306,12 +313,31 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 ! exact, or density df
 !----------------------------------------------------------------------
   if (trim(adjustl(int_method)) .eq. 'exact') then
-     allocate(exact::bitci_ints)
+     select case(trim(adjustl(int_precision)))
+         case ('single')
+           allocate(exact_sp::bitci_ints)
+         case ('double')
+           allocate(exact_dp::bitci_ints)
+         case default
+           allocate(exact_dp::bitci_ints)
+     end select
+
   else if (trim(adjustl(int_method)) .eq. 'df') then
-     allocate(df::bitci_ints)
+     select case(trim(adjustl(int_precision)))
+         case ('single')
+           print *,'allocating sp df...'
+           allocate(df_sp::bitci_ints)
+           print *,'done.'
+         case ('double')
+           allocate(df_dp::bitci_ints)
+         case default
+           allocate(df_dp::bitci_ints)
+     end select
+
   else
      stop 'integral method not recognized in bitci_init_integrals: '&
           //trim(adjustl(int_method))
+
   endif
 
 !----------------------------------------------------------------------
