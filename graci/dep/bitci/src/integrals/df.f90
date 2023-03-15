@@ -137,7 +137,8 @@ contains
 
     real(dp)               :: int_val
 
-    int_val = dot_product(ints%bra_ket(:,ints%indx_ut(i,j)), ints%bra_ket(:,ints%indx_ut(k,l)))
+    int_val = dot_product(ints%bra_ket(:,ints%indx_ut(i,j)), 
+                          ints%bra_ket(:,ints%indx_ut(k,l)))
 
     return
   end function mo_int_df_dp
@@ -227,7 +228,7 @@ contains
     real(dp), intent(out)  :: int_vec(:)
 
     integer(is)            :: i, ij, kl
-    integer(is)            ::  nints
+    integer(is)            :: nints
 
     if(size(indices, dim=1) /= 4) stop 'mo_ints: indices dim=1 must equal 4'
     nints = size(int_vec)
@@ -235,9 +236,9 @@ contains
     do i = 1,nints
         ij = ints%indx_ut(indices(1,i), indices(2,i))
         kl = ints%indx_ut(indices(3,i), indices(4,i))
-        int_vec(i) = real(dot_product(ints%bra_ket(:,ij), ints%bra_ket(:,kl)),dp)
+        int_vec(i) = dot_product(ints%bra_ket(:,ij), ints%bra_ket(:,kl))
     enddo
-
+ 
   end subroutine mo_ints_df_sp
 
   !
@@ -251,7 +252,8 @@ contains
 
     real(dp)               :: int_val
 
-    int_val = real(dot_product(ints%bra_ket(:,ints%indx_ut(i,j)), ints%bra_ket(:,ints%indx_ut(k,l))),dp)
+    int_val = dot_product(ints%bra_ket(:,ints%indx_ut(i,j)), \
+                          ints%bra_ket(:,ints%indx_ut(k,l)))
 
     return
   end function mo_int_df_sp

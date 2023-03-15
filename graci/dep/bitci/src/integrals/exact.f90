@@ -224,7 +224,7 @@ contains
     do i = 1,nints
         ij = ints%indx_ut(indices(1,i), indices(2,i))
         kl = ints%indx_ut(indices(3,i), indices(4,i))
-        int_vec(i) = real(ints%bra_ket(ij, kl), dp)
+        int_vec(i) = ints%bra_ket(ij, kl)
     enddo
 
   end subroutine mo_ints_exact_sp
@@ -240,7 +240,7 @@ contains
 
     real(dp)               :: int_val
 
-    int_val = real(ints%bra_ket(ints%indx_ut(i,j), ints%indx_ut(k,l)), dp)
+    int_val = ints%bra_ket(ints%indx_ut(i,j), ints%indx_ut(k,l))
 
     return
   end function mo_int_exact_sp

@@ -325,9 +325,7 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
   else if (trim(adjustl(int_method)) .eq. 'df') then
      select case(trim(adjustl(int_precision)))
          case ('single')
-           print *,'allocating sp df...'
            allocate(df_sp::bitci_ints)
-           print *,'done.'
          case ('double')
            allocate(df_dp::bitci_ints)
          case default

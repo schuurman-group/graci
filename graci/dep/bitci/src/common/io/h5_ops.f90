@@ -208,14 +208,14 @@ module h5_ops
     data_set = 0.
     rank     = 2
 
-    data_type = H5T_NATIVE_DOUBLE
+    !data_type = H5T_NATIVE_DOUBLE
     call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
     ! if we're wrong about size of data set, stop with error
     if(any(h5dims > shape(data_set))) stop 'read_dataset_float - array too small to hold data set'//data_name
     dim_read = h5dims
 
-    data_type = H5T_NATIVE_REAL
+    data_type = h5kind_to_type(sp,H5_REAL_KIND)
     call h5dread_f(dset_id, data_type, data_set(1:dim_read(1),1:dim_read(2)), h5dims, error)
 
     call close_dataset(file_id, dset_id, space_id)
@@ -241,14 +241,14 @@ module h5_ops
     data_set = 0.
     rank     = 2
 
-    data_type = H5T_NATIVE_DOUBLE
+    !data_type = H5T_NATIVE_DOUBLE
     call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
     ! if we're wrong about size of data set, stop with error
     if(any(h5dims > shape(data_set))) stop 'read_dataset_dble - array too small to hold data set'//data_name
     dim_read = h5dims
 
-    data_type = H5T_NATIVE_DOUBLE
+    data_type = h5kind_to_type(dp,H5_REAL_KIND)
     call h5dread_f(dset_id, data_type, data_set(1:dim_read(1),1:dim_read(2)), h5dims, error)
 
     call close_dataset(file_id, dset_id, space_id)
@@ -283,7 +283,7 @@ module h5_ops
     data_set = 0.
     rank     = 2
 
-    data_type = H5T_NATIVE_DOUBLE
+    !data_type = H5T_NATIVE_DOUBLE
     call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
     ! make sure we can hold the transposed data set
@@ -300,7 +300,7 @@ module h5_ops
     n_remain   = h5dims(1)
     n_read_tot = 0
     offmem     = (/0, 0/)
-    data_type  = H5T_NATIVE_REAL
+    data_type  = h5kind_to_type(sp,H5_REAL_KIND)
     do while(n_remain > 0)
 
       n_read    = min(n_remain, buf_sze)
@@ -374,7 +374,7 @@ module h5_ops
     data_set = 0.
     rank     = 2
 
-    data_type = H5T_NATIVE_DOUBLE
+    !data_type = H5T_NATIVE_DOUBLE
     call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
     ! make sure we can hold the transposed data set
@@ -391,7 +391,7 @@ module h5_ops
     n_remain   = h5dims(1)
     n_read_tot = 0
     offmem     = (/0, 0/)
-    data_type = H5T_NATIVE_DOUBLE
+    data_type = h5kind_to_type(dp,H5_REAL_KIND)
     do while(n_remain > 0)
 
       n_read    = min(n_remain, buf_sze)
@@ -457,7 +457,7 @@ module h5_ops
     rank     = 2
     h5dims   = shape(data_set)
 
-    data_type = h5kind_to_type(ib,H5_INTEGER_KIND)
+    !data_type = h5kind_to_type(ib,H5_INTEGER_KIND)
     call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
     if(any(h5dims > shape(data_set))) stop 'read_dataset_int64 - array too small to hold data set'//data_name
