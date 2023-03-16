@@ -22,10 +22,10 @@ class Ao2mo:
         self.emo_cut      = None
         self.orbs         = None
         self.label        = 'default'
-        self.allowed_precision = ['single','double']
+        self.allowed_precision = ['single', 'double']
 
     @timing.timed
-    def run(self, scf, precision=None):
+    def run(self, scf, int_precision=None):
         """perform AO to MO integral transformation using the current
            orbitals"""
 
@@ -59,9 +59,9 @@ class Ao2mo:
 
         # by default, reload bitci using newly generate MO integral
         # files
-        if (precision is not None and 
-                         precision in self.allowed_precision):
-            self.precision = precision
+        if (int_precision is not None and 
+                         int_precision in self.allowed_precision):
+            self.precision = int_precision
         self.load_bitci(scf)
 
         return

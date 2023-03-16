@@ -314,22 +314,28 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 !----------------------------------------------------------------------
   if (trim(adjustl(int_method)) .eq. 'exact') then
      select case(trim(adjustl(int_precision)))
+         case ('half')
+           allocate(exact_hp::bitci_ints)
          case ('single')
            allocate(exact_sp::bitci_ints)
          case ('double')
            allocate(exact_dp::bitci_ints)
          case default
-           allocate(exact_dp::bitci_ints)
+           stop 'precision not recognized in bitci_init_intgrals: '&
+                 //trim(adjustl(int_precision)) 
      end select
 
   else if (trim(adjustl(int_method)) .eq. 'df') then
      select case(trim(adjustl(int_precision)))
+         case ('half')
+           allocate(df_hp::bitci_ints)
          case ('single')
            allocate(df_sp::bitci_ints)
          case ('double')
            allocate(df_dp::bitci_ints)
          case default
-           allocate(df_dp::bitci_ints)
+           stop 'precision not recognized in bitci_init_intgrals: '&
+                 //trim(adjustl(int_precision))
      end select
 
   else

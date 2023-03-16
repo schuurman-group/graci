@@ -11,6 +11,9 @@ module constants
   ! Bit-kind integer (64-bit) [used for representing bit strings]
   integer, parameter :: ib=selected_int_kind(16)
 
+  ! Half precision real (16-bit)
+  integer, parameter :: hp=selected_real_kind(2)
+
   ! Single precision real (32-bit)
   integer, parameter :: sp=selected_real_kind(4)
 
