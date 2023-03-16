@@ -421,16 +421,18 @@ def replicate_sections(run_list):
 
     # list of all class objects of the various different
     # types
-    mol_objs = [obj for obj in run_list
-                if type(obj).__name__ == 'Molecule']
-    scf_objs = [obj for obj in run_list
-                if type(obj).__name__ == 'Scf']
-    ci_objs = [obj for obj in run_list
-               if type(obj).__name__ in params.ci_objs]
+    mol_objs    = [obj for obj in run_list
+                     if type(obj).__name__ == 'Molecule']
+    scf_objs    = [obj for obj in run_list
+                     if type(obj).__name__ == 'Scf']
+    ci_objs     = [obj for obj in run_list
+                     if type(obj).__name__ in params.ci_objs]
     postci_objs = [obj for obj in run_list
-                   if type(obj).__name__ in params.postci_objs]
-    si_objs = [obj for obj in run_list
-               if type(obj).__name__ in params.si_objs]
+                     if type(obj).__name__ in params.postci_objs]
+    si_objs     = [obj for obj in run_list
+                     if type(obj).__name__ in params.si_objs]
+    hparam_objs = [obj for obj in run_list
+                     if type(obj).__name__ == 'Parameterize']
 
     # check for multi-geometry xyz files
     for mol in mol_objs:
@@ -522,7 +524,11 @@ def replicate_sections(run_list):
                 new_run_list.append(postci)
             for si in si_list:
                 new_run_list.append(si)
-                
+    
+    # might want to re-think this a bit...
+    for hparam in hparam_objs:
+        new_run_list.append(hparam)                
+
     return new_run_list
 
 #

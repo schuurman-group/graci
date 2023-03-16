@@ -190,12 +190,12 @@ parameterize_kword = {'label'          : str,
 
 # these are the valid computation classes. This is somewhat
 # inartful.
+base_objs    = ['Molecule', 'Rydano', 'Scf', 'Parameterize']
 ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap', 'Dyson']
 support_objs = ['Bitciwfn','Moments', 'Cigroup']
-valid_objs   = ['Molecule', 'Rydano', 'Scf', 'Parameterize'] + \
-               ci_objs + postci_objs + si_objs
+valid_objs   = base_objs + ci_objs + postci_objs + si_objs
 
 # maximum number of processors: we set this as a distinct variable, since
 # we can't depend on mpirun/mpiexec -n X, since spawn-based parallelism

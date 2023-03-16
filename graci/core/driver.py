@@ -33,6 +33,7 @@ class Driver:
         param_objs  = []
 
         for obj in calc_array:
+
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
                 mol_objs.append(obj)
