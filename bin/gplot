@@ -124,8 +124,8 @@ def extract_trans(fnames):
                          indx = obj.trans_list.index([bra_st[ibra],
                                                       ket_st[iket]])
 
-                         bra_e = obj.bra_obj.energy(bra_st[ibra])
-                         ket_e = obj.ket_obj.energy(ket_st[iket])
+                         bra_e = obj.get_energy(bra_st[ibra])
+                         ket_e = obj.get_energy(ket_st[iket])
                          ener  = (bra_e - ket_e)*constants.au2ev + \
                                  kwords['xshift'][i]
 

@@ -62,9 +62,6 @@ class Transition(interaction.Interaction):
         self.multipole  = {}
         # oscillator strengths -- all gauges
         self.oscstr     = {}
-        # bra and ket arguments to run
-        self.bra_obj    = None
-        self.ket_obj    = None
 
         # we currently require the same orbitals and mol objects
         # for the bra and ket -- this is them
@@ -101,8 +98,6 @@ class Transition(interaction.Interaction):
 
         # set the bra/ket objects and add the state groups associated
         # with each 
-        self.bra_obj = bra
-        self.ket_obj = ket
         self.add_group('bra', [bra], states = [self.final_states])
         self.add_group('ket', [ket], states = [self.init_states])
 
@@ -352,8 +347,16 @@ class Transition(interaction.Interaction):
 
         # check to see if rdm function exists in bra/ket objects.
         # If so, also construct NDOs
-        b_rdm = getattr(self.bra_obj, "rdm", None)
-        k_rdm = getattr(self.ket_obj, "rdm", None)
+        b_lbl = self.get_ci_lbls('bra')
+        k_lbl = self.get_ci_lbls('ket')
+
+        # if multiple CI objects associated with either group
+        # we can't handle that at the moment
+        if len(b_lbl) > 1 or len(k_lbl) > 1:
+            return None, None
+
+        b_rdm = getattr(self.get_ci_obj('bra', b_lbl[0]), "rdm", None)
+        k_rdm = getattr(self.get_ci_obj('ket', k_lbl[0]), "rdm", None)
 
         if b_rdm is None or k_rdm is None:
             return None, None
@@ -607,8 +610,8 @@ class Transition(interaction.Interaction):
             indx = self.trans_list.index([b_st, k_st])
 
             # set up state and energy info
-            b_ener = self.bra_obj.energy(b_st)
-            k_ener = self.ket_obj.energy(k_st)
+            b_ener = self.get_energy('bra', b_st)
+            k_ener = self.get_energy('ket', k_st)
             alpha  = constants.fine_str
             de     = b_ener - k_ener
             de2    = de**2
@@ -699,8 +702,8 @@ class Transition(interaction.Interaction):
             indx = self.trans_list.index([b_st, k_st])
  
             # set up state and energy info
-            b_ener = self.bra_obj.energy(b_st)
-            k_ener = self.ket_obj.energy(k_st)
+            b_ener = self.get_energy('bra', b_st)
+            k_ener = self.get_energy('ket', k_st)
             alpha  = constants.fine_str
             de     = b_ener - k_ener
             de2    = de**2
@@ -870,8 +873,8 @@ class Transition(interaction.Interaction):
                 # shift state indices from 0..n-1 to 1..n
                 final_st.append(bra_states[ibra]+1)
                 final_sym.append(bsym_lbl[ibra])
-                exc_ener.append(self.bra_obj.energy(bra_states[ibra]) - 
-                                self.ket_obj.energy(ket_states[iket])) 
+                exc_ener.append(self.get_energy('bra', bra_states[ibra]) - 
+                                self.get_energy('ket', ket_states[iket])) 
                 osc_str[0].append(self.oscstr['f0iso_l'][indx])
                 osc_str[1].append(self.oscstr['f2iso_l'][indx])
                 osc_str[2].append(self.oscstr['f0iso_v'][indx])

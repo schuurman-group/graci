@@ -110,6 +110,7 @@ class Cigroup:
             for lbl in self.ci_lbls:
                 for ien in range(len(self.ci_ener[lbl])):
                     ener.extend([self.ci_ener[lbl][ien]]*self._nmult[lbl])
+            ener.sort()
             self.grp_energy = np.array(ener, dtype=float)
  
     #
