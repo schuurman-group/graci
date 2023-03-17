@@ -1692,7 +1692,7 @@ contains
 !----------------------------------------------------------------------
 ! Terms (3) and (4)
 !----------------------------------------------------------------------
-! 1/2 Sum_i/=j (-pJ Viijj + 1/2 pX Vijji) Delta w_i Delta w_j
+! Sum_i<j (-pJ Viijj + 1/2 pX Vijji) Delta w_i Delta w_j
 !----------------------------------------------------------------------
     contrib=0.0d0
 
@@ -1706,7 +1706,7 @@ contains
        ! Delta w_i value
        Dwi=Dw(i,2)
        
-       do j=1,ndiff
+       do j=i+1,ndiff
 
           ! MO index
           j1=m2c(Dw(j,1))
@@ -1716,11 +1716,11 @@ contains
 
           ! Sum the contribution
           if (Dwi*Dwj < 0) then
-             contrib=contrib+(-0.5d0*pJ_he*Vc(i1,j1) &
-                  +  0.25d0*pX_he*Vx(i1,j1))*Dwi*Dwj
+             contrib=contrib+(-pJ_he*Vc(i1,j1) &
+                  +0.5d0*pX_he*Vx(i1,j1))*Dwi*Dwj
           else
-             contrib=contrib+(-0.5d0*pJ_hhee*Vc(i1,j1) &
-                  +  0.25d0*pX_hhee*Vx(i1,j1))*Dwi*Dwj
+             contrib=contrib+(-pJ_hhee*Vc(i1,j1) &
+                  +0.5d0*pX_hhee*Vx(i1,j1))*Dwi*Dwj
           endif
              
        enddo
@@ -1751,7 +1751,7 @@ contains
        Viiii=Vc(i1,i1)
 
        ! Sum the contribution
-       contrib=contrib-0.25*pJ_eeee*Viiii
+       contrib=contrib-0.25*pJ_eeee*Viiii*Dwi**2
        
     enddo
 
@@ -1776,7 +1776,7 @@ contains
        Viiii=Vc(i1,i1)
 
        ! Sum the contribution
-       contrib=contrib+0.25d0*Viiii
+       contrib=contrib+0.25d0*pJ_eeee*Viiii
        
     enddo
        
@@ -1838,7 +1838,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Sum the contribution
-          contrib=contrib+0.25d0*Vijji*Dwi*Dwj
+          contrib=contrib+0.25d0*pX_he*Vijji*Dwi*Dwj
           
        enddo
 
@@ -2089,7 +2089,7 @@ contains
     !  p1 exp(-p2 DeltaE^4)
     !
     p1=1.0d0-2.0d0*hpar(3)+hpar(5)
-    p2=hpar(2)
+    p2=hpar(1)
     DE4=(av1-av2)**4
     func=p1*exp(-p2*DE4)
     
