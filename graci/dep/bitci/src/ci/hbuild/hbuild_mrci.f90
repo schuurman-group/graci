@@ -40,8 +40,8 @@ contains
     integer(is), intent(in) :: nbefore(nmo)
 
     ! Difference configuration information
-    integer(is)             :: ndiff
-    integer(is)             :: Dw(nmo,2)
+    integer(is), intent(in) :: ndiff
+    integer(is), intent(in) :: Dw(nmo,2)
     
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
@@ -807,7 +807,8 @@ contains
 !                with the spatial occupation w but different
 !                spin couplings omega' and omega
 !######################################################################
-  subroutine hij_same_mrci(harr,arrdim,sop,socc,nsocc,nbefore,m2c)
+  subroutine hij_same_mrci(harr,arrdim,sop,socc,nsocc,nbefore,Dw,&
+       ndiff,m2c)
 
     use constants
     use bitglobal
@@ -830,6 +831,10 @@ contains
     integer(is), intent(in) :: arrdim
     real(dp), intent(out)   :: harr(arrdim)
 
+    ! Difference configuration information
+    integer(is), intent(in) :: ndiff
+    integer(is), intent(in) :: Dw(nmo,2)
+    
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
     
@@ -917,8 +922,8 @@ contains
 !----------------------------------------------------------------------
 ! DFT/MRCI corrections
 !----------------------------------------------------------------------
-    if (ldftmrci) call hij_same_dftmrci(harr,nsp,sop,socc,nsocc,&
-         nbefore,m2c)
+    if (ldftmrci) call hij_same_dftmrci(harr,nsp,Dw,ndiff,sop,socc,&
+         nsocc,nbefore,m2c)
        
     return
     

@@ -1439,6 +1439,27 @@ contains
     ksop_int=0_ib
 
 !----------------------------------------------------------------------
+! Checks on whether any of the various conf classes are empty
+!----------------------------------------------------------------------
+    if (cfg%n2I == 0) then
+       do2I=.false.
+    else
+       do2I=.true.
+    endif
+
+    if (cfg%n2E == 0) then
+       do2E=.false.
+    else
+       do2E=.true.
+    endif
+
+    if (cfg%n1I1E == 0) then
+       do1I1E=.false.
+    else
+       do1I1E=.true.
+    endif
+    
+!----------------------------------------------------------------------
 ! 2H-2H contributions to the 1-RDMs
 !----------------------------------------------------------------------
     ! Loop over ket 2-hole configurations

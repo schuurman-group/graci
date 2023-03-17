@@ -22,17 +22,6 @@ import graci.interfaces.bitci.mrci_1rdm as mrci_1rdm
 import graci.interfaces.bitci.mrci_wf as mrci_wf
 import graci.interfaces.overlap.bdd as bdd
 
-# MRCI and DFT/MRCI Hamiltonian labels
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil17_short',
-                  'heil18_standard',
-                  'heil18_short']
-
 class Dftmrci2(cimethod.Cimethod):
     """Class constructor for DFT/MRCI(2) objects"""
     def __init__(self, ci_obj=None):        

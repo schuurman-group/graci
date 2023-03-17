@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=15
+  integer(is), parameter :: nham=16
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -28,7 +28,8 @@ module hparam
         'test_heil17         ', &
         'cvs_test_heil17     ', &
         'test_exp            ', &
-        'cvs_test_exp        ']
+        'cvs_test_exp        ', &
+        'r2022']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -198,7 +199,18 @@ module hparam
        0.508918d0, & ! pJ
        0.362362d0]   ! pF
 
-
+!----------------------------------------------------------------------
+! R2022 DFT/MRCI Hamiltonian
+! J. Phys. Chem A, 127, 2011 (2023)
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(5) :: r2022= &
+       [3.4673d0, & ! p2
+       0.5085d0,  & ! pJ^he
+       0.4649d0,  & ! pJ^hhee
+       0.3426d0,  & ! px^he
+       0.5416d0]    ! px^hhee
+  
 contains
 
 !######################################################################
@@ -361,6 +373,14 @@ contains
        hpar=cvs_test_exp
        desel=1.0d0
 
+    case(16)
+       ! R2022
+       ldftmrci=.true.
+       nhpar=5
+       allocate(hpar(nhpar))
+       hpar=r2022
+       desel=1.0d0
+       
     case default
        ! Unrecognised Hamiltonian
        write(errmsg,'(a,x,i0)') &

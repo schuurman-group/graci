@@ -316,7 +316,7 @@ contains
           ! Compute the Hamiltonian matrix elements
           arrdim=nsp*(nsp-1)/2
           call hij_same_mrci(harr(1:arrdim),arrdim,sop_full,socc,&
-               nsocc,nbefore,m2c)
+               nsocc,nbefore,Dw,ndiff,m2c)
           
           ! Save the above threshold matrix elements
           count=0
