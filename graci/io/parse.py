@@ -156,10 +156,11 @@ def correct_type(value, keyword_type):
 def parse_value(valstr, val_type):
     """Returns a value converted to the appropriate type and shape.
     By default, spaces and newlines will be treated as delimiters.
+    All keywords are converted to lower case.
     """
 
     # split any braces or ':' symbols
-    split_line = re.split('(:)|(\[)|(\])|\n', valstr)
+    split_line = re.split('(:)|(\[)|(\])|\n', valstr.lower())
     # remove instances of 'None'
     try:
         while True:
