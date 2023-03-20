@@ -33,9 +33,9 @@ contains
     ! Number of open shells
     integer(is), intent(in) :: nopen
     
-    ! MO index mapping array
+    ! MO index mapping arrays
     integer(is), intent(in) :: m2c(nmo)
-
+    
     ! SOP characterising the spatial occupation
     integer(ib), intent(in) :: sop(n_int,2)
 
@@ -394,7 +394,8 @@ contains
     integer(is)             :: bomega,komega
     integer(is)             :: pattern,kstart,bstart
     integer(is)             :: count,n
-    integer(is)             :: Dwi(nsocc)
+    integer(is)             :: Dwi_open(nomax)
+    integer(is)             :: Dwi,Dwj
     real(dp)                :: Vijji,product
     real(dp)                :: px_he,px_hhee,px
     
@@ -417,23 +418,23 @@ contains
     endif
 
 !----------------------------------------------------------------------
-! Delta w_i values for the singly-occupied MOs
+! Determine the Delta w_i values for the open shells
 !----------------------------------------------------------------------
-    Dwi=0
+    Dwi_open=0
+    
+    ! Loop over created/annihilated MOs
+    do i=1,ndiff
+       i1=Dw(i,1)
 
-    ! Loop over singly-occupied MOs
-    do i=1,nsocc
+       ! Loop over open shells
+       do j=1,nsocc
+          j1=socc(j)
 
-       ! MO index
-       i1=socc(i)
-       
-       ! Get the Delta w_i value for this MO
-       do j=1,ndiff
-          if (Dw(j,1) == i1) then
-             Dwi(i)=Dw(j,2)
-          endif
+          ! Does the created/annihilated MO match an open shell
+          ! index?
+          if (i1 == j1) Dwi_open(j)=Dw(i,2)
+
        enddo
-
     enddo
     
 !----------------------------------------------------------------------
@@ -444,6 +445,10 @@ contains
     ! Loop over singly-occupied MOs (creation operator)
     do i=1,nsocc-1
 
+       ! Cycle if Delta w_i = 0
+       Dwi=Dwi_open(i)
+       if (Dwi == 0) cycle
+       
        ! Creation operator index
        ic=socc(i)
        
@@ -453,6 +458,10 @@ contains
        ! Loop over singly-occupied MOs (annihilation operator)
        do j=i+1,nsocc
 
+          ! Cycle if Delta w_j = 0
+          Dwj=Dwi_open(j)
+          if (Dwj == 0) cycle
+          
           ! Annihilation operator index
           ja=socc(j)
           
@@ -467,7 +476,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Exchange scaling parameter
-          if (Dwi(i)*Dwi(j) < 0) then
+          if (Dwi*Dwj < 0) then
              px=px_he
           else
              px=px_hhee
@@ -1644,7 +1653,7 @@ contains
     ! Everything else
     integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,insp
     integer(is)             :: ic,ja,omega,pattern,start
-    integer(is)             :: iopen(nmo)
+    integer(is)             :: Dwi_open(nomax)
     real(dp)                :: Viijj,Vijji,Viiii
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
@@ -1661,6 +1670,11 @@ contains
     pX_hhee=hpar(5)
 
 !----------------------------------------------------------------------
+! Return here if we are at the base configuration
+!----------------------------------------------------------------------
+    if (ndiff == 0) return
+    
+!----------------------------------------------------------------------
 ! Find the start of the postive Delta w_i values
 !----------------------------------------------------------------------
     do i=1,ndiff
@@ -1669,11 +1683,31 @@ contains
           exit
        endif
     enddo
+
+!----------------------------------------------------------------------
+! Determine the Delta w_i values for the open shells
+!----------------------------------------------------------------------
+    Dwi_open=0
+
+    ! Loop over created/annihilated MOs
+    do i=1,ndiff
+       i1=Dw(i,1)
+
+       ! Loop over open shells
+       do j=1,nsocc
+          j1=socc(j)
+
+          ! Does the created/annihilated MO match an open shell
+          ! index?
+          if (i1 == j1) Dwi_open(j)=Dw(i,2)
+
+       enddo
+    enddo
     
 !----------------------------------------------------------------------
 ! Term (1)
 !----------------------------------------------------------------------
-! Sum_i F_ii^KS - F_ii^HF Delta w_i
+! Sum_i (F_ii^KS - F_ii^HF) Delta w_i
 !----------------------------------------------------------------------
     ! Loop over non-zero Delta w_i values
     do i=1,ndiff
@@ -1690,168 +1724,114 @@ contains
     enddo
 
 !----------------------------------------------------------------------
-! Terms (3) and (4)
+! Term (2a)
 !----------------------------------------------------------------------
-! Sum_i<j (-pJ Viijj + 1/2 pX Vijji) Delta w_i Delta w_j
+! - Sum_i<j (pJ_he Viijj -1/2 pX_he Vijji) Delta w_i Delta w_j,
+! Delta w_i * Delta w_j < 0
 !----------------------------------------------------------------------
     contrib=0.0d0
+    
+    ! Loop over hole MOs
+    do i=1,ipos-1
 
-    ! Loop over pairs of created/annihilated MOs (relative to the base
-    ! configuration)
-    do i=1,ndiff
-
-       ! MO index
+       ! Hole MO index
        i1=m2c(Dw(i,1))
-       
-       ! Delta w_i value
+
+       ! Hole Delta w_i value
        Dwi=Dw(i,2)
        
-       do j=i+1,ndiff
+       ! Loop over particle MOs
+       do j=ipos,ndiff
 
-          ! MO index
+          ! Particle MO index
           j1=m2c(Dw(j,1))
-          
-          ! Delta w_i value
+
+          ! Particle Delta w_j value
           Dwj=Dw(j,2)
 
-          ! Sum the contribution
-          if (Dwi*Dwj < 0) then
-             contrib=contrib+(-pJ_he*Vc(i1,j1) &
-                  +0.5d0*pX_he*Vx(i1,j1))*Dwi*Dwj
-          else
-             contrib=contrib+(-pJ_hhee*Vc(i1,j1) &
-                  +0.5d0*pX_hhee*Vx(i1,j1))*Dwi*Dwj
-          endif
-             
-       enddo
-
-    enddo
-
-!----------------------------------------------------------------------
-! Term (4a)
-!----------------------------------------------------------------------
-! -1/4 pJ_eeee Sum_i V_iiii (Delta w_i)^2, where i does not index an
-! open shell in the base configuration
-!----------------------------------------------------------------------
-    ! Loop over created/annihilated MOs (relative to the base
-    ! configuration)
-    do i=1,ndiff
-
-       ! MO index
-       i1=m2c(Dw(i,1))
-
-       ! Delta w_i value
-       Dwi=Dw(i,2)
-       
-       ! Cycle if this MO is singly-occupied in the base
-       ! configuration
-       if (iopen0(i1) == 1) cycle
-
-       ! V_iiii
-       Viiii=Vc(i1,i1)
-
-       ! Sum the contribution
-       contrib=contrib-0.25*pJ_eeee*Viiii*Dwi**2
-       
-    enddo
-
-!----------------------------------------------------------------------
-! Term (4b)
-!----------------------------------------------------------------------
-! 1/4 pJ_eeee Sum_i V_iiii, i indexes an open shell in the current
-! configuration and doesn't index an open shell in the base
-! configuration
-!----------------------------------------------------------------------
-    ! Loop over singly-occupied MOs (creation operator)
-    do i=1,nsocc
-
-       ! MO index
-       i1=m2c(socc(i))
-
-       ! Cycle if this MO is singly-occupied in the base
-       ! configuration
-       if (iopen0(i1) == 1) cycle
-
-       ! V_iiii
-       Viiii=Vc(i1,i1)
-
-       ! Sum the contribution
-       contrib=contrib+0.25d0*pJ_eeee*Viiii
-       
-    enddo
-       
-!----------------------------------------------------------------------
-! Term (5)
-!----------------------------------------------------------------------
-! -1/4 pJ sum_i Viiii, |Delta w_i| = 1 and i indexes an open-shell in
-! the base configuration
-!----------------------------------------------------------------------
-    ! Loop over created/annihilated MOs (relative to the base
-    ! configuration)
-    do i=1,ndiff
-
-       ! MO index
-       i1=m2c(Dw(i,1))
-       
-       ! Cycle if this MO is not singly-occupied in the base
-       ! configuration
-       if (iopen0(i1) == 0) cycle
-
-       ! V_iiii
-       Viiii=Vc(i1,i1)
-       
-       ! Sum the contribution
-       ! Note that if we are here, then |Delta w_i| = 1
-       contrib=contrib-0.25d0*pJ_he*Viiii
-       
-    enddo
-
-!----------------------------------------------------------------------
-! Term (6)
-!----------------------------------------------------------------------
-! 1/4 pX_he Sum_i/=j V_ijji Delta w_i Delta w_j,
-! Delta w_i x Delta w_j < 0 and i does not index an open shell in the
-! base configuration
-!----------------------------------------------------------------------
-    ! Loop over pairs of created/annihilated MOs (relative to the base
-    ! configuration)
-    do i=1,ndiff
-
-       ! MO index
-       i1=m2c(Dw(i,1))
-       
-       ! Delta w_i value
-       Dwi=Dw(i,2)
-       
-       do j=1,ndiff
-
-          ! MO index
-          j1=m2c(Dw(j,1))
-          
-          ! Delta w_i value
-          Dwj=Dw(j,2)
-
-          ! Skip if Delta w_i x Delta w_j > 0
-          if (Dwi*Dwj > 0) cycle
-
-          ! V_ijji
+          ! Integral values
+          Viijj=Vc(i1,j1)
           Vijji=Vx(i1,j1)
 
           ! Sum the contribution
-          contrib=contrib+0.25d0*pX_he*Vijji*Dwi*Dwj
+          contrib=contrib-(pJ_he*Viijj &
+               -0.5d0*pX_he*Vijji)*Dwi*Dwj
+          
+       enddo
+          
+    enddo
+    
+!----------------------------------------------------------------------
+! Term (2b)
+!----------------------------------------------------------------------
+! - Sum_i<j (pJ_he Viijj -1/2 pX_he Vijji) Delta w_i Delta w_j,
+! Delta w_i * Delta w_j > 0
+!----------------------------------------------------------------------
+! Hole-hole terms
+!----------------------------------------------------------------------
+    ! Loop over unique pairs of hole MOs
+    do i=1,ipos-2
+       do j=i+1,ipos-1
+
+          ! Hole MO indices
+          i1=m2c(Dw(i,1))
+          j1=m2c(Dw(j,1))
+
+          ! Delta w values
+          Dwi=Dw(i,2)
+          Dwj=Dw(j,2)
+
+          ! Integral values
+          Viijj=Vc(i1,j1)
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib-(pJ_hhee*Viijj &
+               -0.5d0*pX_hhee*Vijji)*Dwi*Dwj
           
        enddo
 
     enddo
 
 !----------------------------------------------------------------------
-! Terms (7) and (8)
+! Term (2c)
 !----------------------------------------------------------------------
-! (7) -px_he Sum_i Sum_j V_ijji <w omega|E_i^j E_j^i|w omega>,
-! j > i, i and j singly-occupied, and Delta w_i x Delta w_j < 0
+! - Sum_i<j (pJ_he Viijj -1/2 pX_he Vijji) Delta w_i Delta w_j,
+! Delta w_i * Delta w_j > 0
 !----------------------------------------------------------------------
-! (8) -px_heee Sum_i Sum_j V_ijji <w omega|E_i^j E_j^i|w omega>,
-! j > i, i and j singly-occupied, and Delta w_i x Delta w_j > 0
+! Particle-particle terms
+!----------------------------------------------------------------------
+    ! Loop over unique pairs of particle MOs
+    do i=ipos,ndiff-1
+       do j=i+1,ndiff
+
+          ! Particle MO indices
+          i1=m2c(Dw(i,1))
+          j1=m2c(Dw(j,1))
+
+          ! Delta w values
+          Dwi=Dw(i,2)
+          Dwj=Dw(j,2)
+
+          ! Integral values
+          Viijj=Vc(i1,j1)
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib-(pJ_hhee*Viijj &
+               -0.5d0*pX_hhee*Vijji)*Dwi*Dwj
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Terms (3a) and (3b)
+!----------------------------------------------------------------------
+! - Sum_i<j pX Vijji (<w omega| E_i^j E_j^i |w omega> - 1/2),
+! where both i and j index an open shell in the configuration w, and
+! pX = pX_he or pX_hhee depending on the sign of
+! Delta w_i * Delta w_j 
 !----------------------------------------------------------------------
     ! Numbers of 'intermediate' CSFs entering into the contractions of
     ! the fibers of the spin-coupling coefficient tensor
@@ -1861,41 +1841,31 @@ contains
        insp=0
     endif
 
-    ! Singly-occupied MOs
-    iopen=0
-    do i=1,nsocc
-       iopen(socc(i))=1
-    enddo
-    
-    ! Loop over pairs of created/annihilated MOs (relative to the base
-    ! configuration)
-    do i=1,ndiff-1
+    ! Loop over singly-occupied MOs (creation operator)
+    do i=1,nsocc-1
 
+       ! Cycle if Delta w_i = 0
+       Dwi=Dwi_open(i)
+       if (Dwi == 0) cycle
+       
        ! Creation operator index
-       ic=Dw(i,1)
+       ic=socc(i)
        
-       ! Cycle if this is not an open shell
-       if (iopen(ic) == 0) cycle
-       
-       ! MO index
+       ! DFT/HF MO index
        i1=m2c(ic)
        
-       ! Delta w_i value
-       Dwi=Dw(i,2)
-       
-       do j=i+1,ndiff
+       ! Loop over singly-occupied MOs (annihilation operator)
+       do j=i+1,nsocc
 
+          ! Cycle if Delta w_j = 0
+          Dwj=Dwi_open(j)
+          if (Dwj == 0) cycle
+          
           ! Annihilation operator index
-          ja=Dw(j,1)
+          ja=socc(j)
           
-          ! Cycle if this is not an open shell
-          if (iopen(ja) == 0) cycle
-          
-          ! MO index
+          ! DFT/HF MO index
           j1=m2c(ja)
-          
-          ! Delta w_i value
-          Dwj=Dw(j,2)
 
           ! Get the spin coupling coefficient pattern index
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
@@ -1904,11 +1874,12 @@ contains
           ! V_ijji
           Vijji=Vx(i1,j1)
 
-          ! Exchange scaling parameter
+          ! Determine the value of the exchange scaling parameter
+          ! for this open shell pair
           if (Dwi*Dwj < 0) then
-             px=px_he
+             pX=pX_he
           else
-             px=px_hhee
+             pX=pX_hhee
           endif
 
           ! Sum the contributions
@@ -1917,14 +1888,132 @@ contains
              product=dot_product(&
                   spincp(start:start+insp-1),&
                   spincp(start:start+insp-1))
-             contrib(omega)=contrib(omega)-px*Vijji*product
+             contrib(omega)=contrib(omega) &
+                  -pX*Vijji*(product-0.5d0)
              start=start+insp
           enddo
           
        enddo
 
     enddo
+
+!----------------------------------------------------------------------
+! Term (4)
+!----------------------------------------------------------------------
+! -1/4 pJ_eeee Sum_i V_iiii (Delta w_i)^2, for MOs i that are *not*
+! open shells in the base configuration
+!----------------------------------------------------------------------
+    ! Loop over created/annihilated MOs
+    do i=1,ndiff
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+
+       ! Cycle if the MO is an open shell in the base conf
+       if (iopen0(i1) == 1) cycle
+
+       ! V_iiii
+       Viiii=Vc(i1,i1)
+
+       ! Sum the contribution
+       contrib=contrib-0.25d0*pJ_eeee*Viiii*Dwi**2
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Term (5)
+!----------------------------------------------------------------------
+! -1/4 pJ_he Sum_i V_iiii (Delta w_i)^2, for MOs i that *are*
+! open shells in the base configuration
+!----------------------------------------------------------------------
+    ! Loop over created/annihilated MOs
+    do i=1,ndiff
+
+       ! MO index
+       i1=m2c(Dw(i,1))
+
+       ! Delta w_i value
+       Dwi=Dw(i,2)
+
+       ! Cycle if the MO is not an open shell in the base conf
+       if (iopen0(i1) == 0) cycle
+
+       ! V_iiii
+       Viiii=Vc(i1,i1)
+
+       ! Sum the contribution
+       contrib=contrib-0.25d0*pJ_he*Viiii*Dwi**2
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Term (6)
+!----------------------------------------------------------------------
+! 1/4 pJ_eeee Sum_i V_iiii, for MOs i that are *not*
+! open shells in the base configuration and are singly-occupied in the
+! configuration w
+!----------------------------------------------------------------------
+    ! Loop over singly-occupied MOs
+    do i=1,nsocc
+
+       ! MO index
+       i1=m2c(socc(i))
+
+       ! Cycle if this MO is an open shell in the base conf
+       if (iopen0(i1) == 1) cycle
+
+       ! V_iiii
+       Viiii=Vc(i1,i1)
+
+       ! Sum the contribution
+       contrib=contrib+0.25d0*pJ_eeee*Viiii
+
+    enddo
+
+!----------------------------------------------------------------------
+! Term (7)
+!----------------------------------------------------------------------
+! 1/2 pX_he Sum_i<j V_ijji Delta w_i Delta w_j,
+! Delta w_i * Delta w_j < 0 and i,j not singly-occupied in the base
+! conf
+!----------------------------------------------------------------------
+    ! Loop over hole MOs
+    do i=1,ipos-1
+
+       ! Hole MO index
+       i1=m2c(Dw(i,1))
+
+       ! Hole Delta w_i value
+       Dwi=Dw(i,2)
+
+       ! Cycle if the hole MO is an open shell in the base conf
+       if (iopen0(i1) == 1) cycle
+       
+       ! Loop over particle MOs
+       do j=ipos,ndiff
+
+          ! Particle MO index
+          j1=m2c(Dw(j,1))
+
+          ! Particle Delta w_j value
+          Dwj=Dw(j,2)
+
+          ! Cycle if the particle MO is an open shell in the base conf
+          if (iopen0(j1) == 1) cycle
+
+          ! V_ijji
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contribution
+          contrib=contrib+0.5d0*pX_he*Vijji*Dwi*Dwj
           
+       enddo
+
+    enddo
+    
 !----------------------------------------------------------------------
 ! Add the Coulomb and exchange corrections
 !----------------------------------------------------------------------
