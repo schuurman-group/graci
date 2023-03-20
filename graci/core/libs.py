@@ -7,20 +7,6 @@ import copy as copy
 import ctypes as ctypes
 import graci.io.convert as convert
 
-# THIS IS TEMPORARY UNTIL WE PASS THE HAMILTONIAN NAME
-# DIRECTLY. THE METHOD CALLING init_bitci IS RESPONSIBLE 
-# FOR "HAMILTONIAN" BEING VALID
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil17_short',
-                  'heil18_standard',
-                  'heil18_short',
-                  'cvs_standard']
-
 libraries      = ['bitci','bitsi','bitwf','overlap']
 
 # registry of bitci functions
