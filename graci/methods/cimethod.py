@@ -107,7 +107,7 @@ class Cimethod:
     def scf_exists(self):
         """return true if scf object is not None"""
         try:
-            return type(self.scf).__name__ is 'Scf'
+            return type(self.scf).__name__ == 'Scf'
         except:
             return False
 
