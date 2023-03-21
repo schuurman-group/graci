@@ -135,7 +135,7 @@ class Transition(interaction.Interaction):
 
                 # if the same object, only build lower diagonal
                 pair_type = 'full'
-                if self.same_obj(ket_ci, bra_ci): 
+                if self.same_ci_obj(ket_ci, bra_ci): 
                     pair_type = 'nodiag'
                 
                 # initialize the bitsi library for the calculation 
@@ -175,11 +175,10 @@ class Transition(interaction.Interaction):
         self.oscstr = self.build_osc_str()
 
         # build the NDOs and NTOS, print to file if print_orbitals=True
-        if self.print_orbitals:
-            self.nto_wts, self.ntos = self.build_ntos(basis='ao', 
-                                                      print_orbs=True)
-            self.ndo_wts, self.ndos = self.build_ndos(basis='ao', 
-                                                      print_orbs=True)
+        self.nto_wts, self.ntos = self.build_ntos(basis='ao', 
+                                         print_orbs=self.print_orbitals)
+        self.ndo_wts, self.ndos = self.build_ndos(basis='ao', 
+                                         print_orbs=self.print_orbitals)
 
         # print the summary output
         if self.verbose:
@@ -350,18 +349,22 @@ class Transition(interaction.Interaction):
         b_lbl = self.get_ci_lbls('bra')
         k_lbl = self.get_ci_lbls('ket')
 
-        # if multiple CI objects associated with either group
-        # we can't handle that at the moment
-        if len(b_lbl) > 1 or len(k_lbl) > 1:
-            return None, None
+        # if there are multiple group objects, call to rdm is ambiguous
+        # this will cause program to exit
+        if (len(self.get_group_objs('bra')) > 1 or
+             len(self.get_group_objs('ket')) > 1):
+            len_bra = len(self.get_group_objs('bra'))
+            len_ket = len(self.get_group_objs('ket'))
+            sys.exit('Number of group objects > 1: ' + 
+                      str(len_bra)+','+str(len_ket))
 
-        b_rdm = getattr(self.get_ci_obj('bra', b_lbl[0]), "rdm", None)
-        k_rdm = getattr(self.get_ci_obj('ket', k_lbl[0]), "rdm", None)
+        # set the reference to the rdm function from the bra/ket objs       
+        b_rdm = getattr(self.get_group_objs('bra')[0], "rdm", None)
+        k_rdm = getattr(self.get_group_objs('ket')[0], "rdm", None)
 
         if b_rdm is None or k_rdm is None:
             return None, None
 
-        # NTOs are always constructed
         ndos = []
         wts  = []
 

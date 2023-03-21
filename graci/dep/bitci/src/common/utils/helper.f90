@@ -387,6 +387,8 @@ end subroutine retrieve_filename
      npar=size(test_exp)
   case('cvs_test_exp')
      npar=size(cvs_test_exp)
+  case('r2022')
+     npar=size(r2022)
   case default
      errmsg='Error in retrieve_nhpar: unrecognised Hamiltonian name'
      call error_control
@@ -508,6 +510,10 @@ subroutine retrieve_hpar(ham1,dim,params)
      npar=size(cvs_test_exp)+1
      if (npar > dim) goto 999
      params(1:npar-1)=cvs_test_exp
+  case('r2022')
+     npar=size(r2022)+1
+     if (npar > dim) goto 999
+     params(1:npar-1)=r2022
   case default
      errmsg='Error in retrieve_hpar: unrecognised Hamiltonian name'
      call error_control

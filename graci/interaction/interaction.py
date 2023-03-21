@@ -15,7 +15,7 @@ class Cigroup:
     def __init__(self, ci_objs, ci_states=None, spin_states=False,
                                                        lbl='default'):
         self.label      = lbl
-        self.obj_types  = []
+        self.grp_objs   = []
         self.grp_states = None
         self.grp_vecs   = None
         self.grp_energy = None
@@ -39,7 +39,7 @@ class Cigroup:
 
         for ci in range(len(ci_objs)):
 
-            self.obj_types.append(ci_objs[ci].__class__.__name__)
+            self.grp_objs.append(ci_objs[ci])
 
             # if this is a cimethod object, just add the ci object
             # to this group
@@ -272,22 +272,9 @@ class Interaction:
             obj1 = self.get_ci_obj(grp_name1, ci_lbl)
             obj2 = self.get_ci_obj(grp_name2, ci_lbl)
 
-            is_same = is_same and self.same_obj(obj1, obj2)
+            is_same = is_same and self.same_ci_obj(obj1, obj2)
 
         return is_same 
-
-    #
-    def same_obj(self, obj1, obj2):
-        """
-        check if same objects
-        """
-        class1 = type(obj1).__name__
-        class2 = type(obj2).__name__
-
-        lbl1  = obj1.label
-        lbl2  = obj2.label
-
-        return class1 == class2 and lbl1 == lbl2
 
     #
     def n_groups(self):
@@ -300,6 +287,14 @@ class Interaction:
     def get_groups(self):
         """return a list of the group labels"""
         return list(self.groups.keys())
+   
+    #
+    def get_group_objs(self, grp_name):
+        """
+        return the group object: could be cimethod or interaction 
+        object
+        """
+        return self.groups[grp_name].grp_objs
 
     #
     def is_spin_states(self, grp_name):
@@ -392,13 +387,27 @@ class Interaction:
         self.groups[grp_name].grp_energy = grp_energy
         return
 
-           
+    #       
     def get_group_index(self, grp_name, lbl, state, M=None):
         """ return the index in the grp_vector corresponding 
             to the ci_obj, ci_st, ci_m value
         """
         return self.groups[grp_name].get_grp_indx(lbl, state, M)
+   
+    #
+    def same_ci_obj(self, obj1, obj2):
+        """
+        check if same objects
+        """
+        class1 = type(obj1).__name__
+        class2 = type(obj2).__name__
 
+        lbl1  = obj1.label
+        lbl2  = obj2.label
+
+        return class1 == class2 and lbl1 == lbl2
+
+    #
     def get_ci_index(self, grp_name, grp_index):
         """
             return the ci_lbl, ci_state, and ci_M value for a
@@ -548,8 +557,9 @@ class Interaction:
             return None
 
         # if bra and ket objects are same,
-        braket_same = self.same_obj(self.groups[bra_grp].ci_objs[bra_ci], 
-                                    self.groups[ket_grp].ci_objs[ket_ci])
+        braket_same = self.same_ci_obj(
+                                self.groups[bra_grp].ci_objs[bra_ci], 
+                                self.groups[ket_grp].ci_objs[ket_ci])
 
         # initialize the pair list. If symblk, pair_list is an nirr x nirr
         # state pairs. Else, just a list of state pairs
