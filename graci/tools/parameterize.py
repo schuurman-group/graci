@@ -61,7 +61,7 @@ class Parameterize:
         self.xc_func         = None
 
         # reparam optimization options
-        self.opt_algorithm   = 'Nelder-Mead'
+        self.opt_algorithm   = 'nelder-mead'
         self.opt_h_init      = False
         self.opt_h_final     = False
         self.opt_xc          = False
@@ -89,7 +89,7 @@ class Parameterize:
         self.error          = 0
         self.de_thr         = 0.5
         self.log_file       = None
-        self.valid_algos    = ['Nelder-Mead','DifferentialEvolution']
+        self.valid_algos    = ['nelder-mead','differentialevolution']
 
     #
     def run(self):
@@ -131,7 +131,7 @@ class Parameterize:
             self.p_n, p_bnds = self.extract_opt_param(self.p_ref, 
                                                               p_bounds)
 
-            if self.opt_algorithm != 'DifferentialEvolution':
+            if self.opt_algorithm != 'differentialevolution':
                 res = sp_opt.minimize(self.err_func, self.p_n, 
                               args = (exc_ref, scf_dirs, scf_objs,
                                                 init_ci, final_ci),
@@ -645,7 +645,7 @@ class Parameterize:
                 # gradient descent, not so much. If grad.
                 # descent, or equiv., print a warning if we
                 # can't match the state
-                if self.opt_algorithm != 'DifferentialEvolution':
+                if self.opt_algorithm != 'differentialevolution':
                     msg = molecule+' '+str(lbl)+': Sij='
                     msg += ''.join(['{:8.4f}']*len(Sij)).format(*Sij)
                     print(msg) 

@@ -98,7 +98,7 @@ class Overlap(interaction.Interaction):
 
                 # if the same object, only build lower diagonal
                 pair_type = 'full'
-                if self.same_obj(ket_ci, bra_ci):
+                if self.same_ci_obj(ket_ci, bra_ci):
                     pair_type = 'lower'
 
                 # initialise the bitwf library
