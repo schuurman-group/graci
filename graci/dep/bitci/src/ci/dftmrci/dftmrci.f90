@@ -1754,8 +1754,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Sum the contribution
-          contrib=contrib-(pJ_he*Viijj &
-               -0.5d0*pX_he*Vijji)*Dwi*Dwj
+          contrib=contrib-(pJ_he*Viijj-0.5d0*pX_he*Vijji)*Dwi*Dwj
           
        enddo
           
@@ -1786,8 +1785,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Sum the contribution
-          contrib=contrib-(pJ_hhee*Viijj &
-               -0.5d0*pX_hhee*Vijji)*Dwi*Dwj
+          contrib=contrib-(pJ_hhee*Viijj-0.5d0*pX_hhee*Vijji)*Dwi*Dwj
           
        enddo
 
@@ -1818,8 +1816,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Sum the contribution
-          contrib=contrib-(pJ_hhee*Viijj &
-               -0.5d0*pX_hhee*Vijji)*Dwi*Dwj
+          contrib=contrib-(pJ_hhee*Viijj-0.5d0*pX_hhee*Vijji)*Dwi*Dwj
           
        enddo
 
@@ -1888,8 +1885,7 @@ contains
              product=dot_product(&
                   spincp(start:start+insp-1),&
                   spincp(start:start+insp-1))
-             contrib(omega)=contrib(omega) &
-                  -pX*Vijji*(product-0.5d0)
+             contrib(omega)=contrib(omega)-pX*Vijji*(product-0.5d0)
              start=start+insp
           enddo
           
@@ -1926,7 +1922,7 @@ contains
 !----------------------------------------------------------------------
 ! Term (5)
 !----------------------------------------------------------------------
-! -1/4 pJ_he Sum_i V_iiii (Delta w_i)^2, for MOs i that *are*
+! -1/4 pJ_he Sum_i V_iiii |Delta w_i|, for MOs i that *are*
 ! open shells in the base configuration
 !----------------------------------------------------------------------
     ! Loop over created/annihilated MOs
@@ -1945,7 +1941,7 @@ contains
        Viiii=Vc(i1,i1)
 
        ! Sum the contribution
-       contrib=contrib-0.25d0*pJ_he*Viiii*Dwi**2
+       contrib=contrib-0.25d0*pJ_he*Viiii*abs(Dwi)
        
     enddo
 
@@ -2009,6 +2005,64 @@ contains
 
           ! Sum the contribution
           contrib=contrib+0.5d0*pX_he*Vijji*Dwi*Dwj
+          
+       enddo
+
+    enddo
+
+!----------------------------------------------------------------------
+! Term (8)
+!----------------------------------------------------------------------
+! -Sum_i<j V_ijji (<w omega| E_i^j E_j^i |w omega> - 1/2),
+! where both i and j index an open shell in the configuration w and
+! one or both of i and j index an open shell in the base configuration
+!----------------------------------------------------------------------
+    ! Loop over singly-occupied MOs (creation operator)
+    do i=1,nsocc-1
+
+       ! Delta w_i = 0
+       Dwi=Dwi_open(i)
+       if (Dwi == 0) cycle
+       
+       ! Creation operator index
+       ic=socc(i)
+       
+       ! DFT/HF MO index
+       i1=m2c(ic)
+       
+       ! Loop over singly-occupied MOs (annihilation operator)
+       do j=i+1,nsocc
+
+          ! Delta w_j = 0
+          Dwj=Dwi_open(j)
+
+          ! Cycle if Delta w_i * Delta w_j is not zero
+          ! (i.e., if MO i or MO j is *not* singly-occupied in the
+          ! base conf)
+          if (Dwi*Dwj /= 0) cycle
+          
+          ! Annihilation operator index
+          ja=socc(j)
+          
+          ! DFT/HF MO index
+          j1=m2c(ja)
+
+          ! Get the spin coupling coefficient pattern index
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen)
+
+          ! V_ijji
+          Vijji=Vx(i1,j1)
+
+          ! Sum the contributions
+          start=pattern
+          do omega=1,nsp
+             product=dot_product(&
+                  spincp(start:start+insp-1),&
+                  spincp(start:start+insp-1))
+             contrib(omega)=contrib(omega)-Vijji*(product-0.5d0)
+             start=start+insp
+          enddo
           
        enddo
 
