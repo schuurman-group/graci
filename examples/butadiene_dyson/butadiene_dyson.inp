@@ -1,0 +1,53 @@
+$molecule section
+ C  -0.3247070   0.6505420   0.0000000
+ C   0.3247070  -0.6505420   0.0000000
+ C   0.3247070   1.8174900   0.0000000
+ C  -0.3247070  -1.8174900   0.0000000
+ H  -1.4120610   0.6458230   0.0000000
+ H   1.4120610  -0.6458230   0.0000000
+ H  -0.2040530   2.7618040   0.0000000
+ H   1.4083260   1.8629110   0.0000000
+ H   0.2040530  -2.7618040   0.0000000
+ H  -1.4083260  -1.8629110   0.0000000
+ basis   = def2-tzvp
+ use_sym = True
+$end
+
+$scf section
+ label  = neutral
+ charge = 0
+ mult   = 1
+ xc     = bhlyp
+$end
+
+$scf section
+ label  = cation
+ charge = 1
+ mult   = 2
+ xc     = bhlyp
+$end
+
+$dftmrci section
+ label     = neutral
+ scf_label = neutral
+ nstates   = [2 2 2 2]
+$end
+
+$dftmrci section
+ label     = cation
+ scf_label = cation
+ charge    = 1
+ mult      = 2
+ nstates   = [2 2 2 2]
+ ras2      = [11:20]
+$end
+
+$dyson section
+ label          = butadiene
+ init_label     = neutral
+ final_label    = cation
+ init_states    = [1]
+ final_states   = [1:8]
+ print_orbitals = True
+$end
+

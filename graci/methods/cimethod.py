@@ -29,7 +29,7 @@ class Cimethod:
         self.hparam         = None
         self.scf_label      = 'default'
         self.label          = 'default'
-        self.precision      = 'double'
+        self.precision      = 'single'
 
         # class variables
         # total number of electrons
