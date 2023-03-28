@@ -75,7 +75,7 @@ class Molecule:
         self.basis    = dict() 
         self.ri_basis = None 
         self.ao_cart  = False
-        self.use_df   = False
+        self.use_df   = True
         self.label    = 'default'
         self.add_rydberg = None
 
