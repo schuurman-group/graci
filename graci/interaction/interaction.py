@@ -12,7 +12,7 @@ class Cigroup:
      Class to hold information on a group of states: the 
      ci method and the number of CI states, etc.
     """
-    def __init__(self, ci_objs, ci_states=None, spin_states=False,
+    def __init__(self, ci_objs=[], ci_states=None, spin_states=False,
                                                        lbl='default'):
         self.label      = lbl
         self.grp_objs   = []
@@ -34,8 +34,8 @@ class Cigroup:
 
         # if this is a ci method, create a new group associated
         # with the CI states
-        if ci_states is None:
-            ci_states = [None] * len(ci_obj)
+        if ci_states is None and len(ci_objs) > 0:
+            ci_states = [None] * len(ci_objs)
 
         for ci in range(len(ci_objs)):
 
@@ -233,7 +233,7 @@ class Interaction:
                                  states=None, spin=False, lbl='default'):
         """append a list of states and corresponding object"""
 
-        self.groups[grp_name] = Cigroup(ci_objs, 
+        self.groups[grp_name] = Cigroup(ci_objs=ci_objs, 
                                         ci_states=states, 
                                         spin_states=spin, 
                                         lbl=lbl)

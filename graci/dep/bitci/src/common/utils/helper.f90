@@ -458,62 +458,77 @@ subroutine retrieve_hpar(ham1,dim,params)
      npar=size(grimme1_standard)+1
      if (npar > dim) goto 999
      params(1:npar-1)=grimme1_standard
+     params(npar) = 1.d0
   case('grimme_short')
      npar=size(grimme1_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=grimme1_short
+     params(npar) = 0.8d0
   case('lyskov_standard')
      npar=size(lyskov_standard)+1
      if (npar > dim) goto 999
      params(1:npar-1)=lyskov_standard
+     params(npar) = 1.d0
   case('lyskov_short')
      npar=size(lyskov_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=lyskov_short
+     params(npar) = 0.8d0
   case('heil17_standard')
      npar=size(heil17_standard)+1
      if (npar > dim) goto 999
      params(1:npar-1)=heil17_standard
+     params(npar) = 1.d0
   case('heil17_short')
      npar=size(heil17_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=heil17_short
+     params(npar) = 0.8d0
   case('heil18_standard')
      npar=size(heil18_standard)+1
      if (npar > dim) goto 999
      params(1:npar-1)=heil18_standard
+     params(npar) = 1.d0
   case('heil18_short')
      npar=size(heil18_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=heil18_short
+     params(npar) = 0.8d0
   case('cvs_standard')
      npar=size(cvs_standard)+1
      if (npar > dim) goto 999
      params(1:npar-1)=cvs_standard
+     params(npar) = 1.d0
   case('cvs_short')
      npar=size(cvs_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=cvs_short
+     params(npar) = 0.8d0
   case('test_heil17')
      npar=size(test_heil17)+1
      if (npar > dim) goto 999
      params(1:npar-1)=test_heil17
+     params(npar) = 1.d0
   case('cvs_test_heil17')
      npar=size(cvs_test_heil17)+1
      if (npar > dim) goto 999
      params(1:npar-1)=cvs_test_heil17
+     params(npar) = 1.d0
   case('test_exp')
      npar=size(test_exp)+1
      if (npar > dim) goto 999
      params(1:npar-1)=test_exp
+     params(npar) = 1.d0
   case('cvs_test_exp')
      npar=size(cvs_test_exp)+1
      if (npar > dim) goto 999
      params(1:npar-1)=cvs_test_exp
+     params(npar) = 1.d0
   case('r2022')
      npar=size(r2022)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2022
+     params(npar) = 1.d0
   case default
      errmsg='Error in retrieve_hpar: unrecognised Hamiltonian name'
      call error_control
@@ -522,7 +537,7 @@ subroutine retrieve_hpar(ham1,dim,params)
 !----------------------------------------------------------------------
 ! Package desel
 !----------------------------------------------------------------------
-  params(npar)=desel
+  !params(npar)=desel
   
   return
 

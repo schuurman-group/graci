@@ -65,7 +65,7 @@ class Parameterize:
         self.opt_h_init      = False
         self.opt_h_final     = False
         self.opt_xc          = False
-        self.conv            = 1.e-3
+        self.conv            = 0.01 
         self.max_iter        = 1000
         self.bounds_h_init   = None
         self.bounds_h_final  = None
@@ -190,16 +190,7 @@ class Parameterize:
         # Initial state Hamiltonian
 
         # hamiltonian for initial states
-        if self.h_init_params is not None:
-            pfull['h_init'] = self.h_init_params
-        else:
-            nh   = 0
-            args = (self.init_state_h, nh)
-            nh   = libs.lib_func('retrieve_nhpar', args)
-            hp   = np.zeros(nh, dtype=float)
-            args = (self.init_state_h, nh, hp)
-            hp   = libs.lib_func('retrieve_hpar', args)
-            pfull['h_init'] = hp
+        pfull['h_init'] = self.h_init_params
 
         if self.opt_h_init:
             self.n_opt += len(pfull['h_init']) - len(self.freeze_h_init)
@@ -208,16 +199,7 @@ class Parameterize:
         # Final state Hamiltonian
 
         # hamiltonian for final states
-        if self.h_final_params is not None:
-            pfull['h_final'] = self.h_final_params
-        else:
-            nh   = 0
-            args = (self.final_state_h, nh)
-            nh   = libs.lib_func('retrieve_nhpar', args)
-            hp   = np.zeros(nh, dtype=float)
-            args = (self.final_state_h, nh, hp)
-            hp   = libs.lib_func('retrieve_hpar', args)
-            pfull['h_final'] = hp
+        pfull['h_final'] = self.h_final_params
 
         if self.opt_h_final and not self.single_hamiltonian:
             self.n_opt += len(pfull['h_final']) - len(self.freeze_h_final)
@@ -797,6 +779,8 @@ class Parameterize:
         final_states = {}
         for line in t_file_lines:
             str_arr                = line.strip().split()
+            if len(str_arr) == 0:
+                continue
             molecule               = str_arr[0]
             trans_ener[molecule]   = {} 
             init_states[molecule]  = []
@@ -878,46 +862,35 @@ class Parameterize:
                 msg = ci_class+' not a valid CI method.'
                 self.hard_exit(msg)
 
-        # if single hamiltonian is requested, we're going to reset
-        # some values to ensure internal consistency
-        if self.single_hamiltonian:
-            if self.init_state_h != self.final_state_h:
-                msg  = 'single hamiltonian requested, '
-                msg += 'but init_state_h != final_state_h'
+        # set the parameters the value of the init_param set
+        nh   = 0
+        args = (self.init_state_h, nh)
+        nh   = libs.lib_func('retrieve_nhpar', args)
+        # hamiltonian for initial states
+        if self.h_init_params is not None:
+            if len(self.h_init_params) != nh:
+                msg = '# h_init_params != nhpar: ' + \
+                      str(len(self.h_init_params)) + '!= ' + str(nh)
                 self.hard_exit(msg)
-
-            # optimize both or neither
-            (opti,optf) = (self.opt_h_init, self.opt_h_final)
-            self.opt_h_init = self.opt_h_final = opti or optf
+        else:
+            hp                   = np.zeros(nh, dtype=float)
+            args                 = (self.init_state_h, nh, hp)
+            self.h_init_params   = libs.lib_func('retrieve_hpar', args)
             
-            # set the parameters the value of the init_param set
-            if self.h_init_params is not None:
-                self.h_final_params = self.h_init_params
-            elif self.h_final_param is not None:
-                self.h_init_params = self.h_final_params
-            else:
-                msg = 'either h_init/final_params need to be specified'
+        # set the parameters the value of the init_param set
+        nh   = 0
+        args = (self.final_state_h, nh)
+        nh   = libs.lib_func('retrieve_nhpar', args)
+        # hamiltonian for initial states
+        if self.h_final_params is not None:
+            if len(self.h_final_params) != nh:
+                msg = '# h_final_params != nh: ' + \
+                      str(len(self.h_final_params)) + '!= ' + str(nh)
                 self.hard_exit(msg)
-
-            # frozen parameters union of initial and final sets
-            freeze = set(self.freeze_h_init).union(
-                                     set(self.freeze_h_final))
-            self.freeze_h_init = self.freeze_h_final = list(freeze)
- 
-            # unify the bounds for initial and final hamiltonian
-            bounds = None
-            if self.bounds_h_init is not None:
-                bounds = self.bounds_h_init
-            if self.bounds_h_final is not None:
-                if bounds is None:
-                    bounds = self.bounds_h_final
-                else:
-                    bounds = [[ max(bounds[i][0],
-                                    self.bounds_h_final[i][0]),
-                                min(bounds[i][1],
-                                    self.bounds_h_final[i][1])] 
-                                for i in range(len(bounds))]
-            self.bounds_h_init = self.bounds_h_final = bounds
+        else:
+            hp                   = np.zeros(nh, dtype=float)
+            args                 = (self.final_state_h, nh, hp)
+            self.h_final_params  = libs.lib_func('retrieve_hpar', args)
 
         # if user wants to optimize functional, confirm that
         # input makes sense
@@ -928,24 +901,6 @@ class Parameterize:
                       for i in range(len(self.xc_coef))]
             shp_fn = [len(self.xc_func[i])
                       for i in range(len(self.xc_func))]
-
-        nhpar = 0
-        args = (self.init_state_h, nhpar)
-        nhpar = libs.lib_func('retrieve_nhpar', args)
-        if self.h_init_params is not None and \
-          len(self.h_init_params) != nhpar:
-            msg = '# h_init_params != nhpar: ' + \
-                  str(len(self.h_init_params)) + '!= ' + str(nhpar)
-            self.hard_exit(msg)
-
-        nhpar = 0
-        args = (self.final_state_h, nhpar)
-        nhpar = libs.lib_func('retrieve_nhpar', args)
-        if self.h_final_params is not None and \
-          len(self.h_final_params) != nhpar:
-            msg = '# h_final_params != nhpar: ' + \
-                  str(len(self.h_final_params)) + '!= ' + str(nhpar)
-            self.hard_exit(msg)
 
         # this options only matter if we're doing a parameter
         # optimization run
@@ -988,12 +943,54 @@ class Parameterize:
                     self.final_kwords[key] = parse.convert_value(val_str)
         self.final_kwords['hamiltonian'] = self.final_state_h
 
-        # if there is a single hamiltonian for both initial and 
-        # final states, the args dicts are made identifical and 
-        # are the union of the two arg lists
+        # if single hamiltonian is requested, we're going to reset
+        # some values to ensure internal consistency
         if self.single_hamiltonian:
-            self.init_kwords.update(self.final_kwords)
-            self.final_kwords = self.init_kwords
+            if self.init_state_h != self.final_state_h:
+                msg  = 'single hamiltonian requested, '
+                msg += 'but init_state_h != final_state_h'
+                self.hard_exit(msg)
+
+            # optimize both or neither
+            (opti,optf) = (self.opt_h_init, self.opt_h_final)
+            self.opt_h_init = self.opt_h_final = opti or optf
+
+            # set the parameters the value of the init_param set
+            if self.h_init_params is not None:
+                self.h_final_params = self.h_init_params
+            elif self.h_final_params is not None:
+                self.h_init_params = self.h_final_params
+            else:
+                msg = 'either h_init/final_params need to be specified'
+                self.hard_exit(msg)
+
+            if self.opt_h_init or self.job_type == 'scan':
+                # frozen parameters union of initial and final sets
+                freeze = set(self.freeze_h_init).union(
+                                     set(self.freeze_h_final))
+                self.freeze_h_init = self.freeze_h_final = list(freeze)
+
+                # unify the bounds for initial and final hamiltonian
+                bounds = None
+                if self.bounds_h_init is not None:
+                    bounds = self.bounds_h_init
+                if self.bounds_h_final is not None:
+                    if bounds is None:
+                        bounds = self.bounds_h_final
+                    else:
+                        bounds = [[ max(bounds[i][0],
+                                        self.bounds_h_final[i][0]),
+                                    min(bounds[i][1],
+                                        self.bounds_h_final[i][1])]
+                                    for i in range(len(bounds))]
+                self.bounds_h_init = self.bounds_h_final = bounds
+
+            # if there is a single hamiltonian for both initial and 
+            # final states, the args dicts are made identifical and 
+            # are the union of the two arg lists
+            if self.single_hamiltonian:
+                self.init_kwords.update(self.final_kwords)
+                self.final_kwords = self.init_kwords
 
         return
 

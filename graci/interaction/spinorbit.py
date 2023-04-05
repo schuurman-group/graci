@@ -101,8 +101,8 @@ class Spinorbit(interaction.Interaction):
                                     states = self.couple_states, 
                                     spin = True)
 
-        # get the one-electron SOC matrices
-        h1e = self.build_h1e()
+        # get the one-electron and SOMF SOC matrices
+        h12e = self.build_h12e()
 
         # loop over the ci groups in the spin orbit object
         nci_objs = self.n_ci_objs('spinorbit')
@@ -145,7 +145,7 @@ class Spinorbit(interaction.Interaction):
 
                 # build this block of H_SOC
                 hsoc += self.build_hsoc(nsoc, b_lbl, k_lbl, ci_pairs,
-                                                          h1e, redmat)
+                                                          h12e, redmat)
 
                 # finalize the bitsi library
                 bitsi_init.finalize()
@@ -154,6 +154,7 @@ class Spinorbit(interaction.Interaction):
         hsoc += np.diag(self.hsoc_ondiag(nsoc))
 
         # diagonalise H_soc
+        #print('hsoc='+str(hsoc))
         so_ener, so_vec = np.linalg.eigh(hsoc)
         self.set_group_states('spinorbit', so_vec, so_ener)
 
@@ -252,7 +253,7 @@ class Spinorbit(interaction.Interaction):
 
     #
     @timing.timed
-    def build_h1e(self):
+    def build_h12e(self):
         """
         Sets up the one-electron SOC matrices h^(k), k=-1,0,+1
         """
@@ -268,41 +269,52 @@ class Spinorbit(interaction.Interaction):
         rho_ao = self.build_rho()
 
         # Initialise arrays
-        h1e      = np.zeros((3, nmo, nmo), dtype=np.cdouble)
-        hcart_ao = np.zeros((3, nao, nao), dtype=float)
+        h1_ao  = np.zeros((3, nao, nao), dtype=float)
+        h2_ao  = np.zeros((3, nao, nao), dtype=float)
+        h12_mo = np.zeros((3, nao, nao), dtype=float)
 
         # One-electron contributions
         for iatm in range(pymol.natm):
             Z   = pymol.atom_charge(iatm)
             xyz = pymol.atom_coord(iatm)
             pymol.set_rinv_orig(xyz)
-            hcart_ao += Z * pymol.intor('cint1e_prinvxp_sph', 3)
-        hcart_ao = hcart_ao * constants.fine_str**2 / 2
+            h1_ao += Z * pymol.intor('int1e_prinvxp', comp=3)
+        h1_ao *= 0.5 * constants.fine_str**2
 
         # Mean-field two-electron contributions
         if self.mf2e == 'full':
-            h2e_ao    = pymol.intor("cint2e_p1vxp1_sph", comp=3, aosym="s1")
-            h2e_ao   *= -0.5 * constants.fine_str**2
-            hcart_ao += (np.einsum("ijklm,lm->ijk", h2e_ao, rho_ao)
-                         - 1.5 * (np.einsum("ijklm, kl->ijm", h2e_ao, rho_ao)
-                         + np.einsum("ijklm,mj->ilk", h2e_ao, rho_ao)))
+            # need to add a minus sign to generate h^SOO operator
+            h2e_ao  = -pymol.intor("int2e_p1vxp1", comp=3, aosym="s1")
+            # note: PySCF holds integrals assuming chemists notation:
+            # (i(1)j(1)|k(2)l(2))
+            # Reference X uses: (Jprqs - Jprsq - Jrpqs)
+            h2e_ao *= 0.5 * constants.fine_str**2
+            h2_ao   = (      np.einsum("ipqrs,rs->ipq", h2e_ao, rho_ao) 
+                        -1.5*np.einsum("ipsrq,rs->ipq", h2e_ao, rho_ao)
+                        -1.5*np.einsum("irqps,rs->ipq", h2e_ao, rho_ao)) 
         elif self.mf2e == 'atomic':
-            hcart_ao += self.build_mf_atomic(pymol, rho_ao)
+            h2_ao = self.build_mf_atomic(pymol, rho_ao)
 
         # Transform to the MO basis
-        orbs     = self.mos
-        hcart_mo = orbs.T @ hcart_ao @ orbs
+        orbs   = self.mos
+        h12_mo = orbs.T @ (h1_ao + h2_ao) @ orbs
 
         # Transform to the spherical tensor representation
-        ci = np.sqrt(-1+0j)
-        # k = -1: x - iy
-        h1e[0,:,:] = hcart_mo[0,:,:] - ci * hcart_mo[1,:,:]
-        # k = +1: x + iy
-        h1e[2,:,:] = hcart_mo[0,:,:] + ci * hcart_mo[1,:,:]
-        # k = 0: z 
-        h1e[1,:,:] = hcart_mo[2,:,:]
+        ci = np.sqrt(-1.+0.j)
+        h12_sph = np.zeros((3, nmo, nmo), dtype=np.cdouble)
 
-        return h1e
+        #  L+ = x + iy
+        ci = np.sqrt(-1.+0.j)
+        # In the appendix A of J. Chem. Phys. 143, 064102 (2015), it
+        # seem that these integrals need an additional factor of i
+        # need to look into the origin of this...
+        h12_sph[0,:,:] = (h12_mo[0,:,:] + ci * h12_mo[1,:,:])*ci
+        #  z = z 
+        h12_sph[1,:,:] = h12_mo[2,:,:]*ci
+        #  L- = x - iy
+        h12_sph[2,:,:] = (h12_mo[0,:,:] - ci * h12_mo[1,:,:])*ci
+
+        return h12_sph
 
     #
     @timing.timed
@@ -390,7 +402,7 @@ class Spinorbit(interaction.Interaction):
 
         # Transform to the AO basis
         orbs   = self.mos
-        rho_ao = np.matmul(np.matmul(orbs, rho_mo), orbs.T)
+        rho_ao = orbs @ rho_mo @ orbs.T
 
         return rho_ao
 
@@ -442,7 +454,7 @@ class Spinorbit(interaction.Interaction):
 
     #
     @timing.timed
-    def build_hsoc(self, dim, b_lbl, k_lbl, pair_list, h1e, redmat):
+    def build_hsoc(self, dim, b_lbl, k_lbl, pair_list, h12e, redmat):
         """
         Builds the iblock'th block of the SOC Hamiltonian matrix
         """
@@ -464,6 +476,9 @@ class Spinorbit(interaction.Interaction):
 
         # get the Clebsh-Gordan coefficients needed to
         # compute the SOC matrix elements for the current block
+        nmo     = self.mos.shape[1]
+        kval    = [-1, 0, 1]
+        coe     = [1., np.sqrt(2.), -1.]
         cg_coef = mrci_soc.clebsch_gordan(bra, ket)
 
         # Loop over pairs of spin-orbit coupled states in this block
@@ -478,12 +493,46 @@ class Spinorbit(interaction.Interaction):
                                                 b_lbl, bra_st, mb)
                     j = self.get_group_index('spinorbit', 
                                                 k_lbl, ket_st, mk)
-                    hsoc[i,j] = self.contract_redmat(h1e,
-                                          b_s, k_s, mb, mk,
-                                          cg_coef, redmat[:,:,indx])
+
+                    hcoef   = np.zeros((nmo, nmo), dtype=np.cdouble) 
+                    for k in range(3):
+                        MS, cg_i = mrci_soc.clebsch_gordan_index(
+                                             k_s, mk, b_s, mb, kval[k])
+                        hcoef += cg_coef[cg_i, MS] *coe[k] *h12e[k,:,:]
+
+                    hsoc[i,j] = 0.5 * np.einsum('ij,ij', 
+                                           redmat[:,:,indx], hcoef)
                     hsoc[j,i] = np.conj(hsoc[i,j])
 
         return hsoc
+
+    #
+    @timing.timed
+    def contract_redmat(self, h1e, S_bra, S_ket, M_bra, M_ket,
+                        cg_coef, redmat):
+        """
+        Computes a single element 
+        < I_bra M_bra | H_SOC | I_ket M_ket >
+        of the SOC Hamiltonian matrix via the contraction
+        of the reduced matrices with the Clebsch-Gordan coefficient-
+        scaled one-electron SOC matrices h^(k), k=-1,0,+1
+        """
+
+        # Sum of the scaled one-electron SOC matrices
+        nmo    = self.mos.shape[1]
+        hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
+        kval   = [-1, 0, 1]
+        coe    = [1., np.sqrt(2.), -1.]
+        for n in range(3):
+            i, i12  = mrci_soc.clebsch_gordan_index(
+                                      S_bra, M_bra,
+                                      S_ket, M_ket, kval[n])
+            hscale += h1e[2-n, :, :] * cg_coef[i12, i] * coe[n]
+
+        # Contraction with the reduced matrix
+        hij = 0.5 * np.einsum('ij,ij', redmat, hscale)
+
+        return hij
 
     #
     def hsoc_ondiag(self, dim):
@@ -509,34 +558,6 @@ class Spinorbit(interaction.Interaction):
         return hdiag
         
     #
-    @timing.timed
-    def contract_redmat(self, h1e, S_bra, S_ket, M_bra, M_ket, 
-                        cg_coef, redmat):
-        """
-        Computes a single element 
-        < I_bra M_bra | H_SOC | I_ket M_ket >
-        of the SOC Hamiltonian matrix via the contraction
-        of the reduced matrices with the Clebsch-Gordan coefficient-
-        scaled one-electron SOC matrices h^(k), k=-1,0,+1
-        """
-        
-        # Sum of the scaled one-electron SOC matrices
-        nmo    = self.mos.shape[1]
-        hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
-        kval   = [-1, 0, 1]
-        coe    = [1., np.sqrt(2.), -1.]
-        for n in range(3):
-            i, i12  = mrci_soc.clebsch_gordan_index(
-                                      S_bra, M_bra, 
-                                      S_ket, M_ket, kval[n])
-            hscale += h1e[2-n, :, :] * cg_coef[i12, i] * coe[n]
-        
-        # Contraction with the reduced matrix
-        hij = 0.5 * np.einsum('ij,ij', redmat, hscale)
-
-        return hij
-
-    #
     def create_stlbl(self):
         """
         list of all all multiplet indices and projected spin values
@@ -557,6 +578,37 @@ class Spinorbit(interaction.Interaction):
 
         return lbl
 
+    # 
+    def build_socc(self, lbls, hsoc):
+        """
+        build the list of spin-orbit coupling constants between each of
+        the spin-free states
+        """
+     
+        st_lst = []
+        for lbl in lbls:
+            st = [lbl[0], lbl[2]]
+            if st not in st_lst:
+                st_lst.append(st)
+        nst = len(st_lst)        
+
+        socc = np.zeros((nst, nst), dtype=float)
+     
+        for i in range(len(lbls)):
+            for j in range(len(lbls)):
+                ist = st_lst.index([lbls[i][0], lbls[i][2]])
+                jst = st_lst.index([lbls[j][0], lbls[j][2]])
+                socc[ist, jst] += (np.conj(hsoc[i,j])*hsoc[i,j]).real
+
+        socc_lst = []
+        for i in range(len(st_lst)):
+            for j in range(i+1, len(st_lst)):
+                socc_lst.append( st_lst[i] + st_lst[j] + 
+                                 [np.sqrt(socc[i,j])])
+        return socc_lst
+
+
+
     #
     def print_hsoc(self, hsoc):
         """
@@ -565,13 +617,16 @@ class Spinorbit(interaction.Interaction):
 
         stlbl = self.create_stlbl()
 
-        # output the SOC matrix elements
-        if self.verbose:
-            output.print_spinorbit_table(hsoc, hsoc.shape[0], stlbl,
-                                         self.print_soc_thresh)
+        # build the spin-orbit coupling constant between each of
+        # the spin-free states
+        socc = self.build_socc(stlbl, hsoc)
 
-        # output the eigenvectors of H_SOC
         if self.verbose:
+            # output the SOC matrix elements
+            output.print_spinorbit_table(hsoc, hsoc.shape[0], stlbl, 
+                                         socc, self.print_soc_thresh)
+
+            # output the eigenvectors of H_SOC
             output.print_hsoc_eig(self.get_energy('spinorbit'), 
                                   self.get_vectors('spinorbit'),
                                   hsoc.shape[0], stlbl)

@@ -553,16 +553,16 @@ def print_spinorbit_header(label):
 
     return
 
-def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
+def print_spinorbit_table(hsoc, hdim, stlbl, socc, thrsh):
     """print out the summary files for the SOC matrix elements"""
 
     # max bra/ket label length
     llen = max([len(lbl[0]) for lbl in stlbl])
 
     # table header
-    delim = ' '+'-'*(53+2*llen)
-    print('\n'+delim, flush=True)
-    fstr = '  {:<'+str(llen)+'}' \
+    delim = ' '+'-'*(53+2*llen)+'\n'
+
+    fstrh = '  {:<'+str(llen)+'}' \
         + ' {:>3}' \
         + ' {:>4}' \
         + '   ' \
@@ -570,20 +570,9 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
         + ' {:>3}' \
         + ' {:>4}' \
         + ' {:>11}' \
-        + ' {:>11}' \
-    
-    print(fstr.format('Bra',
-                      'I',
-                      'M',
-                      'Ket',
-                      'I',
-                      'M',
-                      'Re <SOC>',
-                      'Im <SOC>'), flush=True)
-    print(delim, flush=True)
+        + ' {:>11}\n' \
 
-    # matrix elements
-    fstr = '  {:<'+str(llen)+'}' \
+    fstrm = '  {:<'+str(llen)+'}' \
         + ' {:3d}' \
         + ' {:4.1f}' \
         + '   ' \
@@ -592,28 +581,61 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
         + ' {:4.1f}' \
         + ' {:11.4f}' \
         + ' {:11.4f}' \
-        + ' {:>4}'
-    
-    for i in range(hdim):
-        for j in range(0, i):
+        + ' {:>4}\n'
 
-            soc_cm = hsoc[i,j] * constants.au2cm
+    fstrh2 = '  {:<'+str(llen)+'}' \
+        + ' {:>3}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:>3}' \
+        + ' {:>11}\n'
 
-            if np.abs(soc_cm) > thrsh:
-                print(fstr.format(stlbl[i][0],
-                                  stlbl[i][2] + 1,
-                                  stlbl[i][3],
-                                  stlbl[j][0],
-                                  stlbl[j][2] + 1,
-                                  stlbl[j][3],
-                                  np.real(soc_cm),
-                                  np.imag(soc_cm),
-                                  'cm-1'),
-                      flush=True)
-    
-    # footer
-    print(delim, flush=True)
-    
+    fstrm2 = '  {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + ' {:11.4f}' \
+        + ' {:>4}\n'
+
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n  Spin-Orbit Coupling Matrix')
+        outfile.write('\n'+delim)
+        outfile.write(fstrh.format('Bra','I','M','Ket','I','M',
+                                        'Re <SOC>','Im <SOC>'))
+        outfile.write(delim)
+
+        for i in range(hdim):
+            for j in range(0, i):
+
+                soc_cm = hsoc[i,j] * constants.au2cm
+
+                if np.abs(soc_cm) > thrsh:
+                    outfile.write(fstrm.format(stlbl[i][0],
+                                              stlbl[i][2] + 1,
+                                              stlbl[i][3],
+                                              stlbl[j][0],
+                                              stlbl[j][2] + 1,
+                                              stlbl[j][3],
+                                              np.real(soc_cm),
+                                              np.imag(soc_cm),
+                                              'cm-1'))
+        outfile.write(delim)    
+
+        outfile.write('\n  Spin-Orbit Coupling Constants')
+        outfile.write('\n'+delim)
+        outfile.write(fstrh2.format('Bra','I','Ket','J','SOCC'))
+        outfile.write(delim)
+        for i in range(len(socc)):
+            socc_cm = socc[i][4] * constants.au2cm
+            if np.abs(socc_cm) > thrsh:
+                outfile.write(fstrm2.format(socc[i][0], socc[i][1]+1, 
+                                            socc[i][2], socc[i][3]+1, 
+                                            socc_cm, 'cm-1'))
+        outfile.write(delim)
+        outfile.flush()
+
     return
 
 
@@ -627,40 +649,41 @@ def print_hsoc_eig(eig, vec, hdim, stlbl):
 
     delim = ' '+'-'*(31+llen)
     
-    fstr_en = '  State {:3d}:' \
+    fstr_en = '\n  State {:3d}:' \
         + ' {:10.4f},' \
         + ' {:10.4f} eV'
 
-    fstr_vec = '  ({:7.4f}, {:7.4f})' \
+    fstr_vec = '\n  ({:7.4f}, {:7.4f})' \
         + ' {:<'+str(llen)+'}' \
         + ' {:3d}' \
         + ' {:4.1f}'
 
+   
+    with output_file(file_names['out_file'], 'a+') as outfile:
     
-    for i in range(hdim):
+        outfile.write('\n Spin-Orbit Eigenstates\n')
+        outfile.write(delim+'\n')
+ 
+        for i in range(hdim):
 
-        print('\n'+delim, flush=True)
-        
-        print(fstr_en.format(i+1,
-                             eig[i],
-                             (eig[i] - eig[0]) * constants.au2ev),
-              flush=True)
+            outfile.write('\n'+delim)
+            de = (eig[i] - eig[0]) * constants.au2ev
+            outfile.write(fstr_en.format(i+1, eig[i], de))
+            outfile.write('\n'+delim)
 
-        print(delim, flush=True)
+            indx = np.flip(np.argsort(np.abs(vec[:, i])))
 
-        indx = np.flip(np.argsort(np.abs(vec[:, i])))
-
-        for j in range(hdim):
-            if np.abs(vec[indx[j], i]) > thrsh:
-                print(fstr_vec.format(np.real(vec[indx[j], i]),
-                                      np.imag(vec[indx[j], i]),
-                                      stlbl[indx[j]][0],
-                                      stlbl[indx[j]][2] + 1,
-                                      stlbl[indx[j]][3],),
-                      flush=True)
-                
-        print(delim, flush=True)
-                
+            for j in range(hdim):
+                if np.abs(vec[indx[j], i]) > thrsh:
+                    outfile.write(fstr_vec.format(
+                                          np.real(vec[indx[j], i]),
+                                          np.imag(vec[indx[j], i]),
+                                          stlbl[indx[j]][0],
+                                          stlbl[indx[j]][2] + 1,
+                                          stlbl[indx[j]][3]))
+            outfile.write('\n'+delim+'\n')      
+        outfile.flush()            
+    
     return
 
 
