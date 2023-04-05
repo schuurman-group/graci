@@ -92,7 +92,10 @@ contains
 
           ! If this is a DFT/MRCI run, then the off-diagonal elements
           ! are not needed
+
+          ! TEST
           if (ldftmrci .and. i /= j) cycle
+          ! TEST
           
           ! Core Hamiltonian contribution
           fock(i,j) = bitci_ints%h_1e(i,j)
