@@ -98,7 +98,7 @@ def extract_keywords(fname):
 def extract_trans(fnames):
 
     t_ener  = {}
-    t_osc   = {}    
+    t_xc   = {}    
     t_color = {}
     t_shft  = {}
 
@@ -120,7 +120,7 @@ def extract_trans(fnames):
 
                  for iket in range(len(ket_st)):
                      eners = []
-                     osc   = []
+                     xc   = []
 
                      for ibra in range(len(bra_st)):
                          indx = obj.trans_list.index([bra_st[ibra],
@@ -133,14 +133,17 @@ def extract_trans(fnames):
 
                          if ener <= kwords['xcutoff'] or kwords['xcutoff']==-1:
                              eners.append(ener)
-                             osc.append(obj.oscstr['f2iso_v'][indx])
+                             if type(obj).__name__ == 'Transition':
+                                 xc.append(obj.oscstr['f2iso_v'][indx])
+                             elif type(obj).__name__ == 'Dyson':
+                                 xc.append(obj.dyson_norms[indx])
 
                  t_ener[kwords['labels'][sec_ind]] = np.asarray(eners, dtype=float)
-                 t_osc[kwords['labels'][sec_ind]]  = np.asarray(osc, dtype=float) 
+                 t_xc[kwords['labels'][sec_ind]]   = np.asarray(xc, dtype=float) 
                  t_color[kwords['labels'][sec_ind]]= colors[kwords['color'][sec_ind]]            
                  t_shft[kwords['labels'][sec_ind]] = kwords['yshift'][i]
 
-    return t_ener, t_osc, t_color, t_shft
+    return t_ener, t_xc, t_color, t_shft
 
 #
 def lorentz(x, x0, gamma):
@@ -189,19 +192,24 @@ def generate_plot(t_ener, t_osc, t_color, t_shft):
     domain = kwords['range']
 
     lgds = []
+    xconv = {} 
+    yconv = {}
     for lbl, xval in t_ener.items():
+        
+        xconv[lbl], yconv[lbl] = generate_conv(xval, t_osc[lbl], domain,
+                          kwords['fwhm'], conv_func=kwords['convolution'])
 
-        xconv, yconv = generate_conv(xval, t_osc[lbl], domain,
-                        kwords['fwhm'], conv_func=kwords['convolution'])
-
-        nrm_fac = kwords['nrm'] / np.amax(yconv)
-        yconv *= nrm_fac
+    nrm_fac = kwords['nrm'] / max([np.amax(y) for y in yconv.values()])
+   
+    for lbl in yconv.keys(): 
+        yconv[lbl] *= nrm_fac
         t_osc[lbl] *= nrm_fac
+        xval        = t_ener[lbl]
 
         plt.stem(xval, t_osc[lbl]+t_shft[lbl], use_line_collection=True, 
                        bottom = t_shft[lbl], linefmt = '-'+t_color[lbl], 
                        markerfmt = " ", basefmt = " ")
-        plt.plot(xconv, yconv+t_shft[lbl], color=t_color[lbl])  
+        plt.plot(xconv[lbl], yconv[lbl]+t_shft[lbl], color=t_color[lbl])  
         lgds.append(lbl)
 
     for iext in range(len(kwords['external'])):

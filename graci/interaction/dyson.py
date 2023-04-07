@@ -34,6 +34,7 @@ class Dyson(interaction.Interaction):
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
         # directly
+        self.trans_list    = []
         self.dyson_orbs    = None
         self.dyson_norms   = None
         self.mo_basis      = None
@@ -141,9 +142,10 @@ class Dyson(interaction.Interaction):
         if self.verbose:
             self.print_log()
 
+        return
 
     #
-    def get_dyson_norms(self, istate=None, fstate=None):
+    def get_dyson_norm(self, istate=None, fstate=None):
         """
         Return requested dyson orbital norms
         """

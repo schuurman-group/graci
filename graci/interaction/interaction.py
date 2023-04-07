@@ -634,7 +634,7 @@ class Interaction:
 
                 cf = sum( [np.conj(b)*k for k in k_cf for b in b_cf] )
 
-                if abs(cf) > 1.e-12:
+                if abs(cf) > 1.e-10:
                     grp_tens[j, ...] += cf * ci_tens[i, ...]
 
         return
