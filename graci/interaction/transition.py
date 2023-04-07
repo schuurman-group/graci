@@ -245,13 +245,17 @@ class Transition(interaction.Interaction):
         # now that we have bra and ket groups set up, do some
         # sanity checking on the orbitals/geometries involved
         if not self.same_group('bra', 'ket'):
-            for b_lbl in self.get_ci_lbls('bra'):
-                mos_b = self.get_ci_obj('bra', b_lbl).mos
-                mol_b = self.get_ci_obj('bra', b_lbl).scf.mol
+            for i in range(len(self.get_ci_lbls('bra'))):
+                mos_b = self.get_ci_obj('bra', 
+                                         self.get_ci_lbls('bra')[i]).mos
+                mol_b = self.get_ci_obj('bra', 
+                                     self.get_ci_lbls('bra')[i]).scf.mol
 
-                for k_lbl in self.get_ci_lbls('ket'):
-                    mos_k = self.get_ci_obj('ket', k_lbl).mos
-                    mol_k = self.get_ci_obj('ket', k_lbl).scf.mol
+                for j in range(len(self.get_ci_lbls('ket'))):
+                    mos_k = self.get_ci_obj('ket', 
+                                         self.get_ci_lbls('ket')[j]).mos
+                    mol_k = self.get_ci_obj('ket', 
+                                     self.get_ci_lbls('ket')[j]).scf.mol
 
                     # sanity check that orbitals and geometry are
                     # the same
@@ -264,9 +268,10 @@ class Transition(interaction.Interaction):
                                  ' geometry and basis set')
 
         else:
-            b_lbl = self.get_ci_lbls('bra')[0]
-            mol_b = self.get_ci_obj('bra', b_lbl).scf.mol
-            mos_b = self.get_ci_obj('bra', b_lbl).mos
+            mol_b = self.get_ci_obj('bra', 
+                                    self.get_ci_lbls('bra')[0]).scf.mol
+            mos_b = self.get_ci_obj('bra', 
+                                        self.get_ci_lbls('bra')[0]).mos
 
         return mos_b, mol_b
 
@@ -276,16 +281,14 @@ class Transition(interaction.Interaction):
         """grab the TDMs from bitsi and then reshape the list of
            TDMs into a more usable format"""
 
-        # get the ci objects
-        bra = self.get_ci_obj('bra', b_lbl) 
-        ket = self.get_ci_obj('ket', k_lbl)
-
         # grab the tdms
-        tdm_list = mrci_1tdm.tdm(bra, ket, ci_trans_sym,
+        tdm_list = mrci_1tdm.tdm(self.get_ci_obj('bra', b_lbl), 
+                                 self.get_ci_obj('ket', k_lbl), 
+                                 ci_trans_sym,
                                  self.representation)
 
         # make the tdm list
-        nmo    = bra.nmo
+        nmo    = self.get_ci_obj('bra', b_lbl).nmo
         npairs = len(ci_trans)
         tdm    = np.zeros((npairs, nmo, nmo), dtype=float)
 

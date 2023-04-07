@@ -154,7 +154,6 @@ class Spinorbit(interaction.Interaction):
         hsoc += np.diag(self.hsoc_ondiag(nsoc))
 
         # diagonalise H_soc
-        #print('hsoc='+str(hsoc))
         so_ener, so_vec = np.linalg.eigh(hsoc)
         self.set_group_states('spinorbit', so_vec, so_ener)
 
@@ -306,13 +305,13 @@ class Spinorbit(interaction.Interaction):
         #  L+ = x + iy
         ci = np.sqrt(-1.+0.j)
         # In the appendix A of J. Chem. Phys. 143, 064102 (2015), it
-        # seem that these integrals need an additional factor of i
+        # seem that these integrals need an additional factor of 1/i
         # need to look into the origin of this...
-        h12_sph[0,:,:] = (h12_mo[0,:,:] + ci * h12_mo[1,:,:])*ci
+        h12_sph[0,:,:] = (h12_mo[0,:,:] + ci * h12_mo[1,:,:])/ci
         #  z = z 
-        h12_sph[1,:,:] = h12_mo[2,:,:]*ci
+        h12_sph[1,:,:] = h12_mo[2,:,:]/ci
         #  L- = x - iy
-        h12_sph[2,:,:] = (h12_mo[0,:,:] - ci * h12_mo[1,:,:])*ci
+        h12_sph[2,:,:] = (h12_mo[0,:,:] - ci * h12_mo[1,:,:])/ci
 
         return h12_sph
 
@@ -497,7 +496,7 @@ class Spinorbit(interaction.Interaction):
                     hcoef   = np.zeros((nmo, nmo), dtype=np.cdouble) 
                     for k in range(3):
                         MS, cg_i = mrci_soc.clebsch_gordan_index(
-                                             k_s, mk, b_s, mb, kval[k])
+                                             b_s, mb, k_s, mk, kval[k])
                         hcoef += cg_coef[cg_i, MS] *coe[k] *h12e[k,:,:]
 
                     hsoc[i,j] = 0.5 * np.einsum('ij,ij', 

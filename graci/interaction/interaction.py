@@ -57,8 +57,11 @@ class Cigroup:
                 grp = grp_names[0]
 
                 # add the ci objects from the passed group as they 
-                # are      
-                for lbl in ci_objs[ci].get_ci_lbls(grp):
+                # are -- use the range(len()) formulation to ensure
+                # ci objects added in same order to ensure grp_vec
+                # indices keep same order
+                for i in range(len(ci_objs[ci].get_ci_lbls(grp))):
+                    lbl = ci_objs[ci].get_ci_lbls(grp)[i]
                     self._add_ciobj(ci_objs[ci].get_ci_obj(grp, lbl),
                                     ci_objs[ci].get_ci_states(grp, lbl))
 
@@ -107,9 +110,10 @@ class Cigroup:
             # set up all energies, including degenerate m_s components
             # if group is holding spin states
             ener = []
-            for lbl in self.ci_lbls:
-                for ien in range(len(self.ci_ener[lbl])):
-                    ener.extend([self.ci_ener[lbl][ien]]*self._nmult[lbl])
+            for i in range(len(self.ci_lbls)):
+                for ien in range(len(self.ci_ener[self.ci_lbls[i]])):
+                    ener.extend([self.ci_ener[self.ci_lbls[i]][ien]] * 
+                                 self._nmult[self.ci_lbls[i]])
             ener.sort()
             self.grp_energy = np.array(ener, dtype=float)
  
@@ -149,6 +153,7 @@ class Cigroup:
         return the index in the grp_vec that the ci_lbl/ci_st pair 
         correspond to
         """
+
         if ci_lbl not in self.ci_lbls:
             return None
         else:
@@ -195,14 +200,14 @@ class Cigroup:
                 else:
                     break
             
-            lbl  = self.ci_lbls[i]
-            sind = int(math.floor(cind / self._nmult[lbl]))
+            sind = int(math.floor(cind / self._nmult[self.ci_lbls[i]]))
             if self.grp_spin_states:
-                mval = self.ci_M[lbl][cind - sind*self._nmult[lbl]]
+                mval = self.ci_M[self.ci_lbls[i]][cind - 
+                                     sind*self._nmult[self.ci_lbls[i]]]
             else:
                 mval = None
 
-            return lbl, self.ci_st[lbl][sind], mval          
+            return self.ci_lbls[i], self.ci_st[self.ci_lbls[i]][sind], mval          
 
 #
 class Interaction:
@@ -230,8 +235,12 @@ class Interaction:
 
     #
     def add_group(self, grp_name, ci_objs, 
-                                 states=None, spin=False, lbl='default'):
+                                 states=None, spin=False, lbl=None):
         """append a list of states and corresponding object"""
+
+        # give a unique label to avoid ambiguity in chkpt file
+        if lbl is None:
+            lbl = grp_name+'.Cigroup'
 
         self.groups[grp_name] = Cigroup(ci_objs=ci_objs, 
                                         ci_states=states, 
@@ -259,9 +268,7 @@ class Interaction:
         nci2 = self.groups[grp_name2].n_ci
 
         ci_lbl1 = self.get_ci_lbls(grp_name1)
-        ci_lbl1.sort()
         ci_lbl2 = self.get_ci_lbls(grp_name2)
-        ci_lbl2.sort()
 
         if nci1 != nci2 or ci_lbl1 != ci_lbl2:
             return False
@@ -325,7 +332,7 @@ class Interaction:
     #
     def get_vector(self, grp_name, g_state):
         """return the gropu vector"""
-        (ind,) = np.where(self.groups[grp_name].grp_states == g_state)
+        (ind,) = np.where(self.groups[grp_name].grp_states == g_state) 
         return self.groups[grp_name].grp_vecs[:, ind[0]]
 
     #
@@ -625,7 +632,7 @@ class Interaction:
                 b_cf = [bvec[b] for b in bra_ind]
                 k_cf = [kvec[k] for k in ket_ind]
 
-                cf = sum( [b*k for k in k_cf for b in b_cf] )
+                cf = sum( [np.conj(b)*k for k in k_cf for b in b_cf] )
 
                 if abs(cf) > 1.e-12:
                     grp_tens[j, ...] += cf * ci_tens[i, ...]

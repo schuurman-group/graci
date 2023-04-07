@@ -108,6 +108,8 @@ def extract_trans(fnames):
         objs        = chkpt.contents(file_name=fname)
 
         for section in kwords['sections']:
+            sec_ind = kwords['sections'].index(section)
+
             if section in objs:
                  obj = chkpt.read(section, file_name=fname, 
                                build_subobj=True, make_mol=False)
@@ -124,8 +126,8 @@ def extract_trans(fnames):
                          indx = obj.trans_list.index([bra_st[ibra],
                                                       ket_st[iket]])
 
-                         bra_e = obj.get_energy(bra_st[ibra])
-                         ket_e = obj.get_energy(ket_st[iket])
+                         bra_e = obj.get_energy('bra',bra_st[ibra])
+                         ket_e = obj.get_energy('ket',ket_st[iket])
                          ener  = (bra_e - ket_e)*constants.au2ev + \
                                  kwords['xshift'][i]
 
@@ -133,10 +135,10 @@ def extract_trans(fnames):
                              eners.append(ener)
                              osc.append(obj.oscstr['f2iso_v'][indx])
 
-                 t_ener[kwords['labels'][i]] = np.asarray(eners, dtype=float)
-                 t_osc[kwords['labels'][i]]  = np.asarray(osc, dtype=float) 
-                 t_color[kwords['labels'][i]]= colors[kwords['color'][i]]            
-                 t_shft[kwords['labels'][i]] = kwords['yshift'][i]
+                 t_ener[kwords['labels'][sec_ind]] = np.asarray(eners, dtype=float)
+                 t_osc[kwords['labels'][sec_ind]]  = np.asarray(osc, dtype=float) 
+                 t_color[kwords['labels'][sec_ind]]= colors[kwords['color'][sec_ind]]            
+                 t_shft[kwords['labels'][sec_ind]] = kwords['yshift'][i]
 
     return t_ener, t_osc, t_color, t_shft
 

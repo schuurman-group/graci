@@ -142,7 +142,12 @@ def correct_type(value, keyword_type):
         if isinstance(value, np.ndarray):
             val_list = value.flatten().tolist()
         else:
-            val_list = value 
+            val_list = []
+            for val in value:
+                if isinstance(val, np.ndarray):
+                    val_list.extend(val.flatten().tolist())
+                else:
+                    val_list.extend(val)
 
         if all([isinstance(elem, keyword_type) for elem in val_list]):
             correct = True
@@ -234,7 +239,7 @@ def parse_value(valstr, val_type):
         val_list = val_list[end+1:]
 
     # if just a single element of this 2D list, convert to vector
-    if len(vec_str) == 1:
+    if len(vec_str)==1: 
         return convert_array(vec_str[0])
     else:
         return convert_array(vec_str)
@@ -335,15 +340,16 @@ def check_input(run_list):
         # Spinorbit _has_ to enter states as a vector, just shift state
         # indices
         if type(obj).__name__ == 'Spinorbit':
-            # shift statesby 1 to internal/C ordering
-            obj.couple_states -= 1
-
             # if a single range of states is provided, rehape array to
             # to a 2D array with shape[0] = 1
-            if len(obj.couple_states.shape) == 1:
-                ns = obj.couple_states.shape[0]
-                obj.couple_states = obj.couple_states.reshape(1,ns)
+            if isinstance(obj.couple_states, np.ndarray):
+                obj.couple_states = [obj.couple_states]
 
+            # couple_states is now a list of numpy arrays, shift states
+            # by 1 to internal ordering
+            for i in range(len(obj.couple_states)):
+                obj.couple_states[i] -= 1
+                 
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
         if type(obj).__name__ == 'Transition' \
@@ -394,19 +400,40 @@ def convert_value(val):
     return val
 
 #
-def convert_array(val_list):
+def convert_array(arg_list):
     """Converts a list of strings to an array of ints, floats or strings."""
-    try:
-        return np.array(val_list, dtype=int)
-    except ValueError:
-        pass
 
-    try:
-        return np.array(val_list, dtype=float)
-    except ValueError:
-        pass
+    # if this is a nested list, iterate over elements, else, convert to
+    # nested lis
+    if type(arg_list[0]) != list:
+        conv_list = [arg_list]
+    else:  
+        conv_list = arg_list
+    
+    new_list = []
+    for arg in conv_list:
 
-    return np.array(val_list, dtype=h5py.string_dtype(encoding='utf-8'))
+        try:
+            arr = np.array(arg).astype(int)
+            new_list.append(arr)
+            continue 
+        except ValueError:
+            pass
+
+        try:
+            arr = np.array(arg).astype(float)
+            new_list.append(arr)
+            continue
+        except ValueError:
+            pass
+
+        arr = np.array(arg, dtype=h5py.string_dtype(encoding='utf-8'))
+        new_list.append(arr)
+
+    if type(arg_list[0]) != list:
+        return new_list[0]
+    else:
+        return new_list
     
 #
 def replicate_sections(run_list):
