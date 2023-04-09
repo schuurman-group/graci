@@ -29,7 +29,7 @@ module hparam
         'cvs_test_heil17     ', &
         'test_exp            ', &
         'cvs_test_exp        ', &
-        'r2022']
+        'r2022               ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian

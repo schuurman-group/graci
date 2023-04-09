@@ -960,7 +960,7 @@ contains
           !
           ! Ket 1I, bra 1I and 1E contributions
           !
-          if (do1I > 0) then
+          if (do1I) then
 
              ! Loop over ket 1I configurations
              do ikconf=cfg%off1I(kn),cfg%off1I(kn+1)-1
@@ -1281,7 +1281,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! 2E - 1I matrix contributions
-                if (do1I > 0) then
+                if (do1I) then
                    if (cfg%off1I(bn) /= cfg%off1I(bn+1)) then
                       call rdm_batch(&
                            bn,ikconf,kconf_full,ksop_full,knopen,knsp,&
