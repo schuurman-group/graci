@@ -228,6 +228,7 @@ class Dyson(interaction.Interaction):
         return mol_b
 
     #
+    @timing.timed
     def build_ci_orbs(self, b_lbl, k_lbl, ci_trans, ci_trans_sym):
         """
         Grab the Dyson orbitals from bitwf and then reshape the list

@@ -172,7 +172,7 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
      ipairs(i,1)=imapB(iroots(i,1))
      ipairs(i,2)=imapK(iroots(i,2))
   enddo
-  
+
 !----------------------------------------------------------------------
 ! Call to liboverlap
 !----------------------------------------------------------------------
