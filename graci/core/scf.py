@@ -25,6 +25,9 @@ class Scf:
         self.xc             = 'hf'
         self.print_orbitals = False
         self.label          = 'default'
+        self.init_guess     = 'huckel'
+        self.diag_method    = 'diis'
+        self.lvl_shift      = None
         self.verbose        = True 
         self.restart        = False
         self.mult           = 0
@@ -50,6 +53,10 @@ class Scf:
         self.naux         = 0
         self.rdm_ao       = None
         self.auxbasis     = None 
+
+        # class variables
+        self.valid_guess  = ['minao','1e','atom','huckel','vsap']
+        self.valid_method = ['diis','soscf']
 
 # Required functions #######################################################
 
@@ -259,20 +266,28 @@ class Scf:
         else:
             class_str  = 'dft'
             method_str = 'KS'
+
         if self.mol.mult == 1:
             method_str = 'R'+method_str
         else:
             method_str = 'RO'+method_str
+
         if self.mol.use_df:
             df_str = '.density_fit(auxbasis = self.mol.ri_basis)'
         else:
             df_str=''
+
+        if self.diag_method == 'soscf':
+            diag_str = '.newton()'
+        else:
+            diag_str = ''
+
         if self.cosmo:
             func_str = 'pymol.'+method_str+'(xc=\''+self.xc+'\')' \
-                +df_str+ '.DDCOSMO()'
+                + diag_str + df_str + '.DDCOSMO()'
         else:
             func_str = class_str+'.'+method_str \
-                +'(pymol)'+df_str
+                +'(pymol)' + diag_str + df_str
 
         # instantiate the scf/dft class object        
         mf = eval(func_str)
@@ -292,18 +307,26 @@ class Scf:
         # convergence threshold
         mf.conv_tol = self.conv_tol
             
-        # set the name of the DF-tensor
+        # set the integral file names
         if hasattr(mf, 'with_df'):
             if self.mol.use_df:
-                eri_name = '2e_eri_'+str(self.label).strip()+'.h5'
-                mf.with_df._cderi_to_save = eri_name
+                mf.with_df._cderi_to_save = self.moint_2e_eri
             else:
                 mf.with_df = None
+
+        # set the dynamic level shift, if request
+        if self.lvl_shift is not None:
+            scf.addons.dynamic_level_shift_(mf,
+                                      factor=float(self.lvl_shift))
 
         # optional: override the initial density matrix with
         # that of a previous SCF calculation
         if guess is None:
             dm = None
+            # if we don't have a DM to provide, set how init
+            # DM is generated
+            if self.init_guess in self.valid_guess:
+                mf.init_guess = self.init_guess
         else:
             dm = self.guess_dm(guess)
 

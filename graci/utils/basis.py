@@ -19,8 +19,9 @@ def local_basis_sets(local_dir=False):
     else:
         bdir = os.environ['GRACI']+'/graci/utils/basis_sets'
 
-    basis_files = [f.replace('.dat','') for f in os.listdir(bdir) if
-                              os.path.isfile(os.path.join(bdir, f))]
+    basis_files = [f.replace('.dat','')
+                   for f in os.listdir(bdir) if
+                   os.path.isfile(os.path.join(bdir, f))]
 
     return basis_files
 
@@ -40,11 +41,11 @@ def load_basis(atom, name, local_dir=False):
     alias = name.lower().replace('-','').replace('_','')
     basis_avail = local_basis_sets(local_dir=local_dir)
 
-    if alias not in basis_avail:
+    if name not in basis_avail:
         sys.exit('basis set: ' + str(name) +
                  ' not in basis sets in directory: ' + str(bdir))
 
-    with open(bdir+'/'+alias+'.dat','r') as bf:
+    with open(bdir+'/'+name+'.dat','r') as bf:
         bfile = bf.readlines()
 
     bf_atm = ''

@@ -214,7 +214,7 @@ def print_scf_summary(scf):
     with output_file(file_names['out_file'], 'a+') as outfile:
         if scf.mol.use_df:
             outfile.write(' density fitting employed, basis: '+
-                            str(scf.auxbasis)+'\n\n')
+                            str(scf.auxbasis)+'\n')
 
         outfile.write(' REF energy        = {:16.10f}\n'.format(scf.energy))
         outfile.write(' Nuclear Repulsion = {:16.10f}\n\n'.format(scf.mol.enuc))

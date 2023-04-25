@@ -33,9 +33,8 @@ class Ao2mo:
 
         # Do the AO -> MO transformation
         if scf.mol.use_df:
-            # save the auxbasis value: either user requested or the
-            # PySCF default
-            ij_trans = np.concatenate(([self.orbs], [self.orbs]))
+            ij_trans = np.concatenate(([self.orbs], 
+                                       [self.orbs]))
             df.outcore.general(scf.mol.pymol(), ij_trans, 
                                self.moint_2e_eri,
                                auxbasis = scf.mol.ri_basis, 
@@ -45,6 +44,7 @@ class Ao2mo:
             eri_mo = ao2mo.incore.full(eri_ao, self.orbs)
             with h5py.File(self.moint_2e_eri, 'w') as f:
                 f['eri_mo'] = eri_mo
+            del(eri_mo)
 
         # Construct the core Hamiltonian
         one_nuc_ao = scf.mol.pymol().intor('int1e_nuc')

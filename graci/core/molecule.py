@@ -219,7 +219,7 @@ class Molecule:
             alias = bname.lower().replace('-','').replace('_','')
 
             # highest priority is the user-specified local directory 
-            if alias in basis.local_basis_sets(local_dir=True):
+            if bname in basis.local_basis_sets(local_dir=True):
                 self.basis_obj[atom] = basis.load_basis(atom, bname,
                                                         local_dir=True)
 
