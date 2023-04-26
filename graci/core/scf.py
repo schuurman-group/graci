@@ -25,7 +25,7 @@ class Scf:
         self.xc             = 'hf'
         self.print_orbitals = False
         self.label          = 'default'
-        self.init_guess     = 'huckel'
+        self.init_guess     = 'minao'
         self.diag_method    = 'diis'
         self.lvl_shift      = None
         self.verbose        = True 
