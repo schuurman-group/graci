@@ -354,9 +354,9 @@ contains
           conf(k,1,i)=ieor(sop(k,1,i),sop(k,2,i))
           conf(k,2,i)=sop(k,2,i)
        enddo
-       
+
     enddo
-    
+
     return
     
   end subroutine get_ref_confs
