@@ -138,7 +138,7 @@ class Dftmrci(cimethod.Cimethod):
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
         self.ref_wfn.set_confname(ref_conf_files)
-        
+
         # Perform the MRCI iterations, refining the reference space
         # as we go
         self.niter = 0
@@ -152,7 +152,7 @@ class Dftmrci(cimethod.Cimethod):
             self.ref_ener = ref_ener
             if self.verbose:
                 output.print_refdiag_summary(self)
-            
+                
             # optional removal of deadwood from the
             # guess reference space:
             if self.ref_prune and self.niter == 0 \
@@ -169,6 +169,8 @@ class Dftmrci(cimethod.Cimethod):
                 if self.verbose:
                     output.print_refdiag_summary(self)
 
+            sys.exit()
+                    
             # generate the MRCI configurations
             n_mrci_conf, mrci_conf_units, mrci_conf_files, \
                 eq_units = mrci_space.generate(self)

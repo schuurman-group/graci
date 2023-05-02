@@ -78,7 +78,10 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
 !----------------------------------------------------------------------
   ! Loop over irreps
   do irrep=0,nirrep-1
-  
+
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+     
      ! Open the ref conf scratch file
      iscratch=scrunit(vecscr(irrep))
      open(iscratch,file=scrname(vecscr(irrep)),form='unformatted',&
@@ -127,6 +130,9 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
   ! Loop over irreps
   do irrep=0,nirrep-1
 
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+     
      ! Start and end points in the total conf & SOP arrays
      if (irrep > 0) istart=istart+nconf(irrep-1)
      iend=iend+nconf(irrep)
@@ -164,6 +170,9 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
 
   ! Loop over irreps
   do irrep=0,nirrep-1
+
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
      
      ! Allocate arrays
      allocate(iroots(nroots(irrep)))
@@ -268,8 +277,8 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
 !----------------------------------------------------------------------
 ! Write the surviving configurations to file
 !----------------------------------------------------------------------
-  call rewrite_ref_confs(conf_new,sop_new,nconf_tot,nconf,m2c,c2m,&
-       nmoI,nmoE,confscr)
+  call rewrite_ref_confs(nroots,conf_new,sop_new,nconf_tot,nconf,m2c,&
+       c2m,nmoI,nmoE,confscr)
 
   return
   
@@ -554,7 +563,7 @@ end subroutine get_deadwood_new
 ! rewrite_ref_confs: re-writes a single ref conf scratch file with
 !                    the non-deadwood configuration information
 !######################################################################
-subroutine rewrite_ref_confs(conf_new,sop_new,nconf_tot,nconf,&
+subroutine rewrite_ref_confs(nroots,conf_new,sop_new,nconf_tot,nconf,&
      m2c,c2m,nmoI,nmoE,confscr)
 
   use constants
@@ -563,6 +572,9 @@ subroutine rewrite_ref_confs(conf_new,sop_new,nconf_tot,nconf,&
   
   implicit none
 
+  ! Number of roots per irrep
+  integer(is), intent(in) :: nroots(0:nirrep-1)
+  
   ! Dimensions
   integer(is), intent(in) :: nconf(0:nirrep-1)
   integer(is), intent(in) :: nconf_tot
@@ -601,6 +613,9 @@ subroutine rewrite_ref_confs(conf_new,sop_new,nconf_tot,nconf,&
   ! Loop over irreps
   do irrep=0,nirrep-1
 
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+     
      ! Start and end points in the total conf & SOP arrays
      if (irrep > 0) istart=istart+nconf(irrep-1)
      iend=iend+nconf(irrep)

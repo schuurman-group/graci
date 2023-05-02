@@ -115,7 +115,13 @@ class Cimethod:
     def n_irrep(self):
         """return the number of irreps"""
         return len(self.nstates)
- 
+
+    #
+    def irreps_nonzero(self):
+        """returns the indices of the irreps with a
+        non-zero no. of roots"""        
+        return np.where(self.nstates > 0)[0]
+        
     #
     def n_states(self):
         """total number of states"""

@@ -55,6 +55,14 @@ contains
     real(dp), allocatable        :: hbuffer(:)
     integer(is), allocatable     :: ibuffer(:,:)
     integer(is)                  :: irec,nbuf,n,i,j
+
+!----------------------------------------------------------------------
+! Sanity check on the no. roots requested
+!----------------------------------------------------------------------
+    if (nroots > csfdim) then
+       errmsg='Error in diag_full: nroots > csfdim'
+       call error_control
+    endif
     
 !----------------------------------------------------------------------
 ! Allocate arrays
