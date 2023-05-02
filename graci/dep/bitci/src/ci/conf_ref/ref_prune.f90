@@ -129,9 +129,6 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
   
   ! Loop over irreps
   do irrep=0,nirrep-1
-
-     ! Cycle if there are no roots for this irrep
-     if (nroots(irrep) == 0) cycle
      
      ! Start and end points in the total conf & SOP arrays
      if (irrep > 0) istart=istart+nconf(irrep-1)
@@ -171,6 +168,10 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
   ! Loop over irreps
   do irrep=0,nirrep-1
 
+     ! Start and end points in the total conf & SOP arrays
+     if (irrep > 0) istart=istart+nconf(irrep-1)
+     iend=iend+nconf(irrep)
+     
      ! Cycle if there are no roots for this irrep
      if (nroots(irrep) == 0) cycle
      
@@ -183,10 +184,6 @@ subroutine prune_ref_space(nroots,nextra,confscr,nconf,vecscr)
      e0=0.0d0
      allocate(offset(nconf(irrep)+1))
      offset=0
-     
-     ! Start and end points in the total conf & SOP arrays
-     if (irrep > 0) istart=istart+nconf(irrep-1)
-     iend=iend+nconf(irrep)
      
      ! Indices of the roots to be read in
      do i=1,nroots(irrep)
@@ -613,9 +610,6 @@ subroutine rewrite_ref_confs(nroots,conf_new,sop_new,nconf_tot,nconf,&
   ! Loop over irreps
   do irrep=0,nirrep-1
 
-     ! Cycle if there are no roots for this irrep
-     if (nroots(irrep) == 0) cycle
-     
      ! Start and end points in the total conf & SOP arrays
      if (irrep > 0) istart=istart+nconf(irrep-1)
      iend=iend+nconf(irrep)

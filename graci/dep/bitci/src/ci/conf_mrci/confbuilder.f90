@@ -1452,7 +1452,7 @@ contains
 !                    configurations with one internal hole and one
 !                    external electron
 !######################################################################
-  subroutine generate_1E_confs(E0max,cfgM)
+  subroutine generate_1E_confs(E0max,cfgM,nroots)
 
     use constants
     use bitglobal
@@ -1465,6 +1465,9 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
     
     ! Everything else
     integer(is)                :: modus,irrep
@@ -1474,6 +1477,11 @@ contains
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
+
+    print*,''
+    print*,'Here: before builder_1E'
+    stop
+    
     call builder_1E(modus,E0max,cfgM)
 
 !----------------------------------------------------------------------

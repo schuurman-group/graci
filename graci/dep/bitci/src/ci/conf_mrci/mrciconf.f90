@@ -79,7 +79,6 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   integer(is)                :: i,n,counter,irrep
   integer(is)                :: ntotal(0:nirrep-1)
 
-
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -120,10 +119,13 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
   ! Total number of ref confs across all irreps
   cfgM%nR=sum(nconf0(0:nirrep-1))
-
+  
   ! Loop over irreps
   do irrep=0,nirrep-1
-  
+
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+     
      ! Allocate arrays
      allocate(cfgM(irrep)%conf0h(n_int_I,2,nconf0(irrep)))
      allocate(cfgM(irrep)%sop0h(n_int_I,2,nconf0(irrep)))
@@ -166,14 +168,16 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole, 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_hole_confs(cfgM,icvs)
+  call generate_hole_confs(cfgM,icvs,nroots)
   
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
 ! electron
 !----------------------------------------------------------------------
-  call generate_1E_confs(E0max,cfgM)
+  call generate_1E_confs(E0max,cfgM,nroots)
 
+  STOP
+  
 !----------------------------------------------------------------------
 ! Generate the configurations with two internal holes and two external
 ! electrons

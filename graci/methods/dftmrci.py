@@ -169,12 +169,14 @@ class Dftmrci(cimethod.Cimethod):
                 if self.verbose:
                     output.print_refdiag_summary(self)
 
-            sys.exit()
-                    
             # generate the MRCI configurations
             n_mrci_conf, mrci_conf_units, mrci_conf_files, \
                 eq_units = mrci_space.generate(self)
- 
+
+
+            sys.exit()
+
+            
             # set the number of mrci config, the mrci unit numbers and
             # unit names, the Q-space energy correction unit numbers,
             # and the damped strong perturber unit numbers

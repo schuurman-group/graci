@@ -666,7 +666,7 @@ contains
        if (nroots(i) == 0) cycle
 
        ! 
-       ! confirm file exists
+       ! Confirm file exists
        !
        call confirm_exists(scrnum(i))
 
