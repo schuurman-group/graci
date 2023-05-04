@@ -7,7 +7,6 @@ import h5py as h5py
 import graci.utils.constants as constants
 import graci.core.params as params
 import graci.io.output as output
-
 import graci.utils.basis as basis
 import graci.utils.rydano as rydano
 import graci.core.molecule as molecule
@@ -49,7 +48,7 @@ def parse_input():
         
     # check the input
     check_input(run_list)
-    
+ 
     return run_list
 
 #
@@ -66,7 +65,7 @@ def parse_section(class_name, input_file):
         if '$'+mod_name+' ' in input_file[iline].lower():
 
             iline += 1
-            
+
             # section exists, create class object
             sec_obj = getattr(globals()[mod_name], class_name)()
 
@@ -449,6 +448,12 @@ def replicate_sections(run_list):
 
     # list of all class objects of the various different
     # types
+    misc_objs   = params.valid_objs
+    for g_obj in params.ci_objs + params.postci_objs + params.si_objs:
+        misc_objs.remove(g_obj)
+    for g_obj in ['Molecule','Scf','Parameterize']:
+        misc_objs.remove(g_obj)
+
     mol_objs    = [obj for obj in run_list
                      if type(obj).__name__ == 'Molecule']
     scf_objs    = [obj for obj in run_list
@@ -461,6 +466,8 @@ def replicate_sections(run_list):
                      if type(obj).__name__ in params.si_objs]
     hparam_objs = [obj for obj in run_list
                      if type(obj).__name__ == 'Parameterize']
+    graci_objs  = [obj for obj in run_list
+                     if type(obj).__name__ in misc_objs]
 
     # check for multi-geometry xyz files
     for mol in mol_objs:
@@ -540,7 +547,7 @@ def replicate_sections(run_list):
                     new_si.init_label  = si.init_label+str(i+1)
                     new_si.final_label = si.final_label+str(i+1)
                     new_run_list.append(new_si)
-                    
+                  
         else:
             # add the single-geometry objects to the list
             new_run_list.append(mol)
@@ -552,7 +559,11 @@ def replicate_sections(run_list):
                 new_run_list.append(postci)
             for si in si_list:
                 new_run_list.append(si)
-    
+   
+    # assume graci objs are geometry indepenent
+    for gobj in graci_objs:
+        new_run_list.append(gobj)
+ 
     # might want to re-think this a bit...
     for hparam in hparam_objs:
         new_run_list.append(hparam)                

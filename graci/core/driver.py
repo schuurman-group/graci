@@ -305,7 +305,7 @@ class Driver:
             else:
                 ryd_basis = None
                 for obj in calc_array:
-                    if (type(obj).__name__  == 'Rydano' and
+                    if (type(obj).__name__.lower()  == 'rydano' and
                               obj.label == mol_obj.add_rydberg):
                         ryd_basis = obj
                         break
