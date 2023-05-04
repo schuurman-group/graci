@@ -159,10 +159,10 @@ contains
     if (verbose) then
 
        ! Individual timers
-       call report_times(times(1,1),times(2,1),'sigma_vectors')
-       call report_times(times(1,2),times(2,2),'subspace_hamiltonian')
-       call report_times(times(1,3),times(2,3),'residual_vectors')
-       call report_times(times(1,4),times(2,4),'subspace_vectors')
+       !call report_times(times(1,1),times(2,1),'sigma_vectors')
+       !call report_times(times(1,2),times(2,2),'subspace_hamiltonian')
+       !call report_times(times(1,3),times(2,3),'residual_vectors')
+       !call report_times(times(1,4),times(2,4),'subspace_vectors')
        
        ! Total times
        call get_times(twall_end,tcpu_end)
