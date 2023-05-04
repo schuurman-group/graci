@@ -58,6 +58,9 @@ def generate(ci_method):
     args = (nroots, ref_confunits, ci_confunits, nconf, emax, cvs_flag,
             ddci_flag)
     (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
+
+    print('\n\n', nconf)
+    sys.exit()
     
     # Loop over irreps
     for irrep in range(nirr):
