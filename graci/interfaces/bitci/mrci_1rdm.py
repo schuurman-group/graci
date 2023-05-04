@@ -14,6 +14,9 @@ import graci.io.convert as convert
 def rdm(ci_method, rep='adiabatic'):
     """Calculation of the MRCI 1-RDMs for all states"""
     
+    # number of irreps
+    nirr = ci_method.n_irrep()
+    
     # number of molecular orbitals
     nmo = ci_method.nmo
 
@@ -27,10 +30,10 @@ def rdm(ci_method, rep='adiabatic'):
     ci_ciunits = np.array(mrci_wfn.ci_units[rep], dtype=int)
 
     # 1-RDMs for all irreps
-    dmat_all = []
+    dmat_all = [None for i in range(nirr)]
     
     # Loop over irreps
-    for irr in range(ci_method.n_irrep()):
+    for irr in ci_method.irreps_nonzero():
         states = [n for n in range(ci_method.n_states_sym(irr))]
         
         # States for which the 1-RDMs are required (note that bitCI
@@ -49,14 +52,14 @@ def rdm(ci_method, rep='adiabatic'):
         dmat = libs.lib_func('density_mrci', args)
  
         # Add the 1-RDMs to the list
-        dmat_all.append(np.reshape(dmat, (nmo, nmo, nstates),
-                                   order='F'))
+        dmat_all[irr] = np.reshape(dmat, (nmo, nmo, nstates),
+                                   order='F')
 
         ## Temporary: save the 1-RDMs to disk
         #for i in range(nstates):
         #    f = 'xdm_'+str(irr)+str(i+1)+'_' \
         #        +str(irr)+str(i+1)
         #    np.save(f, dmat_all[irr][:,:,i])
-        
+
     return dmat_all
 

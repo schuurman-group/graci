@@ -361,9 +361,10 @@ class Cimethod:
 
     #
     def order_energies(self):
-        """orders the self.energies_sym array to create self.energies, a 1D array
-           of energies in ascending order, and a corresponding sym_sorted
-           array of [irrep, st] pairs for each energy in mrci_sorted."""
+        """orders the self.energies_sym array to create self.energies,
+        a 1D array of energies in ascending order, and a corresponding
+        sym_sorted array of [irrep, st] pairs for each energy in 
+        mrci_sorted."""
 
         if self.energies_sym is None:
             sys.exit('error in order_ener: energies_sym is None')
@@ -376,9 +377,9 @@ class Cimethod:
         self.sym_sorted = []
         # mrci_ener_sym is an irrep x maxroots array, with trailing values 
         # of 'zero'. 
-        ener_vals         = np.pad(self.energies_sym, ((0,0),(0,1)), 
-                                   'constant', 
-                                   constant_values=((0,0),(0,0)))
+        ener_vals = np.pad(self.energies_sym, ((0,0),(0,1)), 
+                           'constant', 
+                           constant_values=((0,0),(0,0)))
        
         n_srt = 0
         while n_srt < n_tot:
