@@ -176,7 +176,7 @@ class Dftmrci2(cimethod.Cimethod):
                 ref_ci_units, ref_ener = ref_diag.diag_follow(self, guess)
             else:
                 ref_ci_units, ref_ener = ref_diag.diag(self)
-            
+
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
@@ -218,7 +218,7 @@ class Dftmrci2(cimethod.Cimethod):
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units = gvvpt2.diag_heff(self)
-                
+
             # set the wfn unit numbers, file names, energies,
             # Q-space info, and damped strong perturber unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
@@ -252,18 +252,17 @@ class Dftmrci2(cimethod.Cimethod):
 
         # diabatisation
         if self.diabatic:
-
             if self.adt_type == 'bdd':
                 # block diagonalisation diabatisation
                 adt_matrices = bdd.adt(guess, self)
                 self.adt     = adt_matrices
                 self.diabatize()
-
-            elif self.adt_type == 'qdpt':
+            elif self.adt_type == 'qdpt':                
                 # QDPT diabatisation
                 diabpots, ciunits, cinames, \
                     confunits, confnames, nconfs = \
                         gvvpt2_diab.diabpot(guess, self)
+                
                 self.diabpot = diabpots
                 self.mrci_wfn.set_ciunits(ciunits, rep='diabatic')
                 self.mrci_wfn.set_ciname(cinames, rep='diabatic')
@@ -287,7 +286,7 @@ class Dftmrci2(cimethod.Cimethod):
                 output.print_diabpot(self.diabpot, nroots,
                                      self.n_irrep(),
                                      self.scf.mol.irreplbl)
-
+                
         # removal of deadwood configurations
         # (this must be called _after_ the CSF-to-det
         #  transformation)
@@ -370,9 +369,10 @@ class Dftmrci2(cimethod.Cimethod):
         
         # store them in adiabatic energy order
         n_tot = self.n_states()
+        indx  = self.irreps_nonzero()[0]
         for rep in dmat_sym.keys():
             if dmat_sym[rep] is not None:
-                (nmo1, nmo2, n_dum) = dmat_sym[rep][0].shape  
+                (nmo1, nmo2, n_dum) = dmat_sym[rep][indx].shape  
                 self.dmats[rep] = np.zeros((n_tot, nmo1, nmo2), dtype=float)
                 for istate in range(n_tot):
                     irr, st = self.state_sym(istate)

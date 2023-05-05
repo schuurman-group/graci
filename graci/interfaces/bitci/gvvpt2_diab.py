@@ -20,28 +20,28 @@ def diabpot(ci_method0, ci_method):
     and ci_method to the current geometry R_n
     """
 
-    # initialise the list of diabatic potentisl matrices, one per irrep
-    diabpots = []
+    # nirr is given by the length of the nstates vector in ci obj
+    nirr = ci_method.n_irrep()
+    
+    # initialise the list of diabatic potential matrices, one per irrep
+    diabpots = [None for i in range(nirr)]
     
     # initialise the list to hold the bitci diabatic configuration
     # scratch file numbers
     diab_ciunit  = 0
-    diab_ciunits = []
+    diab_ciunits = [0 for i in range(nirr)]
 
     # initialise the list to hold the bitci diabatic state vector
     # scratch file numbers
     diab_confunit  = 0
-    diab_confunits = []
+    diab_confunits = [0 for i in range(nirr)]
 
     # initialise the list to hold the numbers of diabatic confs
     diab_nconf  = 0
-    diab_nconfs = []
+    diab_nconfs = [0 for i in range(nirr)]
     
     # GVVPT2 regularizer index
     ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
-
-    # nirr is given by the length of the nstates vector in ci obj
-    nirr = ci_method.n_irrep()
 
     # Regularisation factor
     regfac = ci_method.regfac
@@ -80,12 +80,10 @@ def diabpot(ci_method0, ci_method):
         delete_core = True
 
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep)
-        if (nroots == 0):
-            continue
         
         # Number of extra roots
         nextra = ci_method.nextra['pt2'][irrep]
@@ -122,32 +120,32 @@ def diabpot(ci_method0, ci_method):
             libs.lib_func('gvvpt2_diab', args)
 
         # Bitci diabatic state vector scratch file number
-        diab_ciunits.append(diab_ciunit)
+        diab_ciunits[irrep] = diab_ciunit
 
         # Bitci diabatic configuration scratch file number
-        diab_confunits.append(diab_confunit)
+        diab_confunits[irrep] = diab_confunit
 
         # Number of diabatic confs
-        diab_nconfs.append(diab_nconf)
+        diab_nconfs[irrep] = diab_nconf
         
         # Save the diabatic potential
-        diabpots.append(np.reshape(diabpot, (nroots, nroots), order='F'))
+        diabpots[irrep] = np.reshape(diabpot, (nroots, nroots), order='F')
 
     # Retrieve the DFT/MRCI(2) diabatic state vector scratch file names
-    diab_cinames = []
-    name      = ''
-    for irrep in range(nirr):
+    diab_cinames = ['' for i in range(nirr)]
+    name = ''
+    for irrep in ci_method.irreps_nonzero():
         args = (diab_ciunits[irrep], name)
         name = libs.lib_func('retrieve_filename', args)
-        diab_cinames.append(name)
+        diab_cinames[irrep] = name
 
     # Retrieve the DFT/MRCI(2) diabatic configuration scratch file names
-    diab_confnames = []
-    name      = ''
-    for irrep in range(nirr):
+    diab_confnames = ['' for i in range(nirr)]
+    name = ''
+    for irrep in ci_method.irreps_nonzero():
         args = (diab_confunits[irrep], name)
         name = libs.lib_func('retrieve_filename', args)
-        diab_confnames.append(name)
-    
+        diab_confnames[irrep] = name
+
     return diabpots, np.array(diab_ciunits, dtype=int), diab_cinames,\
         np.array(diab_confunits, dtype=int), diab_confnames, diab_nconfs

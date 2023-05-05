@@ -40,14 +40,14 @@ def diag_heff(ci_method):
     # Initialise the lists to hold the eigenvector and Q-space
     # scratch file numbers
     ciunit   = 0
-    ciunits  = []
+    ciunits  = [0 for i in range(nirr)]
     qunit    = 0
-    qunits   = []
+    qunits   = [0 for i in range(nirr)]
     dspunit  = 0
-    dspunits = []
+    dspunits = [0 for i in range(nirr)]
 
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep)
@@ -63,16 +63,14 @@ def diag_heff(ci_method):
 
         # Bitci eigenvector, Q-space, and intruder state
         # scratch numbers
-        ciunits.append(ciunit)
-        qunits.append(qunit)
-        dspunits.append(dspunit)
+        ciunits[irrep]  = ciunit
+        qunits[irrep]   = qunit
+        dspunits[irrep] = dspunit
 
     # Retrieve the DFT/MRCI(2) energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
-    for irrep in range(nirr):
-        if ci_method.n_states_sym(irrep) > 0:
-
+    for irrep in ci_method.irreps_nonzero():
             # Number of roots for the current irrep
             nroots = ci_method.n_states_sym(irrep)
 
@@ -81,22 +79,22 @@ def diag_heff(ci_method):
                     libs.lib_func('retrieve_energies', args)
 
     # Retrieve the DFT/MRCI(2) eigenvector scratch file names
-    ciname = []
+    ciname = ['' for i in range(nirr)]
     name   = ''
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
         args = (ciunits[irrep], name)
         name = libs.lib_func('retrieve_filename', args)
-        ciname.append(name)
+        ciname[irrep] = name
 
     # Print the report of the DFT/MRCI(2) states 
     if ci_method.verbose:
         output.print_dftmrci2_states_header()
-
+        
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states_sym()
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
-    
+
     return ciunits, ciname, ener, qunits, dspunits
 
 @timing.timed
@@ -106,7 +104,7 @@ def diag_heff_follow(ci_method, ci_method0):
     with root following
     """
 
-     # GVVPT2 regularizer index
+    # GVVPT2 regularizer index
     ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
     
     # Regularisation factor
@@ -128,13 +126,13 @@ def diag_heff_follow(ci_method, ci_method0):
     # Initialise the list to hold the eigenvector, Q-space info
     # DSP, and A-vector scratch file numbers
     ciunit   = 0
-    ciunits  = []
+    ciunits  = [0 for i in range(nirr)]
     qunit    = 0
-    qunits   = []
+    qunits   = [0 for i in range(nirr)]
     dspunit  = 0
-    dspunits = []
+    dspunits = [0 for i in range(nirr)]
     Aunit    = 0
-    Aunits   = []
+    Aunits   = [0 for i in range(nirr)]
 
     # MO overlaps
     nmo0 = ci_method0.nmo
@@ -157,7 +155,7 @@ def diag_heff_follow(ci_method, ci_method0):
     delete_core = True
 
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep)
@@ -185,31 +183,29 @@ def diag_heff_follow(ci_method, ci_method0):
 
         # Bitci eigenvector, Q-space, intruder state, and A-vector
         # scratch numbers
-        ciunits.append(ciunit)
-        qunits.append(qunit)
-        dspunits.append(dspunit)
-        Aunits.append(Aunit)
+        ciunits[irrep]  = ciunit
+        qunits[irrep]   = qunit
+        dspunits[irrep] = dspunit
+        Aunits[irrep]   = Aunit
 
     # Retrieve the DFT/MRCI(2) energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
-    for irrep in range(nirr):
-        if ci_method.n_states_sym(irrep) > 0:
+    for irrep in ci_method.irreps_nonzero():
+        # Number of roots for the current irrep
+        nroots = ci_method.n_states_sym(irrep)
 
-            # Number of roots for the current irrep
-            nroots = ci_method.n_states_sym(irrep)
-
-            args = (ciunits[irrep], nroots, ener[irrep,:nroots])
-            (ener[irrep,:nroots]) = \
-                    libs.lib_func('retrieve_energies', args)
+        args = (ciunits[irrep], nroots, ener[irrep,:nroots])
+        (ener[irrep,:nroots]) = \
+            libs.lib_func('retrieve_energies', args)
 
     # Retrieve the DFT/MRCI(2) eigenvector scratch file names
-    ciname = []
+    ciname = ['' for i in range(nirr)]
     name   = ''
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
         args = (ciunits[irrep], name)
         name = libs.lib_func('retrieve_filename', args)
-        ciname.append(name)
+        ciname[irrep] = name
 
     # Print the report of the DFT/MRCI(2) states 
     if ci_method.verbose:
@@ -219,5 +215,5 @@ def diag_heff_follow(ci_method, ci_method0):
     nstates = ci_method.n_states_sym()
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
-            
+    
     return ciunits, ciname, ener, qunits, dspunits, Aunits

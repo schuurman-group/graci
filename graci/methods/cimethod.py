@@ -407,22 +407,22 @@ class Cimethod:
         nirr = self.n_irrep()
 
         # initialise the list of diabatic potentials
-        self.diabpot = []
+        self.diabpot = [None for i in range(nirr)]
 
         # loop over irreps
-        for irr in range(nirr):
+        for irrep in self.irreps_nonzero():
 
             # no. states
-            nstates = self.n_states_sym(irr)
+            nstates = self.n_states_sym(irrep)
 
             # adiabatic potential matrix
             vmat = np.zeros((nstates, nstates), dtype=float)
-            np.fill_diagonal(vmat, self.energies_sym[irr][:nstates])
+            np.fill_diagonal(vmat, self.energies_sym[irrep][:nstates])
 
             # diabatic potential matrix
-            wmat = np.matmul(self.adt[irr].T,
-                             np.matmul(vmat, self.adt[irr]))
+            wmat = np.matmul(self.adt[irrep].T,
+                             np.matmul(vmat, self.adt[irrep]))
 
-            self.diabpot.append(wmat)
-            
+            self.diabpot[irrep] = wmat
+
         return

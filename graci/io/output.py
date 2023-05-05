@@ -1099,7 +1099,9 @@ def print_diabpot(diabpot, nroots, nirr, irrlbl):
     
     # loop over irreps
     for irr in range(nirr):
-    
+        if nroots[irr] == 0:
+            continue
+        
         # sub-table header
         print(delim, flush=True)
         print('  '+irrlbl[irr]+' block', flush=True)

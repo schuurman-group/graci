@@ -290,11 +290,11 @@ def propagate(ci_method, ci_method0, rep='adiabatic'):
     (ref_nconf, confunits) = libs.lib_func('ref_space_propagate', args)
 
     # Retrieve the reference space configuration scratch file names
-    confnames = []
+    confnames = ['' for i in range(nirr)]
     name      = ' '
-    for i in range(nirr):
+    for i in ci_method.irreps_nonzero():
         args = (confunits[i], name)
         name = libs.lib_func('retrieve_filename', args)
-        confnames.append(name)
-
+        confnames[i]=name
+    
     return ref_nconf, confunits, confnames
