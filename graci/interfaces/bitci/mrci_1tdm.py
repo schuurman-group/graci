@@ -31,18 +31,20 @@ def tdm(bra, ket, trans_list, rep='adiabatic'):
 
     # 1-TDMs for all irreps
     rho = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
-    
+
     # Loop over pairs of irreps for the initial and final manifolds
-    for ket_irr in range(nirr_ket):
-        for bra_irr in range(nirr_bra):
+    for ket_irr in ket.irreps_nonzero():
+        for bra_irr in bra.irreps_nonzero():
 
             # pairs of states for this bra irrep and ket irrep
             # bitsi uses Fortran indexing for these, hence the +1
             npairs = len(trans_list[bra_irr][ket_irr])
 
+            # continue if there are no pairs of states
             if npairs == 0:
                 continue
 
+            # array of state pairs to pass to bitsi
             tdm_pairs = 1 + np.reshape(
                 np.array(trans_list[bra_irr][ket_irr], dtype=int),
                 (2*npairs), order='F')
@@ -53,25 +55,25 @@ def tdm(bra, ket, trans_list, rep='adiabatic'):
 
             # 1-TDM array
             rhoij = np.zeros((nmo*nmo*npairs), dtype=np.float64)
-
+            
             # configuration and eigenvector files: bra wfn
             bra_conf = bra_wfn.conf_name[rep][bra_irr]
             bra_vec  = bra_wfn.ci_name[rep][bra_irr]
-
+            
             # configuration and eigenvector files: ket wfn
             ket_conf = ket_wfn.conf_name[rep][ket_irr]
             ket_vec  = ket_wfn.ci_name[rep][ket_irr]
-
+            
             # compute the 1-TDMs for all states in this irrep
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
                     tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
                     ket_vec)
             rhoij = libs.lib_func('transition_density_mrci', args)
 
-            # Add the 1-TDMs to the list
-            rho[bra_irr][ket_irr] = np.reshape(rhoij, 
-                                          (nmo, nmo, npairs),
-                                           order='F')
+            # add the 1-TDMs to the list
+            rho[bra_irr][ket_irr] = np.reshape(rhoij,
+                                               (nmo, nmo, npairs),
+                                               order='F')
             
             ## Temporary: save the 1-TDMs to disk
             #pairs = np.reshape(tdm_pairs, (npairs, 2), order='F')

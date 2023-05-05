@@ -76,7 +76,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
           'subspaces'
      write(6,'(52a)') ('-',i=1,52)
   endif
-     
+  
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the MRCI configuration and
 ! eigenvector file names from the C char type to the Fortran character
@@ -122,7 +122,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
 ! Merge the bra and ket reference spaces
 !----------------------------------------------------------------------
   call merge_ref_space(cfgB,cfgK)
-
+  
 !----------------------------------------------------------------------
 ! Which eigenvectors are needed?
 !----------------------------------------------------------------------
@@ -177,7 +177,8 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   enddo
 
   ! Read in the eigenvectors
-  call read_some_eigenpairs(vecscrB,vecB,enerB,cfgB%csfdim,nvecB,ireadB)
+  call read_some_eigenpairs(vecscrB,vecB,enerB,cfgB%csfdim,nvecB,&
+       ireadB)
   
 !----------------------------------------------------------------------
 ! Read in the ket eigenvectors
@@ -199,7 +200,8 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   enddo
 
   ! Read in the eigenvectors
-  call read_some_eigenpairs(vecscrK,vecK,enerK,cfgK%csfdim,nvecK,ireadK)
+  call read_some_eigenpairs(vecscrK,vecK,enerK,cfgK%csfdim,nvecK,&
+       ireadK)
   
 !----------------------------------------------------------------------
 ! Compute the 1-TDMs

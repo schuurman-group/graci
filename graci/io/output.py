@@ -455,6 +455,9 @@ def print_moments(states, irr, momts):
                                       q_tens[1,1], q_tens[1,2],
                                       q_tens[2,2], q2))
 
+    outfile.write('\n')
+    outfile.flush()
+            
     return
 
 #

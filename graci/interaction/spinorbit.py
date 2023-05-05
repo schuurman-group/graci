@@ -81,6 +81,10 @@ class Spinorbit(interaction.Interaction):
         elements from all states in method object should be used
         """
 
+
+        sys.exit('\n\n HERE')
+        
+        
         # section header
         if self.verbose:
             output.print_spinorbit_header(self.label)

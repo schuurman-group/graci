@@ -116,18 +116,18 @@ class Transition(interaction.Interaction):
         # initialize the transition density matrices
         # These will be complex for spin-orbit coupled states
         self.tdms = np.zeros((len(self.trans_list), nmo, nmo),
-                                                       dtype=np.cdouble)
+                             dtype=np.cdouble)
 
         # loop over all pairs of spin free states in both the bra
         # and ket objects. In the future, may be prudent to check
         # init and final states and just which states are necessary
         for k_lbl in self.get_ci_lbls('ket'):
-            ket_ci            = self.get_ci_obj('ket', k_lbl)
-            k_mult, k_s, k_m  = self.get_ci_spins('ket', k_lbl)
+            ket_ci           = self.get_ci_obj('ket', k_lbl)
+            k_mult, k_s, k_m = self.get_ci_spins('ket', k_lbl)
 
             for b_lbl in self.get_ci_lbls('bra'):
-                bra_ci            = self.get_ci_obj('bra', b_lbl) 
-                b_mult, b_s, b_m  = self.get_ci_spins('bra', b_lbl)
+                bra_ci           = self.get_ci_obj('bra', b_lbl) 
+                b_mult, b_s, b_m = self.get_ci_spins('bra', b_lbl)
 
                 # if different spin manifold, tdm contribution is zero
                 if b_mult != k_mult: 
@@ -137,11 +137,11 @@ class Transition(interaction.Interaction):
                 pair_type = 'full'
                 if self.same_ci_obj(ket_ci, bra_ci): 
                     pair_type = 'nodiag'
-                
+
                 # initialize the bitsi library for the calculation 
                 # of 1-TDMs
                 bitsi_init.init(bra_ci, ket_ci, 'tdm', self.verbose)
-        
+
                 # this is main transition_list: stored by adiabatic label
                 ci_tran = self.ci_pair_list('bra', b_lbl, 'ket', k_lbl, 
                                                     pairs=pair_type)
