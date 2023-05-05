@@ -81,10 +81,6 @@ class Spinorbit(interaction.Interaction):
         elements from all states in method object should be used
         """
 
-
-        sys.exit('\n\n HERE')
-        
-        
         # section header
         if self.verbose:
             output.print_spinorbit_header(self.label)
@@ -97,7 +93,7 @@ class Spinorbit(interaction.Interaction):
         self.mol, self.mos = self.check_soc_objs(ci_objs)
 
         # set the bra/ket objects and add the state groups associated
-        # with each 
+        # with each
         nsoc = self.get_nsoc_states(ci_objs, self.couple_states)
         hsoc = np.zeros((nsoc, nsoc), dtype=np.cdouble)
 
@@ -331,7 +327,7 @@ class Spinorbit(interaction.Interaction):
 
         # grab the reduced matrix elements
         redmats = mrci_soc.redmat(bra, ket, pair_list_sym)
-
+        
         # Make the reduced matrix lisit
         nmo       = self.mos.shape[1]
         npairs    = len(pair_list)

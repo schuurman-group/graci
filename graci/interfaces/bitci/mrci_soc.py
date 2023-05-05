@@ -31,8 +31,8 @@ def redmat(bra, ket, trans_list, rep='adiabatic'):
     umat = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
 
     # Loop over pairs of irreps for the initial and final manifolds
-    for ket_irr in range(nirr_ket):
-        for bra_irr in range(nirr_bra):
+    for ket_irr in ket.irreps_nonzero():
+        for bra_irr in bra.irreps_nonzero():
 
             # pairs of states for this bra irrep and ket irrep
             # bitsi uses Fortran indexing for these, hence the +1
@@ -70,7 +70,7 @@ def redmat(bra, ket, trans_list, rep='adiabatic'):
             # Add the reduced matrix elements to the list
             umat[bra_irr][ket_irr] = \
                 np.reshape(uij, (nmo, nmo, npairs), order='F')
-            
+
     return umat
 
 @timing.timed
@@ -103,7 +103,7 @@ def clebsch_gordan_index(S, M, s1, m1, k):
     from clebsch_gordan
     """
 
-    i = int(M + S)
+    i   = int(M + S)
     i1  = int(m1 + s1) + 1
     i2  = k + 2
     i12 = (i1 - 1) * 3 + i2 - 1
