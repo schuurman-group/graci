@@ -13,7 +13,7 @@ contains
 ! generate_2I_1I1E_confs: for all irreps, generates all the allowable
 !                         2I and 1I1E confs
 !######################################################################
-  subroutine generate_2I_1I1E_confs(E0max,cfgM,icvs,ddci)
+  subroutine generate_2I_1I1E_confs(E0max,cfgM,icvs,ddci,nroots)
 
     use constants
     use bitglobal
@@ -36,6 +36,11 @@ contains
 
     ! DDCI2 configuration reduction
     logical, intent(in)        :: ddci
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
+
+    ! Doubly-occupied MOs in the reference space
     integer(is)                :: ndoccR(0:nirrep-1)
     integer(is)                :: doccR(nmo,0:nirrep-1)
     integer(is)                :: idoccR(nmo,0:nirrep-1)
@@ -48,8 +53,18 @@ contains
     character(len=250)         :: file2I,file1I1E
 
     ! Everything else
-    integer(is)                :: irrep,i
+    integer(is)                :: irrep,i,istart
 
+!----------------------------------------------------------------------
+! First index of an irrep with a non-zero number of roots
+!----------------------------------------------------------------------
+    do irrep=0,nirrep-1
+       if (nroots(irrep) > 0) then
+          istart=irrep
+          exit
+       endif
+    enddo
+    
 !----------------------------------------------------------------------
 ! Get the list of MOs doubly-occupied in all reference configurations
 ! (this will be used for DDCI2 configuration reduction)
@@ -57,36 +72,40 @@ contains
     if (ddci) then
        ! Get the lists of docc space MOs: one for each irrep
        do irrep=0,nirrep-1
+          if (nroots(irrep) == 0) cycle
           call get_ref_docc_mos(cfgM(irrep),ndoccR(irrep),doccR(:,irrep))
        enddo
        
        ! Put the docc lists into a more useful form
        idoccR=0
        do irrep=0,nirrep-1
+          if (nroots(irrep) == 0) cycle
           do i=1,ndoccR(irrep)
              idoccR(doccR(i,irrep),irrep)=1
           enddo
        enddo
     endif
-       
+    
 !----------------------------------------------------------------------
 ! (1) Generate the 2I and 1I1E configurations for all irreps
 !     *** including duplicates ***
 !----------------------------------------------------------------------
-    call builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM(0),icvs,ddci,idoccR,&
-         E0max,file2I,file1I1E,nrec2I,nrec1I1E)
+    call builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM(istart),icvs,ddci,&
+         idoccR,E0max,file2I,file1I1E,nrec2I,nrec1I1E,nroots)
 
 !----------------------------------------------------------------------
 ! (2) Remove the duplicate 2I and 1I1E configurations
 !----------------------------------------------------------------------
-    call remove_duplicates_2I(n2I,cfgM,file2I,nrec2I)
-    call remove_duplicates_1I1E(n1I1E,cfgM,file1I1E,nrec1I1E)
-    
+    call remove_duplicates_2I(n2I,cfgM,file2I,nrec2I,nroots,istart)
+    call remove_duplicates_1I1E(n1I1E,cfgM,file1I1E,nrec1I1E,nroots,&
+         istart)
+
 !----------------------------------------------------------------------
 ! (3) Sort the 2I and 1I1E configurations by irrep
 !----------------------------------------------------------------------
-    call sort_2I_1I1E(cfgM,file2I,file1I1E,nrec2I,nrec1I1E,n2I,n1I1E)
-    
+    call sort_2I_1I1E(cfgM,file2I,file1I1E,nrec2I,nrec1I1E,n2I,n1I1E,&
+         nroots,istart)
+
     return
     
   end subroutine generate_2I_1I1E_confs
@@ -97,7 +116,7 @@ contains
 !                  across all irreps
 !######################################################################
   subroutine builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM,icvs,ddci,idoccR,&
-       E0max,file2I,file1I1E,nrec2I,nrec1I1E)
+       E0max,file2I,file1I1E,nrec2I,nrec1I1E,nroots)
 
     use constants
     use bitglobal
@@ -126,9 +145,14 @@ contains
     logical, intent(in)            :: ddci
     integer(is), intent(in)        :: idoccR(nmo,0:nirrep-1)
     
-    ! Configuration bit string buffers
+    ! Configuration scratch files
     integer(is), intent(out)       :: nrec2I,nrec1I1E
     character(len=250), intent(out):: file2I,file1I1E
+
+    ! Number of roots per irrep
+    integer(is), intent(in)        :: nroots(0:nirrep-1)
+
+    ! Configuration bit string buffers
     integer(is)                    :: nbuf2I,nbuf1I1E
     integer(is), allocatable       :: ibuf2I(:,:),ibuf1I1E(:,:)
     integer(is)                    :: iscratch2I,iscratch1I1E
@@ -145,17 +169,9 @@ contains
                                       irrep1I1E,irrep2I
     integer(ib)                    :: ib1,ib2
     
-    ! Lists of hole/particle indices linking ref confs
-    integer(is), parameter         :: maxexci=4
-    integer(is)                    :: hlist(maxexci),plist(maxexci)
-    integer(is)                    :: indx(maxexci)
-    
     ! Allowable internal creation operator indices
     integer(is)                    :: ncreate1,ncreate2
     integer(is), allocatable       :: icreate1(:),icreate2(:)
-
-    ! Difference configuration information
-    integer(is), allocatable       :: rhp(:,:)
 
     ! Work conf bit strings
     integer(ib), allocatable       :: conf(:,:),confI(:,:),sop(:,:),&
@@ -215,9 +231,6 @@ contains
     
     allocate(sop2h(n_int_I,2,cfgM%n2h))
     sop2h=0_ib
-
-    allocate(rhp(9,cfgM%nR))
-    rhp=0
 
     allocate(ibuf2I(4,bufsize))
     ibuf2I=0
@@ -284,43 +297,6 @@ contains
 
        ! Number of open shells in the reference configuration
        noR=sop_nopen(cfgM%sopR(:,:,n),n_int_I)
-       
-       ! Initialise the array of inter-ref-conf annihilation/creation
-       ! operator indices
-       rhp=0
-
-       ! Loop over all other reference configurations
-       do np=1,cfgM%nR
-          if (n == np) cycle
-       
-          ! Determine the excitation degree between the to reference
-          ! configurations
-          nexci=exc_degree_conf(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
-               n_int_I)
-
-          ! Cycle if the excitation degree is greater than 3
-          if (nexci > 4) cycle
-          
-          ! Determine the indices of the creation/annihilation
-          ! operators linking the two ref confs
-          call get_exci_indices(cfgM%confR(:,:,n),cfgM%confR(:,:,np),&
-               n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
-
-          ! Excitation degree
-          rhp(1,np)=nexci
-
-          ! Creation/annihilation operator indices in ascending order
-          call i4sortindx('A',nexci,hlist(1:nexci),indx(1:nexci))
-          do i=1,nexci
-             rhp(1+i,np)=hlist(indx(i))
-          enddo
-
-          call i4sortindx('A',nexci,plist(1:nexci),indx(1:nexci))
-          do i=1,nexci
-             rhp(5+i,np)=plist(indx(i))
-          enddo
-
-       enddo
        
        ! Loop over the 2-hole configurations generated by the current
        ! reference configuration
@@ -570,6 +546,9 @@ contains
                 ib2=ieor(ib1,mosym(cfgM%m2c(iext)))
                 irrep1I1E=ib2
 
+                ! Cycle if there are no roots for this irrep
+                if (nroots(irrep1I1E) == 0) cycle
+                
                 ! DDCI2 configuration reduction: skip this
                 ! configuration if both annihilation operators
                 ! correspond to the docc space
@@ -684,6 +663,9 @@ contains
                 ib1=irrep1H1I
                 ib2=ieor(ib1,mosym(cfgM%m2c(iint2)))
                 irrep2I=ib2
+
+                ! Cycle if there are no roots for this irrep
+                if (nroots(irrep2I) == 0) cycle
                 
                 ! Update the number of 2I confs
                 n2I=n2I+1
@@ -740,7 +722,6 @@ contains
     deallocate(conf_int)
     deallocate(sop)
     deallocate(sop2h)
-    deallocate(rhp)
     deallocate(ibuf2I)
     deallocate(ibuf1I1E)
 
@@ -752,7 +733,7 @@ contains
 ! remove_duplicates_2I: removes the duplicate 2I configurations using
 !                       a hash table-based approach
 !######################################################################
-  subroutine remove_duplicates_2I(n2I,cfgM,file2I,nrec2I)
+  subroutine remove_duplicates_2I(n2I,cfgM,file2I,nrec2I,nroots,istart)
 
     use constants
     use bitglobal
@@ -770,35 +751,43 @@ contains
     type(mrcfg), intent(inout)     :: cfgM(0:nirrep-1)
 
     ! Original 2I configuration scratch file
-    integer(is), intent(inout)    :: nrec2I
-    character(len=250), intent(in):: file2I
-    integer(is), allocatable      :: ibuf(:,:)
-    integer(is)                   :: iscratch
+    integer(is), intent(inout)     :: nrec2I
+    character(len=250), intent(in) :: file2I
+
+    ! Number of roots per irrep
+    integer(is), intent(in)        :: nroots(0:nirrep-1)    
+
+    ! First index of an irrep with a non-zero number of roots
+    integer(is), intent(in)        :: istart
+    
+    ! Scratch file I/O
+    integer(is), allocatable       :: ibuf(:,:)
+    integer(is)                    :: iscratch
 
     ! New 2I configuration scratch file
-    integer(is)                   :: nrec2I_new
-    integer(is), allocatable      :: ibuf_new(:,:)
-    integer(is)                   :: iscratch_new
-    character(len=250)            :: file2I_new
+    integer(is)                    :: nrec2I_new
+    integer(is), allocatable       :: ibuf_new(:,:)
+    integer(is)                    :: iscratch_new
+    character(len=250)             :: file2I_new
     
     ! Hash table
-    type(dhtbl)                   :: h
-    integer(is)                   :: initial_size
-    integer(is)                   :: nold
-    integer(ib), allocatable      :: key(:,:)
+    type(dhtbl)                    :: h
+    integer(is)                    :: initial_size
+    integer(is)                    :: nold
+    integer(ib), allocatable       :: key(:,:)
 
     ! Configuration bit strings
-    integer(ib), allocatable      :: conf(:,:),confI(:,:)
+    integer(ib), allocatable       :: conf(:,:),confI(:,:)
     
     ! Everything else
-    integer(is)                   :: irrep,i,n,ioff,imo,ic,jc,i2h
-    integer(is)                   :: irec,nbuf,nbuf_new
-    integer(is)                   :: n_int_I,n2I_new
-
+    integer(is)                    :: irrep,i,n,ioff,imo,ic,jc,i2h
+    integer(is)                    :: irec,nbuf,nbuf_new
+    integer(is)                    :: n_int_I,n2I_new
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    n_int_I=cfgM(0)%n_int_I
+    n_int_I=cfgM(istart)%n_int_I
 
     allocate(ibuf(4,bufsize))
     ibuf=0
@@ -818,8 +807,16 @@ contains
 !----------------------------------------------------------------------
 ! Initialise the hash table
 !----------------------------------------------------------------------    
-    initial_size=(nrec2I*bufsize)/3+sum(cfgM(0:nirrep-1)%n0h) &
-         +sum(cfgM(0:nirrep-1)%n1I)
+    ! Rough stab at an appropriate hash table size
+    initial_size=(nrec2I*bufsize)/3
+    do irrep=0,nirrep-1
+       if (nroots(irrep) /= 0) then
+          initial_size=initial_size+cfgM(irrep)%n0h
+          initial_size=initial_size+cfgM(irrep)%n1I
+       endif
+    enddo
+
+    ! Initialise the hash table
     call h%initialise_table(initial_size)
 
 !----------------------------------------------------------------------
@@ -828,12 +825,19 @@ contains
     !
     ! Ref confs
     !
+    ! Loop over irreps
     do irrep=0,nirrep-1
+
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+
+       ! Loop over ref confs for this irrsp
        do i=1,cfgM(irrep)%n0h
           key=0_ib
           key(1:n_int_I,:)=cfgM(irrep)%conf0h(:,:,i)
           call h%insert_key(key)
        enddo
+
     enddo
        
     !
@@ -842,6 +846,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Loop over 1-hole confs
        do n=1,cfgM(irrep)%n1h
 
@@ -900,8 +907,11 @@ contains
        ! Loop over the confs in the current batch
        do i=1,nbuf
 
-          ! irrep
+          ! Irrep
           irrep=ibuf(1,i)
+
+          ! Cycle if there are no roots for this irrep
+          if (nroots(irrep) == 0) cycle
           
           ! 2-hole conf index
           i2h=ibuf(2,i)
@@ -988,7 +998,8 @@ contains
 ! remove_duplicates_1I1E: removes the duplicate 1I1E configurations
 !                         using a hash table-based approach
 !######################################################################
-  subroutine remove_duplicates_1I1E(n1I1E,cfgM,file1I1E,nrec1I1E)
+  subroutine remove_duplicates_1I1E(n1I1E,cfgM,file1I1E,nrec1I1E,&
+       nroots,istart)
 
     use constants
     use bitglobal
@@ -1000,41 +1011,49 @@ contains
     implicit none
 
     ! Number of 1I1E configurations
-    integer(is), intent(inout)    :: n1I1E
+    integer(is), intent(inout)     :: n1I1E
 
     ! MRCI configurations
-    type(mrcfg), intent(inout)    :: cfgM(0:nirrep-1)
+    type(mrcfg), intent(inout)     :: cfgM(0:nirrep-1)
 
     ! Original 1I1E configuration scratch file
-    integer(is), intent(inout)    :: nrec1I1E
-    character(len=250), intent(in):: file1I1E
-    integer(is), allocatable      :: ibuf(:,:)
-    integer(is)                   :: iscratch
+    integer(is), intent(inout)     :: nrec1I1E
+    character(len=250), intent(in) :: file1I1E
+
+    ! Number of roots per irrep
+    integer(is), intent(in)        :: nroots(0:nirrep-1)    
+
+    ! First index of an irrep with a non-zero number of roots
+    integer(is), intent(in)        :: istart
+
+    ! Scratch file I/O
+    integer(is), allocatable       :: ibuf(:,:)
+    integer(is)                    :: iscratch
 
     ! New 1I1E configuration scratch file
-    integer(is)                   :: nrec1I1E_new
-    integer(is), allocatable      :: ibuf_new(:,:)
-    integer(is)                   :: iscratch_new
-    character(len=250)            :: file1I1E_new
+    integer(is)                    :: nrec1I1E_new
+    integer(is), allocatable       :: ibuf_new(:,:)
+    integer(is)                    :: iscratch_new
+    character(len=250)             :: file1I1E_new
     
     ! Hash table
-    type(dhtbl)                   :: h
-    integer(is)                   :: initial_size
-    integer(is)                   :: nold
-    integer(ib), allocatable      :: key(:,:)
+    type(dhtbl)                    :: h
+    integer(is)                    :: initial_size
+    integer(is)                    :: nold
+    integer(ib), allocatable       :: key(:,:)
 
     ! Configuration bit strings
-    integer(ib), allocatable      :: conf(:,:),conf1(:,:)
+    integer(ib), allocatable       :: conf(:,:),conf1(:,:)
     
     ! Everything else
-    integer(is)                   :: irrep,i,n,ioff,imo,ic,jc,i2h
-    integer(is)                   :: irec,nbuf,nbuf_new
-    integer(is)                   :: n_int_I,n1I1E_new
+    integer(is)                    :: irrep,i,n,ioff,imo,ic,jc,i2h
+    integer(is)                    :: irec,nbuf,nbuf_new
+    integer(is)                    :: n_int_I,n1I1E_new
 
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    n_int_I=cfgM(0)%n_int_I
+    n_int_I=cfgM(istart)%n_int_I
 
     allocate(ibuf(4,bufsize))
     ibuf=0
@@ -1054,7 +1073,14 @@ contains
 !----------------------------------------------------------------------
 ! Initialise the hash table
 !----------------------------------------------------------------------    
-    initial_size=(nrec1I1E*bufsize)/3+sum(cfgM(0:nirrep-1)%n1E)
+    ! Rough stab at an appropriate hash table size
+    initial_size=(nrec1I1E*bufsize)/3
+    do irrep=0,nirrep-1
+       if (nroots(irrep) /= 0) &
+            initial_size=initial_size+cfgM(irrep)%n1E
+    enddo
+    
+    ! Initialise the hash table
     call h%initialise_table(initial_size)
 
 !----------------------------------------------------------------------
@@ -1063,6 +1089,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Loop over 1-hole confs
        do n=1,cfgM(irrep)%n1h
           
@@ -1119,8 +1148,11 @@ contains
        ! Loop over the confs in the current batch
        do i=1,nbuf
 
-          ! irrep
+          ! Irrep
           irrep=ibuf(1,i)
+
+          ! Cycle if there are no roots for this irrep
+          if (nroots(irrep) == 0) cycle
           
           ! 2-hole conf index
           i2h=ibuf(2,i)
@@ -1208,7 +1240,7 @@ contains
 !               irrep
 !######################################################################
   subroutine sort_2I_1I1E(cfgM,file2I,file1I1E,nrec2I,nrec1I1E,&
-       n2I_tot,n1I1E_tot)
+       n2I_tot,n1I1E_tot,nroots,istart)
 
     use constants
     use bitglobal
@@ -1219,26 +1251,34 @@ contains
     implicit none
 
     ! MRCI configurations for all irreps
-    type(mrcfg), intent(inout)    :: cfgM(0:nirrep-1)
+    type(mrcfg), intent(inout)     :: cfgM(0:nirrep-1)
 
     ! Total number of 2I and 1I1E configurations
-    integer(is), intent(in)       :: n2I_tot,n1I1E_tot
+    integer(is), intent(in)        :: n2I_tot,n1I1E_tot
     
     ! Configuration scratch files
-    integer(is), intent(in)       :: nrec2I,nrec1I1E
-    character(len=250), intent(in):: file2I,file1I1E
-    integer(is), allocatable      :: ibuf(:,:)
-    integer(is)                   :: iscratch2I,iscratch1I1E
+    integer(is), intent(in)        :: nrec2I,nrec1I1E
+    character(len=250), intent(in) :: file2I,file1I1E
+
+    ! Number of roots per irrep
+    integer(is), intent(in)        :: nroots(0:nirrep-1)    
+
+    ! First index of an irrep with a non-zero number of roots
+    integer(is), intent(in)        :: istart
+    
+    ! Scratch file I/O
+    integer(is), allocatable       :: ibuf(:,:)
+    integer(is)                    :: iscratch2I,iscratch1I1E
 
     ! Working arrays
-    integer(ib), allocatable      :: sop(:,:)
+    integer(ib), allocatable       :: sop(:,:)
 
     ! No. confs generated by each 2-hole conf
-    integer(is), allocatable      :: ngen(:,:)
+    integer(is), allocatable       :: ngen(:,:)
     
     ! Everything else
-    integer(is)                   :: nbuf,i,irec,irrep
-    integer(is)                   :: counter(0:nirrep-1)
+    integer(is)                    :: nbuf,i,irec,irrep
+    integer(is)                    :: counter(0:nirrep-1)
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1249,7 +1289,7 @@ contains
     allocate(sop(n_int,2))
     sop=0_ib
 
-    allocate(ngen(cfgM(0)%n2h,0:nirrep-1))
+    allocate(ngen(cfgM(istart)%n2h,0:nirrep-1))
     ngen=0
     
 !----------------------------------------------------------------------
@@ -1297,7 +1337,8 @@ contains
           ! Determine the irreps generated by the confs
           do i=1,nbuf
              irrep=ibuf(1,i)
-             cfgM(irrep)%n2I=cfgM(irrep)%n2I+1
+             if (nroots(irrep) /= 0) &
+                  cfgM(irrep)%n2I=cfgM(irrep)%n2I+1
           enddo
           
        enddo
@@ -1314,7 +1355,8 @@ contains
           ! Determine the irreps generated by the confs
           do i=1,nbuf
              irrep=ibuf(1,i)
-             cfgM(irrep)%n1I1E=cfgM(irrep)%n1I1E+1
+             if (nroots(irrep) /= 0) &
+                  cfgM(irrep)%n1I1E=cfgM(irrep)%n1I1E+1
           enddo
           
        enddo
@@ -1327,6 +1369,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Creation operator indices
        allocate(cfgM(irrep)%a2I(2,cfgM(irrep)%n2I))
        allocate(cfgM(irrep)%a1I1E(2,cfgM(irrep)%n1I1E))
@@ -1363,6 +1408,9 @@ contains
           ! Symmetry of the conf
           irrep=ibuf(1,i)
 
+          ! Cycle if there are no roots for this irrep
+          if (nroots(irrep) == 0) cycle
+          
           ! Increment the conf counter for this irrep
           counter(irrep)=counter(irrep)+1
 
@@ -1379,6 +1427,7 @@ contains
 
     ! Fill in the offset arrays
     do irrep=0,nirrep-1
+       if (nroots(irrep) == 0) cycle
        cfgM(irrep)%off2I(1)=1
        do i=2,cfgM(irrep)%n2h+1
           cfgM(irrep)%off2I(i)=cfgM(irrep)%off2I(i-1)+ngen((i-1),irrep)
@@ -1407,6 +1456,9 @@ contains
           ! Symmetry of the conf
           irrep=ibuf(1,i)
 
+          ! Cycle if there are no roots for this irrep
+          if (nroots(irrep) == 0) cycle
+
           ! Increment the conf counter for this irrep
           counter(irrep)=counter(irrep)+1
 
@@ -1423,6 +1475,7 @@ contains
 
     ! Fill in the offset arrays
     do irrep=0,nirrep-1
+       if (nroots(irrep) == 0) cycle
        cfgM(irrep)%off1I1E(1)=1
        do i=2,cfgM(irrep)%n2h+1
           cfgM(irrep)%off1I1E(i)=&
@@ -1452,7 +1505,7 @@ contains
 !                    configurations with one internal hole and one
 !                    external electron
 !######################################################################
-  subroutine generate_1E_confs(E0max,cfgM)
+  subroutine generate_1E_confs(E0max,cfgM,nroots)
 
     use constants
     use bitglobal
@@ -1465,6 +1518,9 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
     
     ! Everything else
     integer(is)                :: modus,irrep
@@ -1474,7 +1530,7 @@ contains
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1E(modus,E0max,cfgM)
+    call builder_1E(modus,E0max,cfgM,nroots)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1482,6 +1538,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Indices of the external creation operators
        allocate(cfgM(irrep)%a1E(cfgM(irrep)%n1E))
        cfgM(irrep)%a1E=0
@@ -1502,8 +1561,8 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1E(modus,E0max,cfgM)
-    
+    call builder_1E(modus,E0max,cfgM,nroots)
+
     return
     
   end subroutine generate_1E_confs
@@ -1513,7 +1572,7 @@ contains
 !             generation of the configurations with one internal hole
 !             and one external electron
 !######################################################################
-  subroutine builder_1E(modus,E0max,cfgM)
+  subroutine builder_1E(modus,E0max,cfgM,nroots)
 
     use constants
     use bitglobal
@@ -1534,6 +1593,9 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
     
     ! Full SOP
     integer(ib)                :: sop(n_int,2)
@@ -1555,17 +1617,27 @@ contains
     ! Everything else
     integer(is)                :: n_int_I,nmoI,nR,n1h
     integer(is)                :: n,i1h,ia1h,iext,irrep
-    integer(is)                :: k,i
+    integer(is)                :: k,i,istart
     integer(is)                :: counter(0:nirrep-1)
     integer(is)                :: nexci1H,noR,no1H
 
 !----------------------------------------------------------------------
+! First index of an irrep with a non-zero number of roots
+!----------------------------------------------------------------------
+    do irrep=0,nirrep-1
+       if (nroots(irrep) > 0) then
+          istart=irrep
+          exit
+       endif
+    enddo
+    
+!----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    n1h=cfgM(0)%n1h
-    nR=cfgM(0)%nR
-    n_int_I=cfgM(0)%n_int_I
-    nmoI=cfgM(0)%nmoI
+    n1h=cfgM(istart)%n1h
+    nR=cfgM(istart)%nR
+    n_int_I=cfgM(istart)%n_int_I
+    nmoI=cfgM(istart)%nmoI
 
     allocate(ngen(n1h,0:nirrep-1))
     ngen=0
@@ -1593,25 +1665,25 @@ contains
     do n=1,nR
 
        ! Sum_p F_pp^(KS) Delta W_p for the reference configuration
-       esumR=esum(cfgM(0)%confR(:,:,n),n_int_I,cfgM(0)%m2c)
+       esumR=esum(cfgM(istart)%confR(:,:,n),n_int_I,cfgM(istart)%m2c)
 
        ! Irrep generated by the reference configuration
        sop=0_ib
-       sop(1:n_int_I,:)=cfgM(0)%sopR(:,:,n)
-       irrepR=sop_sym_mrci(sop,cfgM(0)%m2c)
+       sop(1:n_int_I,:)=cfgM(istart)%sopR(:,:,n)
+       irrepR=sop_sym_mrci(sop,cfgM(istart)%m2c)
 
        ! Number of open shells in the reference configuration
-       noR=sop_nopen(cfgM(0)%sopR(:,:,n),n_int_I)
+       noR=sop_nopen(cfgM(istart)%sopR(:,:,n),n_int_I)
        
        ! Loop over the 1-hole configurations generated by the current
        ! reference configuration
-       do i1h=cfgM(0)%off1h(n),cfgM(0)%off1h(n+1)-1
+       do i1h=cfgM(istart)%off1h(n),cfgM(istart)%off1h(n+1)-1
 
           ! 1-hole annihilation operator index
-          ia1h=cfgM(0)%a1h(i1h)
+          ia1h=cfgM(istart)%a1h(i1h)
 
           ! Sum_p F_pp^(KS) Delta W_p for the 1-hole configuration
-          esum1H=esumR-moen(cfgM(0)%m2c(ia1h))
+          esum1H=esumR-moen(cfgM(istart)%m2c(ia1h))
 
           ! If this is a DFT/MRCI calculation, then skip this
           ! 1-hole configuration cannot possibly generate 1E
@@ -1622,14 +1694,14 @@ contains
           ! Cycle if the excitation degree of the 1E configurations
           ! generated by this 1-hole configuration will be above
           ! threshold
-          nexci1H=exc_degree_conf(cfgM(0)%conf1h(:,:,i1h),baseconf,&
-               n_int_I)
+          nexci1H=exc_degree_conf(cfgM(istart)%conf1h(:,:,i1h),&
+               baseconf,n_int_I)
           if (nexci1H+1 > nexmax) cycle
 
           ! Number of open shells in the 1-hole configuration
           k=(ia1h-1)/n_bits+1
           i=ia1h-(k-1)*n_bits-1
-          if (btest(cfgM(0)%confR(k,2,n),i)) then
+          if (btest(cfgM(istart)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf: nopen -> nopen+1
              no1H=noR+1
           else
@@ -1643,25 +1715,28 @@ contains
           
           ! Irrep generated by the 1-hole configuration
           ib1=irrepR
-          ib2=ieor(ib1,mosym(cfgM(0)%m2c(ia1h)))
+          ib2=ieor(ib1,mosym(cfgM(istart)%m2c(ia1h)))
           irrep1H=ib2
 
           ! Loop over external MOs
           do iext=nmoI+1,lastvirt
 
              ! Sum_p F_pp^(KS) Delta W_p for the 1E configuration
-             esum1E=esum1H+moen(cfgM(0)%m2c(iext))
+             esum1E=esum1H+moen(cfgM(istart)%m2c(iext))
 
              ! If this is a DFT/MRCI calculation, then skip this
              ! configuration if it doesn't satisfy the energy-based
              ! selection criterion
              if (ldftmrci .and. esum1E > E0max + desel) cycle
 
-             ! Irrep generated by the 1I1E configuration
+             ! Irrep generated by the 1E configuration
              ib1=irrep1H
-             ib2=ieor(ib1,mosym(cfgM(0)%m2c(iext)))
+             ib2=ieor(ib1,mosym(cfgM(istart)%m2c(iext)))
              irrep1E=ib2
 
+             ! Cycle if there are no roots for this irrep
+             if (nroots(irrep1E) == 0) cycle
+             
              ! Update the no. 1E confs
              if (modus == 0) cfgM(irrep1E)%n1E=cfgM(irrep1E)%n1E+1
              
@@ -1688,6 +1763,7 @@ contains
 !----------------------------------------------------------------------
     if (modus == 1) then
        do irrep=0,nirrep-1
+          if (nroots(irrep) == 0) cycle
           cfgM(irrep)%off1E(1)=1
           do i1h=2,n1h+1
              cfgM(irrep)%off1E(i1h)=cfgM(irrep)%off1E(i1h-1) &
@@ -1711,7 +1787,7 @@ contains
 !                    configurations with two internal holes and two
 !                    external electrons
 !######################################################################
-  subroutine generate_2E_confs(E0max,cfgM,ddci)
+  subroutine generate_2E_confs(E0max,cfgM,ddci,nroots)
 
     use constants
     use bitglobal
@@ -1728,6 +1804,11 @@ contains
     
     ! DDCI2 configuration reduction
     logical, intent(in)        :: ddci
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
+
+    ! Doubly-occupied MOs in the reference space
     integer(is)                :: ndoccR(0:nirrep-1)
     integer(is)                :: doccR(nmo,0:nirrep-1)
     integer(is)                :: idoccR(nmo,0:nirrep-1)
@@ -1742,12 +1823,14 @@ contains
     if (ddci) then
        ! Get the lists of docc space MOs: one for each irrep
        do irrep=0,nirrep-1
+          if (nroots(irrep) == 0) cycle
           call get_ref_docc_mos(cfgM(irrep),ndoccR(irrep),doccR(:,irrep))
        enddo
        
        ! Put the docc lists into a more useful form
        idoccR=0
        do irrep=0,nirrep-1
+          if (nroots(irrep) == 0) cycle
           do i=1,ndoccR(irrep)
              idoccR(doccR(i,irrep),irrep)=1
           enddo
@@ -1759,7 +1842,7 @@ contains
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_2E(modus,E0max,cfgM,ddci,idoccR)
+    call builder_2E(modus,E0max,cfgM,ddci,idoccR,nroots)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -1767,6 +1850,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Indices of the external creation operators
        allocate(cfgM(irrep)%a2E(2,cfgM(irrep)%n2E))
        cfgM(irrep)%a2E=0
@@ -1787,7 +1873,7 @@ contains
 ! 2-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_2E(modus,E0max,cfgM,ddci,idoccR)
+    call builder_2E(modus,E0max,cfgM,ddci,idoccR,nroots)
     
     return
     
@@ -1798,7 +1884,7 @@ contains
 !             generation of the configurations with two internal holes
 !             and two external electrons
 !######################################################################
-  subroutine builder_2E(modus,E0max,cfgM,ddci,idoccR)
+  subroutine builder_2E(modus,E0max,cfgM,ddci,idoccR,nroots)
 
     use constants
     use bitglobal
@@ -1823,6 +1909,9 @@ contains
     ! DDCI2 configuration reduction
     logical, intent(in)        :: ddci
     integer(is), intent(in)    :: idoccR(nmo,0:nirrep-1)
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
     
     ! Full SOP
     integer(ib)                :: sop(n_int,2)
@@ -1844,17 +1933,28 @@ contains
     ! Everything else
     integer(is)                :: n_int_I,nmoI,nR,n2h
     integer(is)                :: n,i2h,ia2h,ja2h,iext1,iext2,k,i,irrep
+    integer(is)                :: istart
     integer(is)                :: counter(0:nirrep-1)
     integer(is)                :: nexci2H
     integer(is)                :: noR,no2H,no2E
 
 !----------------------------------------------------------------------
+! First index of an irrep with a non-zero number of roots
+!----------------------------------------------------------------------
+    do irrep=0,nirrep-1
+       if (nroots(irrep) > 0) then
+          istart=irrep
+          exit
+       endif
+    enddo
+    
+!----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    n2h=cfgM(0)%n2h
-    nR=cfgM(0)%nR
-    n_int_I=cfgM(0)%n_int_I
-    nmoI=cfgM(0)%nmoI
+    n2h=cfgM(istart)%n2h
+    nR=cfgM(istart)%nR
+    n_int_I=cfgM(istart)%n_int_I
+    nmoI=cfgM(istart)%nmoI
 
     allocate(ngen(n2h,0:nirrep-1))
     ngen=0
@@ -1882,26 +1982,27 @@ contains
     do n=1,nR
 
        ! Sum_p F_pp^(KS) Delta W_p for the reference configuration
-       esumR=esum(cfgM(0)%confR(:,:,n),n_int_I,cfgM(0)%m2c)
+       esumR=esum(cfgM(istart)%confR(:,:,n),n_int_I,cfgM(istart)%m2c)
 
        ! Irrep generated by the reference configuration
        sop=0_ib
-       sop(1:n_int_I,:)=cfgM(0)%sopR(:,:,n)
-       irrepR=sop_sym_mrci(sop,cfgM(0)%m2c)
+       sop(1:n_int_I,:)=cfgM(istart)%sopR(:,:,n)
+       irrepR=sop_sym_mrci(sop,cfgM(istart)%m2c)
 
        ! Number of open shells in the reference configuration
-       noR=sop_nopen(cfgM(0)%sopR(:,:,n),n_int_I)
+       noR=sop_nopen(cfgM(istart)%sopR(:,:,n),n_int_I)
        
        ! Loop over the 2-hole configurations generated by the current
        ! reference configuration
-       do i2h=cfgM(0)%off2h(n),cfgM(0)%off2h(n+1)-1
+       do i2h=cfgM(istart)%off2h(n),cfgM(istart)%off2h(n+1)-1
 
           ! 2-hole annihilation operator indices
-          ia2h=cfgM(0)%a2h(1,i2h)
-          ja2h=cfgM(0)%a2h(2,i2h)
+          ia2h=cfgM(istart)%a2h(1,i2h)
+          ja2h=cfgM(istart)%a2h(2,i2h)
           
           ! Sum_p F_pp^(KS) Delta W_p for the 2-hole configuration
-          esum2H=esumR-moen(cfgM(0)%m2c(ia2h))-moen(cfgM(0)%m2c(ja2h))
+          esum2H=esumR-moen(cfgM(istart)%m2c(ia2h))&
+               -moen(cfgM(istart)%m2c(ja2h))
 
           ! If this is a DFT/MRCI calculation, then skip this
           ! 2-hole configuration cannot possibly generate 2E
@@ -1912,8 +2013,8 @@ contains
           ! Cycle if the excitation degree of the 2E configurations
           ! generated by this 2-hole configuration will be above
           ! threshold
-          nexci2H=exc_degree_conf(cfgM(0)%conf2h(:,:,i2h),baseconf,&
-               n_int_I)
+          nexci2H=exc_degree_conf(cfgM(istart)%conf2h(:,:,i2h),&
+               baseconf,n_int_I)
           if (nexci2H+2 > nexmax) cycle
 
           ! Number of open shells in the 2-hole configuration
@@ -1922,7 +2023,7 @@ contains
           !
           k=(ia2h-1)/n_bits+1
           i=ia2h-(k-1)*n_bits-1
-          if (btest(cfgM(0)%confR(k,2,n),i)) then
+          if (btest(cfgM(istart)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf:
              ! nopen -> nopen+1
              no2H=noR+1
@@ -1936,7 +2037,7 @@ contains
           !
           k=(ja2h-1)/n_bits+1
           i=ja2h-(k-1)*n_bits-1
-          if (btest(cfgM(0)%confR(k,2,n),i)) then
+          if (btest(cfgM(istart)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf:
              if (ia2h == ja2h) then
                 ! Equal annihilation operator indices:
@@ -1960,15 +2061,15 @@ contains
           
           ! Irrep generated by the 2-hole configuration
           ib1=irrepR
-          ib2=ieor(ib1,mosym(cfgM(0)%m2c(ia2h)))
-          ib1=ieor(ib2,mosym(cfgM(0)%m2c(ja2h)))
+          ib2=ieor(ib1,mosym(cfgM(istart)%m2c(ia2h)))
+          ib1=ieor(ib2,mosym(cfgM(istart)%m2c(ja2h)))
           irrep2H=ib1
           
           ! Loop over the first creation operator
           do iext1=nmoI+1,lastvirt
 
              ! Sum_p F_pp^(KS) Delta W_p for the 1H1E configuration
-             esum1H1E=esum2H+moen(cfgM(0)%m2c(iext1))
+             esum1H1E=esum2H+moen(cfgM(istart)%m2c(iext1))
 
              ! If this is a DFT/MRCI calculation, then skip this
              ! 1H1E configuration cannot possibly generate 2E
@@ -1978,14 +2079,14 @@ contains
 
              ! Irrep generated by the 1H1E configuration
              ib1=irrep2H
-             ib2=ieor(ib1,mosym(cfgM(0)%m2c(iext1)))
+             ib2=ieor(ib1,mosym(cfgM(istart)%m2c(iext1)))
              irrep1H1E=ib2
 
              ! Loop over the second creation operator
              do iext2=iext1,lastvirt
 
                 ! Sum_p F_pp^(KS) Delta W_p for the 2E configuration
-                esum2E=esum1H1E+moen(cfgM(0)%m2c(iext2))
+                esum2E=esum1H1E+moen(cfgM(istart)%m2c(iext2))
                 
                 ! If this is a DFT/MRCI calculation, then skip this
                 ! 2E configuration if it does not satisfy the
@@ -2006,9 +2107,12 @@ contains
                 
                 ! Irrep generated by the 2E configuration
                 ib1=irrep1H1E
-                ib2=ieor(ib1,mosym(cfgM(0)%m2c(iext2)))
+                ib2=ieor(ib1,mosym(cfgM(istart)%m2c(iext2)))
                 irrep2E=ib2
 
+                ! Cycle if there are no roots for this irrep
+                if (nroots(irrep2E) == 0) cycle
+                
                 ! DDCI2 configuration reduction: skip this 2E conf if
                 ! one of the annihilation operators correspond to the
                 ! docc space
@@ -2046,6 +2150,7 @@ contains
 !----------------------------------------------------------------------
     if (modus == 1) then
        do irrep=0,nirrep-1
+          if (nroots(irrep) == 0) cycle
           cfgM(irrep)%off2E(1)=1
           do i2h=2,n2h+1
              cfgM(irrep)%off2E(i2h)=cfgM(irrep)%off2E(i2h-1) &
@@ -2069,7 +2174,7 @@ contains
 !                    configurations with one internal hole and one
 !                    external electron
 !######################################################################
-  subroutine generate_1I_confs(E0max,cfgM,icvs)
+  subroutine generate_1I_confs(E0max,cfgM,icvs,nroots)
 
     use constants
     use bitglobal
@@ -2086,6 +2191,9 @@ contains
     ! CVS-MRCI: core MOs
     integer(is), intent(in)    :: icvs(nmo)
     logical                    :: lcvs
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
     
     ! Everything else
     integer(is)                :: modus,irrep
@@ -2104,7 +2212,7 @@ contains
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1I(modus,E0max,cfgM,icvs,lcvs)
+    call builder_1I(modus,E0max,cfgM,icvs,lcvs,nroots)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -2112,6 +2220,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Indices of the external creation operators
        allocate(cfgM(irrep)%a1I(cfgM(irrep)%n1I))
        cfgM(irrep)%a1I=0
@@ -2132,7 +2243,7 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1I(modus,E0max,cfgM,icvs,lcvs)
+    call builder_1I(modus,E0max,cfgM,icvs,lcvs,nroots)
     
     return
     
@@ -2143,7 +2254,7 @@ contains
 !             generation of the configurations with one internal hole
 !             and one internal electron
 !######################################################################
-  subroutine builder_1I(modus,E0max,cfgM,icvs,lcvs)
+  subroutine builder_1I(modus,E0max,cfgM,icvs,lcvs,nroots)
 
     use constants
     use bitglobal
@@ -2170,6 +2281,9 @@ contains
     ! CVS-MRCI: core MOs
     integer(is), intent(in)    :: icvs(nmo)
     logical, intent(in)        :: lcvs
+
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
     
     ! Base configuration, internal MOs only
     integer(ib), allocatable   :: baseconf(:,:)
@@ -2211,19 +2325,29 @@ contains
     
     ! Everything else
     integer(is)                :: n,np,i1h,irrep,n1h,nR,n_int_I,nmoI
-    integer(is)                :: ia1h,iint,k,i,j
+    integer(is)                :: ia1h,iint,k,i,j,istart
     integer(is)                :: counter(0:nirrep-1)
     integer(is)                :: nacR,nac1H,nac1I
     integer(is)                :: noR,no1H,no1I
     integer(is)                :: nexci,iaR,jaR,icR,jcR
+
+!----------------------------------------------------------------------
+! First index of an irrep with a non-zero number of roots
+!----------------------------------------------------------------------
+    do irrep=0,nirrep-1
+       if (nroots(irrep) > 0) then
+          istart=irrep
+          exit
+       endif
+    enddo
     
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    n1h=cfgM(0)%n1h
-    nR=cfgM(0)%nR
-    n_int_I=cfgM(0)%n_int_I
-    nmoI=cfgM(0)%nmoI
+    n1h=cfgM(istart)%n1h
+    nR=cfgM(istart)%nR
+    n_int_I=cfgM(istart)%n_int_I
+    nmoI=cfgM(istart)%nmoI
 
     allocate(icreate1(nmoI))
     icreate1=0
@@ -2273,9 +2397,9 @@ contains
     call h%initialise_table(initial_size)
 
     ! Insertion of the ref confs
-    do n=1,cfgM(0)%nR
+    do n=1,cfgM(istart)%nR
        conf=0_ib
-       conf(1:n_int_I,:)=cfgM(0)%confR(:,:,n)
+       conf(1:n_int_I,:)=cfgM(istart)%confR(:,:,n)
        call h%insert_key(conf)
     enddo
 
@@ -2289,7 +2413,7 @@ contains
     do i1h=1,n1h
 
        ! Generate the next 1-hole SOP
-       confI=cfgM(0)%conf1h(:,:,i1h)
+       confI=cfgM(istart)%conf1h(:,:,i1h)
        sop1h(:,:,i1h)=conf_to_sop(confI,n_int_I)
 
     enddo
@@ -2301,19 +2425,20 @@ contains
     do n=1,nR
 
        ! Sum_p F_pp^(KS) Delta W_p for the reference configuration
-       esumR=esum(cfgM(0)%confR(:,:,n),n_int_I,cfgM(0)%m2c)
+       esumR=esum(cfgM(istart)%confR(:,:,n),n_int_I,cfgM(istart)%m2c)
        
        ! Irrep generated by the reference configuration
        sop=0_ib
-       sop(1:n_int_I,:)=cfgM(0)%sopR(:,:,n)
-       irrepR=sop_sym_mrci(sop,cfgM(0)%m2c)
+       sop(1:n_int_I,:)=cfgM(istart)%sopR(:,:,n)
+       irrepR=sop_sym_mrci(sop,cfgM(istart)%m2c)
 
        ! Number of creation and annihilation operators linking the
        ! reference and base configurations
-       nacR=n_create_annihilate(cfgM(0)%confR(:,:,n),baseconf,n_int_I)
+       nacR=n_create_annihilate(cfgM(istart)%confR(:,:,n),baseconf,&
+            n_int_I)
 
        ! Number of open shells in the reference configuration
-       noR=sop_nopen(cfgM(0)%sopR(:,:,n),n_int_I)
+       noR=sop_nopen(cfgM(istart)%sopR(:,:,n),n_int_I)
        
        ! Initialise the array of inter-ref-conf annihilation/creation
        ! operator indices
@@ -2324,16 +2449,16 @@ contains
 
           ! Determine the excitation degree between the two reference
           ! configurations
-          nexci=exc_degree_conf(cfgM(0)%confR(:,:,n),&
-               cfgM(0)%confR(:,:,np),n_int_I)
+          nexci=exc_degree_conf(cfgM(istart)%confR(:,:,n),&
+               cfgM(istart)%confR(:,:,np),n_int_I)
 
           ! Cycle if the excitation degree is greater than 2
           if (nexci > 2) cycle
 
           ! Determine the indices of the creation/annihilation
           ! operators linking the two ref confs
-          call get_exci_indices(cfgM(0)%confR(:,:,n),&
-               cfgM(0)%confR(:,:,np),n_int_I,hlist(1:nexci),&
+          call get_exci_indices(cfgM(istart)%confR(:,:,n),&
+               cfgM(istart)%confR(:,:,np),n_int_I,hlist(1:nexci),&
                plist(1:nexci),nexci)
           
           ! Excitation degree
@@ -2354,17 +2479,17 @@ contains
 
        ! Loop over the 1-hole configurations generated by the current
        ! reference configuration
-       do i1h=cfgM(0)%off1h(n),cfgM(0)%off1h(n+1)-1
+       do i1h=cfgM(istart)%off1h(n),cfgM(istart)%off1h(n+1)-1
 
           ! 1-hole annihilation operator index
-          ia1h=cfgM(0)%a1h(i1h)
+          ia1h=cfgM(istart)%a1h(i1h)
 
           ! Sum_p F_pp^(KS) Delta W_p for the 1-hole configuration
-          esum1H=esumR-moen(cfgM(0)%m2c(ia1h))
+          esum1H=esumR-moen(cfgM(istart)%m2c(ia1h))
 
           ! Irrep generated by the 1-hole configuration
           ib1=irrepR
-          ib2=ieor(ib1,mosym(cfgM(0)%m2c(ia1h)))
+          ib2=ieor(ib1,mosym(cfgM(istart)%m2c(ia1h)))
           irrep1H=ib2
 
           ! Number of creation and annihilation operators linking the
@@ -2377,7 +2502,7 @@ contains
              nac1H=nac1H-1
           else if (iocc0(ia1h) == 1) then
              ! Singly-occupied MO in the base conf
-             if (btest(cfgM(0)%confR(k,2,n),i)) then
+             if (btest(cfgM(istart)%confR(k,2,n),i)) then
                 ! Doubly-occupied MO in the ref conf
                 nac1H=nac1H-1
              else
@@ -2392,7 +2517,7 @@ contains
           ! Number of open shells in the 1-hole configuration
           k=(ia1h-1)/n_bits+1
           i=ia1h-(k-1)*n_bits-1
-          if (btest(cfgM(0)%confR(k,2,n),i)) then
+          if (btest(cfgM(istart)%confR(k,2,n),i)) then
              ! Doubly-occupied MO in the ref conf: nopen -> nopen+1
              no1H=noR+1
           else
@@ -2484,12 +2609,12 @@ contains
              ! a duplicate conf
              if (icreate1(iint) == 0) cycle
              
-             ! Cycle if this is a CVS-MRCI calculation and we are creating
-             ! an electron in a flagged core MO
-             if (lcvs .and. icvs(cfgM(0)%m2c(iint)) == 1) cycle
+             ! Cycle if this is a CVS-MRCI calculation and we are
+             ! creating an electron in a flagged core MO
+             if (lcvs .and. icvs(cfgM(istart)%m2c(iint)) == 1) cycle
 
              ! Sum_p F_pp^(KS) Delta W_p for the 1I configuration
-             esum1I=esum1H+moen(cfgM(0)%m2c(iint))
+             esum1I=esum1H+moen(cfgM(istart)%m2c(iint))
              
              ! If this is a DFT/MRCI calculation, then skip this
              ! 1I configuration if it does not satisfy the
@@ -2498,9 +2623,12 @@ contains
              
              ! Irrep generated by the 1I configuration
              ib1=irrep1H
-             ib2=ieor(ib1,mosym(cfgM(0)%m2c(iint)))
+             ib2=ieor(ib1,mosym(cfgM(istart)%m2c(iint)))
              irrep1I=ib2
 
+             ! Cycle if there are no roots for this irrep
+             if (nroots(irrep1I) == 0) cycle
+             
              ! Block index
              k=(iint-1)/n_bits+1
 
@@ -2515,7 +2643,7 @@ contains
                 nac1I=nac1I+1
              else if (iocc0(iint) == 1) then
                 ! Singly-occupied MO in the base conf
-                if (btest(cfgM(0)%conf1h(k,1,i1h),i)) then
+                if (btest(cfgM(istart)%conf1h(k,1,i1h),i)) then
                    ! Singly-occupied MO in the 1-hole conf
                    nac1I=nac1I+11
                 else
@@ -2532,7 +2660,7 @@ contains
              if (nac1I/2 > nexmax) cycle
 
              ! Number of open shells in the 1I configuration
-             if (btest(cfgM(0)%conf1h(k,1,i1h),i)) then
+             if (btest(cfgM(istart)%conf1h(k,1,i1h),i)) then
                 ! Singly-occupied MO in the 1-hole conf:
                 ! nopen -> nopen-1
                 no1I=no1H-1
@@ -2551,7 +2679,7 @@ contains
              
              ! Full configuration
              conf=0_ib
-             confI=create_electron(cfgM(0)%conf1h(:,:,i1h),&
+             confI=create_electron(cfgM(istart)%conf1h(:,:,i1h),&
                   n_int_I,iint)
              conf(1:n_int_I,:)=confI
 
@@ -2584,6 +2712,7 @@ contains
 !----------------------------------------------------------------------
     if (modus == 1) then
        do irrep=0,nirrep-1
+          if (nroots(irrep) == 0) cycle
           cfgM(irrep)%off1I(1)=1
           do i1h=2,n1h+1
              cfgM(irrep)%off1I(i1h)=cfgM(irrep)%off1I(i1h-1) &

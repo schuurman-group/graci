@@ -302,19 +302,20 @@ def print_refdiag_summary(ci_method):
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
         outfile.write('\n -------------------------')
-    
-        nirr = len(ci_method.nstates)
-        for i in range(nirr):
-            if ci_method.n_states_sym(i) > 0:
-                outfile.write('\n')
-                for n in range(ci_method.n_states_sym(i)):
-                    outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
-                        .format(n+1, ci_method.scf.mol.irreplbl[i],
-                        ci_method.ref_ener[i,n],
-                        (ci_method.ref_ener[i,n]-mine)*constants.au2ev))
-        outfile.write('\n')
-        outfile.flush()
 
+        fmat = '\n {:<3d} {:3} {:10.6f} {:10.6f}'
+        
+        for i in ci_method.irreps_nonzero():
+            outfile.write('\n')
+            for n in range(ci_method.n_states_sym(i)):
+                outfile.write(fmat.format(n+1,
+                                          ci_method.scf.mol.irreplbl[i],
+                                          ci_method.ref_ener[i,n],
+                                          (ci_method.ref_ener[i,n]-mine)*constants.au2ev))
+                outfile.flush()
+
+        outfile.write('\n')
+                
     return
 
 #
@@ -454,6 +455,9 @@ def print_moments(states, irr, momts):
                                       q_tens[1,1], q_tens[1,2],
                                       q_tens[2,2], q2))
 
+    outfile.write('\n')
+    outfile.flush()
+            
     return
 
 #
@@ -718,7 +722,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     llen = max(len(bra_label), len(ket_label))
     
     # table header
-    delim = ' '+'-'*(36)
+    delim = ' '+'-'*(45)
     print('\n'+delim, flush=True)
 
     fstr = '  {:'+str(10+llen)+'}'
@@ -737,16 +741,16 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     print(delim, flush=True)
 
     # Overlaps
-    fstr = '{:4d} {:<7} {:4d} {:<8} {:9.6f}'
+    fstr = '{:4d} {:<7} {:4d} {:<8} {:>9.6f}'
     for indx in range(len(trans_list)):
         
         sij = overlaps[indx]
         
+        if np.imag(sij) == 0.:
+            sij = np.real(sij)
+        
         bk_st = trans_list[indx]
             
-        #[birr, bst]    = bra_obj.state_sym(bk_st[0])
-        #[kirr, kst]    = ket_obj.state_sym(bk_st[1])
-        
         [birr, bst] = bra_state_sym[bk_st[0]]
         [kirr, kst] = ket_state_sym[bk_st[1]]
                 
@@ -761,7 +765,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
         
         print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
                           bk_st[1]+1, '('+irrlbl+')',
-                          sij),
+                          np.real(sij)),
               flush=True)
 
     # table footer
@@ -1098,7 +1102,9 @@ def print_diabpot(diabpot, nroots, nirr, irrlbl):
     
     # loop over irreps
     for irr in range(nirr):
-    
+        if nroots[irr] == 0:
+            continue
+        
         # sub-table header
         print(delim, flush=True)
         print('  '+irrlbl[irr]+' block', flush=True)

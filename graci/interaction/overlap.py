@@ -230,7 +230,7 @@ class Overlap(interaction.Interaction):
             [bir, bst]     = self.get_ci_sym('bra', b_lbl, bk_st[0])
             [kir, kst]     = self.get_ci_sym('ket', k_lbl, bk_st[1])
             sym_indx       = ci_trans_sym[bir][kir].index([bst, kst])
-            overlaps[indx] = overlap_list[birr][kirr][sym_indx]
+            overlaps[indx] = overlap_list[bir][kir][sym_indx]
                 
         return overlaps
 

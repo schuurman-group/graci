@@ -91,7 +91,8 @@ contains
 ! Set up the MRCI configuration derived types
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
-       call cfg(irrep)%initialise(irrep,confscrM(irrep))
+       if (nroots(irrep) /= 0) &
+            call cfg(irrep)%initialise(irrep,confscrM(irrep))
     enddo
 
 !----------------------------------------------------------------------
@@ -99,7 +100,8 @@ contains
 !----------------------------------------------------------------------
     nconf=0
     do irrep=0,nirrep-1
-       nconf=nconf+cfg(irrep)%confdim
+       if (nroots(irrep) /= 0) &
+            nconf=nconf+cfg(irrep)%confdim
     enddo
 
 !----------------------------------------------------------------------
@@ -139,6 +141,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Adjust the selection threshold until enough CSFs
        ! have been retained
        thrsh=cthrsh
@@ -196,6 +201,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Start and end points in the dconf array for this irrep
        istart=sum(ndconf(0:irrep-1))+1
        iend=istart+ndconf(irrep)-1
@@ -214,7 +222,12 @@ contains
 ! canonical MO ordering
 !----------------------------------------------------------------------
     ! Old MO mapping array
-    m2c_old=cfg(0)%m2c
+    do irrep=0,nirrep-1
+       if (nroots(irrep) /= 0) then
+          m2c_old=cfg(irrep)%m2c
+          exit
+       endif
+    enddo
 
     ! Put the configurations into canonical ordering
     call reorder_confs(nmo,m2c_old,dconf,ndconf_tot)
@@ -252,7 +265,7 @@ contains
 !----------------------------------------------------------------------
     call write_ref_confs(dconf,dsop,ndconf_tot,m2c_new,c2m_new,&
          nmoI,nmoE,ndconf,confscrR)
-    
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -354,7 +367,8 @@ contains
 ! Set up the MRCI configuration derived types
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
-       call cfg(irrep)%initialise(irrep,confscrM(irrep))
+       if (nroots(irrep) /= 0) &
+            call cfg(irrep)%initialise(irrep,confscrM(irrep))
     enddo
 
 !----------------------------------------------------------------------
@@ -362,7 +376,8 @@ contains
 !----------------------------------------------------------------------
     nconf=0
     do irrep=0,nirrep-1
-       nconf=nconf+cfg(irrep)%confdim
+       if (nroots(irrep) /= 0) &
+            nconf=nconf+cfg(irrep)%confdim
     enddo
 
 !----------------------------------------------------------------------
@@ -402,6 +417,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Adjust the selection threshold until enough CSFs
        ! have been retained
        thrsh=cthrsh
@@ -459,6 +477,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Start and end points in the dconf array for this irrep
        istart=sum(ndconf(0:irrep-1))+1
        iend=istart+ndconf(irrep)-1
@@ -477,8 +498,13 @@ contains
 ! canonical MO ordering
 !----------------------------------------------------------------------
     ! Old MO mapping array
-    m2c_old=cfg(0)%m2c
-
+    do irrep=0,nirrep-1
+       if (nroots(irrep) /= 0) then
+          m2c_old=cfg(irrep)%m2c
+          exit
+       endif
+    enddo
+       
     ! Put the configurations into canonical ordering
     call reorder_confs(nmo,m2c_old,dconf,ndconf_tot)
     
@@ -625,7 +651,8 @@ contains
 ! Set up the MRCI configuration derived types
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
-       call cfg(irrep)%initialise(irrep,confscrM(irrep))
+       if (nroots(irrep) /= 0) &
+            call cfg(irrep)%initialise(irrep,confscrM(irrep))
     enddo
 
 !----------------------------------------------------------------------
@@ -634,6 +661,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Open scratch file
        iscratch=scrunit(Qscr(irrep))
        open(iscratch,file=scrname(Qscr(irrep)),form='unformatted',&
@@ -661,7 +691,8 @@ contains
 !----------------------------------------------------------------------
     nconf=0
     do irrep=0,nirrep-1
-       nconf=nconf+cfg(irrep)%confdim
+       if (nroots(irrep) /= 0) &
+            nconf=nconf+cfg(irrep)%confdim
     enddo
 
 !----------------------------------------------------------------------
@@ -701,6 +732,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Adjust the selection threshold until enough CSFs
        ! have been retained
        scale=1.0d0
@@ -762,6 +796,9 @@ contains
     ! Loop over irreps
     do irrep=0,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+       
        ! Start and end points in the dconf array for this irrep
        istart=sum(ndconf(0:irrep-1))+1
        iend=istart+ndconf(irrep)-1
@@ -780,8 +817,13 @@ contains
 ! canonical MO ordering
 !----------------------------------------------------------------------
     ! Old MO mapping array
-    m2c_old=cfg(0)%m2c
-
+    do irrep=0,nirrep-1
+       if (nroots(irrep) /= 0) then
+          m2c_old=cfg(irrep)%m2c
+          exit
+       endif
+    enddo
+       
     ! Put the configurations into canonical ordering
     call reorder_confs(nmo,m2c_old,dconf,ndconf_tot)
     

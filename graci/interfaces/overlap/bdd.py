@@ -20,7 +20,7 @@ def adt(ref_obj, disp_obj):
     Here, ref_obj corresponds to the previous geometry, R_n-1,
     and disp_obj to the current geometry, R_n
     """
-
+    
     # section header
     output.print_bdd_header()
     
@@ -28,14 +28,14 @@ def adt(ref_obj, disp_obj):
     nirr = ref_obj.n_irrep()
 
     # initialise the list of disp ADT matrices
-    adt_matrices = []
+    adt_matrices = [None for i in range(nirr)]
     
     # loop over irreps
-    for irr in range(nirr):
+    for irrep in ref_obj.irreps_nonzero():
 
         # check on the number of roots
-        nref  = ref_obj.vec_det['adiabatic'][irr].shape[1]
-        ndisp = disp_obj.vec_det['adiabatic'][irr].shape[1]
+        nref  = ref_obj.vec_det['adiabatic'][irrep].shape[1]
+        ndisp = disp_obj.vec_det['adiabatic'][irrep].shape[1]
         if nref != ndisp:
             sys.exit('\n ERROR: nroots_ref != nroots_disp in bdd.bdd')
             
@@ -45,7 +45,7 @@ def adt(ref_obj, disp_obj):
         if ref_obj.adt is None:
             adt_ref = np.eye(nstates)
         else:
-            adt_ref = ref_obj.adt[irr]
+            adt_ref = ref_obj.adt[irrep]
         
         # wave function truncation threshold
         norm_thresh = 0.999
@@ -57,7 +57,7 @@ def adt(ref_obj, disp_obj):
 
         # get the overlaps
         Sij = overlap.overlap(ref_obj, disp_obj, disp_obj.smo,
-                              pairs, irr, norm_thresh,
+                              pairs, irrep, norm_thresh,
                               disp_obj.verbose)
 
         # reshape the wave function overlaps into a more
@@ -74,6 +74,6 @@ def adt(ref_obj, disp_obj):
         adt      = np.matmul(S_inv, SST_sqrt)
 
         # save the disp ADT matrix
-        adt_matrices.append(adt)
-        
+        adt_matrices[irrep] = adt
+
     return adt_matrices

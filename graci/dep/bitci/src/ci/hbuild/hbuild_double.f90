@@ -68,6 +68,12 @@ contains
     
     ! Everything else
     integer(is)              :: nsp,iconf,icsf,iomega
+
+
+    ! TEST
+    integer(is) :: i
+    ! TEST
+
     
 !----------------------------------------------------------------------
 ! Allocate arrays

@@ -26,8 +26,8 @@ def dyson(bra, ket, mo_basis, n_basis, bra_wfunit,
     dysorb = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
 
     # Loop over pairs of bra and ket irreps
-    for ket_irr in range(nirr_ket):
-        for bra_irr in range(nirr_bra):
+    for ket_irr in ket.irreps_nonzero():
+        for bra_irr in bra.irreps_nonzero():
 
             # pairs of states for this bra irrep and ket irrep
             # bitwf uses Fortran indexing for these, hence the +1
@@ -66,5 +66,5 @@ def dyson(bra, ket, mo_basis, n_basis, bra_wfunit,
             # Add the Dyson orbitals to the list
             dysorb[bra_irr][ket_irr] = np.reshape(dysij, (n_basis, npairs),
                                                   order='F')
-            
+
     return dysorb

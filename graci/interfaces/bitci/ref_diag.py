@@ -35,10 +35,10 @@ def diag(ci_method):
 
     # Bitci eigenvector scratch file numbers
     ciunit  = 0
-    ciunits = []
-    
+    ciunits = [0 for i in range(nirr)]
+
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
     
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep)
@@ -51,18 +51,18 @@ def diag(ci_method):
         (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
 
         # Bitci eigenvector scratch number
-        ciunits.append(ciunit)
+        ciunits[irrep] = ciunit
     
         # If the number of reference space configurations for the
         # current irrep is less than the requested number of roots
         # then reset nstates accordingly
         if nroots < ci_method.n_states_sym(irrep):
             ci_method.nstates[irrep] = nroots
-    
+
     # Retrieve the reference space energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
         if ci_method.n_states_sym(irrep) > 0:
     
             # Number of roots for the current irrep
@@ -74,7 +74,7 @@ def diag(ci_method):
             
             (ener[irrep, :nroots]) = \
                     libs.lib_func('retrieve_some_energies', args)
-            
+
     return ciunits, ener 
 
 @timing.timed
@@ -131,7 +131,7 @@ def diag_follow(ci_method, ci_method0):
     ci_method0 object computed at a previous geometry R0
     """
 
-     # Exit if the point groups for the two calculations are different
+    # Exit if the point groups for the two calculations are different
     if ci_method.scf.mol.comp_sym != ci_method0.scf.mol.comp_sym:
         sys.exit('\n Error in ref_space.propagate: non-equal point groups')
     
@@ -153,7 +153,7 @@ def diag_follow(ci_method, ci_method0):
 
     # Bitci eigenvector scratch file numbers
     ciunit  = 0
-    ciunits = []
+    ciunits = [0 for i in range(nirr)]
 
     # MO overlaps
     nmo0 = ci_method0.nmo
@@ -176,7 +176,7 @@ def diag_follow(ci_method, ci_method0):
     delete_core = True
     
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep)
@@ -201,18 +201,18 @@ def diag_follow(ci_method, ci_method0):
         (nroots, ciunit) = libs.lib_func('ref_diag_mrci_follow',args)
 
         # Bitci eigenvector scratch number
-        ciunits.append(ciunit)
+        ciunits[irrep] = ciunit
 
         # If the number of reference space configurations for the
         # current irrep is less than the requested number of roots
         # then reset nstates accordingly
         if nroots < ci_method.n_states_sym(irrep):
             ci_method.nstates[irrep] = nroots
-        
+
     # Retrieve the reference space energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
         if ci_method.n_states_sym(irrep) > 0:
     
             # Number of roots for the current irrep

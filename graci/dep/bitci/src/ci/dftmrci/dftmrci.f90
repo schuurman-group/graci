@@ -906,7 +906,7 @@ contains
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
     real(dp)                :: pJ,pF
-
+    
 !----------------------------------------------------------------------
 ! Diagonal shift: 1/4 Sum_i V_iiii, i singly occupied in the base
 ! configuration    
@@ -2139,7 +2139,7 @@ contains
     !
     DEp3=abs(av1-av2)**hpar(5)
     func=hpar(3)*exp(-hpar(4)*DEp3)
-
+    
     return
     
   end function damping_exp_test

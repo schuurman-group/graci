@@ -54,7 +54,6 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-
     ! Numbers of roots
     nroot_tot=sum(nroots)
     nroot_max=maxval(nroots)
@@ -74,19 +73,16 @@ contains
 ! Set up the MRCI configuration derived types
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
-       call cfg(irrep)%initialise(irrep,confscr(irrep))
+       if (nroots(irrep) /= 0) &
+            call cfg(irrep)%initialise(irrep,confscr(irrep))
     enddo
 
-!----------------------------------------------------------------------
-! Deadwood analysis
-!----------------------------------------------------------------------
-    !call deadwood(vecscr,nroots,cfg)
-    
 !----------------------------------------------------------------------
 ! Read in the state energies
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
-       call read_energies(vecscr(irrep),nroots(irrep),&
+       if (nroots(irrep) /= 0) &
+            call read_energies(vecscr(irrep),nroots(irrep),&
             ener(1:nroots(irrep),irrep))
     enddo
 
@@ -121,6 +117,7 @@ contains
 
        ! Minimum reference space norm
        minrnorm=min(rnorm,minrnorm)
+       
     enddo
 
 !----------------------------------------------------------------------

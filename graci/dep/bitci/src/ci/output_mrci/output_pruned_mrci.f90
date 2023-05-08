@@ -79,17 +79,6 @@ contains
     character(len=3)         :: an
 
 !----------------------------------------------------------------------
-! Section header
-!----------------------------------------------------------------------
-!    write(6,'(/,52a)') ('-',i=1,52)
-!    if (ldftmrci) then
-!       write(6,'(x,a)') 'DFT/MRCI eigenstates (ENPT2-corrected)'
-!    else
-!       write(6,'(x,a)') 'MRCI eigenstates (ENPT2-corrected)'
-!    endif
-!    write(6,'(52a)') ('-',i=1,52)
-    
-!----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     ! Total no. ref space eigenvectors saved to disk
@@ -119,7 +108,8 @@ contains
 ! Set up the MRCI configuration derived types
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
-       call cfg(irrep)%initialise(irrep,confscr(irrep))
+       if (nroots(irrep) /= 0) call cfg(irrep)%initialise(irrep,&
+            confscr(irrep))
     enddo
     
 !----------------------------------------------------------------------
@@ -138,9 +128,9 @@ contains
     qcorr=0.0d0
     
     do irrep=0,nirrep-1
-       call get_qcorr(irrep,vecscr(irrep),vec0scr(irrep),&
-            confscr(irrep),eqscr(irrep),nroots(irrep),nextra(irrep),&
-            qcorr(1:nroots(irrep),irrep),&
+       if (nroots(irrep) /= 0) call get_qcorr(irrep,vecscr(irrep),&
+            vec0scr(irrep),confscr(irrep),eqscr(irrep),nroots(irrep),&
+            nextra(irrep),qcorr(1:nroots(irrep),irrep),&
             max_overlap(1:nroots(irrep),irrep))
     enddo
 
@@ -148,14 +138,15 @@ contains
 ! Read in the MRCI energies
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
-       call read_energies(vecscr(irrep),nroots(irrep),&
-            ener(1:nroots(irrep),irrep))
+       if (nroots(irrep) /= 0) call read_energies(vecscr(irrep),&
+            nroots(irrep),ener(1:nroots(irrep),irrep))
     enddo
 
 !----------------------------------------------------------------------
 ! Add on the Q-space energy corrections
 !----------------------------------------------------------------------
     do irrep=0,nirrep-1
+       if (nroots(irrep) == 0) cycle
        do k=1,nroots(irrep)
           ener(k,irrep)=ener(k,irrep)+qcorr(k,irrep)
        enddo
@@ -194,7 +185,7 @@ contains
        minrnorm=min(rnorm,minrnorm)
 
     enddo
-
+    
 !----------------------------------------------------------------------
 ! Output a warning if there wasn't a good overlap of an MRCI
 ! eigenfunction with one of the ref space eigenfunctions

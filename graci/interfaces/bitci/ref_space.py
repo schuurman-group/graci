@@ -88,7 +88,7 @@ def generate(ci_method):
         args = (confunits[i], name)
         name = libs.lib_func('retrieve_filename', args)
         confnames.append(name)
-    
+
     return ref_nconf, confunits, confnames
 
 @timing.timed
@@ -132,7 +132,7 @@ def autoras(ci_method):
     #
     # Bitci eigenvector scratch file numbers
     dftcis_vec  = 0
-    dftcis_unit = []
+    dftcis_unit = np.zeros(nirr, dtype=int)
 
     # CVS core MO flags
     cvsflag = np.zeros(nmo, dtype=int)
@@ -154,9 +154,9 @@ def autoras(ci_method):
         print('\n', 'WARNING: unsupported XC functional in autoras',
               flush=True)
         iham = 2
-    
+
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep) + n_extra
@@ -166,7 +166,7 @@ def autoras(ci_method):
         dftcis_vec = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number
-        dftcis_unit.append(dftcis_vec)
+        dftcis_unit[irrep] = dftcis_vec
 
     #
     # RAS1 and RAS3 guess
@@ -176,7 +176,7 @@ def autoras(ci_method):
     iph1 = np.zeros(nmo, dtype=int)
 
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep) + n_extra
@@ -290,11 +290,11 @@ def propagate(ci_method, ci_method0, rep='adiabatic'):
     (ref_nconf, confunits) = libs.lib_func('ref_space_propagate', args)
 
     # Retrieve the reference space configuration scratch file names
-    confnames = []
+    confnames = ['' for i in range(nirr)]
     name      = ' '
-    for i in range(nirr):
+    for i in ci_method.irreps_nonzero():
         args = (confunits[i], name)
         name = libs.lib_func('retrieve_filename', args)
-        confnames.append(name)
-
+        confnames[i]=name
+    
     return ref_nconf, confunits, confnames
