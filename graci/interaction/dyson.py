@@ -251,7 +251,7 @@ class Dyson(interaction.Interaction):
                                   ci_trans_sym)
 
         # make the Dyson orbital list
-        npairs = len(ci_trans)         
+        npairs     = len(ci_trans)         
         dyson_orbs = np.zeros((npairs, self.n_basis), dtype=float)
 
         for indx in range(npairs):

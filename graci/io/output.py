@@ -722,7 +722,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     llen = max(len(bra_label), len(ket_label))
     
     # table header
-    delim = ' '+'-'*(36)
+    delim = ' '+'-'*(45)
     print('\n'+delim, flush=True)
 
     fstr = '  {:'+str(10+llen)+'}'
@@ -741,16 +741,16 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     print(delim, flush=True)
 
     # Overlaps
-    fstr = '{:4d} {:<7} {:4d} {:<8} {:9.6f}'
+    fstr = '{:4d} {:<7} {:4d} {:<8} {:>9.6f}'
     for indx in range(len(trans_list)):
         
         sij = overlaps[indx]
         
+        if np.imag(sij) == 0.:
+            sij = np.real(sij)
+        
         bk_st = trans_list[indx]
             
-        #[birr, bst]    = bra_obj.state_sym(bk_st[0])
-        #[kirr, kst]    = ket_obj.state_sym(bk_st[1])
-        
         [birr, bst] = bra_state_sym[bk_st[0]]
         [kirr, kst] = ket_state_sym[bk_st[1]]
                 
@@ -765,7 +765,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
         
         print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
                           bk_st[1]+1, '('+irrlbl+')',
-                          sij),
+                          np.real(sij)),
               flush=True)
 
     # table footer

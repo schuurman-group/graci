@@ -478,10 +478,18 @@ def replicate_sections(run_list):
                               for lbl in ci_labels)]
         postci_labels = [obj.label for obj in postci_list]
         all_ci_labels = list(set(ci_labels).union(set(postci_labels)))
-        si_list = [obj for obj in si_objs
-                   if obj.init_label in all_ci_labels
-                   or obj.final_label in all_ci_labels]
-        
+        try:
+            # overlap class objects have 'bra' and 'ket' labels
+            si_list = [obj for obj in si_objs
+                       if obj.bra_label in all_ci_labels
+                       or obj.ket_label in all_ci_labels]
+        except:
+            # everything else has 'initial' and 'final' labels
+            si_list = [obj for obj in si_objs
+                       if obj.init_label in all_ci_labels
+                       or obj.final_label in all_ci_labels]
+            
+            
         if mol.multi_geom:
             # Create replicate objects for all geometries
             
