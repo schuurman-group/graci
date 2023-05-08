@@ -40,6 +40,7 @@ class Dftmrci(cimethod.Cimethod):
         self.prune_thresh   = 0.90
         self.prune_qcorr    = True
         self.prune_extra    = 10
+        self.regfac         = 0.005
         self.diag_guess     = 'subdiag'
         self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001
