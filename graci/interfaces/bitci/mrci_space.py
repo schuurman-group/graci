@@ -69,11 +69,7 @@ def generate(ci_method):
             if ci_method.prune:
                 thrsh  = ci_method.prune_thresh
                 nextra = ci_method.nextra['prune'][irrep]
-                shift  = ci_method.regfac
-
-                print('\n\n', shift)
-                sys.exit()
-                
+                shift  = ci_method.regfac                
                 args = (thrsh, irrep, nroots, nextra, shift,
                         ci_confunits, ref_ciunits, nconf, eq_units)
                 (nconf, eq_units) = libs.lib_func('mrci_prune', args)
