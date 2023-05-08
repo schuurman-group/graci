@@ -157,8 +157,8 @@ contains
 ! Stop timing and print report
 !----------------------------------------------------------------------
     if (verbose) then
-
-       !! Individual timers
+    
+       ! Individual timers
        !call report_times(times(1,1),times(2,1),'sigma_vectors')
        !call report_times(times(1,2),times(2,2),'subspace_hamiltonian')
        !call report_times(times(1,3),times(2,3),'residual_vectors')

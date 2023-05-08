@@ -779,7 +779,7 @@ subroutine make_ras_dets(detras,ndet,iras1,iras2,iras3,nras1,mras1,&
   use bitglobal
   use rasperm
   use iomod
-
+  
   implicit none
 
   integer(is), intent(in)    :: ndet
@@ -892,7 +892,7 @@ subroutine make_ras_dets(detras,ndet,iras1,iras2,iras3,nras1,mras1,&
 
                                       ! Save the determinant
                                       detras(:,:,icount)=det
-                                      
+
                                    enddo
                                 enddo
                              enddo
@@ -906,7 +906,7 @@ subroutine make_ras_dets(detras,ndet,iras1,iras2,iras3,nras1,mras1,&
         enddo
      enddo
   enddo
-    
+  
   return
 
 end subroutine make_ras_dets
