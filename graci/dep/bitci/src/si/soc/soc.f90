@@ -72,7 +72,11 @@ subroutine redmat_mrci((irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 !----------------------------------------------------------------------
   if (verbose) then
      write(6,'(/,52a)') ('-',i=1,52)
-     write(6,'(3(x,a))') 'Triplet transition density matrix calculation'
+     write(6,'(x,a,/,5(x,a)))') &
+          'Triplet transition density matrix calculation', &
+          'for the',&
+          trim(irreplbl(irrepB,ipg)),'&',trim(irreplbl(irrepK,ipg)),&
+          'subspaces'
      write(6,'(52a)') ('-',i=1,52)
   endif
      

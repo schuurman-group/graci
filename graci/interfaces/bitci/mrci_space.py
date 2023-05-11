@@ -58,9 +58,9 @@ def generate(ci_method):
     args = (nroots, ref_confunits, ci_confunits, nconf, emax, cvs_flag,
             ddci_flag)
     (ci_confunits, nconf) = libs.lib_func('generate_mrci_confs',args)
-    
+
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
         
         # Optional pruning of the configuration space
         # (note that not all mrci-type methods will have pruning
@@ -69,7 +69,7 @@ def generate(ci_method):
             if ci_method.prune:
                 thrsh  = ci_method.prune_thresh
                 nextra = ci_method.nextra['prune'][irrep]
-                shift  = 0.005
+                shift  = ci_method.regfac                
                 args = (thrsh, irrep, nroots, nextra, shift,
                         ci_confunits, ref_ciunits, nconf, eq_units)
                 (nconf, eq_units) = libs.lib_func('mrci_prune', args)
@@ -77,11 +77,11 @@ def generate(ci_method):
             pass
     
     # Retrieve the MRCI configuration scratch file names
-    confname = []
+    confname = ['' for i in range(nirr)]
     name     = ' '
-    for i in range(nirr):
+    for i in ci_method.irreps_nonzero():
         args = (ci_confunits[i], name)
         name = libs.lib_func('retrieve_filename', args)
-        confname.append(name)
+        confname[i] = name
 
     return nconf, ci_confunits, confname, eq_units

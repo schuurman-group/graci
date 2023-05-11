@@ -34,14 +34,14 @@ def diag(ci_method):
     # Initialise the list to hold the eigenvector scratch file
     # numbers
     ciunit  = 0
-    ciunits = []
+    ciunits = [0 for i in range(nirr)]
 
     # Q-space energy corrections (only needed if pruning is being
     # used)
     equnits = np.array(ci_method.mrci_wfn.eq_units, dtype=int)
 
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep)
@@ -54,33 +54,31 @@ def diag(ci_method):
         ciunit = libs.lib_func('diag_mrci', args)
 
         # Bitci eigenvector scratch number
-        ciunits.append(ciunit)
-    
+        ciunits[irrep] = ciunit
+
     # Retrieve the MRCI energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
 
-    for irrep in range(nirr):
-        if ci_method.n_states_sym(irrep) > 0:
+    for irrep in ci_method.irreps_nonzero():
+        # Number of roots for the current irrep
+        nroots = ci_method.n_states_sym(irrep)
 
-            # Number of roots for the current irrep
-            nroots = ci_method.n_states_sym(irrep)
-
-            args = (ciunits[irrep], nroots, ener[irrep,:nroots])
-            (ener[irrep,:nroots]) = \
-                    libs.lib_func('retrieve_energies', args)
+        args = (ciunits[irrep], nroots, ener[irrep,:nroots])
+        (ener[irrep,:nroots]) = \
+            libs.lib_func('retrieve_energies', args)
 
     # Retrieve the MRCI eigenvector scratch file names
-    ciname = []
-    name    = ''
-    for irrep in range(nirr):
+    ciname = ['' for i in range(nirr)]
+    name   = ''
+    for irrep in ci_method.irreps_nonzero():
         args = (ciunits[irrep], name)
         name = libs.lib_func('retrieve_filename', args)
-        ciname.append(name)
+        ciname[irrep] = name
 
     # Apply the Q-space energy corrections
     if ci_method.prune and ci_method.prune_qcorr:
-        for irrep in range(nirr):
+        for irrep in ci_method.irreps_nonzero():
             nstates  = ci_method.n_states_sym()
             qcorr    = np.zeros(nstates[irrep], dtype=float)
             maxovrlp = np.zeros(nstates[irrep], dtype=float)
@@ -106,7 +104,6 @@ def diag(ci_method):
     ciunits = np.array(ciunits, dtype=int)
     nstates = ci_method.n_states_sym()
     nextra  = np.array(ci_method.nextra['prune'], dtype=int)
-
     if ci_method.prune and ci_method.prune_qcorr:
         args = (ci_confunits, ciunits, ref_ciunits, equnits, nstates,
                 nextra)

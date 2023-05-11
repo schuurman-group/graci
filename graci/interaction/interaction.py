@@ -597,7 +597,6 @@ class Interaction:
                     kind = self.groups[ket_grp].ci_st_sym[ket_ci][k]
                     bsym = self.groups[bra_grp].ci_st_irr[bra_ci][b]
                     bind = self.groups[bra_grp].ci_st_sym[bra_ci][b]                       
-                    
                     pair_list[bsym][ksym].append([bind, kind])
                 else:
                     pair_list.append([bst, kst])

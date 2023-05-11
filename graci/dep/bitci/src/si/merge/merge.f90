@@ -35,7 +35,7 @@ contains
 ! Do nothing if the two reference spaces are the same
 !----------------------------------------------------------------------
     if (sameref(cfgB,cfgK)) return
-
+    
 !----------------------------------------------------------------------
 ! Get the indices of the MOs in the union of the bra and ket reference
 ! spaces

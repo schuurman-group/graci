@@ -115,7 +115,13 @@ class Cimethod:
     def n_irrep(self):
         """return the number of irreps"""
         return len(self.nstates)
- 
+
+    #
+    def irreps_nonzero(self):
+        """returns the indices of the irreps with a
+        non-zero no. of roots"""        
+        return np.where(self.nstates > 0)[0]
+        
     #
     def n_states(self):
         """total number of states"""
@@ -355,9 +361,10 @@ class Cimethod:
 
     #
     def order_energies(self):
-        """orders the self.energies_sym array to create self.energies, a 1D array
-           of energies in ascending order, and a corresponding sym_sorted
-           array of [irrep, st] pairs for each energy in mrci_sorted."""
+        """orders the self.energies_sym array to create self.energies,
+        a 1D array of energies in ascending order, and a corresponding
+        sym_sorted array of [irrep, st] pairs for each energy in 
+        mrci_sorted."""
 
         if self.energies_sym is None:
             sys.exit('error in order_ener: energies_sym is None')
@@ -370,9 +377,9 @@ class Cimethod:
         self.sym_sorted = []
         # mrci_ener_sym is an irrep x maxroots array, with trailing values 
         # of 'zero'. 
-        ener_vals         = np.pad(self.energies_sym, ((0,0),(0,1)), 
-                                   'constant', 
-                                   constant_values=((0,0),(0,0)))
+        ener_vals = np.pad(self.energies_sym, ((0,0),(0,1)), 
+                           'constant', 
+                           constant_values=((0,0),(0,0)))
        
         n_srt = 0
         while n_srt < n_tot:
@@ -400,22 +407,22 @@ class Cimethod:
         nirr = self.n_irrep()
 
         # initialise the list of diabatic potentials
-        self.diabpot = []
+        self.diabpot = [None for i in range(nirr)]
 
         # loop over irreps
-        for irr in range(nirr):
+        for irrep in self.irreps_nonzero():
 
             # no. states
-            nstates = self.n_states_sym(irr)
+            nstates = self.n_states_sym(irrep)
 
             # adiabatic potential matrix
             vmat = np.zeros((nstates, nstates), dtype=float)
-            np.fill_diagonal(vmat, self.energies_sym[irr][:nstates])
+            np.fill_diagonal(vmat, self.energies_sym[irrep][:nstates])
 
             # diabatic potential matrix
-            wmat = np.matmul(self.adt[irr].T,
-                             np.matmul(vmat, self.adt[irr]))
+            wmat = np.matmul(self.adt[irrep].T,
+                             np.matmul(vmat, self.adt[irrep]))
 
-            self.diabpot.append(wmat)
-            
+            self.diabpot[irrep] = wmat
+
         return

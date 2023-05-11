@@ -17,6 +17,9 @@ def extract_wf(ci_method, rep='adiabatic'):
     in the representation rep for all states
     """
 
+    # number of irreps
+    nirr = ci_method.n_irrep()
+    
     # bitci mrci wfn object
     mrci_wfn = ci_method.bitci_mrci()
 
@@ -27,11 +30,11 @@ def extract_wf(ci_method, rep='adiabatic'):
     ci_ciunits = np.array(mrci_wfn.ci_units[rep], dtype=int)
 
     # Initialise the determinant bit string and eigenvector arrays
-    ci_method.det_strings[rep] = []
-    ci_method.vec_det[rep]     = []
-    
+    ci_method.det_strings[rep] = [None for i in range(nirr)]
+    ci_method.vec_det[rep]     = [None for i in range(nirr)]
+
     # Loop over irreps
-    for irr in range(ci_method.n_irrep()):
+    for irr in ci_method.irreps_nonzero():
         
         # States for which the WFs are required (note that bitCI
         # uses Fortran indexing here)
@@ -80,7 +83,7 @@ def extract_wf(ci_method, rep='adiabatic'):
        
         # Save the determinant bit strings and eigenvectors
         # for this irrep
-        ci_method.det_strings[rep].append(det)
-        ci_method.vec_det[rep].append(vec)
-        
+        ci_method.det_strings[rep][irr] = det
+        ci_method.vec_det[rep][irr] = vec
+
     return

@@ -338,14 +338,14 @@ contains
 
     use constants
     use bitglobal
-  
+    
     implicit none
 
     integer(is), intent(in)  :: ntot
     integer(ib), intent(in)  :: sop(n_int,2,ntot)
     integer(ib), intent(out) :: conf(n_int,2,ntot)
     integer(is)              :: i,k
-
+    
     ! Loop over SOPs
     do i=1,ntot
        
@@ -370,7 +370,7 @@ contains
 
     use constants
     use bitglobal
-  
+
     implicit none
     
     integer(is), intent(in)    :: c2m(nmo)
@@ -381,7 +381,7 @@ contains
     integer(ib)                :: sop_new(n_int,2)
     integer(is)                :: iconf,k,i,imo,n
     integer(is)                :: imo1,k1,i1
-
+    
 !----------------------------------------------------------------------
 ! Rearrange the reference space configurations and associated SOPs
 ! to correspond to the MRCI internal-external MO ordering
@@ -431,7 +431,7 @@ contains
        sop(:,:,iconf)=sop_new
        
     enddo
-     
+    
     return
   
   end subroutine rearrange_ref_confs
@@ -533,7 +533,7 @@ contains
     use constants
     use bitglobal
     use iomod
-  
+    
     implicit none
 
     integer(is), intent(in)  :: ntot,nmoI,nmoE
@@ -546,7 +546,7 @@ contains
     integer(is)              :: irrep,istart,iend
     character(len=250)       :: scrfile(0:nirrep-1)
     character(len=2)         :: amult,asym
-  
+
 !----------------------------------------------------------------------
 ! Register the scratch files
 !----------------------------------------------------------------------
@@ -628,7 +628,7 @@ contains
        close(iscratch)
        
     enddo
-    
+
     return
     
   end subroutine write_ref_confs

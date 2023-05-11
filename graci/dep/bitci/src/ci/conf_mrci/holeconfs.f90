@@ -12,7 +12,7 @@ contains
 !                      configurations from a given set of reference
 !                      space configurations
 !######################################################################
-  subroutine generate_hole_confs(cfgM,icvs)
+  subroutine generate_hole_confs(cfgM,icvs,nroots)
     
     use constants
     use bitglobal
@@ -27,8 +27,11 @@ contains
     integer(is), intent(in)    :: icvs(nmo)
     logical                    :: lcvs
 
+    ! Number of roots per irrep
+    integer(is), intent(in)    :: nroots(0:nirrep-1)
+    
     ! Everything else
-    integer(is)                :: modus,i
+    integer(is)                :: modus,i,istart
 
 !----------------------------------------------------------------------
 ! Is this a CVS-MRCI calculation
@@ -40,68 +43,81 @@ contains
     endif
 
 !----------------------------------------------------------------------
+! First index of an irrep with a non-zero number of roots
+!----------------------------------------------------------------------
+    do i=0,nirrep-1
+       if (nroots(i) > 0) then
+          istart=i
+          exit
+       endif
+    enddo
+
+!----------------------------------------------------------------------
 ! 1-hole configurations
 !----------------------------------------------------------------------
     ! First pass: determine the no. 1-hole configurations
     modus=0
-    call builder_1hole(modus,cfgM(0),icvs,lcvs)
+    call builder_1hole(modus,cfgM(istart),icvs,lcvs)
 
     ! Allocate and initialise arrays
-    allocate(cfgM(0)%conf1h(cfgM(0)%n_int_I,2,cfgM(0)%n1h))
-    allocate(cfgM(0)%off1h(cfgM(0)%nR+1))
-    allocate(cfgM(0)%a1h(cfgM(0)%n1h))
-    cfgM(0)%conf1h=0_ib
-    cfgM(0)%off1h=0
-    cfgM(0)%a1h=0
+    allocate(cfgM(istart)%conf1h(cfgM(istart)%n_int_I,2,cfgM(istart)%n1h))
+    allocate(cfgM(istart)%off1h(cfgM(istart)%nR+1))
+    allocate(cfgM(istart)%a1h(cfgM(istart)%n1h))
+    cfgM(istart)%conf1h=0_ib
+    cfgM(istart)%off1h=0
+    cfgM(istart)%a1h=0
 
     ! Second pass: fill in the 1-hole configuration and offset arrays
     modus=1
-    call builder_1hole(modus,cfgM(0),icvs,lcvs)
+    call builder_1hole(modus,cfgM(istart),icvs,lcvs)
 
 !----------------------------------------------------------------------
 ! 2-hole configurations
 !----------------------------------------------------------------------
     ! First pass: determine the no. 2-hole configurations
     modus=0
-    call builder_2hole(modus,cfgM(0),icvs,lcvs)
+    call builder_2hole(modus,cfgM(istart),icvs,lcvs)
     
     ! Allocate and initialise arrays
-    allocate(cfgM(0)%conf2h(cfgM(0)%n_int_I,2,cfgM(0)%n2h))
-    allocate(cfgM(0)%off2h(cfgM(0)%nR+1))
-    allocate(cfgM(0)%a2h(2,cfgM(0)%n2h))
-    cfgM(0)%conf2h=0_ib
-    cfgM(0)%off2h=0
-    cfgM(0)%a2h=0
+    allocate(cfgM(istart)%conf2h(cfgM(istart)%n_int_I,2,cfgM(istart)%n2h))
+    allocate(cfgM(istart)%off2h(cfgM(istart)%nR+1))
+    allocate(cfgM(istart)%a2h(2,cfgM(istart)%n2h))
+    cfgM(istart)%conf2h=0_ib
+    cfgM(istart)%off2h=0
+    cfgM(istart)%a2h=0
 
     ! Second pass: fill in the 2-hole configuration and offset arrays
     modus=1
-    call builder_2hole(modus,cfgM(0),icvs,lcvs)
+    call builder_2hole(modus,cfgM(istart),icvs,lcvs)
 
 !----------------------------------------------------------------------
 ! Fill in the MRCI configuration derived types for the remaining irreps
 !----------------------------------------------------------------------
     ! Loop over remaining irreps
-    do i=1,nirrep-1
+    do i=istart+1,nirrep-1
 
+       ! Cycle if there are no roots for this irrep
+       if (nroots(i) == 0) cycle
+       
        ! No. 1-hole and 2-hole configurations
-       cfgM(i)%n1h=cfgM(0)%n1h
-       cfgM(i)%n2h=cfgM(0)%n2h
+       cfgM(i)%n1h=cfgM(istart)%n1h
+       cfgM(i)%n2h=cfgM(istart)%n2h
 
        ! 1-hole configurations and offsets
        allocate(cfgM(i)%conf1h(cfgM(i)%n_int_I,2,cfgM(i)%n1h))
        allocate(cfgM(i)%off1h(cfgM(i)%nR+1))
        allocate(cfgM(i)%a1h(cfgM(i)%n1h))
-       cfgM(i)%conf1h=cfgM(0)%conf1h
-       cfgM(i)%off1h=cfgM(0)%off1h
-       cfgM(i)%a1h=cfgM(0)%a1h
+       cfgM(i)%conf1h=cfgM(istart)%conf1h
+       cfgM(i)%off1h=cfgM(istart)%off1h
+       cfgM(i)%a1h=cfgM(istart)%a1h
 
        ! 2-hole configurations and offsets
        allocate(cfgM(i)%conf2h(cfgM(i)%n_int_I,2,cfgM(i)%n2h))
        allocate(cfgM(i)%off2h(cfgM(i)%nR+1))
        allocate(cfgM(i)%a2h(2,cfgM(i)%n2h))
-       cfgM(i)%conf2h=cfgM(0)%conf2h
-       cfgM(i)%off2h=cfgM(0)%off2h
-       cfgM(i)%a2h=cfgM(0)%a2h
+       cfgM(i)%conf2h=cfgM(istart)%conf2h
+       cfgM(i)%off2h=cfgM(istart)%off2h
+       cfgM(i)%a2h=cfgM(istart)%a2h
        
     enddo
 
@@ -554,326 +570,6 @@ contains
     
   end subroutine builder_2hole
     
-!######################################################################
-! generate_1hole_1I_confs: generates 1-hole configurations derived
-!                          from the 2-hole configurations by the
-!                          application of internal creation
-!                          operators
-!######################################################################
-  subroutine generate_1hole_1I_hash(conf1h1I,n1h1I,indx1h1I,cfgM,icvs)
-
-    use constants
-    use bitglobal
-    use conftype
-    use mrciutils
-    use dethash
-    use hparam
-    use iomod
-    
-    implicit none
-
-    ! 1H1I configurations
-    integer(is), intent(out)   :: n1h1I
-    integer(ib), allocatable   :: conf1h1I(:,:,:)
-    integer(is), allocatable   :: indx1h1I(:,:)
-
-    ! MRCI configurations
-    type(mrcfg), intent(inout) :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
-
-    ! Orbital classes
-    integer(is), allocatable   :: socc(:),docc(:),unocc(:)
-    integer(is)                :: nopen,nsocc,ndocc,nunocc
-
-    ! Difference configuration information
-    integer(is)                :: Dw(nmo,2)
-    integer(is)                :: ndiff
-    
-    ! Hash table
-    type(dhtbl)                :: h
-    integer(is)                :: initial_size
-    integer(ib)                :: key(n_int,2)
-    integer(ib), allocatable   :: keyI(:,:)
-    
-    ! Storage the 1H1I configurations
-    integer(is)                :: nold,nbuf,nrec
-    integer(is), allocatable   :: ibuffer(:,:)
-    integer(ib), allocatable   :: cbuffer(:,:,:)
-    integer(is)                :: iscratch
-    character(len=250)         :: buffile
-    
-    ! Everything else
-    integer(is)                :: i,j,k,n,imo,i1
-    integer(is)                :: n_int_I,nmoI,n1h,n2h
-    
-!----------------------------------------------------------------------
-! Is this a CVS-MRCI calculation
-!----------------------------------------------------------------------
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
-    
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    nmoI=cfgM%nmoI
-    n_int_I=cfgM%n_int_I
-    n1h=cfgM%n1h
-    n2h=cfgM%n2h
-
-    allocate(keyI(n_int_I,2))
-    keyI=0_ib
-    
-    allocate(socc(nmoI),docc(nmoI),unocc(nmoI))
-    socc=0; docc=0; unocc=0
-    
-    allocate(ibuffer(2,bufsize))
-    ibuffer=0
-
-    allocate(cbuffer(n_int_I,2,bufsize))
-    cbuffer=0_ib
-
-!----------------------------------------------------------------------
-! Open the buffer file
-!----------------------------------------------------------------------
-    call freeunit(iscratch)
-    call scratch_name('1h1Iconf',buffile)
-    open(iscratch,file=buffile,form='unformatted',status='unknown')
-    
-!----------------------------------------------------------------------
-! Initialise the hash table
-!----------------------------------------------------------------------
-    initial_size=min(n2h*(nel-1)/2,1024)
-    call h%initialise_table(initial_size)
-
-!----------------------------------------------------------------------
-! Insert the 1-hole configurations
-! These will be deleted before the keys are retrieved from the hash
-! table, and serve only to filter out replications when the internal
-! creation operators are applied to the 2-hole configurations
-!----------------------------------------------------------------------
-    ! Loop over 1-hole configurations
-    do n=1,n1h
-
-       ! Insert the 1-hole configuration
-       key=0_ib
-       key(1:n_int_I,:)=cfgM%conf1h(:,:,n)
-       call h%insert_key(key)
-       
-    enddo
-
-!----------------------------------------------------------------------
-! Generate the 1-hole, 1I configurations
-!----------------------------------------------------------------------
-    ! Initialise the buffer variables
-    nold=h%n_keys_stored
-    nbuf=0
-    nrec=0
-    
-    ! Loop over 2-hole configurations
-    do n=1,n2h
-
-       ! 1H1I configurations generated from the current
-       ! 2-hole configuration
-       do imo=1,nmoI
-
-          ! Cycle if this is a CVS-MRCI calculation and we are creating
-          ! an electron in a flagged core MO
-          if (lcvs .and. icvs(cfgM%m2c(imo)) == 1) cycle
-          
-          ! Block index
-          k=(imo-1)/n_bits+1
-          
-          ! Postion of the external MO within the kth block
-          i=imo-(k-1)*n_bits-1          
-
-          ! Cycle if this MO is doubly-occupied
-          if (btest(cfgM%conf2h(k,2,n),i)) cycle
-
-          ! Create the 1H1I configuration
-          key=0_ib
-          key(1:n_int_I,:)=cfgM%conf2h(:,:,n)
-          if (btest(cfgM%conf2h(k,1,n),i)) then
-             key(k,2)=ibset(key(k,2),i)
-          else
-             key(k,1)=ibset(key(k,1),i)
-          endif
-
-          ! Hash table insertion
-          call h%insert_key(key)
-
-          ! If this is a unique configuration, then save it
-          if (h%n_keys_stored > nold) then
-             keyI=key(1:n_int_I,:)
-             call save_1h1I(nold,h%n_keys_stored,nbuf,n_int_I,&
-                  ibuffer,cbuffer,iscratch,nrec,n,imo,keyI)
-          endif
-             
-       enddo
-       
-    enddo
-
-!----------------------------------------------------------------------
-! Get the number of 1H1I configurations and allocate arrays
-!----------------------------------------------------------------------
-    ! Number of keys stored in the hash table minus those
-    ! corresponding to the 1-hole configurations
-    n1h1I=h%n_keys_stored-n1h
-
-    ! Allocate arrays
-    allocate(conf1h1I(n_int_I,2,n1h1I))
-    conf1h1I=0_ib
-    allocate(indx1h1I(2,n1h1I))
-    indx1h1I=0
-    
-!----------------------------------------------------------------------
-! Load the 1H1I configurations from the buffer
-!----------------------------------------------------------------------
-    call load_1h1I(indx1h1I,conf1h1I,n1h1I,n_int_I,ibuffer,cbuffer,&
-         nrec,nbuf,iscratch)
-    
-!----------------------------------------------------------------------
-! Delete the hash table
-!----------------------------------------------------------------------
-    call h%delete_table
-
-!----------------------------------------------------------------------
-! Close the buffer file
-!----------------------------------------------------------------------
-    close(iscratch)
- 
-!----------------------------------------------------------------------
-! Deallocate arrays
-!----------------------------------------------------------------------
-    deallocate(ibuffer)
-    deallocate(cbuffer)
-    deallocate(keyI)
-    deallocate(socc,docc,unocc)
-    
-    return
-    
-  end subroutine generate_1hole_1I_hash
-    
-!######################################################################
-! save_1h1I: buffered saving of the 1H1I configurations
-!######################################################################
-  subroutine save_1h1I(nold,n_keys_stored,nbuf,n_int_I,ibuffer,&
-       cbuffer,iscratch,nrec,i2h,imo,conf)
-
-    use bitglobal
-    use constants
-    
-    implicit none
-
-    integer(is), intent(out)   :: nold
-    integer(ib), intent(in)    :: n_keys_stored
-    integer(is), intent(inout) :: nbuf
-    integer(is), intent(in)    :: n_int_I
-    integer(is), intent(inout) :: ibuffer(2,bufsize)
-    integer(ib), intent(inout) :: cbuffer(n_int_I,2,bufsize)
-    integer(is), intent(in)    :: iscratch
-    integer(is), intent(inout) :: nrec
-    integer(is), intent(in)    :: i2h,imo
-    integer(ib), intent(in)    :: conf(n_int_I,2)
-    
-    !
-    ! Update the number of entries in the buffer
-    !
-    nbuf=nbuf+1
-
-    !
-    ! Number of confs generated up to this point
-    !
-    nold=n_keys_stored
-
-    !
-    ! Store the index-pair in the buffer
-    !
-    ibuffer(1,nbuf)=i2h
-    ibuffer(2,nbuf)=imo
-
-    !
-    ! Store the configuration bit string in the buffer
-    !
-    cbuffer(:,:,nbuf)=conf
-    
-    !
-    ! If the buffer is full, then write it to disk and reset
-    ! the buffer
-    !
-    if (nbuf == bufsize) then
-
-       ! Increment the record counter
-       nrec=nrec+1
-
-       ! Write the buffer to disk
-       write(iscratch) ibuffer
-       write(iscratch) cbuffer
-       
-       ! Reset the buffer
-       nbuf=0
-       ibuffer=0
-       cbuffer=0_ib
-       
-    endif
-    
-    return
-        
-  end subroutine save_1h1I
-
-!######################################################################
-! load_1h1I: loads the stored 1H1I configurations into memory
-!######################################################################
-  subroutine load_1h1I(indx1h1I,conf1h1I,n1h1I,n_int_I,ibuffer,&
-       cbuffer,nrec,nbuf,iscratch)
-
-    use bitglobal
-    use constants
-    
-    implicit none
-
-    integer(is), intent(in)  :: n1h1I,nrec,nbuf,iscratch
-    integer(is), intent(in)  :: n_int_I
-    integer(is), intent(out) :: indx1h1I(2,n1h1I)
-    integer(ib), intent(out) :: conf1h1I(n_int_I,2,n1h1I)
-    integer(is), intent(in)  :: ibuffer(2,bufsize)
-    integer(ib), intent(in)  :: cbuffer(n_int_I,2,bufsize)
-    integer(is)              :: i,counter,lim1,lim2
-    
-    !
-    ! Rewind to the start of the scratch file
-    !
-    rewind(iscratch)
-    
-    !
-    ! Indices written to disk
-    !
-    counter=0
-    do i=1,nrec
-       counter=counter+1
-       lim1=(counter-1)*bufsize+1
-       lim2=counter*bufsize
-       read(iscratch) indx1h1I(:,lim1:lim2)
-       read(iscratch) conf1h1I(:,:,lim1:lim2)
-    enddo
-
-    !
-    ! Remaining indices in the buffer
-    !
-    lim1=nrec*bufsize+1
-    lim2=nrec*bufsize+nbuf
-    indx1h1I(:,lim1:lim2)=ibuffer(:,1:nbuf)
-    conf1h1I(:,:,lim1:lim2)=cbuffer(:,:,1:nbuf)
-    
-    return
-    
-  end subroutine load_1h1I
-
 !######################################################################
   
 end module holeconfs

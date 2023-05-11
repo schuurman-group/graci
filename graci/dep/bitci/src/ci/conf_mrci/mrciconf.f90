@@ -79,7 +79,6 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   integer(is)                :: i,n,counter,irrep
   integer(is)                :: ntotal(0:nirrep-1)
 
-
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -120,10 +119,13 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
   ! Total number of ref confs across all irreps
   cfgM%nR=sum(nconf0(0:nirrep-1))
-
+  
   ! Loop over irreps
   do irrep=0,nirrep-1
-  
+
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+     
      ! Allocate arrays
      allocate(cfgM(irrep)%conf0h(n_int_I,2,nconf0(irrep)))
      allocate(cfgM(irrep)%sop0h(n_int_I,2,nconf0(irrep)))
@@ -166,26 +168,26 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole, 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_hole_confs(cfgM,icvs)
+  call generate_hole_confs(cfgM,icvs,nroots)
   
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
 ! electron
 !----------------------------------------------------------------------
-  call generate_1E_confs(E0max,cfgM)
+  call generate_1E_confs(E0max,cfgM,nroots)
 
 !----------------------------------------------------------------------
 ! Generate the configurations with two internal holes and two external
 ! electrons
 !----------------------------------------------------------------------
-  call generate_2E_confs(E0max,cfgM,ddci)
-  
+  call generate_2E_confs(E0max,cfgM,ddci,nroots)
+
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one internal
 ! electron
 !----------------------------------------------------------------------
-  call generate_1I_confs(E0max,cfgM,icvs)
-
+  call generate_1I_confs(E0max,cfgM,icvs,nroots)
+  
 !----------------------------------------------------------------------
 ! Generate the configurations with:
 ! (a) Two internal holes and two internal electrons
@@ -195,23 +197,37 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Important: this routine must be called *after* the generation of
 !            the 1I and 1E confs have been generated
 !----------------------------------------------------------------------
-  call generate_2I_1I1E_confs(E0max,cfgM,icvs,ddci)
-  
+  call generate_2I_1I1E_confs(E0max,cfgM,icvs,ddci,nroots)
+
 !----------------------------------------------------------------------
 ! Filter out any hole configurations which do not generate any
 ! full configurations
 !----------------------------------------------------------------------
+  ! Loop over irreps
   do irrep=0,nirrep-1
+
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+
+     ! Filter the hole confs
      call filter_hole_confs(cfgM(irrep))
+     
   enddo
 
 !----------------------------------------------------------------------
 ! Set the total number of configurations per irrep
 !----------------------------------------------------------------------
+  ! Loop over irreps
   do irrep=0,nirrep-1
+
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+
+     ! Total number of confs
      ntotal(irrep)=cfgM(irrep)%n0h+cfgM(irrep)%n1I+cfgM(irrep)%n1E &
           +cfgM(irrep)%n2E+cfgM(irrep)%n1I1E+cfgM(irrep)%n2I
      nconf(irrep)=ntotal(irrep)
+     
   enddo
      
 !----------------------------------------------------------------------
@@ -220,6 +236,9 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   ! Loop over irreps
   do irrep=0,nirrep-1
 
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+     
      ! Register the scratch file
      write(amult,'(i0)') imult
      write(airrep,'(i0)') irrep
@@ -297,6 +316,9 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
      ! Loop over irreps
      do irrep=0,nirrep-1
 
+        ! Cycle if there are no roots for this irrep
+        if (nroots(irrep) == 0) cycle
+        
         ! Table of subspace dimensions
         write(6,'(/,x,20a)') ('-',i=1,20)
         write(6,'(2x,a)') 'Irrep: '//trim(irreplbl(irrep,ipg))
@@ -323,7 +345,8 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Debugging: check for duplicate configurations
 !----------------------------------------------------------------------
   !do irrep=0,nirrep-1
-  !   call check_confs(ntotal(irrep),n_int_I,nmoI,cfgM(irrep))
+  !   if (nroots(irrep) /= 0) call check_confs(ntotal(irrep),n_int_I,&
+  !        nmoI,cfgM(irrep))
   !enddo
 
 !----------------------------------------------------------------------
@@ -337,6 +360,9 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   ! Loop over irreps
   do irrep=0,nirrep-1
 
+     ! Cycle if there are no roots for this irrep
+     if (nroots(irrep) == 0) cycle
+     
      ! Construct the full configuration derived type including the
      ! SOPs, etc.
      call cfgM(irrep)%finalise
