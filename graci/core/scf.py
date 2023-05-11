@@ -27,6 +27,7 @@ class Scf:
         self.label          = 'default'
         self.init_guess     = 'minao'
         self.diag_method    = 'diis'
+        self.max_iter       = 50
         self.lvl_shift      = None
         self.verbose        = True 
         self.restart        = False
@@ -318,6 +319,9 @@ class Scf:
         if self.lvl_shift is not None:
             scf.addons.dynamic_level_shift_(mf,
                                       factor=float(self.lvl_shift))
+
+        # set the maximum number of iterations
+        mf.max_cycle = self.max_iter
 
         # optional: override the initial density matrix with
         # that of a previous SCF calculation
