@@ -5,6 +5,7 @@ DFT/MRCI Hamiltonian aliases used for backwards compatibility
 aliases = {
     'canonical'       : 'abinitio',
     'grimme_standard' : 'grimme',
+    'grimme_short'    : 'grimme_short',
     'lyskov_standard' : 'r2016',
     'lyskov_short'    : 'r2016_short',
     'heil17_standard' : 'r2017',
