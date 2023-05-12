@@ -33,7 +33,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.truncate_thresh = 0.9
         self.regularizer     = 'isa'
         self.regfac          = None
-        self.hamiltonian     = 'heil17_standard'
+        self.hamiltonian     = None
         self.ras1            = []
         self.ras2            = []
         self.ras3            = []
@@ -113,6 +113,9 @@ class Dftmrci2(cimethod.Cimethod):
         # set the scf object
         self.set_scf(scf)
 
+        # set the Hamiltonian
+        self.set_hamiltonian()
+        
         # sanity check on the input variables
         self.sanity_check(scf, guess)
 

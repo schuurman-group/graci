@@ -359,22 +359,22 @@ end subroutine retrieve_filename
 ! Number of Hamiltonian parameters
 !----------------------------------------------------------------------
   select case(trim(ham))
-  case('grimme_standard')
-     npar=size(grimme1_standard)
+  case('grimme')
+     npar=size(grimme1)
   case('grimme_short')
      npar=size(grimme1_short)
-  case('lyskov_standard')
-     npar=size(lyskov_standard)
-  case('lyskov_short')
-     npar=size(lyskov_short)
-  case('heil17_standard')
-     npar=size(heil17_standard)
-  case('heil17_short')
-     npar=size(heil17_short)
-  case('heil18_standard')
-     npar=size(heil18_standard)
-  case('heil18_short')
-     npar=size(heil18_short)
+  case('r2016')
+     npar=size(r2016)
+  case('r2016_short')
+     npar=size(r2016_short)
+  case('r2017')
+     npar=size(r2017)
+  case('r2017_short')
+     npar=size(r2017_short)
+  case('r2018')
+     npar=size(r2018)
+  case('r2018_short')
+     npar=size(r2018_short)
   case('cvs_standard')
      npar=size(cvs_standard)
   case('cvs_short')
@@ -383,10 +383,10 @@ end subroutine retrieve_filename
      npar=size(test_heil17)
   case('cvs_test_heil17')
      npar=size(cvs_test_heil17)
-  case('test_exp')
-     npar=size(test_exp)
-  case('cvs_test_exp')
-     npar=size(cvs_test_exp)
+  case('qe8')
+     npar=size(qe8)
+  case('cvs-qe8')
+     npar=size(cvs_qe8)
   case('r2022')
      npar=size(r2022)
   case default
@@ -454,45 +454,45 @@ subroutine retrieve_hpar(ham1,dim,params)
 ! Package up the Hamiltonian parameters excluding desel
 !----------------------------------------------------------------------
   select case(trim(ham))
-  case('grimme_standard')
-     npar=size(grimme1_standard)+1
+  case('grimme')
+     npar=size(grimme1)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=grimme1_standard
+     params(1:npar-1)=grimme1
      params(npar) = 1.d0
   case('grimme_short')
      npar=size(grimme1_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=grimme1_short
      params(npar) = 0.8d0
-  case('lyskov_standard')
-     npar=size(lyskov_standard)+1
+  case('r2016')
+     npar=size(r2016)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=lyskov_standard
+     params(1:npar-1)=r2016
      params(npar) = 1.d0
-  case('lyskov_short')
-     npar=size(lyskov_short)+1
+  case('r2016_short')
+     npar=size(r2016_short)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=lyskov_short
+     params(1:npar-1)=r2016_short
      params(npar) = 0.8d0
-  case('heil17_standard')
-     npar=size(heil17_standard)+1
+  case('r2017')
+     npar=size(r2017)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=heil17_standard
+     params(1:npar-1)=r2017
      params(npar) = 1.d0
   case('heil17_short')
-     npar=size(heil17_short)+1
+     npar=size(r2017_short)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=heil17_short
+     params(1:npar-1)=r2017_short
      params(npar) = 0.8d0
-  case('heil18_standard')
-     npar=size(heil18_standard)+1
+  case('r2018')
+     npar=size(r2018)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=heil18_standard
+     params(1:npar-1)=r2018
      params(npar) = 1.d0
-  case('heil18_short')
-     npar=size(heil18_short)+1
+  case('r2018_short')
+     npar=size(r2018_short)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=heil18_short
+     params(1:npar-1)=r2018_short
      params(npar) = 0.8d0
   case('cvs_standard')
      npar=size(cvs_standard)+1
@@ -514,15 +514,15 @@ subroutine retrieve_hpar(ham1,dim,params)
      if (npar > dim) goto 999
      params(1:npar-1)=cvs_test_heil17
      params(npar) = 1.d0
-  case('test_exp')
-     npar=size(test_exp)+1
+  case('qe8')
+     npar=size(qe8)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=test_exp
+     params(1:npar-1)=qe8
      params(npar) = 1.d0
-  case('cvs_test_exp')
-     npar=size(cvs_test_exp)+1
+  case('cvs-qe8')
+     npar=size(cvs_qe8)+1
      if (npar > dim) goto 999
-     params(1:npar-1)=cvs_test_exp
+     params(1:npar-1)=cvs_qe8
      params(npar) = 1.d0
   case('r2022')
      npar=size(r2022)+1

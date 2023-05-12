@@ -26,7 +26,7 @@ class Dftmrci(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
-        self.hamiltonian    = 'heil17_standard'
+        self.hamiltonian    = 'qe8'
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
@@ -99,6 +99,9 @@ class Dftmrci(cimethod.Cimethod):
         # set the scf object 
         self.set_scf(scf)
 
+        # set the Hamiltonian
+        self.set_hamiltonian()
+        
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
             

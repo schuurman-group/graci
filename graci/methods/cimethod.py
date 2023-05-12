@@ -111,6 +111,24 @@ class Cimethod:
         except:
             return False
 
+    def set_hamiltonian(self):
+        """sets the default Hamiltonian if the user
+        has not specified one"""
+
+        defaults = {'hf'               : 'abinitio',
+                    'hyb_gga_xc_qtp17' : 'qe8',
+                    'bhandhlyp'        : 'r2017'}
+        
+        if self.hamiltonian is None:
+            try:
+                self.hamiltonian = defaults[self.scf.xc.lower()]
+            except:
+                sys.exit('\n\n Error: could not determine a default'
+                         + ' Hamiltonian for XC functional '
+                         + self.scf.xc)
+        
+        return
+        
     # 
     def n_irrep(self):
         """return the number of irreps"""

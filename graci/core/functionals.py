@@ -1,8 +1,7 @@
 """
-XC functional information
+XC functional aliases
 """
 
-# Aliases
 aliases = {
     'bhlyp' : 'bhandhlyp',
     'qtp17' : 'hyb_gga_xc_qtp17'
