@@ -10,26 +10,27 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=16
+  integer(is), parameter :: nham=17
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
-       ['canonical           ', &
-        'grimme_standard     ', &
+       ['abinitio            ', &
+        'grimme              ', &
         'grimme_short        ', &
-        'lyskov_standard     ', &
-        'lyskov_short        ', &
-        'heil17_standard     ', &
-        'heil17_short        ', &
-        'heil18_standard     ', &
-        'heil18_short        ', &
+        'r2016               ', &
+        'r2016_short         ', &
+        'r2017               ', &
+        'r2017_short         ', &
+        'r2018               ', &
+        'r2018_short         ', &
         'cvs_standard        ', &
         'cvs_short           ', &
         'test_heil17         ', &
         'cvs_test_heil17     ', &
-        'test_exp            ', &
-        'cvs_test_exp        ', &
-        'r2022               ']
+        'qe8                 ', &
+        'cvs-qe8             ', &
+        'r2022               ', &
+        'qe8_short           ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -48,7 +49,7 @@ module hparam
 ! J. Chem. Phys., 111, 5645 (1999)
 !----------------------------------------------------------------------
   ! Singlet parameters, delta E_sel = 1.0
-  real(dp), parameter, dimension(5) :: grimme1_standard= &
+  real(dp), parameter, dimension(5) :: grimme1= &
        [0.6195d0, & ! p1
        3.2719d0, &  ! p2
        0.5102d0, &  ! pJ
@@ -64,7 +65,7 @@ module hparam
         0.1190d0]   ! alpha
   
   ! Triplet parameters, delta E_sel = 1.0
-  real(dp), parameter, dimension(5) :: grimme3_standard= &
+  real(dp), parameter, dimension(5) :: grimme3= &
        [0.6195d0, & ! p1
        3.2719d0, &  ! p2
        0.4930d0, &  ! pJ
@@ -84,14 +85,14 @@ module hparam
 ! J. Chem. Phys., 144, 034104 (2016)
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(4) :: lyskov_standard= &
+  real(dp), parameter, dimension(4) :: r2016= &
        [0.507894d0, & ! pJ
        0.355895d0, &  ! pF
        0.568168d0, &  ! p1
        1.788d0]       ! p2
        
   ! delta E_sel = 0.8
-  real(dp), parameter, dimension(4) :: lyskov_short= &
+  real(dp), parameter, dimension(4) :: r2016_short= &
        [0.503506d0, & ! pJ
        0.368122d0, &  ! pF
        0.579809d0, &  ! p1
@@ -102,14 +103,14 @@ module hparam
 ! J. Chem. Phys., 147, 194104 (2017)
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(4) :: heil17_standard= &
+  real(dp), parameter, dimension(4) :: r2017= &
        [0.503001d0, & ! pJ
        0.358727d0, &  ! pF
        0.563893d0, &  ! p1
        1.8571d0]      ! p2
 
   ! delta E_sel = 0.8
-  real(dp), parameter, dimension(4) :: heil17_short= &
+  real(dp), parameter, dimension(4) :: r2017_short= &
        [0.500779d0, & ! pJ
        0.356986d0, &  ! pF
        0.573523d0, &  ! p1
@@ -119,14 +120,14 @@ module hparam
 ! Heil's DFT/MRCI Hamiltonian for transition metal complexes
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(4) :: heil18_standard= &
+  real(dp), parameter, dimension(4) :: r2018= &
        [0.508918d0, & ! pJ
        0.362362d0, &  ! pF
        0.558411d0, &  ! p1
        4.47165d0]     ! p2
 
   ! delta E_sel = 0.8
-  real(dp), parameter, dimension(4) :: heil18_short= &
+  real(dp), parameter, dimension(4) :: r2018_short= &
        [0.505808d0, & ! pJ
        0.359626d0, &  ! pF
        0.577732d0, &  ! p1
@@ -176,21 +177,17 @@ module hparam
        0.358727d0]    ! pF^(cv)
 
 !----------------------------------------------------------------------
-! Experimental Hamiltonian:
-!
-! On-diagonal corrections: taken from Heil17
-!
-! Off-diagonal corrections: damped by p1*exp(-p2*DeltaE^p3)
+! Ottawa QTP17, 8th-order exponential damping function Hamiltonian
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(5) :: test_exp= &
-       [0.508918d0, & ! pJ
-       0.362362d0, &  ! pF
-       0.558411d0, &  ! p1
-       3.0d0, &       ! p2
-       12.0d0]        ! p3
+  real(dp), parameter, dimension(5) :: qe8= &
+       [0.419332d0, & ! pJ
+       0.248083d0, &  ! pF
+       0.683096d0, &  ! p1
+       2.099108d0, &  ! p2
+       8.0d0]         ! n
        
-  real(dp), parameter, dimension(7) :: cvs_test_exp= &
+  real(dp), parameter, dimension(7) :: cvs_qe8= &
        [0.508918d0, & ! pJ
        0.362362d0, &  ! pF
        0.558411d0, &  ! p1
@@ -199,6 +196,13 @@ module hparam
        0.508918d0, & ! pJ
        0.362362d0]   ! pF
 
+  real(dp), parameter, dimension(5) :: qe8_short= &
+       [0.404316d0, & ! pJ
+       0.258568d0, &  ! pF
+       0.685359d0, &  ! p1
+       3.210369d0, &  ! p2
+       8.0d0]         ! n
+  
 !----------------------------------------------------------------------
 ! R2022 DFT/MRCI Hamiltonian
 ! J. Phys. Chem A, 127, 2011 (2023)
@@ -249,10 +253,10 @@ contains
        nhpar=5
        allocate(hpar(nhpar))
        if (imult == 1) then
-          hpar=grimme1_standard
+          hpar=grimme1
           desel=1.0d0
        else if (imult == 3) then
-          hpar=grimme1_standard
+          hpar=grimme3
           desel=1.0d0
        else
           errmsg='Only singlet and triplet states are supported using' &
@@ -269,7 +273,7 @@ contains
           hpar=grimme1_short
           desel=0.8d0
        else if (imult == 3) then
-          hpar=grimme1_short
+          hpar=grimme3_short
           desel=0.8d0
        else
           errmsg='Only singlet and triplet states are supported using' &
@@ -282,7 +286,7 @@ contains
        ldftmrci=.true.
        nhpar=4
        allocate(hpar(nhpar))
-       hpar=lyskov_standard
+       hpar=r2016
        desel=1.0d0
        
     case(5)
@@ -290,7 +294,7 @@ contains
        ldftmrci=.true.
        nhpar=4
        allocate(hpar(nhpar))
-       hpar=lyskov_short
+       hpar=r2016_short
        desel=0.8d0
        
     case(6)
@@ -298,7 +302,7 @@ contains
        ldftmrci=.true.
        nhpar=4
        allocate(hpar(nhpar))
-       hpar=heil17_standard
+       hpar=r2017
        desel=1.0d0
        
     case(7)
@@ -306,7 +310,7 @@ contains
        ldftmrci=.true.
        nhpar=4
        allocate(hpar(nhpar))
-       hpar=heil17_short
+       hpar=r2017_short
        desel=0.8d0
        
     case(8)
@@ -314,7 +318,7 @@ contains
        ldftmrci=.true.
        nhpar=4
        allocate(hpar(nhpar))
-       hpar=heil18_standard
+       hpar=r2018
        desel=1.0d0
               
     case(9)
@@ -322,7 +326,7 @@ contains
        ldftmrci=.true.
        nhpar=4
        allocate(hpar(nhpar))
-       hpar=heil18_short
+       hpar=r2018_short
        desel=0.8d0
 
     case(10)
@@ -358,19 +362,19 @@ contains
        desel=1.0d0
 
     case(14)
-       ! Exp. test
+       ! QE8
        ldftmrci=.true.
        nhpar=5
        allocate(hpar(nhpar))
-       hpar=test_exp
+       hpar=qe8
        desel=1.0d0
        
     case(15)
-       ! Exp. test
+       ! CVS-QE8
        ldftmrci=.true.
        nhpar=7
        allocate(hpar(nhpar))
-       hpar=cvs_test_exp
+       hpar=cvs_qe8
        desel=1.0d0
 
     case(16)
@@ -380,6 +384,14 @@ contains
        allocate(hpar(nhpar))
        hpar=r2022
        desel=1.0d0
+
+    case(17)
+       ! QE8, short
+       ldftmrci=.true.
+       nhpar=5
+       allocate(hpar(nhpar))
+       hpar=qe8_short
+       desel=0.8d0
        
     case default
        ! Unrecognised Hamiltonian

@@ -6,6 +6,7 @@ import numpy as np
 import h5py as h5py
 import graci.utils.constants as constants
 import graci.core.params as params
+import graci.core.hamiltonians as hamiltonians
 import graci.io.output as output
 import graci.utils.basis as basis
 import graci.utils.rydano as rydano
@@ -335,6 +336,13 @@ def check_input(run_list):
                 if hasattr(obj, key):
                     if len(getattr(obj, key)) != 0:
                         obj.autoras = False
+
+        # Catch any Hamiltonian aliases
+        if hasattr(obj, 'hamiltonian'):
+            try:
+                obj.hamiltonian = hamiltonians.aliases[obj.hamiltonian.lower()]
+            except:
+                pass
 
         # Spinorbit _has_ to enter states as a vector, just shift state
         # indices
