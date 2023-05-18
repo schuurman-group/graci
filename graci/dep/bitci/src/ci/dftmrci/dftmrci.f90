@@ -57,7 +57,7 @@ contains
        call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(6:9,12,14)
+    case(6:9,12,14,17)
        ! Heil's parameterisations
        call hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
@@ -120,7 +120,7 @@ contains
        ! Heil's 2018 parameterisation
        damp=damping_heil18(bav,kav)
 
-    case(14,15)
+    case(14,15,17)
        ! Experimental exponential damping function
        damp=damping_exp_test(bav,kav)
 
@@ -188,7 +188,7 @@ contains
        ! Grimme's parameterisation: do nothing
        return
 
-    case(4:9,12,14)
+    case(4:9,12,14,17)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's Hamiltonians
        nij=nsp*(nsp-1)/2

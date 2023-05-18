@@ -112,8 +112,8 @@ class Cimethod:
             return False
 
     def set_hamiltonian(self):
-        """sets the default Hamiltonian if the user
-        has not specified one"""
+        """sets the default Hamiltonian based on the XC functional
+        if the user has not specified one"""
 
         defaults = {'hf'               : 'abinitio',
                     'hyb_gga_xc_qtp17' : 'qe8',

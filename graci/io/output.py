@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import graci.utils.constants as constants
 import graci.utils.timing as timing
 import graci.core.params as params
+import graci.core.hamiltonians as hamiltonians
 
 #
 file_names = {'input_file'   : '',
@@ -1135,4 +1136,33 @@ def print_coords(crds, asym):
                           crds[i,2]),
               flush=True)
     
+    return
+
+def print_hamiltonian(hamiltonian):
+    """prints the name of the Hamiltonian"""
+
+    print('\n\n Hamiltonian Information', flush=True)
+    print(' -----------------------', flush=True)
+
+    # Hamiltonian name + deltaE_sel
+    try:
+        info = ' Hamiltonian: ' + hamiltonians.pretty[hamiltonian]
+    except:
+        info = ' ' + hamiltonian
+
+    # XC functional
+    try:
+        info += '\n\n Intended for use with: ' \
+            + hamiltonians.xc_intended[hamiltonian]
+    except:
+        pass
+
+    # Citation
+    try:
+        info += '\n\n Reference: ' + hamiltonians.references[hamiltonian]
+    except:
+        pass
+    
+    print(info, flush=True)
+
     return

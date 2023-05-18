@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=16
+  integer(is), parameter :: nham=17
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -29,7 +29,8 @@ module hparam
         'cvs_test_heil17     ', &
         'qe8                 ', &
         'cvs-qe8             ', &
-        'r2022               ']
+        'r2022               ', &
+        'qe8_short           ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -195,6 +196,13 @@ module hparam
        0.508918d0, & ! pJ
        0.362362d0]   ! pF
 
+  real(dp), parameter, dimension(5) :: qe8_short= &
+       [0.404316d0, & ! pJ
+       0.258568d0, &  ! pF
+       0.685359d0, &  ! p1
+       3.210369d0, &  ! p2
+       8.0d0]         ! n
+  
 !----------------------------------------------------------------------
 ! R2022 DFT/MRCI Hamiltonian
 ! J. Phys. Chem A, 127, 2011 (2023)
@@ -354,7 +362,7 @@ contains
        desel=1.0d0
 
     case(14)
-       ! Exp. test
+       ! QE8
        ldftmrci=.true.
        nhpar=5
        allocate(hpar(nhpar))
@@ -362,7 +370,7 @@ contains
        desel=1.0d0
        
     case(15)
-       ! Exp. test
+       ! CVS-QE8
        ldftmrci=.true.
        nhpar=7
        allocate(hpar(nhpar))
@@ -376,6 +384,14 @@ contains
        allocate(hpar(nhpar))
        hpar=r2022
        desel=1.0d0
+
+    case(17)
+       ! QE8, short
+       ldftmrci=.true.
+       nhpar=5
+       allocate(hpar(nhpar))
+       hpar=qe8_short
+       desel=0.8d0
        
     case default
        ! Unrecognised Hamiltonian
