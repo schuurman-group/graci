@@ -219,13 +219,14 @@ class Molecule:
             alias = bname.lower().replace('-','').replace('_','')
 
             # highest priority is the user-specified local directory 
-            if bname in basis.local_basis_sets(local_dir=True):
-                self.basis_obj[atom] = basis.load_basis(atom, bname,
+            if alias in basis.local_basis_sets(local_dir=True, 
+                                               return_alias=True):
+                self.basis_obj[atom] = basis.load_basis(atom, alias,
                                                         local_dir=True)
 
             # ...next the GRACI source directory basis sets
-            elif alias in basis.local_basis_sets():
-                self.basis_obj[atom] = basis.load_basis(atom, bname)
+            elif alias in basis.local_basis_sets(return_alias=True):
+                self.basis_obj[atom] = basis.load_basis(atom, alias)
 
             # next is alias if found in PySCF library, use those
             elif alias in gto.basis.ALIAS.keys():
