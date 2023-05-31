@@ -253,13 +253,17 @@ class Scf:
     def run_pyscf(self, pymol, guess):
         """run a PySCF HF/KSDFT computation"""
 
+        # get the PYSCF_TMPDIR environment variable
+        # if not set, then set it to PWD
+        if os.environ.get('PYSCF_TMPDIR', '-1') == '':
+            os.environ['PYSCF_TMPDIR'] = os.environ['PWD']
+        
         # catch the use of XC functional aliases
         try:
             self.xc = functionals.aliases[self.xc.lower()]
         except:
             pass
 
-        #print(self.label+' scf.xc=|'+str(self.xc)+'|',flush=True)
         # function handle string
         if self.xc == 'hf':
             class_str  = 'scf'

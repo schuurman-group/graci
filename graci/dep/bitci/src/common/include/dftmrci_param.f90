@@ -186,7 +186,7 @@ module hparam
        0.683096d0, &  ! p1
        2.099108d0, &  ! p2
        8.0d0]         ! n
-       
+
   real(dp), parameter, dimension(7) :: cvs_qe8= &
        [0.508918d0, & ! pJ
        0.362362d0, &  ! pF
