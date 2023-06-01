@@ -257,7 +257,7 @@ class Scf:
         # if not set, then set it to PWD
         if os.environ.get('PYSCF_TMPDIR', '-1') == '':
             os.environ['PYSCF_TMPDIR'] = os.environ['PWD']
-        
+
         # catch the use of XC functional aliases
         try:
             self.xc = functionals.aliases[self.xc.lower()]

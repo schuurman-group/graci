@@ -93,9 +93,19 @@ class Transition(interaction.Interaction):
            used.
         """
 
+        # print the section header
+        output.print_transition_header(self.label)
+        
         # sanity check on the representation
         self.check_representation()
 
+        # write the Cartesian coordinate to the log file
+        # (the bra and ket coordinates are constrained to
+        # be the same)
+        if self.verbose:
+            output.print_coords(bra.scf.mol.crds,
+                                bra.scf.mol.asym)
+        
         # set the bra/ket objects and add the state groups associated
         # with each 
         self.add_group('bra', [bra], states = [self.final_states])
@@ -112,7 +122,7 @@ class Transition(interaction.Interaction):
             ltype = 'nodiag'
 
         self.trans_list = self.grp_pair_list('bra', 'ket', pairs=ltype)
-
+        
         # initialize the transition density matrices
         # These will be complex for spin-orbit coupled states
         self.tdms = np.zeros((len(self.trans_list), nmo, nmo),
@@ -137,7 +147,7 @@ class Transition(interaction.Interaction):
                 pair_type = 'full'
                 if self.same_ci_obj(ket_ci, bra_ci): 
                     pair_type = 'nodiag'
-
+                
                 # initialize the bitsi library for the calculation 
                 # of 1-TDMs
                 bitsi_init.init(bra_ci, ket_ci, 'tdm', self.verbose)
@@ -156,7 +166,7 @@ class Transition(interaction.Interaction):
                 # tdms is a vector of nmo x nmo transition densities
                 tdm = self.build_ci_tdms(b_lbl, k_lbl, 
                                          ci_tran, ci_tran_sym)
-
+                
                 # rotate tdms into spin states, if need be
                 self.build_grp_tensor('bra', b_lbl, 
                                       'ket', k_lbl, 
@@ -481,7 +491,7 @@ class Transition(interaction.Interaction):
         dipole = {}
         dipole['e_dipole_l'] = self.contract_transitions(mu_mo)
         dipole['e_dipole_v'] = self.contract_transitions(p_mo)
-    
+
         return dipole
 
     # 
@@ -834,17 +844,8 @@ class Transition(interaction.Interaction):
 
     #
     def print_log(self, ndo_wts, ndo_orbs):
-        """print summary output to log file"""
-
-        # For now, we will only print the transition
-        # table if we are working with adiabatic states
-        if self.representation != 'adiabatic':
-            return
-        
-        # for each initial state, write out a table of 
-        # oscillator strenghts and transition dipole moments
-        # print the header
-        output.print_transition_header(self.label)
+        """for each initial state, write out a table of
+         oscillator strenghts and transition dipole moments"""
 
         # get the lists of bra ket states
         ket_states = self.get_states('ket')
@@ -863,7 +864,8 @@ class Transition(interaction.Interaction):
             final_st  = []
             final_sym = []
             exc_ener  = []
-            osc_str   = [[] for i in range(5)]     
+            osc_str   = [[] for i in range(5)]
+            mu        = []
             promo_num = []
 
             for ibra in range(len(bra_states)):
@@ -887,24 +889,28 @@ class Transition(interaction.Interaction):
                 osc_str[3].append(self.oscstr['f2iso_v'][indx])
                 osc_str[4].append(self.oscstr['f0_v'][:,indx])
 
+                mu.append(np.real(self.multipole['e_dipole_l'][:,indx]))
+
                 # this check on the NDOs could be made stronger..
                 pa, pd = orbitals.promotion_numbers(ndo_wts[indx],
                                                     ndo_orbs[indx])
                 promo_num.append([pa,pd])
 
             # print a 'transition table' for each initial state
-            output.print_transition_table(init_st,
-                                          init_sym,
-                                          final_st,
-                                          final_sym,
-                                          exc_ener, 
-                                          osc_str[0],
-                                          osc_str[1],
-                                          osc_str[2],
-                                          osc_str[3],
-                                          osc_str[4],
-                                          promo_num,
-                                          self.representation)
+            if len(final_st) > 0:
+                output.print_transition_table(init_st,
+                                              init_sym,
+                                              final_st,
+                                              final_sym,
+                                              exc_ener, 
+                                              osc_str[0],
+                                              osc_str[1],
+                                              osc_str[2],
+                                              osc_str[3],
+                                              osc_str[4],
+                                              mu,
+                                              promo_num,
+                                              self.representation)
 
 
         return

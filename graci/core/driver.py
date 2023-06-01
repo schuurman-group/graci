@@ -198,9 +198,9 @@ class Driver:
         #    ...but expect exactly two arguments: a bra object and
         #    a ket object
         #------------------------------------------------------------
-        for si_obj in si_objs:
+        for si_obj in si_objs:            
             [bra, ket] = self.get_postscf_objs(si_obj, 
-                                               ci_objs + postci_objs)            
+                                               ci_objs + postci_objs)
             si_obj.run(bra, ket)
             if save_to_chkpt:
                 chkpt.write(si_obj)

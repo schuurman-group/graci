@@ -484,7 +484,7 @@ def print_transition_header(label):
 
 #
 def print_transition_table(init_st, init_sym, final_st, final_sym, 
-                           exc_ener, f0l, f2l, f0v, f2v, f0xyz,
+                           exc_ener, f0l, f2l, f0v, f2v, f0xyz, mu,
                            promo, rep): 
     """print out the summary files for the transition moments"""
 
@@ -498,7 +498,8 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         outfile.write('\n '+65*'-')
 
         header  = '\n\n  Initial     Final    Exc Ener                  '
-        header += '             Oscillator Strength (V)'
+        header += '             Transition Dipole      '
+        
         if len(promo) == len(final_st):
             header+= '    Promotion Numbers\n'
 
@@ -509,30 +510,25 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         if len(promo) == len(final_st):
             header += '      attach     detach'
 
-        #f2(L) is actually mixed gauge and often gives nonsensical results:
-        # removing it for now
-        #header += '  State       State      (eV)      f0(L)    f2(L)'
-        #header += '    f0(V)    f2(V)       x        y        z'
-
         fstr   = '\n {:3d}({:>3}) -> {:3d}({:>3}) {:7.2f}'+ \
-                ' {:9.4f}{:9.4f}{:9.4f}  {:9.4f}{:9.4f}{:9.4f} {:8.4f}   {:8.4f}'
-
+            ' '+3*'{:9.4f}'+'  '+3*'{:9.4f}'+' {:8.4f}   {:8.4f}'
+                
         outfile.write(header)
         outfile.write('\n '+undr_str)
         outfile.write('\n')
-
+        
         for i in range(len(final_st)):
             outfile.write(fstr.format(
-                             init_st,
-                             init_sym,
-                             final_st[i],
-                             final_sym[i],
-                             exc_ener[i]*constants.au2ev, 
-                             f0l[i], 
-                             f0v[i], 
-                             f2v[i],
-                             *f0xyz[i][:],
-                             *promo[i]))
+                init_st,
+                init_sym,
+                final_st[i],
+                final_sym[i],
+                exc_ener[i]*constants.au2ev, 
+                f0l[i], 
+                f0v[i], 
+                f2v[i],
+                *mu[i][:],
+                *promo[i]))
 
         outfile.flush()
     return

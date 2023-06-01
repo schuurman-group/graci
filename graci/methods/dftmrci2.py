@@ -137,7 +137,11 @@ class Dftmrci2(cimethod.Cimethod):
         if self.verbose:
             output.print_coords(self.scf.mol.crds,
                                 self.scf.mol.asym)
-        
+
+        # write the Hamiltonian information to the log file
+        if self.verbose:
+            output.print_hamiltonian(self.hamiltonian)
+            
         # initialize bitci
         bitci_init.init(self)
 
