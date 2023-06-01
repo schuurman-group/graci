@@ -27,6 +27,7 @@ class Scf:
         self.label          = 'default'
         self.init_guess     = 'minao'
         self.diag_method    = 'diis'
+        self.max_iter       = 50
         self.lvl_shift      = None
         self.verbose        = True 
         self.restart        = False
@@ -252,13 +253,17 @@ class Scf:
     def run_pyscf(self, pymol, guess):
         """run a PySCF HF/KSDFT computation"""
 
+        # get the PYSCF_TMPDIR environment variable
+        # if not set, then set it to PWD
+        if os.environ.get('PYSCF_TMPDIR', '-1') == '':
+            os.environ['PYSCF_TMPDIR'] = os.environ['PWD']
+        
         # catch the use of XC functional aliases
         try:
             self.xc = functionals.aliases[self.xc.lower()]
         except:
             pass
 
-        #print(self.label+' scf.xc=|'+str(self.xc)+'|',flush=True)
         # function handle string
         if self.xc == 'hf':
             class_str  = 'scf'
@@ -315,18 +320,40 @@ class Scf:
                 mf.with_df = None
 
         # set the dynamic level shift, if request
+        #if self.lvl_shift is not None:
+        #    scf.addons.dynamic_level_shift_(mf,
+        #                              factor=float(self.lvl_shift))
         if self.lvl_shift is not None:
-            scf.addons.dynamic_level_shift_(mf,
-                                      factor=float(self.lvl_shift))
+            mf.level_shift = self.lvl_shift    
+            mf.conv_check  = False
 
-        # optional: override the initial density matrix with
-        # that of a previous SCF calculation
+        # set the maximum number of iterations
+        mf.max_cycle = self.max_iter
+
+        # default chkfile name based on object label name
+        mf.chkfile = self.make_chkfile_name(self.label)
+      
+        # how to define initial guess orbitals
         if guess is None:
             dm = None
-            # if we don't have a DM to provide, set how init
-            # DM is generated
-            if self.init_guess in self.valid_guess:
+
+            # check if a restart file exists, if so, use same chkfile
+            # name
+            init_mos  = os.environ['PYSCF_TMPDIR']+'/'
+            init_mos += self.make_chkfile_name(self.init_guess)
+           
+            # if restart file exists, use orbitals from that as
+            # a guess
+            if os.path.exists(init_mos):
+                #dm = dft.roks.init_guess_by_chkfile(pymol, init_mos)
+                mf.init_guess = 'chkfile'
+                mf.chkfile = init_mos
+
+            # else use user-specified init guess algorithm
+            elif self.init_guess in self.valid_guess:
                 mf.init_guess = self.init_guess
+
+        # use scf object passed to run
         else:
             dm = self.guess_dm(guess)
 
@@ -385,6 +412,13 @@ class Scf:
                                     [mo_occa, mo_occb])
 
         return dm[0] + dm[1]
+   
+    #
+    def make_chkfile_name(self, label):
+        """
+        return a checkfile name based on object label
+        """
+        return 'Chkfile.Scf.'+str(label)
         
     #
     def mo_overlaps(self, other):
