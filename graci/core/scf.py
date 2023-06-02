@@ -253,11 +253,6 @@ class Scf:
     def run_pyscf(self, pymol, guess):
         """run a PySCF HF/KSDFT computation"""
 
-        # get the PYSCF_TMPDIR environment variable
-        # if not set, then set it to PWD
-        if os.environ.get('PYSCF_TMPDIR', '-1') == '':
-            os.environ['PYSCF_TMPDIR'] = os.environ['PWD']
-
         # catch the use of XC functional aliases
         try:
             self.xc = functionals.aliases[self.xc.lower()]
@@ -339,9 +334,8 @@ class Scf:
 
             # check if a restart file exists, if so, use same chkfile
             # name
-            init_mos  = os.environ['PYSCF_TMPDIR']+'/'
-            init_mos += self.make_chkfile_name(self.init_guess)
-           
+            init_mos = self.make_chkfile_name(self.init_guess)
+            
             # if restart file exists, use orbitals from that as
             # a guess
             if os.path.exists(init_mos):
