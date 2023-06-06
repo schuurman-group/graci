@@ -830,7 +830,7 @@ def print_dyson_table(init_st, init_sym, final_st, final_sym,
     return
     
 #
-def print_param_header(p_ref, exc_ref, init_ci, final_ci):
+def print_param_header(p_ref, exc_ref, ci_objs):
     """
     print header for reparameterization run
     """
@@ -855,20 +855,21 @@ def print_param_header(p_ref, exc_ref, init_ci, final_ci):
             outfile.write(' '+str(molecule)+': '+str(states)+'\n')
 
         outfile.write('\n Found Reference States -----\n\n')
-        for molecule in init_ci.keys():
+        for molecule in ci_objs.keys():
             outfile.write(' '+str(molecule) + ': ' + 
-                          str(init_ci[molecule]) + ': ' + 
-                          str(final_ci[molecule])+'\n')
+                              str(ci_objs[molecule]) + '\n') 
 
         outfile.write('\n Initial Parameter Values\n')
         outfile.write(  ' --------------------------------------\n\n')
         for key,value in p_ref.items():
-            if isinstance(value,str):
-                outfile.write(' {:12s}'.format(key) + ' ' + value + '\n')
-            else:
-                pstr = ''.join(['{:10.6f}']*len(value))
-                outfile.write(' {:12s}'.format(key) + ' ' + 
-                               pstr.format(*value) + '\n')
+            if value is not None:
+                if isinstance(value,str):
+                    outfile.write(' {:12s}'.format(key) + ' ' + 
+                                   value + '\n')
+                else:
+                    pstr = ''.join(['{:10.6f}']*len(value))
+                    outfile.write(' {:12s}'.format(key) + ' ' + 
+                                   pstr.format(*value) + '\n')
         outfile.write('\n\n')
         outfile.flush()
 
