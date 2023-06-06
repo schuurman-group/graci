@@ -538,7 +538,7 @@ def replicate_sections(run_list):
                     new_ci.label     = ci.label+str(i+1)
                     new_ci.scf_label = ci.scf_label+str(i+1)
                     try:
-                        if (new_ci.diabatic):
+                        if new_ci.diabatic:
                             new_ci.save_wf = True
                             if i > 0:
                                 new_ci.guess_label = ci.label+str(i)
@@ -562,6 +562,8 @@ def replicate_sections(run_list):
                     new_si.label       = ci.label+str(i+1)
                     new_si.init_label  = si.init_label+str(i+1)
                     new_si.final_label = si.final_label+str(i+1)
+                    if new_si.representation == 'diabatic' and i == 0:
+                        new_si.representation = 'adiabatic'
                     new_run_list.append(new_si)
                   
         else:
@@ -583,7 +585,7 @@ def replicate_sections(run_list):
     # might want to re-think this a bit...
     for hparam in hparam_objs:
         new_run_list.append(hparam)                
-
+    
     return new_run_list
 
 #

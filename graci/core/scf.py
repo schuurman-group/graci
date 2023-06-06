@@ -259,7 +259,6 @@ class Scf:
         except:
             pass
 
-        #print(self.label+' scf.xc=|'+str(self.xc)+'|',flush=True)
         # function handle string
         if self.xc == 'hf':
             class_str  = 'scf'
@@ -335,9 +334,8 @@ class Scf:
 
             # check if a restart file exists, if so, use same chkfile
             # name
-            init_mos  = os.environ['PYSCF_TMPDIR']+'/'
-            init_mos += self.make_chkfile_name(self.init_guess)
-           
+            init_mos = self.make_chkfile_name(self.init_guess)
+            
             # if restart file exists, use orbitals from that as
             # a guess
             if os.path.exists(init_mos):
