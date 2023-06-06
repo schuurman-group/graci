@@ -353,6 +353,10 @@ class Scf:
         else:
             dm = self.guess_dm(guess)
 
+        # if this is an atom: preserve spherical symmetry
+        #if pymol.natm == 1:
+        #    mf = scf.addons.frac_occ(mf)
+
         # run the scf computation
         self.energy = mf.kernel(dm0=dm)
         
