@@ -953,11 +953,13 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
         outfile.write('\n\n Final Parameter Values')
         outfile.write('\n -----------------------------------------\n')
         for key,value in p_final.items():
-            if isinstance(value, str):
-                outfile.write(' {:12s}'.format(key) + ' ' + value + '\n')
-            else:
-                pstr = ''.join(['{:10.6f}']*len(value))
-                outfile.write(' {:12s}'.format(key) + ' ' +
+            if value is not None:
+                if isinstance(value, str):
+                    outfile.write(' {:12s}'.format(key) + ' ' +
+                                              value + '\n')
+                else:
+                    pstr = ''.join(['{:10.6f}']*len(value))
+                    outfile.write(' {:12s}'.format(key) + ' ' +
                                 pstr.format(*value) + '\n')
 
         outfile.write('\n\n Reference Data')
