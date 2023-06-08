@@ -167,15 +167,45 @@ class Rydano():
         # scan the basis set and find the most diffuse 
         # function (max_diffuse).  Start the ANO set with first exponent 
         # <= 0.5*max_diffuse. 
-        exps = [[] for _ in range(len(l))]
+        exps   = [[] for _ in range(len(l))]
+        cf_max = [[] for _ in range(len(l))]
         for atm,bas in mol.basis_obj.items():
             for icon in range(len(bas)):
+               print('bas[icon]:'+str(bas[icon]))
                lval = bas[icon][0]
                if lval in l:
                    li = l.index(lval)
                    exps[li].extend([bas[icon][i][0] 
                            for i in range(1,len(bas[icon]))])
-        most_dif = [0.5*min(exps[i]) for i in range(len(l))]
+                   cfs = [[abs(cf) for cf in bas[icon][i][1:]]
+                           for i in range(1,len(bas[icon]))]
+                   cf_max[li].extend([max(cfs[i]) 
+                           for i in range(len(cfs))])
+
+        # if requested l value is not in the nascent basis, use exponents 
+        # and coefs from next lowest value of l -- just need something
+        # reasonable
+        for li in range(len(l)):
+            if len(exps[li]) == 0 and li>0: 
+                exps[li]   = exps[li-1]
+                cf_max[li] = cf_max[li-1]
+
+        # sort exponents and coefs in order of increasing exponent 
+        srt_indx = [np.argsort(np.array(exps[li],dtype=float)) 
+                           for li in range(len(l))]
+        exp_srt = [[exps[li][srt_indx[li][i]] 
+                           for i in range(len(exps[li]))] 
+                           for li in range(len(l))]
+        cf_srt  = [[cf_max[li][srt_indx[li][i]] 
+                           for i in range(len(exps[li]))] 
+                           for li in range(len(l))]
+
+        most_dif = [0]*len(l)
+        for li in range(len(l)):
+            for i in range(len(exp_srt[li])):
+                if cf_srt[li][i] > 0.1 or i==len(exp_srt[li]):
+                    most_dif[li] = 0.5*exp_srt[li][i]
+                    break
 
         # find where to start diffuse exponents for each value of
         # l in the AO basis
