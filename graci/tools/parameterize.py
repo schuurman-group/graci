@@ -33,6 +33,7 @@ class Parameterize:
         self.energy_lib      = ''
         self.verbose         = False
         self.opt_algorithm   = 'nelder-mead'
+        self.opt_target      = 'rmsd'
         self.conv            = 0.01 
         self.max_iter        = 1000
 
@@ -102,6 +103,7 @@ class Parameterize:
         self.de_thr        = 0.5
         self.log_file      = None
         self.valid_algos   = ['nelder-mead','differentialevolution']
+        self.valid_opt_targ = ['mae','rmsd']
 
     #
     def run(self):
@@ -372,16 +374,21 @@ class Parameterize:
 
         # this approach assumes dict is ordered! Only true from Python
         # 3.6 onwards...
-        ide        = 0
+        nde        = 0
         for molecule in exc_ref.keys():
             for trans, ener in exc_ref[molecule].items():
                 init, final  = trans.strip().split()
                 de_iter      = ener_i[molecule][final] - \
                                ener_i[molecule][init]
-                dif_vec[ide] = de_iter*constants.au2ev - ener
-                ide         += 1
+                dif_vec[nde] = de_iter*constants.au2ev - ener
+                nde         += 1
 
-        self.error    = np.linalg.norm(dif_vec)
+        if self.opt_target == 'rmsd':
+            self.error = np.linalg.norm(dif_vec)
+        elif self.opt_target == 'mae':
+            self.error = 0.
+            if nde > 0:
+                self.error = np.sum(np.absolute(dif_vec)) / nde
 
         return self.error
  
@@ -816,9 +823,16 @@ class Parameterize:
                 msg = 'job_type=op, but no parameters to be optimized'
                 self.hard_exit(msg)
 
+            self.opt_algorithm = self.opt_algorithm.lower()
             if self.opt_algorithm not in self.valid_algos:
                 msg = str(self.opt_algorithm) + ' not in ' + \
                       str(self.valid_algos)
+                self.hard_exit(msg)
+
+            self.opt_target = self.opt_target.lower()
+            if self.opt_target.lower() not in self.valid_opt_targ:
+                msg = str(self.opt_target) + ' not in ' + \
+                      str(self.valid_opt_targ)
                 self.hard_exit(msg)
 
         if self.job_type == 'scan' and self.ngrid is None:
