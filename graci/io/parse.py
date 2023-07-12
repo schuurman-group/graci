@@ -119,7 +119,7 @@ def parse_section(class_name, input_file):
                     # check it later
                     if len(line) == 4:
                         crds = convert_array(line[1:])
-                        if crds.dtype==np.int or crds.dtype==np.float:
+                        if crds.dtype==int or crds.dtype==float:
                             cart.append(crds.tolist())
                             atom.append(line[0])
                         
@@ -301,15 +301,16 @@ def check_input(run_list):
             # construct basis dictionary
             if isinstance(obj.basis, (list, np.ndarray)):
                 basis_str = obj.basis.copy()             
-                obj.basis = {basis_str[2*i] : basis_str[2*i+1] for 
-                                i in range(int(len(basis_str)/2.))}
+                obj.basis = {basis_str[2*i].capitalize() : 
+                                              basis_str[2*i+1] 
+                             for i in range(int(len(basis_str)/2.))}
 
             # if basis just a single string, apply to all atoms
             else:
                 # get the list of unique atoms
                 atms       = set(obj.asym)
                 basis_str = obj.basis
-                obj.basis = {atm : basis_str for atm in atms}
+                obj.basis = {atm.capitalize() : basis_str for atm in atms}
 
         # the basis set definition should actually be a dictionary
         if 'ri_basis' in params.kwords[obj_name].keys():

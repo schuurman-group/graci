@@ -6,8 +6,6 @@ import math
 import scipy.optimize as sp_opt
 import numpy as np
 import h5py as h5py
-from mpi4py import MPI
-from mpi4py.futures import MPIPoolExecutor
 import os as os
 import shutil as shutil
 import graci.core.libs as libs
@@ -400,13 +398,13 @@ class Parameterize:
         evaluate all the energies in the graci data set
 
         """
-
         # init_ci and final_ci should have same key list
         mol_names = ci_objs.keys()
         topdir    = os.getcwd()
         energies  = {}
 
         if params.nproc > 1:
+            from mpi4py.futures import MPIPoolExecutor
 
             with MPIPoolExecutor(max_workers=params.nproc,
                                                  root=0) as executor:

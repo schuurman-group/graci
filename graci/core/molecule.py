@@ -9,7 +9,7 @@ import graci.utils.basis as basis
 from pyscf.lib import logger
 from pyscf import gto, df
 
-atom_name = ['ghost', 'X' ,'H' , 'He', 
+atom_name = ['Ghost', 'X' ,'H' , 'He', 
              'Li', 'Be', 
              'B' , 'C' , 'N' , 'O' , 'F', 'Ne', 
              'Na', 'Mg', 
@@ -176,7 +176,7 @@ class Molecule:
         self.mol_obj.build()
 
         # the nuclear repulsion energy
-        self.enuc     = self.mol_obj.energy_nuc()
+        self.enuc     = self.mol_obj.get_enuc()
         # full point group symmetry of the molecule
         self.full_sym = self.mol_obj.topgroup.lower()
         # point group to be used for computation
@@ -215,6 +215,19 @@ class Molecule:
         if self.ri_basis is None:
             self.ri_basis = {}
 
+        # first go through and make sure asym and basis atom
+        # labels are consistent
+        
+        for iasym in self.asym:
+            acase = [iasym.lower(), iasym.upper(), iasym.capitalize()]
+            for atom, bname in self.basis.items():
+                if atom in acase and atom != iasym:
+                    self.basis[iasym] = self.basis[atom]
+        for atom,bname in self.basis.items():
+            if atom not in self.asym:
+                del self.basis[atom]
+
+        # now go through and make the basis object
         for atom, bname in self.basis.items():
             alias = bname.lower().replace('-','').replace('_','')
 
@@ -331,8 +344,8 @@ class Molecule:
             return
 
         # else use the values in atms and coords
-        if all([atm in atom_name for atm in atms]):
-            self.asym = atms
+        if all([atm.capitalize() in atom_name for atm in atms]):
+            self.asym = [atm.capitalize() for atm in atms]
         else:
             print("ATOM list: "+str(atms)+
                   " contains unrecognized atom. Valid atoms are: "+

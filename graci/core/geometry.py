@@ -5,7 +5,7 @@ import os as os
 import numpy as np
 import copy as copy
 
-atom_name = ['X' ,'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' , 'O' , 'F' ,
+atom_name = ['Ghost', 'X' ,'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' , 'O' , 'F' ,
              'Ne','Na', 'Mg', 'Al', 'Si', 'P' , 'S' , 'Cl', 'Ar', 'K' ,
              'Ca','Sc', 'Ti', 'V' , 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu',
              'Zn','Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y' ,
@@ -19,7 +19,7 @@ atom_name = ['X' ,'H' , 'He', 'Li', 'Be', 'B' , 'C' , 'N' , 'O' , 'F' ,
              'Ds','Rg', 'Cn', 'Nh', 'Fl', 'Mc', 'Lv', 'Ts', 'Og']
 
 # Atomic masses taken from PySCF elements.py
-atom_mass = [ 0., 1.008, 4.002602, 6.94, 9.0121831, 10.81, 12.011,
+atom_mass = [ 0., 0., 1.008, 4.002602, 6.94, 9.0121831, 10.81, 12.011,
               14.007, 15.999, 18.998403163, 20.1797, 22.98976928,
               24.305, 26.9815385, 28.085, 30.973761998, 32.06, 35.45,
               39.948, 39.0983, 40.078, 44.955908, 47.867, 50.9415,
@@ -42,7 +42,7 @@ atom_mass = [ 0., 1.008, 4.002602, 6.94, 9.0121831, 10.81, 12.011,
               289.190, 289.194, 293.204, 293.208, 294.214]
 
 # No. core electrons. Incomplete for now: only goes up to Kr
-atom_ncore = [0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 10, 10, 10, 10, 10, 10,
+atom_ncore = [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 10, 10, 10, 10, 10, 10,
               10, 10, 10, 10, 10, 16, 16, 16, 16, 16, 16, 16, 16, 16,
               16, 26, 26, 26, 26, 26]
 
@@ -119,7 +119,7 @@ class Geometry:
     #
     def set_atoms(self, atoms):
         """Set the atomic labels"""
-        atm_strip = [atm.strip() for atm in atoms]
+        atm_strip = [atm.strip().capitalize() for atm in atoms]
         if any([atm not in atom_name for atm in atm_strip]):
             sys.exit('atom in '+str(atm_strip)+" not recognized...")
         self.asym  = atm_strip
