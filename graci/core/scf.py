@@ -31,9 +31,11 @@ class Scf:
         self.lvl_shift      = None
         self.verbose        = True 
         self.restart        = False
+        self.damp_fac       = None
         self.mult           = 0
         self.charge         = 0
         self.grid_level     = 2
+        self.x2c            = False
         self.conv_tol       = 1e-8
         self.cosmo          = False
         self.solvent        = None
@@ -56,6 +58,7 @@ class Scf:
         self.auxbasis     = None 
 
         # class variables
+        self.valid_grids  = ['sg1_prune']
         self.valid_guess  = ['minao','1e','atom','huckel','vsap']
         self.valid_method = ['diis','soscf']
 
@@ -272,6 +275,11 @@ class Scf:
         else:
             method_str = 'RO'+method_str
 
+        if self.x2c:
+            rel_str = '.x2c()'
+        else:
+            rel_str = ''
+
         if self.mol.use_df:
             df_str = '.density_fit(auxbasis = self.mol.ri_basis)'
         else:
@@ -284,10 +292,10 @@ class Scf:
 
         if self.cosmo:
             func_str = 'pymol.'+method_str+'(xc=\''+self.xc+'\')' \
-                + diag_str + df_str + '.DDCOSMO()'
+                + rel_str + diag_str + df_str + '.DDCOSMO()'
         else:
             func_str = class_str+'.'+method_str \
-                +'(pymol)' + diag_str + df_str
+                +'(pymol)' + rel_str + diag_str + df_str
 
         # instantiate the scf/dft class object        
         mf = eval(func_str)
@@ -302,7 +310,8 @@ class Scf:
         
             # set the quadrature grids
             mf.grids.level = self.grid_level
-            mf.grids.prune = dft.sg1_prune
+            #mf.grids.prune = dft.sg1_prune
+            mf.grids.prune = dft.nwchem_prune
 
         # convergence threshold
         mf.conv_tol = self.conv_tol
@@ -350,6 +359,10 @@ class Scf:
         # use scf object passed to run
         else:
             dm = self.guess_dm(guess)
+
+        # when to start diis cycle
+        if self.damp_fac is not None:
+            mf.damp = self.damp_fac
 
         # if this is an atom: preserve spherical symmetry
         #if pymol.natm == 1:

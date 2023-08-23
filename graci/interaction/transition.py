@@ -99,17 +99,21 @@ class Transition(interaction.Interaction):
         # sanity check on the representation
         self.check_representation()
 
-        # write the Cartesian coordinate to the log file
-        # (the bra and ket coordinates are constrained to
-        # be the same)
-        if self.verbose:
-            output.print_coords(bra.scf.mol.crds,
-                                bra.scf.mol.asym)
-        
         # set the bra/ket objects and add the state groups associated
         # with each 
         self.add_group('bra', [bra], states = [self.final_states])
         self.add_group('ket', [ket], states = [self.init_states])
+
+        # write the Cartesian coordinate to the log file
+        # (the bra and ket coordinates are constrained to
+        # be the same)
+        if self.verbose:
+            # a little hacky -- but all bra/ket scf objects
+            # are constrained to be the same
+            ket_lbl = self.get_ci_lbls('ket')
+            ket_ci  = self.get_ci_obj('ket', ket_lbl[0])
+            output.print_coords(ket_ci.scf.mol.crds,
+                                ket_ci.scf.mol.asym)
 
         # do some sanity checks on the bra/ket objects
         self.mos, self.mol = self.check_bra_ket()
