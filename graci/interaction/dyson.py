@@ -79,6 +79,17 @@ class Dyson(interaction.Interaction):
         # check on the requested calculation
         self.mol = self.check_bra_ket()
 
+        # write the Cartesian coordinate to the log file
+        # (the bra and ket coordinates are constrained to
+        # be the same)
+        if self.verbose:
+            # a little hacky -- but all bra/ket scf objects
+            # are constrained to be the same
+            ket_lbl = self.get_ci_lbls('ket')
+            ket_ci  = self.get_ci_obj('ket', ket_lbl[0])
+            output.print_coords(ket_ci.scf.mol.crds,
+                                ket_ci.scf.mol.asym)
+
         # can't be same object -- pairs = full
         self.trans_list = self.grp_pair_list('bra', 'ket', pairs='full')
 

@@ -295,7 +295,7 @@ class Parameterize:
         bounds = []
         label  = []
         p0     = []
-        nscan  = 0
+        n_scan  = 0
 
         # start by freezing all coordiantes
         for key in keys:
@@ -318,7 +318,7 @@ class Parameterize:
             label.append(keys[i]) 
             bounds.append(self.bounds[keys[i]][p_val])
             p0.append(self.params[keys[i]][p_val])
-            nscan += 1
+            n_scan += 1
 
         delta = [(bounds[i][1] - bounds[i][0]) / (ngrid[i]-1)
                   if ngrid[i] > 1 else 0. for i in range(n_scan)]

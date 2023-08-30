@@ -154,8 +154,8 @@ class Spinorbit(interaction.Interaction):
         hsoc += np.diag(self.hsoc_ondiag(nsoc))
 
         # diagonalise H_soc
-        so_ener, so_vec = np.linalg.eigh(hsoc)
-        self.set_group_states('spinorbit', so_vec, so_ener)
+        self.so_ener, self.so_vec = np.linalg.eigh(hsoc)
+        self.set_group_states('spinorbit', self.so_vec, self.so_ener)
 
         # build the one-particle RDMS
         self.build_rdms()
