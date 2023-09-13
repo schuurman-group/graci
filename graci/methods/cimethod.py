@@ -7,6 +7,7 @@ import numpy as np
 import copy as copy
 import graci.core.params as params
 import graci.core.orbitals as orbitals
+import graci.core.ao2mo as ao2mo
 import graci.utils.timing as timing
 import graci.io.output as output
 import graci.properties.moments as moments
@@ -76,6 +77,12 @@ class Cimethod:
     def set_scf(self, scf):
         """set the scf object for the dftmrci class object"""
 
+        # check that the coordinates in the graci.molecule
+        # object agree with pymol. If not: we need re-run SCF
+        if scf.mol.coords_updated():
+            scf.run(scf.mol, None)
+            self.update_eri()
+
         self.scf = scf
         self.nel = scf.nel
 
@@ -103,6 +110,12 @@ class Cimethod:
             self.ref_occ[nclsd:nclsd+nopen] = 1.
         
         return
+
+    def set_geometry(self, atms, crds, update_scf=False):
+        """calls set_geometry of the corresponding molecule object"""
+        self.scf.mol.set_geometry(atms, crds)
+        if update_scf:
+            self.set_scf(scf)
 
     def scf_exists(self):
         """return true if scf object is not None"""
@@ -239,7 +252,7 @@ class Cimethod:
         return
 
     #
-    def update_eri(self, ao2mo):
+    def update_eri(self, eri_mo=None):
         """update the MO integral information used by the CI 
            object. Particularly: the dimension of the MO basis
 
@@ -250,11 +263,15 @@ class Cimethod:
            Returns:
                None
         """
+        if eri_mo == None:
+            eri_mo         = ao2mo.Ao2mo()
+            eri_mo.emo_cut = self.mo_cutoff
+            eri_mo.run(self.scf, self.precision)
 
-        self.nmo   = ao2mo.nmo
-        self.emo   = ao2mo.emo
-        self.mosym = ao2mo.mosym
-        self.mos   = ao2mo.orbs
+        self.nmo   = eri_mo.nmo
+        self.emo   = eri_mo.emo
+        self.mosym = eri_mo.mosym
+        self.mos   = eri_mo.orbs
         #print(self.label+' update_eri, nmo, emo, mosym, mos='+str(self.nmo)+','+str(self.emo)+','+str(self.mosym)+','+str(self.mos.shape),flush=True)
 
         return

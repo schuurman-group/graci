@@ -95,7 +95,7 @@ class Dftmrci(cimethod.Cimethod):
     @timing.timed
     def run(self, scf, guess):
         """ compute the DFT/MRCI eigenpairs for all irreps """
-       
+
         # set the scf object 
         self.set_scf(scf)
 

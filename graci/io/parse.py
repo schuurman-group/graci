@@ -63,7 +63,11 @@ def parse_section(class_name, input_file):
     # find the start of the section
     iline = 0
     while iline < nlines:
-        if '$'+mod_name+' ' in input_file[iline].lower():
+
+        if input_file[iline][0] == '#':
+            pass
+
+        elif '$'+mod_name+' ' in input_file[iline].lower():
 
             iline += 1
 
@@ -77,7 +81,12 @@ def parse_section(class_name, input_file):
                 atom = []
 
             while iline < nlines:
-                if '$end' in input_file[iline] or iline == nlines-1:
+
+                # if this is comment line: skip
+                if input_file[iline][0] == '#':
+                    pass
+
+                elif '$end' in input_file[iline] or iline == nlines-1:
                     # if we hit end of section, or end of file,
                     # add object to return list and continue parsing 
                     # the input
@@ -87,6 +96,7 @@ def parse_section(class_name, input_file):
                     # Molecule will check it when run() is called. 
                     if class_name == 'Molecule':
                         sec_obj.set_geometry(atom, cart)
+                            
 
                     section_objs.extend([sec_obj])
                     break
@@ -254,9 +264,12 @@ def check_sections(input_file):
     # make sure that each section corresponds to valid class object
     valid_objs = [obj.lower() for obj in params.valid_objs]
     for header in header_list:
-        section_name = header[1:header.index('section')].lower().strip()
-        if section_name not in valid_objs:
-            sys.exit('Invalid section found: $'+section_name)
+
+        if header[0] != '#':
+            section_name = header[1:header.index('section')].lower().strip()
+
+            if section_name not in valid_objs:
+                sys.exit('Invalid section found: $'+section_name)
 
     return
 #

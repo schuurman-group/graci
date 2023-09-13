@@ -26,8 +26,11 @@ class Scf:
         self.print_orbitals = False
         self.label          = 'default'
         self.init_guess     = 'minao'
-        self.diag_method    = 'diis'
+        self.diag_method    = 'cdiis'
         self.max_iter       = 50
+        self.diis_start     = None
+        self.diis_method    = None
+        self.diis_space     = 14
         self.lvl_shift      = None
         self.verbose        = True 
         self.restart        = False
@@ -60,7 +63,7 @@ class Scf:
         # class variables
         self.valid_grids  = ['sg1_prune']
         self.valid_guess  = ['minao','1e','atom','huckel','vsap']
-        self.valid_method = ['diis','soscf']
+        self.valid_method = ['soscf', 'cdiis', 'ediis','adiis']
 
 # Required functions #######################################################
 
@@ -85,7 +88,7 @@ class Scf:
 
         # set the GRaCI mol object
         self.mol = mol
-        
+       
         # the charge and multiplity of the scf sections
         # overwrites the mult/charge of the mol object
         #----------------------------------------------------
@@ -285,7 +288,7 @@ class Scf:
         else:
             df_str=''
 
-        if self.diag_method == 'soscf':
+        if self.diag_method.lower() == 'soscf':
             diag_str = '.newton()'
         else:
             diag_str = ''
@@ -328,8 +331,9 @@ class Scf:
         #    scf.addons.dynamic_level_shift_(mf,
         #                              factor=float(self.lvl_shift))
         if self.lvl_shift is not None:
-            mf.level_shift = self.lvl_shift    
+            #mf.level_shift = self.lvl_shift    
             mf.conv_check  = False
+            scf.addons.dynamic_level_shift_(mf, factor=self.lvl_shift)
 
         # set the maximum number of iterations
         mf.max_cycle = self.max_iter
@@ -360,12 +364,20 @@ class Scf:
         else:
             dm = self.guess_dm(guess)
 
+        # SCF CONVERGENCE OPTIONS
+        if self.diag_method.lower() in self.valid_method \
+              and self.diag_method.lower() != 'soscf':
+            mf.DIIS = eval('scf.'+self.diag_method.upper())
+        if self.diis_space > 0:
+            mf.diis_space = self.diis_space
         # when to start diis cycle
         if self.damp_fac is not None:
             mf.damp = self.damp_fac
+        if self.diis_start is not None:
+            mf.diis_start_cycle = self.diis_start
 
         # if this is an atom: preserve spherical symmetry
-        #if pymol.natm == 1:
+        #if self.mult != 1: 
         #    mf = scf.addons.frac_occ(mf)
 
         # run the scf computation

@@ -138,7 +138,7 @@ class Molecule:
         self.asym  = atm_strip
         self.masses = np.array([atom_mass[atom_name.index(atm_strip[i])]
                           for i in range(len(self.asym))], dtype=float)
- 
+
         # make the basis set objects from the string alias basis names
         self.make_basis_obj()
 
@@ -308,9 +308,8 @@ class Molecule:
         xyz        = []
 
         # do we have a multi-geometry xyz file?
-        xyz_gm_cleaned = [string.split() for string in xyz_gm
-                          if string.split() != []]
-        if len(xyz_gm_cleaned) != natm + 1:
+        ngm = int(len(xyz_gm) / (natm+2))
+        if ngm > 1:
             self.multi_geom = True
 
         # parse the geometry
@@ -339,7 +338,8 @@ class Molecule:
 
         # if an xyz file is specified, this is default for reading
         # coordinates
-        if self.xyz_file is not None:
+        if self.xyz_file is not None and \
+                              (len(atms)==0 and len(coords)==0):
             self.read_xyz()
             return
 
@@ -365,6 +365,20 @@ class Molecule:
             sys.exit(1)         
             
         return
+
+    # 
+    def coords_updated(self):
+        """return false if the pymol coordinates don't matach the 
+           graci.molecule coordinates"""
+
+        thrsh = 1.e-6
+        pyc   = self.pymol().atom_coords(unit=self.units)
+
+        if pyc.shape != self.crds.shape or \
+                        np.linalg.norm(self.crds - pyc) > thrsh:
+            return True
+        else:
+            return False
 
     # 
     def pymol(self):
