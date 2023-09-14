@@ -50,7 +50,7 @@ module h5_ops
 
     call open_dataset(file_name, dset_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
-    exists = .not.error
+    exists = error.eq.0
 
     call close_dataset(file_id, dset_id, space_id)
 
@@ -74,7 +74,7 @@ module h5_ops
 
     call open_dataset(file_name, dset_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
-    if(.not.error) then
+    if error.eq.0 then
       rank = rank
       dims = h5dims(1:rank)
     else
