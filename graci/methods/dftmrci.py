@@ -97,7 +97,9 @@ class Dftmrci(cimethod.Cimethod):
         """ compute the DFT/MRCI eigenpairs for all irreps """
 
         # set the scf object 
-        self.set_scf(scf)
+        scf_energy = self.set_scf(scf, ci_guess=guess)
+        if scf_energy is None:
+            return None
 
         # set the Hamiltonian
         self.set_hamiltonian()
@@ -250,7 +252,7 @@ class Dftmrci(cimethod.Cimethod):
         # print the moments
         self.print_moments()
 
-        return
+        return True
     
     #
     def bitci_ref(self):

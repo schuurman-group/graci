@@ -135,7 +135,9 @@ class Scf:
 
         # run the SCF calculation
         scf_pyscf = self.run_pyscf(pymol, guess)
-        
+        if scf_pyscf is None:
+            return None       
+ 
         # extract orbitals, occupations and energies
         self.orbs      = scf_pyscf.mo_coeff
 
@@ -183,7 +185,7 @@ class Scf:
                                      orb_dir='scf.'+str(self.label), 
                                      cart=True)
         
-        return
+        return self.energy
 
     #
     def load(self):
@@ -385,7 +387,7 @@ class Scf:
         
         # if not converged, kill things
         if not mf.converged:
-            sys.exit('Reference SCF computation did not converge.')
+            return None
     
         # MO phase convention: positive dominant coefficients
         # for degenerate coefficients, pick the first occurrence

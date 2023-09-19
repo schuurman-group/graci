@@ -142,7 +142,11 @@ class Driver:
                                                  match_all=False)
 
                 # run the SCF calculation
-                scf_obj.run(mol_obj, scf_guess)
+                scf_ener = scf_obj.run(mol_obj, scf_guess)
+                if scf_ener is None:
+                    ostr = scf_obj.label+': SCF did not converge'
+                    output.print_message(ostr)
+                    sys.exit(1)
                 
                 # write scf object to checkpoint file
                 if save_to_chkpt:

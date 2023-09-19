@@ -74,13 +74,21 @@ class Cimethod:
 
 # Required functions #############################################################
 
-    def set_scf(self, scf):
+    def set_scf(self, scf, ci_guess=None):
         """set the scf object for the dftmrci class object"""
 
         # check that the coordinates in the graci.molecule
         # object agree with pymol. If not: we need re-run SCF
         if scf.mol.coords_updated():
-            scf.run(scf.mol, None)
+            if ci_guess is not None:
+                scf_guess = guess.scf.copy() 
+            else:
+                scf_guess = None
+            scf_ener = scf.run(scf.mol, scf_guess)
+
+            if scf_ener is None:
+                return scf_ener
+
             self.update_eri()
 
         self.scf = scf
@@ -109,7 +117,7 @@ class Cimethod:
             self.ref_occ[:nclsd]            = 2.
             self.ref_occ[nclsd:nclsd+nopen] = 1.
         
-        return
+        return self.scf.energy
 
     def set_geometry(self, atms, crds, update_scf=False):
         """calls set_geometry of the corresponding molecule object"""

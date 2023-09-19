@@ -111,7 +111,9 @@ class Dftmrci2(cimethod.Cimethod):
         """ compute the DFT/MRCI(2) eigenpairs for all irreps """
 
         # set the scf object
-        self.set_scf(scf)
+        scf_energy = self.set_scf(scf, ci_guess=guess)
+        if scf_energy is None:
+            return None
 
         # set the Hamiltonian
         self.set_hamiltonian()
@@ -323,7 +325,7 @@ class Dftmrci2(cimethod.Cimethod):
         # Finalize the bitCI library
         bitci_init.finalize()
         
-        return 
+        return True 
 
     #
     def sanity_check(self, scf, guess):
