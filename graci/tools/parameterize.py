@@ -192,7 +192,7 @@ class Parameterize:
         for i in range(len(keys)):
             # check that method is sensible
             if ci[i] is not None:
-                ci_class = self.ci[i].lower().capitalize()
+                ci_class = ci[i].lower().capitalize()
                 if ci_class not in params.ci_objs:
                     msg = ci_class+' not a valid CI method.'
                     self.hard_exit(msg)
