@@ -30,11 +30,11 @@ contains
 !######################################################################
 #ifdef CBINDING
   subroutine generate_ref_confs(iras1,iras2,iras3,nras1,mras1,nras2,&
-       mras2,nras3,mras3,icvs,nconf,scrnum) &
+       mras2,nras3,mras3,nconf,scrnum) &
        bind(c,name="generate_ref_confs")
 #else
   subroutine generate_ref_confs(iras1,iras2,iras3,nras1,mras1,nras2,&
-       mras2,nras3,mras3,icvs,nconf,scrnum)
+       mras2,nras3,mras3,nconf,scrnum)
 #endif
 
     use constants
@@ -52,10 +52,6 @@ contains
     integer(is), intent(out)   :: scrnum(0:nirrep-1)
     integer(is)                :: ndet,detscr
 
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    integer(is)                :: ncvs
-    
     ! SOP hash table
     type(dhtbl)                :: h
     
@@ -84,12 +80,6 @@ contains
     call get_times(twall_start,tcpu_start)
 
 !----------------------------------------------------------------------
-! CVS-MRCI: determine the dimension of the core MO space in which
-! a single hole will be enforced
-!----------------------------------------------------------------------
-    ncvs=sum(icvs)
-    
-!----------------------------------------------------------------------
 ! Generate the RAS determinants
 !----------------------------------------------------------------------
     call generate_ras_dets(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
@@ -98,7 +88,7 @@ contains
 !----------------------------------------------------------------------
 ! Determine the unique reference space SOPs
 !----------------------------------------------------------------------
-    call get_ref_sops(ndet,detscr,h,ncvs,icvs)
+    call get_ref_sops(ndet,detscr,h)
 
 !----------------------------------------------------------------------
 ! Allocate the reference space configuration and SOP arrays
@@ -190,7 +180,7 @@ contains
 ! get_ref_sops: Determines the set of unique reference space SOPs
 !               from the set of reference space determinants
 !######################################################################
-  subroutine get_ref_sops(ndet,detscr,h,ncvs,icvs)
+  subroutine get_ref_sops(ndet,detscr,h)
 
     use constants
     use bitglobal
@@ -206,10 +196,6 @@ contains
     ! file number
     integer(is), intent(in)  :: ndet,detscr
 
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)  :: icvs(nmo)
-    integer(is), intent(in)  :: ncvs
-    
     ! Determinant arrays
     integer(is)              :: ndet1
     integer(ib), allocatable :: det(:,:,:)
@@ -260,7 +246,7 @@ contains
 
        ! If this is a CVS-MRCI calculation, then cycle if the no. holes
        ! in the selected core MO space is not equal to 1
-       if (ncvs > 0 .and. nhole_cvs(key,icvs) /= 1) cycle
+       if (lcvs .and. nhole_cvs(key) /= 1) cycle
        
        ! Insert the SOP into the hash table
        call h%insert_key(key)
@@ -280,7 +266,7 @@ contains
 ! nhole_cvs: Given an SOP and a list of CVS core-level MOs, returns
 !            the no. holes in the CVS core level space
 !######################################################################
-  function nhole_cvs(sop,icvs) result(nhole)
+  function nhole_cvs(sop) result(nhole)
 
     use constants
     use bitglobal
@@ -292,9 +278,6 @@ contains
 
     ! SOP
     integer(ib), intent(in) :: sop(n_int,2)
-
-    ! CVS core-level MOs
-    integer(is), intent(in) :: icvs(nmo)
 
     ! Everything else
     integer(is)             :: i,k,imo

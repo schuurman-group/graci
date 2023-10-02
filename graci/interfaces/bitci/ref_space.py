@@ -65,11 +65,6 @@ def generate(ci_method):
         k +=1
         iras3[k] = i
 
-    # CVS core MO flags
-    cvsflag = np.zeros(nmo, dtype=int)
-    for i in ci_method.icvs:
-        cvsflag[i-1] = 1
-    
     # Number of reference space configurations per irrep
     ref_nconf = np.zeros(nirr, dtype=int)
 
@@ -78,7 +73,7 @@ def generate(ci_method):
     
     # Construct the reference space configurations
     args = (iras1, iras2, iras3, nh1, m1, n2, m2, ne3, m3,
-            cvsflag, ref_nconf, confunits)
+            ref_nconf, confunits)
     (ref_nconf, confunits) = libs.lib_func('generate_ref_confs', args)
 
     # Retrieve the reference space configuration scratch file names
@@ -134,11 +129,6 @@ def autoras(ci_method):
     dftcis_vec  = 0
     dftcis_unit = np.zeros(nirr, dtype=int)
 
-    # CVS core MO flags
-    cvsflag = np.zeros(nmo, dtype=int)
-    for i in ci_method.icvs:
-        cvsflag[i-1] = 1
-
     # Aggressively loose integral screening
     loose = True
 
@@ -162,7 +152,7 @@ def autoras(ci_method):
         nroots = ci_method.n_states_sym(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
-        args = (irrep, nroots, cvsflag, dftcis_vec, loose, iham)
+        args = (irrep, nroots, dftcis_vec, loose, iham)
         dftcis_vec = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number
@@ -186,7 +176,7 @@ def autoras(ci_method):
 
         # Get the particle/hole MOs corresponding to the
         # dominant DFT/CIS CSFs
-        args = (irrep, nroots, cvsflag, dftcis_vec, iph1)
+        args = (irrep, nroots, dftcis_vec, iph1)
         (dftcis_vec, iph1) = libs.lib_func('ras_guess_dftcis', args)
 
         # Update the array of dominant particle/hole indices
@@ -208,7 +198,7 @@ def autoras(ci_method):
     # If this is a CVS calculation, then
     # include the HOMO and HOMO-1 in the
     # RAS1 space
-    if sum(cvsflag) > 0:
+    if len(ci_method.icvs) > 0:
         # HOMO
         iend = np.nonzero(orb_occ)[0][-1]
         e = orb_ener[iend]

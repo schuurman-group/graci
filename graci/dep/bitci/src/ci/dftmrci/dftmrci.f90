@@ -246,9 +246,6 @@ contains
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
 
-    ! Temporary K-edge MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
-    
     ! Everything else
     integer(is)             :: insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
@@ -314,7 +311,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -385,9 +382,6 @@ contains
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
 
-    ! Temporary K-edge MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
-    
     ! Everything else
     integer(is)             :: insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
@@ -1244,9 +1238,6 @@ contains
     ! Numbers of open shells preceding each MO
     integer(is), intent(in) :: nbefore(nmo)
 
-    ! Temporary K-edge MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
-    
     ! Everything else
     integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,insp
     integer(is)             :: ic,ja,omega,pattern,start
@@ -1339,7 +1330,7 @@ contains
           Dwj=Dw(j,2)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pJ=pJcv
           else
@@ -1425,7 +1416,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -1481,7 +1472,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -1538,7 +1529,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(j1) < ethrsh) then
+          if (icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -1587,7 +1578,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(j1) < ethrsh) then
+          if (icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else

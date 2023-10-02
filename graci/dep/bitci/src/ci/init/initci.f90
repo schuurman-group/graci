@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,ham1,label1,verbose1) bind(c,name="bitci_initialise")
+     escf1,icvs1,ham1,label1,verbose1) bind(c,name="bitci_initialise")
 #else
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,ham1,label1,verbose1)
+     escf1,icvs1,ham1,label1,verbose1)
 #endif
 
   use constants
@@ -29,9 +29,10 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   integer(ib), intent(in)            :: mosym1(nmo1)
   real(dp), intent(in)               :: moen1(nmo1)
   real(dp), intent(in)               :: escf1
+  integer(is), intent(in)            :: icvs1(nmo1)
   logical, intent(in)                :: verbose1
   real(dp)                           :: s,smax
-
+  
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: label1(*),ham1(*)
   character(len=255)                 :: label,ham
@@ -40,9 +41,9 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   character(len=*), intent(in)       :: label1,ham1
   character(len=255)                 :: label
 #endif
-
-  integer(is)                        :: i,iham(1)
   
+  integer(is)                        :: i,iham(1)
+
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the Hamiltonian and calculation
 ! labels from the C char type to the Fortran character type
@@ -133,7 +134,21 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   ! MO energies
   allocate(moen(nmo))
   moen=moen1
-  
+
+!----------------------------------------------------------------------
+! Set the core-valence separation information
+!----------------------------------------------------------------------
+  ! CVS core orbital flags
+  allocate(icvs(nmo))
+  icvs=icvs1
+
+  ! Are we running in the CVS approximation
+  if (sum(icvs) > 0) then
+     lcvs=.true.
+  else
+     lcvs=.false.
+  endif
+
 !----------------------------------------------------------------------
 ! Initialise the symmetry arrays
 !----------------------------------------------------------------------
