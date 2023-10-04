@@ -2,6 +2,7 @@
 The Ao2mo object and its associated functions.
 """
 import sys as sys
+import os as os
 import numpy as np
 import h5py as h5py
 import graci.core.libs as libs
@@ -9,6 +10,17 @@ import graci.utils.timing as timing
 from pyscf import gto, ao2mo, df
 
 #
+
+def moints_exist(scf):
+    """
+    Return true if the 1-e and 2-e integrals exist for correspnding
+    scf object
+    """
+    mo_1e_eri = '1e_'+str(scf.label).strip()+'.h5'
+    mo_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
+
+    return os.path.isfile(mo_2e_eri) and os.path.isfile(mo_1e_eri)
+
 class Ao2mo:
     """Class constructor for ao2mo object"""
 
@@ -106,3 +118,4 @@ class Ao2mo:
         self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
 
         return
+

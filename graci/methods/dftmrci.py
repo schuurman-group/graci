@@ -93,20 +93,21 @@ class Dftmrci(cimethod.Cimethod):
         return new
 
     @timing.timed
-    def run(self, scf, guess):
+    def run(self, scf, guess, mo_ints=None):
         """ compute the DFT/MRCI eigenpairs for all irreps """
 
         # set the scf object 
-        scf_energy = self.set_scf(scf, ci_guess=guess)
+        scf_energy = self.set_scf(scf, ci_guess=guess, mo_ints=mo_ints)
+
         if scf_energy is None:
             return None
 
         # set the Hamiltonian
         self.set_hamiltonian()
-        
+
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
-            
+
         # write the output logfile header for this run
         if self.verbose:
             output.print_dftmrci_header(self.label)
@@ -119,12 +120,12 @@ class Dftmrci(cimethod.Cimethod):
         # write the Hamiltonian information to the log file
         if self.verbose:
             output.print_hamiltonian(self.hamiltonian)
-            
+        
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
             self.smo = self.scf.mo_overlaps(guess.scf)[:guess.nmo,:self.nmo]
-     
+
         # initialize bitci
         bitci_init.init(self)
 

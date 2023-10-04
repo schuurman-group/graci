@@ -107,11 +107,11 @@ class Dftmrci2(cimethod.Cimethod):
         return new
 
     @timing.timed
-    def run(self, scf, guess):
+    def run(self, scf, guess, mo_ints=None):
         """ compute the DFT/MRCI(2) eigenpairs for all irreps """
 
         # set the scf object
-        scf_energy = self.set_scf(scf, ci_guess=guess)
+        scf_energy = self.set_scf(scf, ci_guess=guess, mo_ints=mo_ints)
         if scf_energy is None:
             return None
 

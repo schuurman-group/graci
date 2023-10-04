@@ -74,12 +74,13 @@ class Cimethod:
 
 # Required functions #############################################################
 
-    def set_scf(self, scf, ci_guess=None):
+    def set_scf(self, scf, ci_guess=None, mo_ints=None):
         """set the scf object for the dftmrci class object"""
 
         # check that the coordinates in the graci.molecule
-        # object agree with pymol. If not: we need re-run SCF
-        if scf.mol.coords_updated():
+        # object agree with pymol, or, if the integrals don't exist.
+        # If either are true: we need re-run SCF
+        if scf.mol.coords_updated() or not ao2mo.moints_exist(scf):
             if ci_guess is not None:
                 scf_guess = guess.scf.copy() 
             else:
@@ -89,7 +90,8 @@ class Cimethod:
             if scf_ener is None:
                 return scf_ener
 
-            self.update_eri()
+        # update the mo integrals
+        self.update_eri(mo_ints)
 
         self.scf = scf
         self.nel = scf.nel
@@ -271,7 +273,7 @@ class Cimethod:
            Returns:
                None
         """
-        if eri_mo == None:
+        if eri_mo is None:
             eri_mo         = ao2mo.Ao2mo()
             eri_mo.emo_cut = self.mo_cutoff
             eri_mo.run(self.scf, self.precision)
@@ -280,7 +282,6 @@ class Cimethod:
         self.emo   = eri_mo.emo
         self.mosym = eri_mo.mosym
         self.mos   = eri_mo.orbs
-        #print(self.label+' update_eri, nmo, emo, mosym, mos='+str(self.nmo)+','+str(self.emo)+','+str(self.mosym)+','+str(self.mos.shape),flush=True)
 
         return
 

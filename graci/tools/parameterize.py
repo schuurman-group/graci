@@ -540,7 +540,7 @@ class Parameterize:
             # find the states of interest
             while not all_found and i_add < n_add:
 
-                ci_opt.run(scf_objs[ci_name], None)
+                ci_opt.run(scf_objs[ci_name], None, mo_ints = mo_ints)
 
                 # use overlap with ref states to identify t states
                 roots_found, eners = self.identify_states(molecule, 

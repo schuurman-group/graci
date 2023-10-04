@@ -174,14 +174,14 @@ class Driver:
                     eri_mo.run(scf_obj, ci_calc.precision)
 
                 # update ci object with results of ao2mo
-                ci_calc.update_eri(eri_mo = eri_mo)
+                #ci_calc.update_eri(eri_mo = eri_mo)
 
                 # guess CI object
                 ci_guess = self.match_sections(ci_calc.guess_label, 
                                                'label', ci_objs, 
                                                 match_all=False)
                
-                ci_calc.run(scf_obj, ci_guess)
+                ci_calc.run(scf_obj, ci_guess, mo_ints = eri_mo)
                 chkpt.write(ci_calc)
 
         # All SCF + CI objects are created and run() called before 
