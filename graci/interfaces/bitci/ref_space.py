@@ -145,6 +145,7 @@ def autoras(ci_method):
     # DFT/CIS Hamiltonian index - anchored to the
     # DFT XC functional for now
     hamiltonians = {'b3lyp'            : 1,
+                    'bhandh'           : 2,
                     'bhandhlyp'        : 2,
                     'hyb_gga_xc_qtp17' : 3,
                     'qtp17'            : 3}
