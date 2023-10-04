@@ -13,7 +13,7 @@ contains
 ! generate_2I_1I1E_confs: for all irreps, generates all the allowable
 !                         2I and 1I1E confs
 !######################################################################
-  subroutine generate_2I_1I1E_confs(E0max,cfgM,icvs,ddci,nroots)
+  subroutine generate_2I_1I1E_confs(E0max,cfgM,ddci,nroots)
 
     use constants
     use bitglobal
@@ -29,10 +29,6 @@ contains
     
     ! MRCI configurations for all irreps
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
 
     ! DDCI2 configuration reduction
     logical, intent(in)        :: ddci
@@ -90,7 +86,7 @@ contains
 ! (1) Generate the 2I and 1I1E configurations for all irreps
 !     *** including duplicates ***
 !----------------------------------------------------------------------
-    call builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM(istart),icvs,ddci,&
+    call builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM(istart),ddci,&
          idoccR,E0max,file2I,file1I1E,nrec2I,nrec1I1E,nroots)
 
 !----------------------------------------------------------------------
@@ -115,7 +111,7 @@ contains
 !                  generation of the 2I and 1I1E configurations
 !                  across all irreps
 !######################################################################
-  subroutine builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM,icvs,ddci,idoccR,&
+  subroutine builder_2I_1I1E(n1h1I,n2I,n1I1E,cfgM,ddci,idoccR,&
        E0max,file2I,file1I1E,nrec2I,nrec1I1E,nroots)
 
     use constants
@@ -133,10 +129,6 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout)     :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)        :: icvs(nmo)
-    logical                        :: lcvs
 
     ! Energy of the highest-lying reference space state of interest
     real(dp), intent(in)           :: E0max
@@ -196,15 +188,6 @@ contains
     integer(is)                    :: ia2h,ja2h,itmp,jtmp,nexci,nmatch
     integer(is)                    :: ic,counter
 
-!----------------------------------------------------------------------
-! Is this a CVS-MRCI calculation
-!----------------------------------------------------------------------
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
-    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -2174,7 +2157,7 @@ contains
 !                    configurations with one internal hole and one
 !                    external electron
 !######################################################################
-  subroutine generate_1I_confs(E0max,cfgM,icvs,nroots)
+  subroutine generate_1I_confs(E0max,cfgM,nroots)
 
     use constants
     use bitglobal
@@ -2188,10 +2171,6 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
 
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
-
     ! Number of roots per irrep
     integer(is), intent(in)    :: nroots(0:nirrep-1)
     
@@ -2199,20 +2178,11 @@ contains
     integer(is)                :: modus,irrep
 
 !----------------------------------------------------------------------
-! Is this a CVS-MRCI calculation
-!----------------------------------------------------------------------
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
-    
-!----------------------------------------------------------------------
 ! First, determine the number of allowable configurations of the
 ! each symmetry
 !----------------------------------------------------------------------
     modus=0
-    call builder_1I(modus,E0max,cfgM,icvs,lcvs,nroots)
+    call builder_1I(modus,E0max,cfgM,nroots)
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -2243,7 +2213,7 @@ contains
 ! 1-hole configuration.
 !----------------------------------------------------------------------
     modus=1
-    call builder_1I(modus,E0max,cfgM,icvs,lcvs,nroots)
+    call builder_1I(modus,E0max,cfgM,nroots)
     
     return
     
@@ -2254,7 +2224,7 @@ contains
 !             generation of the configurations with one internal hole
 !             and one internal electron
 !######################################################################
-  subroutine builder_1I(modus,E0max,cfgM,icvs,lcvs,nroots)
+  subroutine builder_1I(modus,E0max,cfgM,nroots)
 
     use constants
     use bitglobal
@@ -2277,10 +2247,6 @@ contains
 
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical, intent(in)        :: lcvs
 
     ! Number of roots per irrep
     integer(is), intent(in)    :: nroots(0:nirrep-1)

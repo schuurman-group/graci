@@ -7,10 +7,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
-     icvs,ddci) bind(c,name="generate_mrci_confs")
+     ddci) bind(c,name="generate_mrci_confs")
 #else
 subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
-       icvs,ddci)
+       ddci)
 #endif
 
   use constants
@@ -40,9 +40,6 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   ! Energy of the highest-lying reference space state of interest
   real(dp), intent(in)       :: E0max1
   real(dp)                   :: E0max
-
-  ! CVS-MRCI: core MOs
-  integer(is), intent(in)    :: icvs(nmo)
 
   ! DDCI configuration reduction
   logical, intent(in)        :: ddci
@@ -168,7 +165,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole, 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_hole_confs(cfgM,icvs,nroots)
+  call generate_hole_confs(cfgM,nroots)
   
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
@@ -186,7 +183,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Generate the configurations with one internal hole and one internal
 ! electron
 !----------------------------------------------------------------------
-  call generate_1I_confs(E0max,cfgM,icvs,nroots)
+  call generate_1I_confs(E0max,cfgM,nroots)
   
 !----------------------------------------------------------------------
 ! Generate the configurations with:
@@ -197,7 +194,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 ! Important: this routine must be called *after* the generation of
 !            the 1I and 1E confs have been generated
 !----------------------------------------------------------------------
-  call generate_2I_1I1E_confs(E0max,cfgM,icvs,ddci,nroots)
+  call generate_2I_1I1E_confs(E0max,cfgM,ddci,nroots)
 
 !----------------------------------------------------------------------
 ! Filter out any hole configurations which do not generate any

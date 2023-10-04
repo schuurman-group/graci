@@ -30,6 +30,7 @@ subroutine bitci_finalise()
   if (allocated(iocc0))     deallocate(iocc0)
   if (allocated(mosym))     deallocate(mosym)
   if (allocated(moen))      deallocate(moen)
+  if (allocated(icvs))      deallocate(icvs)
   if (allocated(csfcoe))    deallocate(csfcoe)
   if (allocated(detvec))    deallocate(detvec)
   if (allocated(fii))       deallocate(fii)
@@ -62,6 +63,7 @@ subroutine bitci_finalise()
   maxdet=0
   Escf=0.0d0
   ldftmrci=.false.
+  lcvs=.false.
   nhpar=0
   desel=0.0d0
   ihamiltonian=0

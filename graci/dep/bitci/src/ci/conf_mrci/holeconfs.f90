@@ -12,7 +12,7 @@ contains
 !                      configurations from a given set of reference
 !                      space configurations
 !######################################################################
-  subroutine generate_hole_confs(cfgM,icvs,nroots)
+  subroutine generate_hole_confs(cfgM,nroots)
     
     use constants
     use bitglobal
@@ -23,24 +23,11 @@ contains
     ! MRCI configuration derived types for all irreps
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
     
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
-
     ! Number of roots per irrep
     integer(is), intent(in)    :: nroots(0:nirrep-1)
     
     ! Everything else
     integer(is)                :: modus,i,istart
-
-!----------------------------------------------------------------------
-! Is this a CVS-MRCI calculation
-!----------------------------------------------------------------------
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
 
 !----------------------------------------------------------------------
 ! First index of an irrep with a non-zero number of roots
@@ -57,7 +44,7 @@ contains
 !----------------------------------------------------------------------
     ! First pass: determine the no. 1-hole configurations
     modus=0
-    call builder_1hole(modus,cfgM(istart),icvs,lcvs)
+    call builder_1hole(modus,cfgM(istart))
 
     ! Allocate and initialise arrays
     allocate(cfgM(istart)%conf1h(cfgM(istart)%n_int_I,2,cfgM(istart)%n1h))
@@ -69,14 +56,14 @@ contains
 
     ! Second pass: fill in the 1-hole configuration and offset arrays
     modus=1
-    call builder_1hole(modus,cfgM(istart),icvs,lcvs)
+    call builder_1hole(modus,cfgM(istart))
 
 !----------------------------------------------------------------------
 ! 2-hole configurations
 !----------------------------------------------------------------------
     ! First pass: determine the no. 2-hole configurations
     modus=0
-    call builder_2hole(modus,cfgM(istart),icvs,lcvs)
+    call builder_2hole(modus,cfgM(istart))
     
     ! Allocate and initialise arrays
     allocate(cfgM(istart)%conf2h(cfgM(istart)%n_int_I,2,cfgM(istart)%n2h))
@@ -88,7 +75,7 @@ contains
 
     ! Second pass: fill in the 2-hole configuration and offset arrays
     modus=1
-    call builder_2hole(modus,cfgM(istart),icvs,lcvs)
+    call builder_2hole(modus,cfgM(istart))
 
 !----------------------------------------------------------------------
 ! Fill in the MRCI configuration derived types for the remaining irreps
@@ -129,7 +116,7 @@ contains
 ! builder_1hole: performs all the heavy lifting involved in the
 !                generation of the 1-hole configurations
 !######################################################################
-  subroutine builder_1hole(modus,cfgM,icvs,lcvs)
+  subroutine builder_1hole(modus,cfgM)
 
     use constants
     use bitglobal
@@ -148,10 +135,6 @@ contains
     
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
-
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical, intent(in)        :: lcvs
 
     ! Lists of hole/particle indices linking ref confs
     integer(is), parameter     :: maxexci=1
@@ -307,7 +290,7 @@ contains
 ! builder_2hole: performs all the heavy lifting involved in the
 !                generation of the 2-hole configurations
 !######################################################################
-  subroutine builder_2hole(modus,cfgM,icvs,lcvs)
+  subroutine builder_2hole(modus,cfgM)
 
     use constants
     use bitglobal
@@ -328,10 +311,6 @@ contains
     ! MRCI configurations
     type(mrcfg), intent(inout) :: cfgM
 
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical, intent(in)        :: lcvs
-    
     ! 1-hole SOPs
     integer(ib), allocatable   :: sop1h(:,:,:)
 

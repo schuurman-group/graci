@@ -359,41 +359,47 @@ end subroutine retrieve_filename
 ! Number of Hamiltonian parameters
 !----------------------------------------------------------------------
   select case(trim(ham))
+     
   case('grimme')
      npar=size(grimme1)
+
   case('grimme_short')
      npar=size(grimme1_short)
+
   case('r2016')
      npar=size(r2016)
+
   case('r2016_short')
      npar=size(r2016_short)
+
   case('r2017')
      npar=size(r2017)
+
   case('r2017_short')
      npar=size(r2017_short)
+
   case('r2018')
      npar=size(r2018)
+
   case('r2018_short')
      npar=size(r2018_short)
-  case('cvs_standard')
-     npar=size(cvs_standard)
-  case('cvs_short')
-     npar=size(cvs_short)
-  case('test_heil17')
-     npar=size(test_heil17)
-  case('cvs_test_heil17')
-     npar=size(cvs_test_heil17)
-  case('qe8')
-     npar=size(qe8)
-  case('cvs-qe8')
-     npar=size(cvs_qe8)
+
   case('r2022')
      npar=size(r2022)
+
+  case('qe8')
+     npar=size(qe8)
+
   case('qe8_qhort')
      npar=size(qe8_short)
+
+  case('cvs-qe8')
+     npar=size(cvs_qe8)
+
   case default
      errmsg='Error in retrieve_nhpar: unrecognised Hamiltonian name'
      call error_control
+
   end select
 
 !----------------------------------------------------------------------
@@ -456,97 +462,85 @@ subroutine retrieve_hpar(ham1,dim,params)
 ! Package up the Hamiltonian parameters excluding desel
 !----------------------------------------------------------------------
   select case(trim(ham))
+     
   case('grimme')
      npar=size(grimme1)+1
      if (npar > dim) goto 999
      params(1:npar-1)=grimme1
      params(npar)=1.d0
+
   case('grimme_short')
      npar=size(grimme1_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=grimme1_short
      params(npar)=0.8d0
+
   case('r2016')
      npar=size(r2016)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2016
      params(npar)=1.d0
+
   case('r2016_short')
      npar=size(r2016_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2016_short
      params(npar)=0.8d0
+
   case('r2017')
      npar=size(r2017)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2017
      params(npar)=1.d0
+
   case('heil17_short')
      npar=size(r2017_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2017_short
      params(npar)=0.8d0
+
   case('r2018')
      npar=size(r2018)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2018
      params(npar)=1.d0
+
   case('r2018_short')
      npar=size(r2018_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2018_short
      params(npar)=0.8d0
-  case('cvs_standard')
-     npar=size(cvs_standard)+1
-     if (npar > dim) goto 999
-     params(1:npar-1)=cvs_standard
-     params(npar)=1.d0
-  case('cvs_short')
-     npar=size(cvs_short)+1
-     if (npar > dim) goto 999
-     params(1:npar-1)=cvs_short
-     params(npar)=0.8d0
-  case('test_heil17')
-     npar=size(test_heil17)+1
-     if (npar > dim) goto 999
-     params(1:npar-1)=test_heil17
-     params(npar)=1.d0
-  case('cvs_test_heil17')
-     npar=size(cvs_test_heil17)+1
-     if (npar > dim) goto 999
-     params(1:npar-1)=cvs_test_heil17
-     params(npar)=1.d0
-  case('qe8')
-     npar=size(qe8)+1
-     if (npar > dim) goto 999
-     params(1:npar-1)=qe8
-     params(npar)=1.d0
-  case('cvs-qe8')
-     npar=size(cvs_qe8)+1
-     if (npar > dim) goto 999
-     params(1:npar-1)=cvs_qe8
-     params(npar)=1.d0
+
   case('r2022')
      npar=size(r2022)+1
      if (npar > dim) goto 999
      params(1:npar-1)=r2022
      params(npar)=1.d0
+
+  case('qe8')
+     npar=size(qe8)+1
+     if (npar > dim) goto 999
+     params(1:npar-1)=qe8
+     params(npar)=1.d0
+
   case('qe8_short')
      npar=size(qe8_short)+1
      if (npar > dim) goto 999
      params(1:npar-1)=qe8_short
-     params(npar)=0.8
-     
+     params(npar)=0.8d0
+
+  case('cvs-qe8')
+     npar=size(cvs_qe8)+1
+     if (npar > dim) goto 999
+     params(1:npar-1)=cvs_qe8
+     params(npar)=1.d0
+
   case default
      errmsg='Error in retrieve_hpar: unrecognised Hamiltonian name'
      call error_control
+
   end select
 
-!----------------------------------------------------------------------
-! Package desel
-!----------------------------------------------------------------------
-  !params(npar)=desel
-  
   return
 
 999 continue

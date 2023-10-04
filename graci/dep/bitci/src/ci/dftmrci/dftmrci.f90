@@ -57,17 +57,18 @@ contains
        call hii_dftmrci_lyskov(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(6:9,12,14,17)
+    case(6:9,11:12)
        ! Heil's parameterisations
+       ! Also used by the the QE8 parameterisation
        call hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(10:11,13,15)
-       ! Ottawa CVS parameterisation
-       call hii_dftmrci_cvs(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
+    case(13)
+       ! CVS-QE8 parameterisation
+       call hii_dftmrci_cvsqe8(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(16)
+    case(10)
        ! R2022 parameterisation
        call hii_dftmrci_r2022(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
@@ -110,23 +111,22 @@ contains
        ! Grimme's parameterisation
        damp=damping_grimme(bav,kav)
 
-    case(4:7, 10:13)
+    case(4:7)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's 2017 Hamiltonian
-       ! as well as the Ottawa CVS Hamiltonian
        damp=damping_lyskov(bav,kav)
 
     case(8:9)
        ! Heil's 2018 parameterisation
        damp=damping_heil18(bav,kav)
 
-    case(14,15,17)
-       ! Experimental exponential damping function
-       damp=damping_exp_test(bav,kav)
-
-    case(16)
+    case(10)
        ! R2022 parameterisation
        damp=damping_r2022(bav,kav)
+       
+    case(11:13)
+       ! QE8 parameterisations
+       damp=damping_qe8(bav,kav)    
        
     case default
        errmsg='Your Hamiltonian choice has not been implemented yet'
@@ -188,21 +188,22 @@ contains
        ! Grimme's parameterisation: do nothing
        return
 
-    case(4:9,12,14,17)
+    case(4:9,11:12)
        ! Lyskov's parameterisation
-       ! Note that this is also used for Heil's Hamiltonians
+       ! Note that this is also used for Heil's Hamiltonian
+       ! and the QE8 Hamiltonian
        nij=nsp*(nsp-1)/2
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
 
-    case(10:11,13,15)
-       ! Ottawa CVS parameterisation
-       call hij_same_dftmrci_cvs(hij,nsp,sop,socc,nsocc,nbefore,m2c)
-
-    case(16)
+    case(10)
        ! R2022 parameterisation
        call hij_same_dftmrci_r2022(hij,nsp,Dw,ndiff,sop,socc,nsocc,&
             nbefore,m2c)
+       
+    case(13)
+       ! CVS-QE8 parameterisation
+       call hij_same_dftmrci_cvsqe8(hij,nsp,sop,socc,nsocc,nbefore,m2c)
        
     case default
        errmsg='Your Hamiltonian choice has not been implemented yet'
@@ -215,12 +216,12 @@ contains
   end subroutine hij_same_dftmrci
 
 !######################################################################
-! hij_same_dftmrci_cvs: applies the Ottawa CVS-DFT/MRCI corrections to
-!                       a batch of off-diagonal Hamiltonian matrix
-!                       elements with the same spatial part but
-!                       different spin couplings
+! hij_same_dftmrci_cvs: applies the CVS-QE8 corrections to a batch of
+!                       off-diagonal Hamiltonian matrix elements with
+!                       the same spatial part but different spin
+!                       couplings
 !######################################################################
-  subroutine hij_same_dftmrci_cvs(hij,nsp,sop,socc,nsocc,nbefore,m2c)
+  subroutine hij_same_dftmrci_cvsqe8(hij,nsp,sop,socc,nsocc,nbefore,m2c)
 
     use constants
     use bitglobal
@@ -246,9 +247,6 @@ contains
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
 
-    ! Temporary K-edge MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
-    
     ! Everything else
     integer(is)             :: insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
@@ -265,10 +263,10 @@ contains
     pFvv=hpar(2)
 
     ! Core-valence interactions
-    if(nhpar == 6) then
-      pFcv=hpar(6)
-    elseif(nhpar == 7) then
-      pFcv=hpar(7)
+    if (nhpar == 6) then
+       pFcv=hpar(6)
+    else if (nhpar == 7) then
+       pFcv=hpar(7)
     endif
 
 !----------------------------------------------------------------------
@@ -314,7 +312,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -346,7 +344,7 @@ contains
     
     return
 
-  end subroutine hij_same_dftmrci_cvs
+  end subroutine hij_same_dftmrci_cvsqe8
 
 !######################################################################
 ! hij_same_dftmrci_r2022: applies the R2022 DFT/MRCI corrections to
@@ -385,9 +383,6 @@ contains
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
 
-    ! Temporary K-edge MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
-    
     ! Everything else
     integer(is)             :: insp,nopen
     integer(is)             :: i,i1,j,j1,ic,ja
@@ -1207,10 +1202,10 @@ contains
   end subroutine hii_dftmrci_heil
 
 !######################################################################
-! hii_dftmrci_cvs: applies the Ottawa CVS-DFT/MRCI correction to a
-!                  batch of on-diagonal Hamiltonian matrix elements
+! hii_dftmrci_cvs: applies the CVS-QE8 correction to a batch of
+! on-diagonal Hamiltonian matrix elements
 !######################################################################
-  subroutine hii_dftmrci_cvs(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
+  subroutine hii_dftmrci_cvsqe8(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
        nsocc,nbefore)
     
     use constants
@@ -1244,9 +1239,6 @@ contains
     ! Numbers of open shells preceding each MO
     integer(is), intent(in) :: nbefore(nmo)
 
-    ! Temporary K-edge MO energy threshold
-    real(dp), parameter     :: ethrsh=-10.0d0
-    
     ! Everything else
     integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,insp
     integer(is)             :: ic,ja,omega,pattern,start
@@ -1276,12 +1268,12 @@ contains
     pFvv=hpar(2)
 
     ! Core-valence interactions
-    if(nhpar == 6) then
-      pJcv=hpar(5)
-      pFcv=hpar(6)
-    elseif(nhpar == 7) then
-      pJcv=hpar(6)
-      pFcv=hpar(7)
+    if (nhpar == 6) then
+       pJcv=hpar(5)
+       pFcv=hpar(6)
+    else if (nhpar == 7) then
+       pJcv=hpar(6)
+       pFcv=hpar(7)
     endif
 
 !----------------------------------------------------------------------
@@ -1339,7 +1331,7 @@ contains
           Dwj=Dw(j,2)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pJ=pJcv
           else
@@ -1425,7 +1417,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -1481,7 +1473,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(i1) < ethrsh .or. moen(j1) < ethrsh) then
+          if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -1538,7 +1530,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(j1) < ethrsh) then
+          if (icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -1587,7 +1579,7 @@ contains
           Vijji=Vx(i1,j1)
 
           ! Are we at a valence-valence or core-valence interaction?
-          if (moen(j1) < ethrsh) then
+          if (icvs(j1) == 1) then
              ! core-valence
              pF=pFcv
           else
@@ -1608,7 +1600,7 @@ contains
     
     return
     
-  end subroutine hii_dftmrci_cvs
+  end subroutine hii_dftmrci_cvsqe8
 
 !######################################################################
 ! hii_dftmrci_r2022: applies the R2022 DFT/MRCI correction to a batch
@@ -2113,11 +2105,11 @@ contains
   end function damping_heil18
 
 !######################################################################
-! damping_exp_test: for two CSF-averaged on-diagonal matrix element
-!                   values, returns the value of the experimental
-!                   exponential damping function
+! damping_qe8: for two CSF-averaged on-diagonal matrix element
+!              values, returns the value of the QE8 exponential
+!              damping function
 !######################################################################
-  function damping_exp_test(av1,av2) result(func)
+  function damping_qe8(av1,av2) result(func)
 
     use constants
     use bitglobal
@@ -2142,7 +2134,7 @@ contains
     
     return
     
-  end function damping_exp_test
+  end function damping_qe8
 
 !######################################################################
 ! damping_r2022: for two CSF-averaged on-diagonal matrix element
