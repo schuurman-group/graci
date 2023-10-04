@@ -7,41 +7,28 @@ import copy as copy
 import ctypes as ctypes
 import graci.io.convert as convert
 
-# THIS IS TEMPORARY UNTIL WE PASS THE HAMILTONIAN NAME
-# DIRECTLY. THE METHOD CALLING init_bitci IS RESPONSIBLE 
-# FOR "HAMILTONIAN" BEING VALID
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil17_short',
-                  'heil18_standard',
-                  'heil18_short',
-                  'cvs_standard']
-
 libraries      = ['bitci','bitsi','bitwf','overlap']
 
 # registry of bitci functions
 bitci_registry = {
     'bitci_initialise'        : ['int32','int32','int32','int64',
-                                 'double','int32','double','string',
-                                 'string','logical'],
+                                 'double','int32','double','int32',
+                                 'string','string','logical'],
     'bitci_finalise'          : [],
-    'bitci_int_initialize'    : ['string', 'string', 'string', 'string'],
+    'bitci_int_initialize'    : ['string', 'string', 'string', 'string', 
+                                 'string'],
     'bitci_int_finalize'      : [],
     'get_n_int'               : ['int32'],
     'override_hparam'         : ['int32','double'],
     'get_hparam'              : ['int32','double'],
     'generate_ref_confs'      : ['int32','int32','int32','int32',
                                  'int32','int32','int32','int32',
-                                 'int32','int32','int32','int32'],
-    'ref_space_propagate'     : ['int32','int32','int32','double','string',
-                                 'int32','int32'],
-    'diag_dftcis'             : ['int32','int32','int32','int32','logical'],
-    'ras_guess_dftcis'        : ['int32','int32','int32','int32',
+                                 'int32','int32','int32'],
+    'ref_space_propagate'     : ['int32','int32','int32','double',
+                                 'string','int32','int32'],
+    'diag_dftcis'             : ['int32','int32','int32','logical',
                                  'int32'],
+    'ras_guess_dftcis'        : ['int32','int32','int32','int32'],
     'ref_diag_mrci'           : ['int32','int32','int32','int32',
                                  'int32'],
     'ref_diag_mrci_follow'    : ['int32','int32','int32','int32','int32',
@@ -51,7 +38,7 @@ bitci_registry = {
     'retrieve_energies'       : ['int32','int32','double'],
     'retrieve_some_energies'  : ['int32','int32','double','int32'],
     'generate_mrci_confs'     : ['int32','int32','int32', 'int32',
-                                 'double','int32','logical'],
+                                 'double','logical'],
     'mrci_prune'              : ['double','int32','int32','int32',
                                  'double','int32', 'int32','int32','int32'],
     'retrieve_qcorr'          : ['int32','int32','int32','int32',
@@ -96,18 +83,18 @@ bitci_registry = {
 
 bitci_intent = {
     'bitci_initialise'        : ['in','in','in','in','in','in','in',
-                                 'in','in','in','in'],
+                                 'in','in','in','in','in'],
     'bitci_finalise'          : [],
-    'bitci_int_initialize'    : ['in','in','in','in'],
+    'bitci_int_initialize'    : ['in','in','in','in','in'],
     'bitci_int_finalize'      : [],
     'get_n_int'               : ['out'],
     'override_hparam'         : ['in','in'],
     'get_hparam'              : ['in','out'],
     'generate_ref_confs'      : ['in','in','in','in','in','in','in',
-                                 'in','in','in','out','out'],
+                                 'in','in','out','out'],
     'ref_space_propagate'     : ['in','in','in','in','in','out','out'],
-    'diag_dftcis'             : ['in','in','in','out','in'],
-    'ras_guess_dftcis'        : ['in','in','in','out','out'],
+    'diag_dftcis'             : ['in','in','out','in','in'],
+    'ras_guess_dftcis'        : ['in','in','out','out'],
     'ref_diag_mrci'           : ['in','out','in','in','out'],
     'ref_diag_mrci_follow'    : ['in','out','in','in','in','in','in',
                                  'in','in','in','in','in','in','in',
@@ -115,7 +102,7 @@ bitci_intent = {
     'prune_ref_space'         : ['in','in','in','out','in'],
     'retrieve_energies'       : ['in','in','out'],
     'retrieve_some_energies'  : ['in','in','out','in'],
-    'generate_mrci_confs'     : ['in','in','out','out','in','in','in'],
+    'generate_mrci_confs'     : ['in','in','out','out','in','in'],
     'mrci_prune'              : ['in','in','in','in','in','in','in',
                                  'out','out'],
     'retrieve_qcorr'          : ['in','in','in','in','in','in','in',

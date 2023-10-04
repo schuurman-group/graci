@@ -17,129 +17,22 @@ module h5_ops
   use constants
   implicit none
 
-  interface write_dataset
-     module procedure write_dataset_dble
-     module procedure write_dataset_int64
-  end interface
-
   interface read_dataset
-     module procedure read_dataset_dble
      module procedure read_dataset_int64
+     !module procedure read_dataset_float16
+     module procedure read_dataset_float
+     module procedure read_dataset_dble
   end interface
 
-  interface write_attribute
-     module procedure write_attribute_int
-  end interface 
+  interface read_dataset_t
+     !module procedure read_dataset_t_float16
+     module procedure read_dataset_t_float
+     module procedure read_dataset_t_dble
+  end interface
 
   contains
 
 !#########################################################################3
-
-  function group_exists(file_name, grp_name) result(exists)
-    character(len=255), intent(in) :: file_name
-    character(len=255), intent(in) :: grp_name
-    
-    integer(hid_t)                 :: file_id  ! File identifier 
-    integer(hid_t)                 :: grp_id ! Group identifier 
-
-    character(len=255)             :: f_name
-    character(len=255)             :: g_name
-    logical                        :: exists
-    integer(is)                    :: error
-
-    f_name    = trim(adjustl(file_name))
-    g_name    = trim(adjustl(grp_name))
-
-    ! if file doesn't exist, the group doesn't exist. Not sure if this
-    ! default behavior makes most sense
-    inquire(file=f_name, exist=exists)
-
-    if(.not.exists) return
-
-    exists    = .false.
-
-    ! else, open the file try to open the group
-    call h5open_f(error)
-
-    call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, error)
-
-    ! turn off error reporting -- we're going to explicitly check error code
-    call h5eset_auto_f(0, error)
-    call h5gopen_f(file_id, g_name, grp_id, error)
-
-    ! if we don't get an error code, group doesn't exist
-    if(error == 0) then
-      exists = .true.
-      call h5gclose_f(grp_id, error)
-    else
-      exists = .false.
-    endif
-
-    ! turn error reporting back on -- even though we're about to shut
-    ! everything down
-    call h5eset_auto_f(1, error)
-
-    call h5fclose_f(file_id, error)
-    call h5close_f(error)
-
-    return
-  end function group_exists
-
-
-  subroutine create_group(file_name, grp_name)
-    character(len=255), intent(in) :: file_name
-    character(len=255), intent(in) :: grp_name
-
-    integer(hid_t)                 :: file_id  ! File identifier 
-    integer(hid_t)                 :: grp_id ! Group identifier 
-
-    character(len=255)             :: f_name
-    character(len=255)             :: g_name
-
-    logical                        :: file_exists
-    integer(is)                    :: error ! Error flag
-    
-    
-    f_name    = trim(adjustl(file_name))
-    g_name    = trim(adjustl(grp_name))
-
-    ! group already exists, nothing to do
-    if( group_exists(f_name, grp_name) ) return
-
-    ! else, open the file and create group
-    call h5open_f(error)     
-
-    ! if file exists, append, else create a new one
-    inquire(file=f_name, exist=file_exists)
-
-    if(file_exists) then
-      call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, error)
-    else
-      call h5fcreate_f(f_name, H5F_ACC_TRUNC_F, file_id, error)
-    endif
-
-    !
-    ! Create a group named "grp_name" in the file.
-    !
-    call h5gcreate_f(file_id, grp_name, grp_id, error)
-
-    !
-    ! Close the group.
-    !
-    call h5gclose_f(grp_id, error)
-
-    !
-    ! Terminate access to the file.
-    !
-    call h5fclose_f(file_id, error)
-
-    !
-    ! Close FORTRAN interface.
-    !
-    call h5close_f(error)
-
-    return
-  end subroutine create_group
 
   !
   !
@@ -157,7 +50,7 @@ module h5_ops
 
     call open_dataset(file_name, dset_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
-    exists = .not.error
+    exists = error.eq.0
 
     call close_dataset(file_id, dset_id, space_id)
 
@@ -181,7 +74,7 @@ module h5_ops
 
     call open_dataset(file_name, dset_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
-    if(.not.error) then
+    if (error.eq.0) then
       rank = rank
       dims = h5dims(1:rank)
     else
@@ -299,42 +192,79 @@ module h5_ops
   end subroutine close_dataset
 
   !
-  ! # write a 2D array dataset to the specified file_name
   !
-  subroutine write_dataset_dble(file_name, data_name, data_set)
+  !
+  subroutine read_dataset_int64(file_name, data_name, data_set, dim_read)
     character(len=255), intent(in)  :: file_name
     character(len=255), intent(in)  :: data_name
-    real(dp), intent(in)            :: data_set(:,:)
+    integer(ib), intent(inout)      :: data_set(:, :)
+    integer(is), intent(out)        :: dim_read(2)
 
-    integer(hid_t)                  :: data_type    
-    integer(hid_t)                  :: file_id, dset_id, space_id
+    integer(hid_t)                  :: file_id, space_id, dset_id
+    integer(hid_t)                  :: h5dims(2)
+    integer(hid_t)                  :: data_type
+    integer(is)                     :: error
+    integer(is)                     :: rank
+
+    ! initialize to zero
+    data_set = 0.
+    rank     = 2
+    h5dims   = shape(data_set)
+
+    !data_type = h5kind_to_type(ib,H5_INTEGER_KIND)
+    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
+
+    if(any(h5dims > shape(data_set))) stop 'read_dataset_int64 - array too small to hold data set'//data_name
+    dim_read = h5dims
+
+    data_type = h5kind_to_type(ib,H5_INTEGER_KIND)
+    call h5dread_f(dset_id, data_type, data_set(1:dim_read(1),1:dim_read(2)), h5dims, error)
+
+    call close_dataset(file_id, dset_id, space_id)
+
+  end subroutine read_dataset_int64
+
+  !
+  !
+  !
+  subroutine read_dataset_float16(file_name, data_name, data_set, dim_read)
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
+    real(hp), intent(inout)         :: data_set(:,:)
+    integer(is), intent(out)        :: dim_read(2)
+  
+    integer(hid_t)                  :: data_type
+    integer(hid_t)                  :: file_id, space_id, dset_id
     integer(hid_t)                  :: h5dims(2)
     integer(is)                     :: error
     integer(is)                     :: rank
 
-    rank      = 2
-    h5dims    = shape(data_set) 
-    data_type = H5T_NATIVE_DOUBLE
-    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error, .true.)
+    ! initialize to zero
+    data_set = 0.
+    rank     = 2
 
-    ! if for whatever reason, dataset can't handle the data we want to
-    ! write, stop with error
-    if(any(h5dims < shape(data_set))) stop 'write_dataset_dble - HDF5 data set too small: '//data_name
-    h5dims = shape(data_set)
+    !data_type = H5T_NATIVE_DOUBLE
+    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
-    ! write the dataset
-    call h5dwrite_f(dset_id, data_type, data_set, h5dims, error)
+    ! if we're wrong about size of data set, stop with error
+    if(any(h5dims > shape(data_set))) stop 'read_dataset_float - array too small to hold data set'//data_name
+    dim_read = h5dims
 
-    ! Close and release resources.
+    data_type = h5kind_to_type(hp,H5_REAL_KIND)
+    call h5dread_f(dset_id, data_type, data_set(1:dim_read(1),1:dim_read(2)), h5dims, error)
+
     call close_dataset(file_id, dset_id, space_id)
 
-  end subroutine write_dataset_dble
+  end subroutine read_dataset_float16
 
-  ! # write a 2D array dataset to the specified file_name
-  subroutine write_dataset_int64(file_name, data_name, data_set)
+  !
+  !
+  !
+  subroutine read_dataset_float(file_name, data_name, data_set, dim_read)
     character(len=255), intent(in)  :: file_name
     character(len=255), intent(in)  :: data_name
-    integer(ib), intent(in)         :: data_set(:,:)
+    real(sp), intent(inout)         :: data_set(:,:)
+    integer(is), intent(out)        :: dim_read(2)
 
     integer(hid_t)                  :: data_type
     integer(hid_t)                  :: file_id, space_id, dset_id
@@ -342,23 +272,23 @@ module h5_ops
     integer(is)                     :: error
     integer(is)                     :: rank
 
-    rank      = 2
-    h5dims    = shape(data_set) 
-    data_type = h5kind_to_type(ib,H5_INTEGER_KIND)
-    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error, .true.)
+    ! initialize to zero
+    data_set = 0.
+    rank     = 2
 
-    ! if for whatever reason, dataset can't handle the data we want to
-    ! write, stop with error
-    if(any(h5dims < shape(data_set))) stop 'write_dataset_dble - HDF5 data set too small: '//data_name
-    h5dims = shape(data_set)
+    !data_type = H5T_NATIVE_DOUBLE
+    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
-    ! write the dataset
-    call h5dwrite_f(dset_id, data_type, data_set, h5dims, error)
+    ! if we're wrong about size of data set, stop with error
+    if(any(h5dims > shape(data_set))) stop 'read_dataset_float - array too small to hold data set'//data_name
+    dim_read = h5dims
 
-    ! Close and release resources.
+    data_type = h5kind_to_type(sp,H5_REAL_KIND)
+    call h5dread_f(dset_id, data_type, data_set(1:dim_read(1),1:dim_read(2)), h5dims, error)
+
     call close_dataset(file_id, dset_id, space_id)
-
-  end subroutine write_dataset_int64
+ 
+  end subroutine read_dataset_float
 
   !
   !
@@ -379,13 +309,14 @@ module h5_ops
     data_set = 0.
     rank     = 2
 
-    data_type = H5T_NATIVE_DOUBLE
+    !data_type = H5T_NATIVE_DOUBLE
     call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
     ! if we're wrong about size of data set, stop with error
     if(any(h5dims > shape(data_set))) stop 'read_dataset_dble - array too small to hold data set'//data_name
     dim_read = h5dims
 
+    data_type = h5kind_to_type(dp,H5_REAL_KIND)
     call h5dread_f(dset_id, data_type, data_set(1:dim_read(1),1:dim_read(2)), h5dims, error)
 
     call close_dataset(file_id, dset_id, space_id)
@@ -395,7 +326,189 @@ module h5_ops
   !
   !
   !
-  subroutine read_dataset_dble_t(file_name, data_name, data_set, dim_read)
+  subroutine read_dataset_t_float16(file_name, data_name, data_set, dim_read)
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
+    real(hp), intent(inout)         :: data_set(:, :)
+    integer(is), intent(out)        :: dim_read(2)
+
+    integer(is)                     :: buf_sze
+    integer(is)                     :: n_remain
+    integer(is)                     :: n_read
+    integer(is)                     :: n_read_tot
+    integer(hsize_t)                :: offset(2)
+    integer(hsize_t)                :: offmem(2)
+    integer(hsize_t)                :: buf_read(2)
+    real(sp),allocatable            :: int_buf(:,:)
+
+    integer(hid_t)                  :: file_id, space_id, dset_id, buf_space
+    integer(hid_t)                  :: h5dims(2)
+    integer(hid_t)                  :: data_type
+    integer(is)                     :: error
+    integer(is)                     :: rank
+
+    ! initialize to zero
+    data_set = 0.
+    rank     = 2
+
+    !data_type = H5T_NATIVE_DOUBLE
+    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
+
+    ! make sure we can hold the transposed data set
+    ! if we're wrong about size of data set, stop with error
+    if(any(h5dims(2:1:-1) > shape(data_set))) stop 'read_dataset_t_float - array too small to hold data set'//data_name
+    ! dim_read is the dimensions of the final transposed array
+    dim_read = h5dims(2:1:-1)
+
+    ! for now make buf_sze 1/10 of full integral tensor. Clearly
+    ! this can be optimized if need be. 
+    buf_sze    = int(0.1 * dim_read(2))
+    allocate(int_buf(buf_sze, dim_read(1)))
+
+    n_remain   = h5dims(1)
+    n_read_tot = 0
+    offmem     = (/0, 0/)
+    data_type  = h5kind_to_type(hp,H5_REAL_KIND)
+    do while(n_remain > 0)
+
+      n_read    = min(n_remain, buf_sze)
+      offset    = (/ n_read_tot, 0 /)
+      buf_read  = (/ n_read, dim_read(1) /)
+
+      !
+      ! Create memory dataspace.
+      !
+      call h5screate_simple_f(2, buf_read, buf_space, error)
+
+      !
+      ! Select hyperslab in the data set 
+      !
+      CALL h5sselect_hyperslab_f(space_id, H5S_SELECT_SET_F, offset, buf_read, error)
+
+      !
+      ! Select hyperslab in memory.
+      !
+      CALL h5sselect_hyperslab_f(buf_space, H5S_SELECT_SET_F, offmem, buf_read, error)
+
+      !
+      ! Read the dataset.
+      !
+      call h5dread_f(dset_id, data_type, int_buf, buf_read, error,  &
+                 mem_space_id=buf_space, file_space_id=space_id)
+
+      data_set(:dim_read(1), n_read_tot+1:n_read_tot+n_read) = transpose(int_buf(:n_read, :dim_read(1)))
+
+      ! 
+      ! close the memory space
+      !
+      call h5sclose_f(buf_space, error)
+
+      ! update n_remain
+      n_remain   = n_remain - n_read
+      n_read_tot = n_read_tot + n_read
+
+    enddo
+
+    call close_dataset(file_id, dset_id, space_id)
+    deallocate(int_buf)
+
+  end subroutine read_dataset_t_float16
+
+  !
+  !
+  !
+  subroutine read_dataset_t_float(file_name, data_name, data_set, dim_read)
+    character(len=255), intent(in)  :: file_name
+    character(len=255), intent(in)  :: data_name
+    real(sp), intent(inout)         :: data_set(:, :)
+    integer(is), intent(out)        :: dim_read(2)
+
+    integer(is)                     :: buf_sze
+    integer(is)                     :: n_remain
+    integer(is)                     :: n_read
+    integer(is)                     :: n_read_tot
+    integer(hsize_t)                :: offset(2)
+    integer(hsize_t)                :: offmem(2)
+    integer(hsize_t)                :: buf_read(2)
+    real(sp),allocatable            :: int_buf(:,:)
+
+    integer(hid_t)                  :: file_id, space_id, dset_id, buf_space
+    integer(hid_t)                  :: h5dims(2)
+    integer(hid_t)                  :: data_type
+    integer(is)                     :: error
+    integer(is)                     :: rank
+
+    ! initialize to zero
+    data_set = 0.
+    rank     = 2
+
+    !data_type = H5T_NATIVE_DOUBLE
+    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
+
+    ! make sure we can hold the transposed data set
+    ! if we're wrong about size of data set, stop with error
+    if(any(h5dims(2:1:-1) > shape(data_set))) stop 'read_dataset_t_float - array too small to hold data set'//data_name
+    ! dim_read is the dimensions of the final transposed array
+    dim_read = h5dims(2:1:-1)
+
+    ! for now make buf_sze 1/10 of full integral tensor. Clearly
+    ! this can be optimized if need be. 
+    buf_sze    = int(0.1 * dim_read(2))
+    allocate(int_buf(buf_sze, dim_read(1)))
+
+    n_remain   = h5dims(1)
+    n_read_tot = 0
+    offmem     = (/0, 0/)
+    data_type  = h5kind_to_type(sp,H5_REAL_KIND)
+    do while(n_remain > 0)
+
+      n_read    = min(n_remain, buf_sze)
+      offset    = (/ n_read_tot, 0 /)
+      buf_read  = (/ n_read, dim_read(1) /)
+
+      !
+      ! Create memory dataspace.
+      !
+      call h5screate_simple_f(2, buf_read, buf_space, error)
+
+      !
+      ! Select hyperslab in the data set 
+      !
+      CALL h5sselect_hyperslab_f(space_id, H5S_SELECT_SET_F, offset, buf_read, error)
+
+      !
+      ! Select hyperslab in memory.
+      !
+      CALL h5sselect_hyperslab_f(buf_space, H5S_SELECT_SET_F, offmem, buf_read, error)
+
+      !
+      ! Read the dataset.
+      !
+      call h5dread_f(dset_id, data_type, int_buf, buf_read, error,  &
+                 mem_space_id=buf_space, file_space_id=space_id)
+
+      data_set(:dim_read(1), n_read_tot+1:n_read_tot+n_read) = transpose(int_buf(:n_read, :dim_read(1)))
+
+      ! 
+      ! close the memory space
+      !
+      call h5sclose_f(buf_space, error)
+
+      ! update n_remain
+      n_remain   = n_remain - n_read
+      n_read_tot = n_read_tot + n_read
+
+    enddo
+
+    call close_dataset(file_id, dset_id, space_id)
+    deallocate(int_buf)
+
+  end subroutine read_dataset_t_float
+
+  !
+  !
+  !
+  subroutine read_dataset_t_dble(file_name, data_name, data_set, dim_read)
     character(len=255), intent(in)  :: file_name
     character(len=255), intent(in)  :: data_name
     real(dp), intent(inout)         :: data_set(:, :)
@@ -420,7 +533,7 @@ module h5_ops
     data_set = 0.
     rank     = 2
 
-    data_type = H5T_NATIVE_DOUBLE
+    !data_type = H5T_NATIVE_DOUBLE
     call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
 
     ! make sure we can hold the transposed data set
@@ -437,6 +550,7 @@ module h5_ops
     n_remain   = h5dims(1)
     n_read_tot = 0
     offmem     = (/0, 0/)
+    data_type = h5kind_to_type(dp,H5_REAL_KIND)
     do while(n_remain > 0)
 
       n_read    = min(n_remain, buf_sze)
@@ -480,119 +594,6 @@ module h5_ops
     call close_dataset(file_id, dset_id, space_id)
     deallocate(int_buf)
 
-  end subroutine read_dataset_dble_t
-
-  !
-  !
-  !
-  subroutine read_dataset_int64(file_name, data_name, data_set, dim_read)
-    character(len=255), intent(in)  :: file_name
-    character(len=255), intent(in)  :: data_name
-    integer(ib), intent(inout)      :: data_set(:, :)
-    integer(is), intent(out)        :: dim_read(2)
-
-    integer(hid_t)                  :: file_id, space_id, dset_id
-    integer(hid_t)                  :: h5dims(2)
-    integer(hid_t)                  :: data_type
-    integer(is)                     :: error
-    integer(is)                     :: rank
-
-    ! initialize to zero
-    data_set = 0.
-    rank     = 2
-    h5dims   = shape(data_set)
-
-    data_type = h5kind_to_type(ib,H5_INTEGER_KIND)
-    call open_dataset(file_name, data_name, data_type, file_id, dset_id, space_id, rank, h5dims, error)
-
-    if(any(h5dims > shape(data_set))) stop 'read_dataset_int64 - array too small to hold data set'//data_name
-    dim_read = h5dims
-
-    call h5dread_f(dset_id, data_type, data_set(1:dim_read(1),1:dim_read(2)), h5dims, error)
-
-    call close_dataset(file_id, dset_id, space_id)
-
-  end subroutine read_dataset_int64
-
-  !
-  !
-  !
-  subroutine write_attribute_int(file_name, data_name, attr_name, attr_val)
-    use iso_c_binding
-
-    character(len=255), intent(in)   :: file_name
-    character(len=255), intent(in)   :: data_name
-    character(len=10), intent(in)    :: attr_name
-    integer(is), intent(in)          :: attr_val
-
-    logical                          :: file_exists
-    logical                          :: dset_exists
-    character(len=255)               :: f_name
-    character(len=255)               :: dset_name
-    character(len=10)                :: a_name
-
-    integer(hsize_t)                 :: dims(1)
-    integer(hid_t)                   :: file_id, dset_id
-    integer(hid_t)                   :: space_id, attr_id 
-    integer(is)                      :: error 
-    integer(is),target               :: attr(1)
-    type(c_ptr)                      :: f_ptr
-
-
-    dims      = (/ 1 /)
-    attr      = (/ attr_val /)
-
-    f_name    = trim(adjustl(file_name))
-    dset_name = trim(adjustl(data_name))
-    a_name    = trim(adjustl(attr_name))
-
-    ! assume file and data_set don't already exist
-    file_exists = .false.
-    dset_exists = .false.
-
-    ! if file exists, append, else create a new one
-    inquire(file=f_name, exist=file_exists)
-
-    ! open and change geom dataset if file exists, else create
-    if(file_exists) then
-
-      ! initialize the fortran interface
-      call h5open_f(error)
-
-      call h5fopen_f(f_name, H5F_ACC_RDWR_F, file_id, error)
-
-      ! check if dataset exists
-      call h5lexists_f(file_id, dset_name, dset_exists, error)
-
-      ! if data set exits, write attribute to it
-      if (dset_exists) then
-
-        ! open dataset to get data_set id
-        !
-        call h5dopen_f(file_id, dset_name, dset_id, error)
-  
-        ! Create dataspace.  Setting maximum size to be the current size.
-        !
-        call h5screate_simple_f(1, dims, space_id, error)
-
-        ! Create the attribute and write the array data to it.
-        !
-        call H5Acreate_f(dset_id, a_name, H5T_NATIVE_INTEGER, space_id, attr_id, error)
-
-        f_ptr = c_loc(attr(1))
-        call H5Awrite_f(attr_id, H5T_NATIVE_INTEGER, f_ptr, error)
-        !
-        ! Close and release resources.
-        !
-        call H5Aclose_f(attr_id, error)
-        call H5Dclose_f(dset_id, error)
-      endif
-
-      call H5Fclose_f(file_id, error)
-      call h5close_f(error)
-
-    endif
-
-  end subroutine write_attribute_int
+  end subroutine read_dataset_t_dble
 
 end module h5_ops 

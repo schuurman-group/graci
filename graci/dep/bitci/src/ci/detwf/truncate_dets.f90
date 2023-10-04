@@ -43,9 +43,10 @@ subroutine ndet_truncated(wfscr,nroots,normthrsh,ndet_trunc)
   integer(is), allocatable :: iroots(:)
   
   ! Sorting
-  integer(is), allocatable :: indx(:)
-  real(dp), allocatable    :: cabs(:)
-
+  integer(is)              :: ntrim
+  integer(is), allocatable :: indx(:),iwork(:)
+  real(dp)                 :: trim_thrsh
+  
   ! Surviving determinants
   integer(is), allocatable :: idet(:)
   
@@ -58,6 +59,14 @@ subroutine ndet_truncated(wfscr,nroots,normthrsh,ndet_trunc)
 !----------------------------------------------------------------------
   call read_ndet(wfscr,ndet)
 
+!----------------------------------------------------------------------
+! If normthrsh is 1.0, then return ndet
+!----------------------------------------------------------------------
+  if (normthrsh >= 1.0d0) then
+     ndet_trunc=ndet
+     return
+  endif
+  
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -73,9 +82,9 @@ subroutine ndet_truncated(wfscr,nroots,normthrsh,ndet_trunc)
   allocate(indx(ndet))
   indx=0
 
-  allocate(cabs(ndet))
-  cabs=0.0d0
-
+  allocate(iwork(ndet))
+  iwork=0
+  
   allocate(idet(ndet))
   idet=0
   
@@ -95,16 +104,18 @@ subroutine ndet_truncated(wfscr,nroots,normthrsh,ndet_trunc)
   ! Target squared norm
   targ=normthrsh**2
 
+  ! Wave function trimming threshold
+  trim_thrsh=sqrt((1.0d0-normthrsh)**2/ndet)
+  
   ! Loop over roots
   do i=1,nroots
-     
-     ! Sort the coefficients by absolute value
-     cabs=abs(vec(:,i))
-     call dsortindxa1('D',ndet,cabs,indx)
+
+     ! Trim and sort the coefficient vector for this root
+     call trim_and_sort(ndet,vec(:,i),indx,ntrim,trim_thrsh,iwork)
 
      ! Fill in the surviving determinants for this state
      normsq=0.0d0
-     do k=1,ndet
+     do k=1,ntrim
 
         ! Update the squared norm
         normsq=normsq+vec(indx(k),i)**2
@@ -116,7 +127,7 @@ subroutine ndet_truncated(wfscr,nroots,normthrsh,ndet_trunc)
         if (normsq >= targ) exit
         
      enddo
-       
+     
   enddo
 
 !----------------------------------------------------------------------
@@ -175,8 +186,9 @@ subroutine retrieve_det_truncated(wfscr,ndet,ndet_trunc,nroots,&
   integer(is), allocatable :: iroots(:)
 
   ! Sorting
-  integer(is), allocatable :: indx(:)
-  real(dp), allocatable    :: cabs(:)
+  integer(is)              :: ntrim
+  integer(is), allocatable :: indx(:),iwork(:)
+  real(dp)                 :: trim_thrsh
 
   ! Surviving determinants
   integer(is), allocatable :: idet(:)
@@ -200,8 +212,8 @@ subroutine retrieve_det_truncated(wfscr,ndet,ndet_trunc,nroots,&
   allocate(indx(ndet))
   indx=0
 
-  allocate(cabs(ndet))
-  cabs=0.0d0
+  allocate(iwork(ndet))
+  iwork=0
 
   allocate(idet(ndet))
   idet=0
@@ -214,6 +226,16 @@ subroutine retrieve_det_truncated(wfscr,ndet,ndet_trunc,nroots,&
   enddo
 
   call read_detwf(wfscr,ndet,nroots,n_int,det,vec,iroots)
+
+!----------------------------------------------------------------------
+! If normthrsh is 1.0, then return the full sets of determinants
+! and eigenvectors
+!----------------------------------------------------------------------
+  if (normthrsh >= 1.0d0) then
+     det_trunc=det
+     vec_trunc=vec
+     return
+  endif
   
 !----------------------------------------------------------------------
 ! Determine the indices of the surviving determinants
@@ -221,16 +243,22 @@ subroutine retrieve_det_truncated(wfscr,ndet,ndet_trunc,nroots,&
   ! Target squared norm
   targ=normthrsh**2
 
+  ! Wave function trimming threshold
+  trim_thrsh=sqrt((1.0d0-normthrsh)**2/ndet)
+  
   ! Loop over roots
   do i=1,nroots
      
-     ! Sort the coefficients by absolute value
-     cabs=abs(vec(:,i))
-     call dsortindxa1('D',ndet,cabs,indx)
+     !! Sort the coefficients by absolute value
+     !cabs=abs(vec(:,i))
+     !call dsortindxa1('D',ndet,cabs,indx)
 
+     ! Trim and sort the coefficient vector for this root
+     call trim_and_sort(ndet,vec(:,i),indx,ntrim,trim_thrsh,iwork)
+     
      ! Fill in the surviving determinants for this state
      normsq=0.0d0
-     do k=1,ndet
+     do k=1,ntrim
 
         ! Update the squared norm
         normsq=normsq+vec(indx(k),i)**2

@@ -274,7 +274,7 @@ contains
        ! Compute the Hamiltonian matrix elements
        arrdim=nsp*(nsp-1)/2
        call hij_same_mrci(harr(1:arrdim),arrdim,sop,socc,&
-            nsocc,nbefore,cfg%m2c)
+            nsocc,nbefore,Dw,ndiff,cfg%m2c)
        
        ! Retrieve the Hamiltonian matrix elements and indices
        k=0
@@ -333,7 +333,7 @@ contains
              ! Compute the Hamiltonian matrix elements
              arrdim=nsp*(nsp-1)/2
              call hij_same_mrci(harr(1:arrdim),arrdim,sop,socc,nsocc,&
-                  nbefore,cfg%m2c)
+                  nbefore,Dw,ndiff,cfg%m2c)
 
              ! Retrieve the Hamiltonian matrix elements and indices
              k=0
@@ -396,7 +396,7 @@ contains
              ! Compute the Hamiltonian matrix elements
              arrdim=nsp*(nsp-1)/2
              call hij_same_mrci(harr(1:arrdim),arrdim,sop,socc,nsocc,&
-                  nbefore,cfg%m2c)
+                  nbefore,Dw,ndiff,cfg%m2c)
 
              ! Retrieve the Hamiltonian matrix elements and indices
              k=0
@@ -459,7 +459,7 @@ contains
              ! Compute the Hamiltonian matrix elements
              arrdim=nsp*(nsp-1)/2
              call hij_same_mrci(harr(1:arrdim),arrdim,sop,socc,nsocc,&
-                  nbefore,cfg%m2c)
+                  nbefore,Dw,ndiff,cfg%m2c)
 
              ! Retrieve the Hamiltonian matrix elements and indices
              k=0
@@ -522,7 +522,7 @@ contains
              ! Compute the Hamiltonian matrix elements
              arrdim=nsp*(nsp-1)/2
              call hij_same_mrci(harr(1:arrdim),arrdim,sop,socc,nsocc,&
-                  nbefore,cfg%m2c)
+                  nbefore,Dw,ndiff,cfg%m2c)
 
              ! Retrieve the Hamiltonian matrix elements and indices
              k=0
@@ -585,7 +585,7 @@ contains
              ! Compute the Hamiltonian matrix elements
              arrdim=nsp*(nsp-1)/2
              call hij_same_mrci(harr(1:arrdim),arrdim,sop,socc,nsocc,&
-                  nbefore,cfg%m2c)
+                  nbefore,Dw,ndiff,cfg%m2c)
 
              ! Retrieve the Hamiltonian matrix elements and indices
              k=0

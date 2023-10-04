@@ -10,7 +10,7 @@ contains
 !######################################################################
 ! generate_cis_confs: Fills in the array of particle/hole indices
 !######################################################################
-  subroutine generate_cis_confs(irrep,ncsf,icvs,iph)
+  subroutine generate_cis_confs(irrep,ncsf,iph)
 
     use constants
     use bitglobal
@@ -23,9 +23,6 @@ contains
     ! No. CIS CSFs
     integer(is), intent(out) :: ncsf
 
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    
     ! CIS particle/hole indices
     integer(is), allocatable :: iph(:,:)
 
@@ -36,7 +33,7 @@ contains
 ! Determine the no. CIS CSFs and allocate arrays
 !----------------------------------------------------------------------
     modus=0
-    call particle_hole_indices(modus,irrep,ncsf,icvs,iph)
+    call particle_hole_indices(modus,irrep,ncsf,iph)
 
     allocate(iph(2,ncsf))
     iph=0
@@ -45,7 +42,7 @@ contains
 ! Fill in the particle/hole indices
 !----------------------------------------------------------------------
     modus=1
-    call particle_hole_indices(modus,irrep,ncsf,icvs,iph)
+    call particle_hole_indices(modus,irrep,ncsf,iph)
     
     return
     
@@ -55,7 +52,7 @@ contains
 ! particle_hole_indices: determines the particle/hole indices of the
 !                        allowable CIS CSFs
 !######################################################################
-  subroutine particle_hole_indices(modus,irrep,ncsf,icvs,iph)
+  subroutine particle_hole_indices(modus,irrep,ncsf,iph)
 
     use constants
     use bitglobal
@@ -75,10 +72,6 @@ contains
     ! No. CSFs
     integer(is), intent(inout) :: ncsf
 
-    ! CVS-MRCI: core MOs
-    integer(is), intent(in)    :: icvs(nmo)
-    logical                    :: lcvs
-    
     ! Particle/hole indices
     integer(is), allocatable   :: iph(:,:)
 
@@ -104,13 +97,6 @@ contains
        map(i)=i
     enddo
 
-    ! Is this a CVS-DFT/CIS calculation?
-    if (sum(icvs) > 0) then
-       lcvs=.true.
-    else
-       lcvs=.false.
-    endif
-    
 !----------------------------------------------------------------------
 ! Determine the allowable CSFs
 !----------------------------------------------------------------------

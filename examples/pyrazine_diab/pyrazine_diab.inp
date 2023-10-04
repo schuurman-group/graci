@@ -1,0 +1,20 @@
+$molecule section
+ xyz_file = q9r.xyz
+ basis    = def2-tzvp
+$end
+
+$scf section
+ label  = scf
+ charge = 0
+ mult   = 1
+ xc     = qtp17
+$end
+
+$dftmrci2 section
+ label       = dftmrci2_
+ scf_label   = scf
+ nstates     = [4]
+ hamiltonian = qe8
+ diabatic    = True
+ adt_type    = qdpt
+$end

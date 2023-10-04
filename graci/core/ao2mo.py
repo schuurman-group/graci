@@ -12,7 +12,8 @@ from pyscf import gto, ao2mo, df
 class Ao2mo:
     """Class constructor for ao2mo object"""
 
-    def __init__(self):
+    def __init__(self, precision='double'):
+        self.precision    = precision
         self.moint_2e_eri = None
         self.moint_1e     = None
         self.nmo          = None
@@ -21,9 +22,10 @@ class Ao2mo:
         self.emo_cut      = None
         self.orbs         = None
         self.label        = 'default'
+        self.allowed_precision = ['single', 'double']
 
     @timing.timed
-    def run(self, scf):
+    def run(self, scf, int_precision=None):
         """perform AO to MO integral transformation using the current
            orbitals"""
 
@@ -31,9 +33,8 @@ class Ao2mo:
 
         # Do the AO -> MO transformation
         if scf.mol.use_df:
-            # save the auxbasis value: either user requested or the
-            # PySCF default
-            ij_trans = np.concatenate(([self.orbs], [self.orbs]))
+            ij_trans = np.concatenate(([self.orbs], 
+                                       [self.orbs]))
             df.outcore.general(scf.mol.pymol(), ij_trans, 
                                self.moint_2e_eri,
                                auxbasis = scf.mol.ri_basis, 
@@ -43,6 +44,7 @@ class Ao2mo:
             eri_mo = ao2mo.incore.full(eri_ao, self.orbs)
             with h5py.File(self.moint_2e_eri, 'w') as f:
                 f['eri_mo'] = eri_mo
+            del(eri_mo)
 
         # Construct the core Hamiltonian
         one_nuc_ao = scf.mol.pymol().intor('int1e_nuc')
@@ -57,6 +59,9 @@ class Ao2mo:
 
         # by default, reload bitci using newly generate MO integral
         # files
+        if (int_precision is not None and 
+                         int_precision in self.allowed_precision):
+            self.precision = int_precision
         self.load_bitci(scf)
 
         return
@@ -76,7 +81,8 @@ class Ao2mo:
             type_str = 'exact'
 
         libs.lib_func('bitci_int_initialize',
-                ['pyscf', type_str, self.moint_1e, self.moint_2e_eri])
+                ['pyscf', type_str, self.precision, 
+                           self.moint_1e, self.moint_2e_eri])
 
         return
 

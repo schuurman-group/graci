@@ -344,6 +344,34 @@ contains
     return
     
   end subroutine get_nel
+
+!######################################################################
+! get_nel_string: Determines the number of electrons 
+!                 in a given alpha or beta string 'string'
+!######################################################################
+  subroutine get_nel_string(n_int,string,nel)
+
+    use constants
+    
+    implicit none
+
+    integer(is), intent(in)  :: n_int
+    integer(ib), intent(in)  :: string(n_int)
+    integer(is), intent(out) :: nel
+
+    integer(is)              :: k
+
+    !
+    ! Number of electrons in the string
+    !
+    nel=0
+    do k=1,n_int
+       nel=nel+popcnt(string(k))
+    enddo
+    
+    return
+    
+  end subroutine get_nel_string
   
 !######################################################################
 ! mo_occ_string: Given a single alpha/beta string, determines the
@@ -445,7 +473,8 @@ contains
     i=imo-1-(k-1)*n_bits
 
     ! Annihilate the electron
-    hole_string=ibclr(string,i)
+    hole_string=string
+    hole_string(k)=ibclr(string(k),i)
     
     return
     

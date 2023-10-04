@@ -12,10 +12,10 @@
 !              for a given symmetry subspace
 !######################################################################
 #ifdef CBINDING
-subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose) &
+subroutine diag_dftcis(irrep,nroots,vecscr,loose,iham) &
      bind(c,name='diag_dftcis')
 #else
-subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
+subroutine diag_dftcis(irrep,nroots,vecscr,loose,iham)
 #endif
 
   use constants
@@ -37,15 +37,15 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
   ! No. roots
   integer(is), intent(in)  :: nroots
 
-  ! CVS-MRCI: core MOs
-  integer(is), intent(in)    :: icvs(nmo)
-  
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
 
   ! Loose integral screening: only to be used for the generation
   ! of RAS spaces
   logical, intent(in)      :: loose
+
+  ! DFT/CIS Hamiltonian index
+  integer(is), intent(in)  :: iham
   
   ! No. CIS CSFs
   integer(is)              :: ncsf
@@ -78,7 +78,6 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
   
   ! Everything else
   integer(is)              :: i
-  integer(is)              :: iham
   integer(is)              :: isigma(3)
 
   ! Dummy MRCI configuration derived type: temporarily required
@@ -105,26 +104,16 @@ subroutine diag_dftcis(irrep,nroots,icvs,vecscr,loose)
      call error_control
   endif
 
-  ! Triplets not yet coded up
-  if (imult == 3) then
-     errmsg='Error in diag_dftcis: triplet calculations are not yet'&
-          //' supported'
-     call error_control
-  endif
-  
 !----------------------------------------------------------------------
 ! Load the DFT/MRCI Hamiltonian parameters
 !----------------------------------------------------------------------
-  ! Temporary hardwiring of the Hamiltonian index
-  iham=2
-  
   ! Load the parameters
   call load_hpar_dftcis(iham)
     
 !----------------------------------------------------------------------
 ! Generate the CIS configuration information
 !----------------------------------------------------------------------
-  call generate_cis_confs(irrep,ncsf,icvs,iph)
+  call generate_cis_confs(irrep,ncsf,iph)
   
   if (verbose) write(6,'(/,x,a,x,i0)') 'N_CSF:',ncsf
   
@@ -206,10 +195,10 @@ end subroutine diag_dftcis
 !                   eigenfunctions
 !######################################################################
 #ifdef CBINDING
-subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph) &
+subroutine ras_guess_dftcis(irrep,nroots,vecscr,domph) &
      bind(c,name='ras_guess_dftcis')
 #else
-subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
+subroutine ras_guess_dftcis(irrep,nroots,vecscr,domph)
 #endif
 
   use constants
@@ -226,9 +215,6 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
   ! No. roots
   integer(is), intent(in)  :: nroots
 
-  ! CVS-MRCI: core MOs
-  integer(is), intent(in)  :: icvs(nmo)
-  
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
 
@@ -259,7 +245,7 @@ subroutine ras_guess_dftcis(irrep,nroots,icvs,vecscr,domph)
 !----------------------------------------------------------------------
 ! Generate the CIS configuration information
 !----------------------------------------------------------------------
-  call generate_cis_confs(irrep,ncsf,icvs,iph)
+  call generate_cis_confs(irrep,ncsf,iph)
 
 !----------------------------------------------------------------------
 ! Allocate arrays

@@ -90,6 +90,9 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
   allocate(iBra(nrootsB), iKet(nrootsK))
   iBra=0; iKet=0
 
+  allocate(ipairs(npairs,2))
+  ipairs=0
+  
 !----------------------------------------------------------------------
 ! Which eigenvectors are needed?
 !----------------------------------------------------------------------

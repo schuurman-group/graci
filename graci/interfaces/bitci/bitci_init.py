@@ -24,6 +24,11 @@ def init(ci_method):
 
     escf  = ci_method.scf.energy
 
+    # CVS core MO flags
+    cvs_flag = np.zeros(nmo, dtype=int)
+    for i in ci_method.icvs:
+        cvs_flag[i-1] = 1
+        
     ham   = ci_method.hamiltonian
         
     label = ci_method.label
@@ -31,8 +36,8 @@ def init(ci_method):
     verbose = ci_method.verbose
     
     # call to bitci_initialise
-    args = (imult, nel, nmo, mosym, moen, pgrp, escf, ham, label,
-            verbose)
+    args = (imult, nel, nmo, mosym, moen, pgrp, escf, cvs_flag,
+            ham, label, verbose)
     libs.lib_func('bitci_initialise', args)
 
     # optional overriding of the Hamiltonian parameters

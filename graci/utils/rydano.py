@@ -6,6 +6,7 @@ import numpy as np
 import scipy as sp
 import operator as op
 import pyscf.gto as gto
+import graci.core.molecule as molecule
 import graci.core.scf as scf
 import graci.io.output as output
 import graci.utils.basis as basis
@@ -19,7 +20,7 @@ class Rydano():
 
     def __init__(self):
         # user variables
-        self.xc         = 'bhandhlyp'
+        self.xc         = 'qtp17'
         self.mult       = 2
         self.charge     = 1
         self.origin     = None 
@@ -45,6 +46,16 @@ class Rydano():
         # build the PySCF molecule object 
         ion_mol.run()
 
+        # the valence basis will be DZP for the non-H
+        # atoms and DZ for H
+        for atm in list(set(ion_mol.asym)):
+            if atm.lower().strip() == 'h':
+                bas_lbl = 'dz'
+            else:
+                bas_lbl = 'dzp'
+            ion_mol.basis[atm]    = bas_lbl
+            ion_mol.ri_basis[atm] = None
+
         # maximum angular momentum value to include in AO basis
         n_con = basis.str_to_contract(self.contract)
         l     = [ind for ind,val in enumerate(n_con) if val>0]
@@ -57,23 +68,18 @@ class Rydano():
         # so primitives are added uncontracted. Determine which
         # primitives to include based on the original basis 
         # function -- not the dz(p) used to compute virtuals
-        if self.origin is None:
-            coc_xyz = ion_mol.nuc_charge_center()
-        else:
-            coc_xyz = self.origin
-        exps    = self.determine_exponents(mol, l, self.nprimitive)
-        self.add_ano_atom(ion_mol, g_lbl, coc_xyz, l, exps)
 
-        # the valence basis will be DZP for the non-H
-        # atoms and DZ for H
-        for atm in list(set(ion_mol.asym)):
-            if atm.lower().strip() == g_lbl.lower():
-                continue
-            elif atm.lower().strip() == 'h':
-                bas_lbl = 'dz'
-            else:
-                bas_lbl = 'dzp'
-            ion_mol.basis[atm] = bas_lbl
+        if self.origin is None:
+            ryd_origin = np.asarray(ion_mol.nuc_charge_center())
+        else:
+            ryd_origin = self.origin 
+
+        # if the rydberg basis origin is distinct from any atoms,
+        # add a ghost atom, else, append basis set of atom at
+        # origin
+        exps = self.determine_exponents(mol, l, self.nprimitive)
+        bas_str = self.make_ano_basis(g_lbl, l, exps)
+        self.add_ano_atom(ion_mol, g_lbl, ryd_origin, bas_str)
 
         # print header information to the log
         if self.verbose:
@@ -84,7 +90,7 @@ class Rydano():
         ion_scf.xc       = self.xc
         ion_scf.mult     = self.mult
         ion_scf.charge   = self.charge
-        ion_scf.verbose  = False
+        ion_scf.verbose  = False 
         ion_scf.do_ao2mo = False
         ion_scf.print_orbitals = False
 
@@ -119,13 +125,17 @@ class Rydano():
            self.occs.append(rocc[li][  :n_con[li]])      
        
         # add the Rydberg basis
-        basis_str = self.add_ano_atom(mol, g_lbl, coc_xyz, l, exps, 
-                                                       ano=self.anos)
+        bas_str = self.make_ano_basis(g_lbl, l, exps, ano=self.anos)
+        self.add_ano_atom(mol, g_lbl, ryd_origin, bas_str)
+        # standard RI basis not consistent with rydberg orbitals,
+        # use even-tempered
+        mol.ri_basis = None
+
 
         # print basis string to file if requested
         if self.print_ano:
             with open('rydano.dat', 'w') as f:
-                f.write(basis_str) 
+                f.write(bas_str) 
 
         # print the results
         if self.verbose:
@@ -167,7 +177,8 @@ class Rydano():
         # scan the basis set and find the most diffuse 
         # function (max_diffuse).  Start the ANO set with first exponent 
         # <= 0.5*max_diffuse. 
-        exps = [[] for _ in range(len(l))]
+        exps   = [[] for _ in range(len(l))]
+        cf_max = [[] for _ in range(len(l))]
         for atm,bas in mol.basis_obj.items():
             for icon in range(len(bas)):
                lval = bas[icon][0]
@@ -175,7 +186,35 @@ class Rydano():
                    li = l.index(lval)
                    exps[li].extend([bas[icon][i][0] 
                            for i in range(1,len(bas[icon]))])
-        most_dif = [0.5*min(exps[i]) for i in range(len(l))]
+                   cfs = [[abs(cf) for cf in bas[icon][i][1:]]
+                           for i in range(1,len(bas[icon]))]
+                   cf_max[li].extend([max(cfs[i]) 
+                           for i in range(len(cfs))])
+
+        # if requested l value is not in the nascent basis, use exponents 
+        # and coefs from next lowest value of l -- just need something
+        # reasonable
+        for li in range(len(l)):
+            if len(exps[li]) == 0 and li>0: 
+                exps[li]   = exps[li-1]
+                cf_max[li] = cf_max[li-1]
+
+        # sort exponents and coefs in order of increasing exponent 
+        srt_indx = [np.argsort(np.array(exps[li],dtype=float)) 
+                           for li in range(len(l))]
+        exp_srt = [[exps[li][srt_indx[li][i]] 
+                           for i in range(len(exps[li]))] 
+                           for li in range(len(l))]
+        cf_srt  = [[cf_max[li][srt_indx[li][i]] 
+                           for i in range(len(exps[li]))] 
+                           for li in range(len(l))]
+
+        most_dif = [0]*len(l)
+        for li in range(len(l)):
+            for i in range(len(exp_srt[li])):
+                if cf_srt[li][i] > 0.1 or i==len(exp_srt[li]):
+                    most_dif[li] = 0.5*exp_srt[li][i]
+                    break
 
         # find where to start diffuse exponents for each value of
         # l in the AO basis
@@ -191,7 +230,7 @@ class Rydano():
         return exps
 
     #
-    def add_ano_atom(self, mol, sym, crds, l, exps, ano=None):
+    def add_ano_atom(self, mol, sym, crds, basis_str):
         """Add an atom to a molecule object, including the basis
            set
          
@@ -209,35 +248,22 @@ class Rydano():
         """
 
         # add atomic symbol and cartesian coordinaes
+        iatm = molecule.atom_name.index(sym)
         mol.asym.append(sym)
-        mol.crds = np.append(mol.crds, [crds], axis=0)
-
-        # if ANOs is None, or, they don't match the number of
-        # primitives, use uncontracted functions
-        if ano is None:
-            rano = [np.identity(len(exps[li]), dtype=float) 
-                                             for li in range(len(l))]
-        else:
-            rano = ano
-            for li in range(len(rano)):
-                if rano[li].shape[0] != len(exps[li]):
-                    print('Number of primitivies in ANO incorrect: ' + 
-                              str(rano[li].shape[0]) + ' != ' + 
-                              str(len(exps[li])))
-                    sys.exit(1)
+        mol.crds   = np.append(mol.crds, [crds], axis=0)
+        mol.masses = np.append(mol.masses, molecule.atom_mass[iatm])
 
         # construct basis object of uncontracted primitives
-        basis_str = self.make_ano_basis(sym, l, exps, rano)
         mol.basis[sym]    = basis_str
 
         #RI basis definition limited to even-tempered for time being
         if mol.use_df and mol.ri_basis is not None:
             mol.ri_basis[sym] = None
 
-        return basis_str
+        return 
 
     #
-    def make_ano_basis(self, sym, l, exps, ano):
+    def make_ano_basis(self, sym, l, exps, ano=None):
         """
         construct an uncontracted basis of KBJ functions, running 
         from 0 to l_max, and for exponents specified by the values
@@ -248,16 +274,30 @@ class Rydano():
         ostr = '#BASIS set generated by rydano\n'
         astr = '{:<6s}{:1s}\n'
 
+        # if ANOs is None, or, they don't match the number of
+        # primitives, use uncontracted functions
+        if ano is None:
+            rano = [np.identity(len(exps[li]), dtype=float)
+                                             for li in range(len(l))]
+        else:
+            rano = ano
+            for li in range(len(rano)):
+                if rano[li].shape[0] != len(exps[li]):
+                    print('Number of primitivies in ANO incorrect: ' +
+                              str(rano[li].shape[0]) + ' != ' +
+                              str(len(exps[li])))
+                    sys.exit(1)
+
         for li in range(len(l)):
-            nprim = ano[li].shape[0]
-            ncon = ano[li].shape[1]
+            nprim = rano[li].shape[0]
+            ncon = rano[li].shape[1]
             pstr = '{:>15.7f}'+''.join(['{:14.7f}']*ncon)+'\n'
 
             ostr += astr.format(sym, l_lbl[l[li]])
             for ni in range(nprim):
                args = []
                args.append(exps[li][ni])
-               args.extend(ano[li][ni,:])
+               args.extend(rano[li][ni,:])
                ostr += pstr.format(*args)        
 
         return ostr

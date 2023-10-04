@@ -96,6 +96,12 @@ module bitglobal
   real(dp), allocatable    :: moen(:)
 
   !
+  ! Core-valence separation approximation information
+  !
+  integer(is), allocatable :: icvs(:)
+  logical                  :: lcvs
+  
+  !
   ! Symmetry
   !
   integer(is)      :: ipg             ! Index of the point group

@@ -13,6 +13,7 @@ import graci.core.orbitals as orbitals
 import graci.io.output as output
 import graci.utils.timing as timing
 import graci.core.solvents as solvents
+import graci.core.functionals as functionals
 from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 
@@ -24,11 +25,20 @@ class Scf:
         self.xc             = 'hf'
         self.print_orbitals = False
         self.label          = 'default'
+        self.init_guess     = 'minao'
+        self.diag_method    = 'cdiis'
+        self.max_iter       = 50
+        self.diis_start     = None
+        self.diis_method    = None
+        self.diis_space     = 14
+        self.lvl_shift      = None
         self.verbose        = True 
         self.restart        = False
+        self.damp_fac       = None
         self.mult           = 0
         self.charge         = 0
         self.grid_level     = 2
+        self.x2c            = False
         self.conv_tol       = 1e-8
         self.cosmo          = False
         self.solvent        = None
@@ -49,6 +59,11 @@ class Scf:
         self.naux         = 0
         self.rdm_ao       = None
         self.auxbasis     = None 
+
+        # class variables
+        self.valid_grids  = ['sg1_prune']
+        self.valid_guess  = ['minao','1e','atom','huckel','vsap']
+        self.valid_method = ['soscf', 'cdiis', 'ediis','adiis']
 
 # Required functions #######################################################
 
@@ -73,7 +88,7 @@ class Scf:
 
         # set the GRaCI mol object
         self.mol = mol
-        
+       
         # the charge and multiplity of the scf sections
         # overwrites the mult/charge of the mol object
         #----------------------------------------------------
@@ -120,7 +135,9 @@ class Scf:
 
         # run the SCF calculation
         scf_pyscf = self.run_pyscf(pymol, guess)
-        
+        if scf_pyscf is None:
+            return None       
+ 
         # extract orbitals, occupations and energies
         self.orbs      = scf_pyscf.mo_coeff
 
@@ -168,7 +185,7 @@ class Scf:
                                      orb_dir='scf.'+str(self.label), 
                                      cart=True)
         
-        return
+        return self.energy
 
     #
     def load(self):
@@ -244,7 +261,12 @@ class Scf:
     def run_pyscf(self, pymol, guess):
         """run a PySCF HF/KSDFT computation"""
 
-        #print(self.label+' scf.xc=|'+str(self.xc)+'|',flush=True)
+        # catch the use of XC functional aliases
+        try:
+            self.xc = functionals.aliases[self.xc.lower()]
+        except:
+            pass
+
         # function handle string
         if self.xc == 'hf':
             class_str  = 'scf'
@@ -252,20 +274,33 @@ class Scf:
         else:
             class_str  = 'dft'
             method_str = 'KS'
+
         if self.mol.mult == 1:
             method_str = 'R'+method_str
         else:
             method_str = 'RO'+method_str
+
+        if self.x2c:
+            rel_str = '.x2c()'
+        else:
+            rel_str = ''
+
         if self.mol.use_df:
             df_str = '.density_fit(auxbasis = self.mol.ri_basis)'
         else:
             df_str=''
+
+        if self.diag_method.lower() == 'soscf':
+            diag_str = '.newton()'
+        else:
+            diag_str = ''
+
         if self.cosmo:
             func_str = 'pymol.'+method_str+'(xc=\''+self.xc+'\')' \
-                +df_str+ '.DDCOSMO()'
+                + rel_str + diag_str + df_str + '.DDCOSMO()'
         else:
             func_str = class_str+'.'+method_str \
-                +'(pymol)'+df_str
+                +'(pymol)' + rel_str + diag_str + df_str
 
         # instantiate the scf/dft class object        
         mf = eval(func_str)
@@ -280,32 +315,79 @@ class Scf:
         
             # set the quadrature grids
             mf.grids.level = self.grid_level
-            mf.grids.prune = dft.sg1_prune
+            #mf.grids.prune = dft.sg1_prune
+            mf.grids.prune = dft.nwchem_prune
 
         # convergence threshold
         mf.conv_tol = self.conv_tol
             
-        # set the name of the DF-tensor
+        # set the integral file names
         if hasattr(mf, 'with_df'):
             if self.mol.use_df:
-                eri_name = '2e_eri_'+str(self.label).strip()+'.h5'
-                mf.with_df._cderi_to_save = eri_name
+                mf.with_df._cderi_to_save = self.moint_2e_eri
             else:
                 mf.with_df = None
 
-        # optional: override the initial density matrix with
-        # that of a previous SCF calculation
+        # set the dynamic level shift, if request
+        #if self.lvl_shift is not None:
+        #    scf.addons.dynamic_level_shift_(mf,
+        #                              factor=float(self.lvl_shift))
+        if self.lvl_shift is not None:
+            #mf.level_shift = self.lvl_shift    
+            mf.conv_check  = False
+            scf.addons.dynamic_level_shift_(mf, factor=self.lvl_shift)
+
+        # set the maximum number of iterations
+        mf.max_cycle = self.max_iter
+
+        # default chkfile name based on object label name
+        mf.chkfile = self.make_chkfile_name(self.label)
+      
+        # how to define initial guess orbitals
         if guess is None:
             dm = None
+
+            # check if a restart file exists, if so, use same chkfile
+            # name
+            init_mos = self.make_chkfile_name(self.init_guess)
+            
+            # if restart file exists, use orbitals from that as
+            # a guess
+            if os.path.exists(init_mos):
+                #dm = dft.roks.init_guess_by_chkfile(pymol, init_mos)
+                mf.init_guess = 'chkfile'
+                mf.chkfile = init_mos
+
+            # else use user-specified init guess algorithm
+            elif self.init_guess in self.valid_guess:
+                mf.init_guess = self.init_guess
+
+        # use scf object passed to run
         else:
             dm = self.guess_dm(guess)
+
+        # SCF CONVERGENCE OPTIONS
+        if self.diag_method.lower() in self.valid_method \
+              and self.diag_method.lower() != 'soscf':
+            mf.DIIS = eval('scf.'+self.diag_method.upper())
+        if self.diis_space > 0:
+            mf.diis_space = self.diis_space
+        # when to start diis cycle
+        if self.damp_fac is not None:
+            mf.damp = self.damp_fac
+        if self.diis_start is not None:
+            mf.diis_start_cycle = self.diis_start
+
+        # if this is an atom: preserve spherical symmetry
+        #if self.mult != 1: 
+        #    mf = scf.addons.frac_occ(mf)
 
         # run the scf computation
         self.energy = mf.kernel(dm0=dm)
         
         # if not converged, kill things
         if not mf.converged:
-            sys.exit('Reference SCF computation did not converge.')
+            return None
     
         # MO phase convention: positive dominant coefficients
         # for degenerate coefficients, pick the first occurrence
@@ -355,6 +437,13 @@ class Scf:
                                     [mo_occa, mo_occb])
 
         return dm[0] + dm[1]
+   
+    #
+    def make_chkfile_name(self, label):
+        """
+        return a checkfile name based on object label
+        """
+        return 'Chkfile.Scf.'+str(label)
         
     #
     def mo_overlaps(self, other):

@@ -65,11 +65,6 @@ def generate(ci_method):
         k +=1
         iras3[k] = i
 
-    # CVS core MO flags
-    cvsflag = np.zeros(nmo, dtype=int)
-    for i in ci_method.icvs:
-        cvsflag[i-1] = 1
-    
     # Number of reference space configurations per irrep
     ref_nconf = np.zeros(nirr, dtype=int)
 
@@ -78,7 +73,7 @@ def generate(ci_method):
     
     # Construct the reference space configurations
     args = (iras1, iras2, iras3, nh1, m1, n2, m2, ne3, m3,
-            cvsflag, ref_nconf, confunits)
+            ref_nconf, confunits)
     (ref_nconf, confunits) = libs.lib_func('generate_ref_confs', args)
 
     # Retrieve the reference space configuration scratch file names
@@ -88,7 +83,7 @@ def generate(ci_method):
         args = (confunits[i], name)
         name = libs.lib_func('retrieve_filename', args)
         confnames.append(name)
-    
+
     return ref_nconf, confunits, confnames
 
 @timing.timed
@@ -96,10 +91,15 @@ def autoras(ci_method):
     """determination of the RAS subspaces via preliminary
     DFT/CIS calculations"""
 
-    # Print the section header
+    # print the section header
     if ci_method.verbose:
         output.print_autoras_header()
-   
+
+    # for now only singlets and triplets are supported
+    if ci_method.mult not in [1, 3]:
+        sys.exit('\n ERROR in autoras: only singlets and triplets are' 
+                 +' supported')
+        
     # number of irreps
     nirr = ci_method.n_irrep()
 
@@ -107,8 +107,15 @@ def autoras(ci_method):
     nmo = ci_method.nmo
 
     # orbital occupations
-    orb_occ = ci_method.ref_occ
+    orb_occ = np.copy(ci_method.ref_occ)
 
+    # if this is a triplet calculation, then adjust the (singlet)
+    # SCF MO occupations to correspond to S=1
+    if ci_method.mult == 3:
+        isomo = np.array(np.where(orb_occ == 0))[0][0]
+        orb_occ[isomo-1] = 1
+        orb_occ[isomo]   = 1
+        
     # orbital energies
     orb_ener = ci_method.emo
 
@@ -120,28 +127,36 @@ def autoras(ci_method):
     #
     # Bitci eigenvector scratch file numbers
     dftcis_vec  = 0
-    dftcis_unit = []
-
-    # CVS core MO flags
-    cvsflag = np.zeros(nmo, dtype=int)
-    for i in ci_method.icvs:
-        cvsflag[i-1] = 1
+    dftcis_unit = np.zeros(nirr, dtype=int)
 
     # Aggressively loose integral screening
     loose = True
-    
+
+    # DFT/CIS Hamiltonian index - anchored to the
+    # DFT XC functional for now
+    hamiltonians = {'b3lyp'            : 1,
+                    'bhandhlyp'        : 2,
+                    'hyb_gga_xc_qtp17' : 3,
+                    'qtp17'            : 3}
+    try:
+        iham = hamiltonians[ci_method.scf.xc.lower()]
+    except:
+        print('\n', 'WARNING: unsupported XC functional in autoras',
+              flush=True)
+        iham = 2
+
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep) + n_extra
 
         # Call the the bitci DFT/CIS routine
-        args = (irrep, nroots, cvsflag, dftcis_vec, loose)
+        args = (irrep, nroots, dftcis_vec, loose, iham)
         dftcis_vec = libs.lib_func('diag_dftcis', args)
 
         # Bitci eigenvector scratch number
-        dftcis_unit.append(dftcis_vec)
+        dftcis_unit[irrep] = dftcis_vec
 
     #
     # RAS1 and RAS3 guess
@@ -151,7 +166,7 @@ def autoras(ci_method):
     iph1 = np.zeros(nmo, dtype=int)
 
     # Loop over irreps
-    for irrep in range(nirr):
+    for irrep in ci_method.irreps_nonzero():
 
         # Number of roots for the current irrep
         nroots = ci_method.n_states_sym(irrep) + n_extra
@@ -161,7 +176,7 @@ def autoras(ci_method):
 
         # Get the particle/hole MOs corresponding to the
         # dominant DFT/CIS CSFs
-        args = (irrep, nroots, cvsflag, dftcis_vec, iph1)
+        args = (irrep, nroots, dftcis_vec, iph1)
         (dftcis_vec, iph1) = libs.lib_func('ras_guess_dftcis', args)
 
         # Update the array of dominant particle/hole indices
@@ -170,6 +185,7 @@ def autoras(ci_method):
     # RAS1 & RAS3 MO indices
     ras1 = []
     ras3 = []
+        
     for n in range(nmo):
         if iph[n] == 1:
             if orb_occ[n] == 0:
@@ -182,7 +198,7 @@ def autoras(ci_method):
     # If this is a CVS calculation, then
     # include the HOMO and HOMO-1 in the
     # RAS1 space
-    if sum(cvsflag) > 0:
+    if len(ci_method.icvs) > 0:
         # HOMO
         iend = np.nonzero(orb_occ)[0][-1]
         e = orb_ener[iend]
@@ -205,7 +221,7 @@ def autoras(ci_method):
         ras1 = ras1 + [n+1 for n in range(istart, iend+1)]
 
     # Fill in the RAS arrays
-    ci_method.ras1 = np.array(ras1, dtype=int)
+    ci_method.ras1 = np.unique(np.array(ras1, dtype=int))
     ci_method.ras3 = np.array(ras3, dtype=int)
 
     # Output the selected RAS1 & RAS3 spaces
@@ -223,7 +239,7 @@ def autoras(ci_method):
         if ci_method.verbose:
             print('\n Setting nelec3 = 2', flush=True) 
         ci_method.nelec3 = 2
-        
+
     return
 
 @timing.timed
@@ -264,11 +280,11 @@ def propagate(ci_method, ci_method0, rep='adiabatic'):
     (ref_nconf, confunits) = libs.lib_func('ref_space_propagate', args)
 
     # Retrieve the reference space configuration scratch file names
-    confnames = []
+    confnames = ['' for i in range(nirr)]
     name      = ' '
-    for i in range(nirr):
+    for i in ci_method.irreps_nonzero():
         args = (confunits[i], name)
         name = libs.lib_func('retrieve_filename', args)
-        confnames.append(name)
-
+        confnames[i]=name
+    
     return ref_nconf, confunits, confnames

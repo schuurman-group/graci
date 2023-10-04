@@ -26,7 +26,7 @@ class Dftmrci(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
-        self.hamiltonian    = 'heil17_standard'
+        self.hamiltonian    = 'qe8'
         self.ras1           = []
         self.ras2           = []
         self.ras3           = []
@@ -37,9 +37,10 @@ class Dftmrci(cimethod.Cimethod):
         self.refiter        = 3
         self.ref_prune      = True
         self.prune          = False
-        self.prune_thresh   = 0.9
+        self.prune_thresh   = 0.90
         self.prune_qcorr    = True
         self.prune_extra    = 10
+        self.regfac         = 0.005
         self.diag_guess     = 'subdiag'
         self.diag_method    = 'gendav'
         self.diag_tol       = 0.0001
@@ -94,10 +95,15 @@ class Dftmrci(cimethod.Cimethod):
     @timing.timed
     def run(self, scf, guess):
         """ compute the DFT/MRCI eigenpairs for all irreps """
-       
-        # set the scf object 
-        self.set_scf(scf)
 
+        # set the scf object 
+        scf_energy = self.set_scf(scf, ci_guess=guess)
+        if scf_energy is None:
+            return None
+
+        # set the Hamiltonian
+        self.set_hamiltonian()
+        
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
             
@@ -109,6 +115,10 @@ class Dftmrci(cimethod.Cimethod):
         if self.verbose:
             output.print_coords(self.scf.mol.crds,
                                 self.scf.mol.asym)
+
+        # write the Hamiltonian information to the log file
+        if self.verbose:
+            output.print_hamiltonian(self.hamiltonian)
             
         # if a guess CI object has been passed, compute the
         # MO overlaps
@@ -138,7 +148,7 @@ class Dftmrci(cimethod.Cimethod):
         self.ref_wfn.set_nconf(n_ref_conf)
         self.ref_wfn.set_confunits(ref_conf_units)
         self.ref_wfn.set_confname(ref_conf_files)
-        
+
         # Perform the MRCI iterations, refining the reference space
         # as we go
         self.niter = 0
@@ -152,7 +162,7 @@ class Dftmrci(cimethod.Cimethod):
             self.ref_ener = ref_ener
             if self.verbose:
                 output.print_refdiag_summary(self)
-            
+                
             # optional removal of deadwood from the
             # guess reference space:
             if self.ref_prune and self.niter == 0 \
@@ -172,7 +182,7 @@ class Dftmrci(cimethod.Cimethod):
             # generate the MRCI configurations
             n_mrci_conf, mrci_conf_units, mrci_conf_files, \
                 eq_units = mrci_space.generate(self)
- 
+
             # set the number of mrci config, the mrci unit numbers and
             # unit names, the Q-space energy correction unit numbers,
             # and the damped strong perturber unit numbers
@@ -193,7 +203,7 @@ class Dftmrci(cimethod.Cimethod):
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
-            
+
             # refine the reference space
             min_norm, n_ref_conf, ref_conf_units = \
                 mrci_refine.refine_ref_space(self)
@@ -211,16 +221,17 @@ class Dftmrci(cimethod.Cimethod):
         # if requested
         if self.save_wf:
             mrci_wf.extract_wf(self)
-
+            
         # construct density matrices
         dmat_sym = mrci_1rdm.rdm(self)
 
         # Finalize the bitCI library
         bitci_init.finalize()
 
-        # store them in adiabatic energy order
+        # store the density matrices in adiabatic energy order
         n_tot = self.n_states()
-        (nmo1, nmo2, n_dum) = dmat_sym[0].shape  
+        indx  = self.irreps_nonzero()[0]
+        (nmo1, nmo2, n_dum) = dmat_sym[indx].shape  
 
         self.dmats['adiabatic'] = np.zeros((n_tot, nmo1, nmo2), dtype=float)
         for istate in range(n_tot):
@@ -241,7 +252,7 @@ class Dftmrci(cimethod.Cimethod):
         # print the moments
         self.print_moments()
 
-        return
+        return True
     
     #
     def bitci_ref(self):

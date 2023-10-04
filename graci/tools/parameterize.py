@@ -6,8 +6,6 @@ import math
 import scipy.optimize as sp_opt
 import numpy as np
 import h5py as h5py
-from mpi4py import MPI
-from mpi4py.futures import MPIPoolExecutor
 import os as os
 import shutil as shutil
 import graci.core.libs as libs
@@ -32,84 +30,97 @@ class Parameterize:
         self.wfn_lib         = ''
         self.energy_lib      = ''
         self.verbose         = False
-        #  hamiltonian to use for initial state calculation
-        self.init_state_h    = None
-        # cimethod for initial states
-        self.init_ci_method  = None
-        # keyword arguments for initial ci method
-        self.init_ci_args    = None
-        #  parameters to use for initial state hamiltonian
-        self.h_init_params   = None
+        self.opt_algorithm   = 'nelder-mead'
+        self.opt_target      = 'rmsd'
+        self.conv            = 0.01 
+        self.max_iter        = 1000
+
+        #  hamiltonian to use for valence state calculation
+        self.valence         = None
+        # optimize hamiltonian
+        self.val_opt         = False
+        # cimethod for valence states
+        self.val_method      = None
+        # keyword arguments for valence ci method
+        self.val_args        = []
+        #  parameters to use for valence state hamiltonian
+        self.val_params      = None
+        # which parameters to freeze during optimization
+        self.val_freeze      = []
+        # bounds for ham parameters
+        self.val_bounds      = None
+
         #  hamiltonian to use the final state calculation 
-        self.final_state_h   = None
-        # ci method type for final states
-        self.final_ci_method = None
-        # keyword arguments for final ci method
-        self.final_ci_args   = None
-        #  parameters to use for the final state hamiltonian
-        self.h_final_params  = None
-        # couple h_init and h_final, i.e. same hamiltonian
-        self.single_hamiltonian = False
-        # XC functional to use: assumes in libxc format to
-        # facilitate using internal functions
+        self.cvs             = None
+        # optimize hamiltonian
+        self.cvs_opt         = False
+        # cimethod for initil states
+        self.cvs_method      = None
+        # keyword arguments for initial ci method
+        self.cvs_args        = []
+        #  parameters to use for initial state hamiltonian
+        self.cvs_params      = None 
+        # which parameters to freeze during optimization
+        self.cvs_freeze      = []
+        # bounds for ham parameters
+        self.cvs_bounds      = None
+
+        # which xc function - pyscf resolvable name
         self.xc              = None
-        # numerical parameters for user defined xc functional
+        # whether to optimize xc functoin
+        self.xc_opt          = False
+        # variables that hold parameters 
         self.xc_params       = None
         # how the coefficients are defined in terms of parameters
         self.xc_coef         = None
         # the X and C component functionals
         self.xc_func         = None
-
-        # reparam optimization options
-        self.opt_algorithm   = 'Nelder-Mead'
-        self.opt_h_init      = False
-        self.opt_h_final     = False
-        self.opt_xc          = False
-        self.conv            = 1.e-3
-        self.max_iter        = 1000
-        self.bounds_h_init   = None
-        self.bounds_h_final  = None
-        self.bounds_xc       = None
-        self.freeze_h_init   = []
-        self.freeze_h_final  = []
-        self.freeze_xc       = []
+        # which parameters to freeze during optimization
+        self.xc_freeze       = []
+        # bounds for xc parameters
+        self.xc_bounds       = None
 
         # scan run options
         self.ngrid           = None
         self.scan_var        = []
 
         # -------------------------------
-        self.init_kwords    = {}
-        self.final_kwords   = {}
-        self.n_opt          = 0
-        self.p_ref          = None
-        self.n_ref          = 0
-        self.iiter          = 0
-        self.p_n            = None
-        self.error          = 0
-        self.de_thr         = 0.5
-        self.log_file       = None
-        self.valid_algos    = ['Nelder-Mead','DifferentialEvolution']
+        self.opt           = {'valence': False, 'cvs':False, 'xc':False}
+        self.labels        = {'valence': None, 'cvs': None, 'xc': None}
+        self.bounds        = {'valence': None, 'cvs': None, 'xc': None}
+        self.freeze        = {'valence': [], 'cvs': [], 'xc': []}
+        self.params        = {'valence': None, 'cvs': None, 'xc': None}
+        self.kwords        = {'valence': {}, 'cvs': {}}
+        self.method        = {'valence': None, 'cvs': None}
+ 
+        self.n_opt         = 0
+        self.n_ref         = 0
+        self.iiter         = 0
+        self.p_n           = None
+        self.error         = 0
+        self.de_thr        = 0.5
+        self.log_file      = None
+        self.valid_algos   = ['nelder-mead','differentialevolution']
+        self.valid_opt_targ = ['mae','rmsd']
 
     #
     def run(self):
         """re-parameterize the Hamiltonian"""
 
-        # sanity check the input
-        self.sanity_check()
-
         # parse the target data file
-        exc_ref, init_state, final_state = self.parse_ref_file()
+        exc_ref, states  = self.parse_ref_file()
 
         # parse the graci reference file
-        scf_objs, init_ci, final_ci = self.parse_wfn_file(init_state, 
-                                                          final_state)
+        scf_objs, ci_objs = self.parse_wfn_file(states)
+
+        # sanity check the input
+        self.sanity_check(ci_objs)
 
         # set initial parameter set
-        self.p_ref, p_bounds  = self.set_init_params()
+        p_init = self.set_init_params()
 
         # print header info to output file defined in module output
-        output.print_param_header(self.p_ref,exc_ref, init_ci, final_ci)
+        output.print_param_header(p_init, exc_ref, ci_objs)
 
         # set up directory structure: each molecule gets a subdirectory
         # and each scf calculation gets a sub-sub-directory
@@ -117,8 +128,8 @@ class Parameterize:
 
         # the first pass sets up the orbitals and integrals -- no need
         # to recompute these every time
-        exc_init = self.evaluate_energies(self.p_ref, scf_dirs, scf_objs,
-                                        init_ci, final_ci, gen_orbs=True)
+        exc_init = self.evaluate_energies(p_init, scf_dirs, scf_objs,
+                                                  ci_objs, gen_orbs=True)
  
         # save the default logfile name for writing updates of the
         # reparam procedure
@@ -128,40 +139,37 @@ class Parameterize:
 
             # optimize parameters using scipy routines
             self.iiter       = 1
-            self.p_n, p_bnds = self.extract_opt_param(self.p_ref, 
-                                                              p_bounds)
+            self.p_n, p_bnds = self.extract_opt_param(p_init)
 
-            if self.opt_algorithm != 'DifferentialEvolution':
+            if self.opt_algorithm != 'differentialevolution':
                 res = sp_opt.minimize(self.err_func, self.p_n, 
-                              args = (exc_ref, scf_dirs, scf_objs,
-                                                init_ci, final_ci),
-                              bounds   = p_bnds,
-                              method   = self.opt_algorithm,
-                              tol      = self.conv,
-                              callback = self.status_func)
+                         args = (exc_ref, scf_dirs, scf_objs, ci_objs),
+                         bounds   = p_bnds,
+                         method   = self.opt_algorithm,
+                         tol      = self.conv,
+                         callback = self.status_func)
             else:
                 res = sp_opt.differential_evolution(
-                                   self.err_func, p_bnds,
-                                   args = (exc_ref, scf_dirs, scf_objs,
-                                                    init_ci, final_ci),
-                                   callback = self.status_func,
-                                   polish   = False,
-                                   tol      = self.conv,
-                                   x0       = self.p_n)
+                         self.err_func, p_bnds,
+                         args = (exc_ref, scf_dirs, scf_objs, ci_objs),
+                         callback = self.status_func,
+                         polish   = False,
+                         tol      = self.conv,
+                         x0       = self.p_n)
 
             p_final = self.to_full_param_set(res.x)
             # one final eval_energy call with the converged params
             exc_final = self.evaluate_energies(p_final, scf_dirs,
-                                            scf_objs, init_ci, final_ci)
+                                                     scf_objs, ci_objs)
 
             output.print_param_results(p_final, res, exc_ref, 
                                                     exc_init, exc_final)
         elif self.job_type == 'scan':
-            args = (exc_ref, scf_dirs, scf_objs, init_ci, final_ci)
-            self.scan(self.p_ref,p_bounds,self.scan_var,self.ngrid,args)
+            args = (exc_ref, scf_dirs, scf_objs, ci_objs)
+            self.scan(p_init, self.scan_var, self.ngrid, args)
 
         elif self.job_type == 'analysis':
-            output.print_param_analysis(self.p_ref, exc_ref, exc_init)
+            output.print_param_analysis(p_init, exc_ref, exc_init)
 
         return
 
@@ -172,189 +180,145 @@ class Parameterize:
         Hamiltonian values, or, user supplied values
         """
 
+        # Load the parameter dictionaries 
+        #-----------------------------------------------------------
+
+        # going to set initial and final ci object keywords here as
+        # well. This should be moved eventually.
+        hams = [self.valence, self.cvs]
+        ci   = [self.val_method, self.cvs_method]
+        args = [self.val_args, self.cvs_args]
+        keys = ['valence', 'cvs']
+        for i in range(len(keys)):
+            # check that method is sensible
+            if ci[i] is not None:
+                ci_class = ci[i].lower().capitalize()
+                if ci_class not in params.ci_objs:
+                    msg = ci_class+' not a valid CI method.'
+                    self.hard_exit(msg)
+                self.method[keys[i]] = ci[i]
+
+            # set the method keywords
+            arg = args[i]
+            if arg is not None and isinstance(arg, (list, np.ndarray)):
+                for k in range(0, len(arg),2):
+                    [key, val_str] = arg[k:k+2]
+                    if '[' in val_str and ']' in val_str:
+                        self.kwords[keys[i]][key] = \
+                                           parse.convert_array(val_str)
+                    else:
+                        self.kwords[keys[i]][key] = \
+                                           parse.convert_value(val_str)
+
+            # set the hamiltonian name
+            self.kwords[keys[i]]['hamiltonian'] = hams[i]
+
+        lbls = [self.valence,         self.cvs,        self.xc]
+        op   = [self.val_opt,     self.cvs_opt,    self.xc_opt]
+        bnds = [self.val_bounds,  self.cvs_bounds, self.xc_bounds]
+        frz  = [self.val_freeze,  self.cvs_freeze, self.xc_freeze]
+        param = [self.val_params, self.cvs_params, self.xc_params]
+
+        keys = ['valence', 'cvs', 'xc']
+        for i in range(len(keys)):
+            self.labels[keys[i]] = lbls[i]
+            self.opt[keys[i]]    = op[i]
+            self.bounds[keys[i]] = bnds[i]
+            self.freeze[keys[i]] = frz[i]
+            self.params[keys[i]] = param[i]
+
+        # Identify those parameters that are to be optimized
+        #----------------------------------------------------------
         self.n_opt = 0
         pfull      = {}
         pbounds    = {}
 
-        #--------------------------------------------------------------
-        # XC functional
+        for i in range(len(keys)):
 
-        # if we're optimizing the functional parameters, add
-        # them to the parameter list. If not, set this value
-        # to the xc string passed to pyscf
-        if self.opt_xc:
-            self.n_opt += len(self.xc_params) - len(self.freeze_xc)
-        pfull['xc'] = self.xc_func_str(self.xc_params)
+            if self.labels[keys[i]] is not None:
 
-        #--------------------------------------------------------------
-        # Initial state Hamiltonian
+                # if this is for XC functional, generate functional string
+                if keys[i] == 'xc':
+                    pfull['xc'] = self.xc_func_str(self.params['xc'])
+                    self.params[keys[i]] = pfull['xc']
 
-        # hamiltonian for initial states
-        if self.h_init_params is not None:
-            pfull['h_init'] = self.h_init_params
-        else:
-            nh   = 0
-            args = (self.init_state_h, nh)
-            nh   = libs.lib_func('retrieve_nhpar', args)
-            hp   = np.zeros(nh, dtype=float)
-            args = (self.init_state_h, nh, hp)
-            hp   = libs.lib_func('retrieve_hpar', args)
-            pfull['h_init'] = hp
+                else:
 
-        if self.opt_h_init:
-            self.n_opt += len(pfull['h_init']) - len(self.freeze_h_init)
+                    # pull the initial parameters from input, 
+                    # if they're set
+                    if self.params[keys[i]] is not None:
+                        pfull[keys[i]] = self.params[keys[i]]
+                    
+                    # if initial params not set by user, pull them from
+                    # bitci
+                    else:
+                        nh   = 0
+                        args = (self.labels[keys[i]], nh)
+                        nh   = libs.lib_func('retrieve_nhpar', args)
+                        hp   = np.zeros(nh, dtype=float)
+                        args = (self.labels[keys[i]], nh, hp)
+                        hp   = libs.lib_func('retrieve_hpar', args)
+                        pfull[keys[i]]       = hp
+                        self.params[keys[i]] = hp
 
-        #---------------------------------------------------------------
-        # Final state Hamiltonian
+                if self.opt[keys[i]]:
+                    self.n_opt += len(self.params[keys[i]]) - \
+                                  len(self.freeze[keys[i]])
 
-        # hamiltonian for final states
-        if self.h_final_params is not None:
-            pfull['h_final'] = self.h_final_params
-        else:
-            nh   = 0
-            args = (self.final_state_h, nh)
-            nh   = libs.lib_func('retrieve_nhpar', args)
-            hp   = np.zeros(nh, dtype=float)
-            args = (self.final_state_h, nh, hp)
-            hp   = libs.lib_func('retrieve_hpar', args)
-            pfull['h_final'] = hp
-
-        if self.opt_h_final and self.final_state_h != self.init_state_h:
-            self.n_opt += len(pfull['h_final']) - len(self.freeze_h_final)
-
-        #---------------------------------------------------------------
         # Set up optimization bounds
-        
-        # bounds: only applies to 'opt' and 'scan' runs
-        if self.xc_params is None:
-           pbounds['xc'] = None
+        #-------------------------------------------------------------
+        for i in range(len(keys)):
 
-        elif self.bounds_xc is None:
-           pbounds['xc'] = [None] * len(self.xc_params)
+            if self.labels[keys[i]] is not None:
+            
+                # if bounds not set, set bounds list to proper length
+                if self.bounds[keys[i]] is None:
+                    self.bounds[keys[i]] = [None]*len(pfull[keys[i]])
 
-        elif len(self.bounds_xc) == len(self.xc_params):
-           pbounds['xc'] = self.bounds_xc
-     
-        else:
-            msg  = 'bounds_xc/xc_params shape mismatch: '
-            msg += str(len(self.bounds_xc)) + ' != ' 
-            msg += str(len(self.xc_params))
-            self.hard_exit(msg)
-
-        # bounds work a little differently for hamiltonian params
-        if self.bounds_h_init is None:
-           pbounds['h_init'] = [None] * len(pfull['h_init'])
-
-        elif len(self.bounds_h_init) == len(pfull['h_init']):
-           pbounds['h_init'] = self.bounds_h_init
-
-        else:
-            msg  = 'bounds_h_init/h_init_params shape mismatch: '
-            msg += str(len(self.bounds_h_init.shape)) + ' != '     
-            msg += str(len(pfull['h_init'].shape))
-            self.hard_exit(msg)
-
-        # bounds work a little differently for hamiltonian params
-        if self.bounds_h_final is None:
-           pbounds['h_final'] = [None] * len(pfull['h_final'])
-
-        elif len(self.bounds_h_final) == len(pfull['h_final']):
-           pbounds['h_final'] = self.bounds_h_final
-
-        else:
-            msg  = 'bounds_h_final/h_final_params shape mismatch: '
-            msg += str(len(self.bounds_h_final)) + ' != ' 
-            msg += str(len(pfull['h_final']))
-            self.hard_exit(msg)
-
-        return pfull, pbounds
+                # check that bounds are correct length
+                elif (len(self.bounds[keys[i]]) != 
+                                         len(self.params[keys[i]])):
+                    msg = 'type='+str(keys[i])+' bounds shape mismatch:'
+                    msg += str(len(self.bounds[keys[i]].shape)) + ' != '     
+                    msg += str(len(pfull[keys[i]].shape))
+                    self.hard_exit(msg)
+ 
+        return pfull
 
     #
-    def err_func(self, p_opt, exc_ref, scf_dirs, scf_objs, 
-                                               init_ci, final_ci):
-        """
-        Evaluate the error function. In this case, simple RMSD
-
-        Arguments:
-
-        targets:      target values
-        values:       current values
-
-        Returns:
-        norm of the different between target and current values
-        """
-       
-        # set the hamiltonian parameters: both frozen and optimized 
-        p_full  = self.to_full_param_set(p_opt)
-        ener_i  = self.evaluate_energies(p_full, scf_dirs, scf_objs, 
-                                                    init_ci, final_ci)
-        dif_vec = np.zeros(self.n_ref, dtype=float)
-
-        # this approach assumes dict is ordered! Only true from Python
-        # 3.6 onwards...
-        ide        = 0
-        for molecule in exc_ref.keys():
-            for trans, ener in exc_ref[molecule].items():
-                init, final  = trans.strip().split()
-                de_iter      = ener_i[molecule][final] - \
-                               ener_i[molecule][init]
-                dif_vec[ide] = de_iter*constants.au2ev - ener
-                ide         += 1
-
-        self.error    = np.linalg.norm(dif_vec)
-
-        return self.error
-
-    @timing.timed
-    def scan(self, p_ref, p_bounds, scan_var, ngrid, args):
+    def scan(self, p_vals, scan_var, ngrid, args):
         """
         scan the parameter values 
         """
 
-        # number of coordinates to scan over
-        n_scan = len(scan_var)
+        keys   = ['xc', 'valence', 'cvs']
+        bounds = []
+        label  = []
+        p0     = []
+        n_scan  = 0
 
-        # freeze all other parameters other than the ones we
-        # are going to scan
-        if self.xc_params is not None:
-            self.freeze_xc  = list(range(len(self.xc_params)))
-        self.freeze_h_init  = list(range(len(p_ref['h_init'])))
-        self.freeze_h_final = list(range(len(p_ref['h_final'])))        
-        bounds              = []
-        p0                  = []
-        label               = []
+        # start by freezing all coordiantes
+        for key in keys:
+            if self.params[key] is not None and len(self.params[key])>0:
+                self.freeze[key] = list(range(len(self.params[key])))
 
-        # identify the scan coordinates
+        # loop over strings in scan_var
         for p_str in self.scan_var:
             p_val = int(p_str[-1])
-            if 'xc' in p_str:
-                self.opt_xc = True
-                self.freeze_xc.remove(p_val)
-                p0.append(self.xc_params[p_val])
-                bounds.append(self.bounds_xc[p_val])
-                lbl = 'xc'
-                label.append('xc')
-            if 'h_init' in p_str:
-                self.opt_h_init = True
-                self.freeze_h_init.remove(p_val)
-                if self.single_hamiltonian:
-                    self.freeze_h_final.remove(p_val)
-                    lbl = 'h_init/final'
-                else:
-                    lbl = 'h_init'
-                p0.append(self.h_init_params[p_val])
-                bounds.append(self.bounds_h_init[p_val])
-            if 'h_final' in p_str:
-                self.opt_h_final = True
-                self.freeze_h_final.remove(p_val)
-                if self.single_hamiltonian:
-                    self.freeze_h_init.remove(p_val)
-                    lbl = 'h_init/final'
-                else:
-                    lbl = 'h_final'
-                p0.append(self.h_final_params[p_val])
-                bounds.append(self.bounds_h_final[p_val])
-            label.append(lbl)
+ 
+            i = 0
+            while i<3 and keys[i] not in p_str:
+                i += 1
+
+            if i==3:
+                continue
+
+            self.opt[keys[i]] = True
+            self.freeze[keys[i]].remove(p_val)
+            label.append(keys[i]) 
+            bounds.append(self.bounds[keys[i]][p_val])
+            p0.append(self.params[keys[i]][p_val])
+            n_scan += 1
 
         delta = [(bounds[i][1] - bounds[i][0]) / (ngrid[i]-1)
                   if ngrid[i] > 1 else 0. for i in range(n_scan)]
@@ -386,20 +350,61 @@ class Parameterize:
 
         return
 
+    #
+    def err_func(self, p_opt, exc_ref, scf_dirs, scf_objs, ci_objs):
+        """
+        Evaluate the error function. In this case, simple RMSD
+
+        Arguments:
+
+        targets:      target values
+        values:       current values
+
+        Returns:
+        norm of the different between target and current values
+        """
+
+        # set the hamiltonian parameters: both frozen and optimized 
+        p_full  = self.to_full_param_set(p_opt)
+        ener_i  = self.evaluate_energies(p_full, scf_dirs,
+                                                 scf_objs, ci_objs)
+        dif_vec = np.zeros(self.n_ref, dtype=float)
+
+        # this approach assumes dict is ordered! Only true from Python
+        # 3.6 onwards...
+        nde        = 0
+        for molecule in exc_ref.keys():
+            for trans, ener in exc_ref[molecule].items():
+                init, final  = trans.strip().split()
+                de_iter      = ener_i[molecule][final] - \
+                               ener_i[molecule][init]
+                dif_vec[nde] = de_iter*constants.au2ev - ener
+                nde         += 1
+
+        if self.opt_target == 'rmsd':
+            self.error = np.linalg.norm(dif_vec)
+        elif self.opt_target == 'mae':
+            self.error = 0.
+            if nde > 0:
+                self.error = np.sum(np.absolute(dif_vec)) / nde
+
+        return self.error
+ 
+    #
     @timing.timed
-    def evaluate_energies(self, p_full, scf_dirs, scf_names, 
-                                   init_ci, final_ci, gen_orbs=False):
+    def evaluate_energies(self, p_full, scf_dirs, scf_names, ci_objs,
+                                                      gen_orbs=False):
         """
         evaluate all the energies in the graci data set
 
         """
-
         # init_ci and final_ci should have same key list
-        mol_names = init_ci.keys()
-        topdir = os.getcwd()
-        energies = {}
+        mol_names = ci_objs.keys()
+        topdir    = os.getcwd()
+        energies  = {}
 
         if params.nproc > 1:
+            from mpi4py.futures import MPIPoolExecutor
 
             with MPIPoolExecutor(max_workers=params.nproc,
                                                  root=0) as executor:
@@ -407,8 +412,7 @@ class Parameterize:
 
                     args = ((p_full, molecule, topdir, self.wfn_lib,
                              scf_dirs[molecule], scf_names[molecule], 
-                             init_ci[molecule], final_ci[molecule], 
-                             True, gen_orbs)
+                             ci_objs[molecule], True, gen_orbs)
                              for molecule in mol_names)
 
                     for res in executor.starmap(self.eval_energy, args):
@@ -419,8 +423,7 @@ class Parameterize:
                 mol_results = self.eval_energy(
                              p_full, molecule, topdir, self.wfn_lib, 
                              scf_dirs[molecule], scf_names[molecule], 
-                             init_ci[molecule], final_ci[molecule], 
-                             False, gen_orbs)
+                             ci_objs[molecule], False, gen_orbs)
 
                 energies.update(mol_results)
 
@@ -428,11 +431,12 @@ class Parameterize:
 
     # 
     def eval_energy(self, p_full, molecule, topdir, wfn_file, scf_dirs,
-                         scf_name, init_ci, final_ci, parallel, gen_orbs):
+                         scf_name, ci_names, parallel, gen_orbs):
         """
         eval_energy
         """
 
+        #print(molecule+' energy on rank='+str(MPI.COMM_WORLD.Get_rank()),flush=True)
         # if parallel, this is run on a worker and libraries need to be 
         if parallel:
             libs.lib_load('bitci')
@@ -450,54 +454,36 @@ class Parameterize:
         energies  = {molecule : {}}
         mo_ints   = ao2mo.Ao2mo()
         
-        # identify the unique CI objects from the initial and 
-        # final state dictionaries   
-        ci_unique = list( set( list(init_ci.keys()) + 
-                               list(final_ci.keys())))
-        scf_objs  = {ci_unique[i]:None for i in range(len(ci_unique))}
+        # identify the CI objects
+        scf_objs  = {ci_name:None for ci_name in ci_names.keys()}
  
         # loop over unique ci state objects
-        for ci_name in ci_unique:     
+        for ci_name in ci_names.keys():     
 
             # ci_ref contains the wfns corresponding to the target
             # states
             ci_ref = chkpt.read(ci_name, file_handle=wfn_chkpt)
-           
-            ref_states = {}
-            # if this hamiltonian is for the initial states, apply
-            # arguments that apply to the initial states
-            if ci_name in init_ci.keys():
+            
+            # determine if this is a CVS Hamiltonian or
+            # valence Hamiltonian
+            if len(ci_ref.icvs) > 0:
+                ci_typ = 'cvs'
+            else:
+                ci_typ = 'valence'           
 
-                if self.init_ci_method is None:
-                    ci_opt = ci_ref.copy()
-                else:
-                    ci_class = self.init_ci_method.lower().capitalize()
-                    ci_opt = getattr(globals()[ci_class.lower()], ci_class)(ci_ref)               
+            # create the CI object 
+            if self.method[ci_typ] is None:
+                ci_opt = ci_ref
+            else:
+                ci_class = self.method[ci_typ].lower().capitalize()
+                ci_opt = getattr(globals()[ci_class.lower()], ci_class)(ci_ref)
 
-                for kword,val in self.init_kwords.items():
-                    if hasattr(ci_opt, kword):
-                        setattr(ci_opt, kword, val)
-                ci_opt.update_hparam(np.asarray(p_full['h_init']))
-                ref_states.update(init_ci[ci_name])
-
-            elif ci_name in final_ci.keys():
-
-                if self.final_ci_method is None:
-                    ci_opt = ci_ref.copy()
-                else:
-                    ci_class = self.final_ci_method.lower().capitalize()
-                    ci_opt = getattr(globals()[ci_class.lower()], ci_class)(ci_ref)
-
-                for kword,val in self.final_kwords.items():
-                    if hasattr(ci_opt, kword):
-                        setattr(ci_opt, kword, val)
-                ci_opt.update_hparam(np.asarray(p_full['h_final']))
-
-            # this feels a little hacky: if same hamiltonian for 
-            # init and final states -- make sure we add final 
-            # states to the list we search for
-            if ci_name in final_ci.keys():
-                ref_states.update(final_ci[ci_name])
+            # and update the keywords as requested
+            for kword,val in self.kwords[ci_typ].items():
+                if hasattr(ci_opt, kword):
+                    setattr(ci_opt, kword, val)
+            ci_opt.update_hparam(np.asarray(p_full[ci_typ]))
+            #print('computing states: '+str(ci_names[ci_name])+' using hamiltonian: '+str(self.kwords[ci_typ]['hamiltonian']),flush=True)
 
             # set verbosity to match requested output level
             ci_opt.verbose = self.verbose
@@ -512,7 +498,7 @@ class Parameterize:
                 #...either by re-running it b/c it's the first time
                 # function is called, or, b/c we're optimizing the
                 # functional
-                if gen_orbs or self.opt_xc:
+                if gen_orbs or self.opt['xc']:
                     scf_obj = chkpt.read(scf_name[ci_name],
                                          file_handle=wfn_chkpt)
                     scf_obj.verbose = self.verbose
@@ -525,7 +511,7 @@ class Parameterize:
                     mo_ints.run(scf_obj)
     
                     # if only running scf once, save the orbs to file
-                    if not self.opt_xc:
+                    if not self.opt['xc']:
                         fname = 'TMP_'+scf_name[ci_name]+'.chkpt.h5'
                         chkpt.write(scf_obj,
                          file_name=fname, grp_name = scf_name[ci_name])
@@ -558,7 +544,7 @@ class Parameterize:
 
                 # use overlap with ref states to identify t states
                 roots_found, eners = self.identify_states(molecule, 
-                                             ci_ref, ref_states, ci_opt)
+                                     ci_ref, ci_names[ci_name], ci_opt)
 
                 all_found = all(roots_found.values())
                 if not all_found:
@@ -573,18 +559,6 @@ class Parameterize:
                 msg  = str(molecule) + ' failed to match states: '
                 msg += str(fail)  + ' h_param = '+str(ci_opt.hparam)
                 output.print_message(msg)
-
-            # if all roots found, update the energy directory 
-            #if roots_found:       
-            #    energies[molecule].update(eners) 
-
-            # if we fail to match states, set energies to zero, thereby
-            # resulting in very large errors
-            #else:
-            #    msg = str(molecule)+' failed to match states: ' + \
-            #          str(ref_states) + ' hparam=' + str(ci_opt.hparam)
-            #         
-            #    self.hard_exit(msg)
 
         libs.lib_func('bitci_int_finalize', [])
         wfn_chkpt.close()
@@ -604,15 +578,13 @@ class Parameterize:
         compute overlaps to identify states
         """
         #s_thrsh = 1./np.sqrt(2.)
-        s_thrsh = 0.65
+        s_thrsh = 0.6
 
         eners  = {}
 
         # in functional optimization runs, this will be something
         # other than identity matrix
         smo = ci_new.scf.mo_overlaps(ci_ref.scf)[:ci_ref.nmo,:ci_new.nmo]
-        #if ref_ci.nmo != new_ci.nmo:
-        #    print(molecule+' ref.nmo='+str(ref_ci.nmo)+','+str(new_ci.nmo),flush=True)
 
         # iterate over the reference states
         bra_st  = list(ref_states.values())
@@ -643,7 +615,7 @@ class Parameterize:
                 # gradient descent, not so much. If grad.
                 # descent, or equiv., print a warning if we
                 # can't match the state
-                if self.opt_algorithm != 'DifferentialEvolution':
+                if self.opt_algorithm != 'differentialevolution':
                     msg = molecule+' '+str(lbl)+': Sij='
                     msg += ''.join(['{:8.4f}']*len(Sij)).format(*Sij)
                     print(msg) 
@@ -688,7 +660,7 @@ class Parameterize:
         return scf_dirs
 
     #
-    def parse_wfn_file(self, init_states, final_states):
+    def parse_wfn_file(self, states):
         """
         Parse the GRaCI reference data and confirm what data is present
         that can be compared to the target values
@@ -701,6 +673,10 @@ class Parameterize:
                         objects
         """
 
+        if not os.path.isfile(self.wfn_lib):
+            msg = 'wfn_lib: ' + str(self.wfn_lib) + ' not found.'
+            self.hard_exit(msg)
+
         # open the reference data file and get the contents
         wfn_file = h5py.File(self.wfn_lib, 'r', libver='latest')
 
@@ -708,17 +684,14 @@ class Parameterize:
         wfn_contents = chkpt.contents(file_handle = wfn_file)
 
         scf_objs = {}
-        init_ci  = {}
-        final_ci = {}
+        ci_objs  = {}
 
-        for molecule in init_states.keys():
+        for molecule in states.keys():
 
-            st_lst = set(init_states[molecule] + 
-                         final_states[molecule])
+            st_lst = set(states[molecule])
 
             scf_objs[molecule]   = {} 
-            init_ci[molecule]    = {} 
-            final_ci[molecule]   = {}
+            ci_objs[molecule]    = {} 
             states_found         = []
 
             # if the molecule string is in the reference 
@@ -736,29 +709,17 @@ class Parameterize:
                     # check if any of the required state labels are
                     # in this CI object
                     if any([lbl in ci_lbls.keys() 
-                                     for lbl in init_states[molecule]]):
+                                     for lbl in states[molecule]]):
 
                         ci_map = {st: ci_lbls[st] 
-                                  for st in init_states[molecule] 
+                                  for st in states[molecule] 
                                   if st in ci_lbls.keys()}
-                        init_ci[molecule][ci_name] = ci_map
+                        ci_objs[molecule][ci_name] = ci_map
                         states_found.extend(list(ci_map.keys()))
 
-                    # check if any of the required state labels are
-                    # in this CI object
-                    if any([lbl in ci_lbls.keys() 
-                                    for lbl in final_states[molecule]]):
-
-                        ci_map = {st: ci_lbls[st] 
-                                  for st in final_states[molecule] 
-                                  if st in ci_lbls.keys()}
-                        final_ci[molecule][ci_name] = ci_map
-                        states_found.extend(list(ci_map.keys()))
-        
                     # if this object contains ci states, identify the
-                    # relevant CI object
-                    if (ci_name in init_ci[molecule].keys() or 
-                           ci_name in final_ci[molecule].keys()):
+                    # relevant scf object
+                    if ci_name in ci_objs[molecule].keys(): 
  
                         # get the name of corresponding scf object
                         scf_link = chkpt.read_attribute(wfn_file, 
@@ -774,7 +735,7 @@ class Parameterize:
                     
         wfn_file.close()
 
-        return scf_objs, init_ci, final_ci
+        return scf_objs, ci_objs 
 
     #
     def parse_ref_file(self):
@@ -786,29 +747,34 @@ class Parameterize:
         Returns:   A dictionary containing the target data
         """
 
+        if not os.path.isfile(self.energy_lib):
+            msg = 'energy_lib: ' + str(self.energy_lib) + ' not found.'
+            self.hard_exit(msg)
+
         with open(self.energy_lib, 'r') as t_file:
             t_file_lines = t_file.readlines()
 
-        self.n_ref   = 0
-        trans_ener   = {}
-        init_states  = {}
-        final_states = {}
+        self.n_ref = 0
+        trans_ener = {}
+        states     = {}
+
         for line in t_file_lines:
             str_arr                = line.strip().split()
+            if len(str_arr) == 0:
+                continue
             molecule               = str_arr[0]
             trans_ener[molecule]   = {} 
-            init_states[molecule]  = []
-            final_states[molecule] = []
+            states[molecule]       = []
             # format is: init_state final_state energy
             for i in range(1,len(str_arr),3):
                 try:
                     si     = str_arr[i].strip()
                     sf     = str_arr[i+1].strip()
 
-                    if si not in init_states[molecule]:
-                        init_states[molecule].append(si)
-                    if sf not in final_states[molecule]:
-                        final_states[molecule].append(sf)
+                    if si not in states[molecule]:
+                        states[molecule].append(si)
+                    if sf not in states[molecule]:
+                        states[molecule].append(sf)
 
                     st_pair     = si+' '+sf
                     val         = parse.convert_value(str_arr[i+2])
@@ -820,181 +786,87 @@ class Parameterize:
                            str(val) + '\nline = '+str(str_arr)
                     self.hard_exit(msg)
 
-            # check that the intersection of initial and final
-            # states is zero
-            set_i = set(init_states[molecule])
-            set_f = set(final_states[molecule])
-            if len(set_i.intersection(set_f)) > 0:
-                msg = 'warning - '+molecule+' init/final state overlap'
-                msg += '\ninit states='+str(init_states[molecule]) +'\n'
-                msg += '\nfinal states='+str(final_states[molecule])
-                print(msg)
-                    
-        return trans_ener, init_states, final_states
+        return trans_ener, states
 
     #
-    def sanity_check(self):
+    def sanity_check(self, ci_objs):
         """
         sanity check the input
         """
 
         # general options that apply to all job_types:
-
         if self.job_type not in ['opt', 'scan', 'analysis']:
             msg = 'job_type: '+str(self.jobtype)+' not recognized.'
-            self.hard_exit(msg)
-
-        if not os.path.isfile(self.wfn_lib):
-            msg = 'wfn_lib: ' + str(self.wfn_lib) + ' not found.'
-            self.hard_exit(msg)
-
-        if not os.path.isfile(self.energy_lib):
-            msg = 'energy_lib: ' + str(self.energy_lib) + ' not found.'
-            self.hard_exit(msg)
-
-        if self.init_state_h is None:
-            msg = 'initial state hamiltonian not specified'
-            self.hard_exit(msg)
-
-        if self.final_state_h is None:
-            msg = 'final state hamiltonian not specified'
             self.hard_exit(msg)
 
         if self.xc is None and self.xc_params is None:
             msg = 'No functional specified.'
             self.hard_exit(msg)
 
-        if self.init_ci_method is not None:
-            ci_class = self.init_ci_method.lower().capitalize()
-            if ci_class not in params.ci_objs:
-                msg = ci_class+' not a valid CI method.'
-                self.hard_exit(msg)
-
-        if self.final_ci_method is not None:
-            ci_class = self.final_ci_method.lower().capitalize()
-            if ci_class not in params.ci_objs:
-                msg = ci_class+' not a valid CI method.'
-                self.hard_exit(msg)
-
-        # if single hamiltonian is requested, we're going to reset
-        # some values to ensure internal consistency
-        if self.single_hamiltonian:
-            if self.init_state_h != self.final_state_h:
-                msg  = 'single hamiltonian requested, '
-                msg += 'but init_state_h != final_state_h'
-                self.hard_exit(msg)
-
-            # optimize both or neither
-            (opti,optf) = (self.opt_h_init, self.opt_h_final)
-            self.opt_h_init = self.opt_h_final = opti or optf
-            
-            # set the parameters the value of the init_param set
-            if self.h_init_params is not None:
-                self.h_final_params = self.h_init_params
-            elif self.h_final_param is not None:
-                self.h_init_params = self.h_final_params
-            else:
-                msg = 'either h_init/final_params need to be specified'
-                self.hard_exit(msg)
-
-            # frozen parameters union of initial and final sets
-            freeze = set(self.freeze_h_init).union(
-                                     set(self.freeze_h_final))
-            self.freeze_h_init = self.freeze_h_final = freeze
- 
-            # unify the bounds for initial and final hamiltonian
-            bounds = None
-            if self.bounds_h_init is not None:
-                bounds = self.bounds_h_init
-            if self.bounds_h_final is not None:
-                if bounds is None:
-                    bounds = self.bounds_h_final
-                else:
-                    bounds = [[ max(bounds[i][0],
-                                    self.bounds_h_final[i][0]),
-                                min(bounds[i][1],
-                                    self.bounds_h_final[i][1])] 
-                                for i in range(len(bounds))]
-            self.bounds_h_init = self.bounds_h_final = bounds
-
-        # if user wants to optimize functional, confirm that
-        # input makes sense
-        if (self.xc_params is not None and
-              self.xc_coef is not None and
-                 self.xc_func is not None):
-            shp_cf = [len(self.xc_coef[i])
-                      for i in range(len(self.xc_coef))]
-            shp_fn = [len(self.xc_func[i])
-                      for i in range(len(self.xc_func))]
-
-        nhpar = 0
-        args = (self.init_state_h, nhpar)
-        nhpar = libs.lib_func('retrieve_nhpar', args)
-        if self.h_init_params is not None and \
-          len(self.h_init_params) != nhpar:
-            msg = '# h_init_params != nhpar: ' + \
-                  str(len(self.h_init_params)) + '!= ' + str(nhpar)
+        if self.val_opt and self.valence is None:
+            msg =  'Hamiltonian optimization requested, '
+            msg += 'but no value of ham specified'
             self.hard_exit(msg)
 
-        nhpar = 0
-        args = (self.final_state_h, nhpar)
-        nhpar = libs.lib_func('retrieve_nhpar', args)
-        if self.h_final_params is not None and \
-          len(self.h_final_params) != nhpar:
-            msg = '# h_final_params != nhpar: ' + \
-                  str(len(self.h_final_params)) + '!= ' + str(nhpar)
+        if self.cvs_opt and self.cvs is None:
+            msg =  'CVS Hamiltonian optimization requested, '
+            msg += 'but no value of cvs specified'
             self.hard_exit(msg)
 
         # this options only matter if we're doing a parameter
         # optimization run
         if self.job_type == 'opt':
 
-            if not any([self.opt_h_init, self.opt_h_final,self.opt_xc]):
+            if not any([self.val_opt, self.cvs_opt, self.xc_opt]):
                 msg = 'job_type=op, but no parameters to be optimized'
                 self.hard_exit(msg)
 
+            self.opt_algorithm = self.opt_algorithm.lower()
             if self.opt_algorithm not in self.valid_algos:
                 msg = str(self.opt_algorithm) + ' not in ' + \
                       str(self.valid_algos)
+                self.hard_exit(msg)
+
+            self.opt_target = self.opt_target.lower()
+            if self.opt_target.lower() not in self.valid_opt_targ:
+                msg = str(self.opt_target) + ' not in ' + \
+                      str(self.valid_opt_targ)
                 self.hard_exit(msg)
 
         if self.job_type == 'scan' and self.ngrid is None:
             msg = 'job_type=scan, ngrid='+str(self.ngrid)+', error'
             self.hard_exit(msg)
 
-        # going to set initial and final ci object keywords here as
-        # well. This should be moved eventually.
-        if (self.init_ci_args is not None and 
-             isinstance(self.init_ci_args, (list, np.ndarray))):
-            for k in range(0,len(self.init_ci_args),2):
-                [key, val_str] = self.init_ci_args[k:k+2]
-                if '[' in val_str and ']' in val_str:
-                    self.init_kwords[key] = parse.convert_array(val_str)
+        # check that we've specified all the hamiltonians we need to
+        # determined the necessary states
+        wfn_file = h5py.File(self.wfn_lib, 'r', libver='latest')
+        obj_types = {'valence': False, 'cvs': False}
+        for molecule,mdict in ci_objs.items():
+            for ci_name, states in mdict.items():
+                ci_obj = chkpt.read(ci_name, file_handle=wfn_file)
+                if len(ci_obj.icvs) > 0:
+                    obj_types['cvs'] = True
                 else:
-                    self.init_kwords[key] = parse.convert_value(val_str) 
-        self.init_kwords['hamiltonian'] = self.init_state_h
- 
-        # going to set initial and final ci object keywords here as
-        # well. This should be moved eventually.
-        if (self.final_ci_args is not None and
-             isinstance(self.final_ci_args, (list, np.ndarray))):
-            for k in range(0,len(self.final_ci_args),2):
-                [key, val_str] = self.final_ci_args[k:k+2]
-                if '[' in val_str and ']' in val_str:
-                    self.final_kwords[key] = parse.convert_array(val_str)
-                else:
-                    self.final_kwords[key] = parse.convert_value(val_str)
-        self.final_kwords['hamiltonian'] = self.final_state_h
+                    obj_types['valence'] = True
+            
+            # if we've already found both types of objects, exit,
+            # no need to continue
+            if all(obj_types.values()):
+                break
 
-        # if there is a single hamiltonian for both initial and 
-        # final states, the args dicts are made identifical and 
-        # are the union of the two arg lists
-        if self.single_hamiltonian:
-            self.init_kwords.update(self.final_kwords)
-            self.final_kwords = self.init_kwords
+        wfn_file.close()
 
+        if obj_types['valence'] and self.valence is None:
+            msg =  'Valence CI objects to be computed, but valence '
+            msg += 'Hamiltonian not specified.'
+            self.hard_exit(msg)
+
+        if obj_types['cvs'] and self.cvs is None:
+            msg =  'CVS CI objects to be computed, but CVS '
+            msg += 'Hamiltonian not specified.'
+            self.hard_exit(msg)
+          
         return
-
 
     #
     def xc_func_str(self, xc_param):
@@ -1003,9 +875,11 @@ class Parameterize:
         in xc_param
         """
 
-        if self.xc is not None:
-            return self.xc        
+        # if functional name specified, simply return it
+        if self.labels['xc'] is not None:
+            return self.labels['xc']      
 
+        #...else construct functional string
         # first indx for exchange part, second indx for correlation part
         n_xc   = [len(self.xc_coef[i]) for i in range(2)]
         xc_str = ''
@@ -1042,85 +916,60 @@ class Parameterize:
         p_full = {}
         n      = 0
 
-        # set the hamiltonian parameters: both frozen and optimized 
-        p_vals = self.xc_params
-        if self.opt_xc:
-            nall  = len(p_vals)
-            n     = nall - len(self.freeze_xc)
-            opt_p = np.setdiff1d(np.array(range(nall)), self.freeze_xc)
-            p_vals[opt_p] = p_opt[:n]
-        p_full['xc']  = self.xc_func_str(p_vals)       
+        keys = ['xc', 'valence', 'cvs']
+        for i in range(len(keys)):
 
-        p_vals = self.p_ref['h_init'].copy()
-        if self.opt_h_init:
-            nall  = len(p_vals)
-            ni    = nall - len(self.freeze_h_init)
-            opt_p = np.setdiff1d(np.array(range(nall)), 
-                                 self.freeze_h_init)
-            p_vals[opt_p] = p_opt[n : n + ni]
-            n    += ni
-        p_full['h_init']  = p_vals 
+            if self.labels[keys[i]] is None:       
+                p_full[keys[i]] = None
+                continue
 
-        # if initial final hamiltonian are the same, set
-        # h_final to h_initial
-        if self.single_hamiltonian:
-            p_full['h_final'] = p_full['h_init']
+            if (self.params[keys[i]] is None or 
+                     isinstance(self.params[keys[i]], str)):
+                p_vals = self.params[keys[i]]
+            else:
+                p_vals = self.params[keys[i]].copy()
 
-        else:
-            p_vals = self.p_ref['h_final'].copy()
-            if self.opt_h_final:
+            if self.opt[keys[i]]:
                 nall  = len(p_vals)
-                nf    = nall - len(self.freeze_h_final)
+                ni    = nall - len(self.freeze[keys[i]])
                 opt_p = np.setdiff1d(np.array(range(nall)), 
-                                     self.freeze_h_final)
-                p_vals[opt_p] = p_opt[n : n + nf]
+                                     self.freeze[keys[i]])
+                p_vals[opt_p] = p_opt[n : n + ni]
+                n    += ni
 
-            p_full['h_final'] = p_vals
+            if keys[i] == 'xc':
+                p_vals = self.xc_func_str(p_vals)
 
+            p_full[keys[i]] = p_vals
 
         return p_full
 
     #
-    def extract_opt_param(self, p_full, bnd_full):
+    def extract_opt_param(self, p_full):
         """
         to come
         """
        
-        p_opt   = np.zeros(self.n_opt, dtype=float)
-        bnd_opt = np.zeros((self.n_opt,2), dtype=float)
-        n       = 0
+        p_opt = np.zeros(self.n_opt, dtype=float)
+        b_opt = np.zeros((self.n_opt,2), dtype=float)
+        n     = 0
 
-        if self.opt_xc:
-            nx            = len(self.xc_params)
-            n            += nx - len(self.freeze_xc)
-            p_opt[:n]     = [self.xc_params[i] for i in range(nx)
-                                             if i not in self.freeze_xc]
-            bnd_opt[:n,:] = [bnd_full['xc'][i] for i in range(nx)             
-                                             if i not in self.freeze_xc]
+        keys    = ['xc', 'valence', 'cvs']
+        for i in range(len(keys)):
 
-        if self.opt_h_init:
-            nh    = len(p_full['h_init'])
-            h_opt = [p_full['h_init'][i] for i in range(nh) 
-                                         if i not in self.freeze_h_init]
-            b_opt = [bnd_full['h_init'][i] for i in range(nh) 
-                                         if i not in self.freeze_h_init]
-            nh_opt    = len(h_opt)
-            p_opt[n:n + nh_opt]     = h_opt
-            bnd_opt[n:n + nh_opt,:] = b_opt
-            n        += nh_opt 
+            if self.opt[keys[i]]:
+                nall = len(self.params[keys[i]])
+                nopt = nall - len(self.freeze[keys[i]])
+                pval = [self.params[keys[i]][j] for j in range(nall) 
+                                 if j not in self.freeze[keys[i]]]
+                bval = [self.bounds[keys[i]][j] for j in range(nall)
+                                 if j not in self.freeze[keys[i]]]
+              
+                p_opt[n : n+nopt] = pval
+                b_opt[n : n+nopt] = bval
+                n += nopt 
 
-        if self.opt_h_final and not self.single_hamiltonian:
-            nh    = len(p_full['h_final'])
-            h_opt = [p_full['h_final'][i] for i in range(nh) 
-                                        if i not in self.freeze_h_final]
-            b_opt = [bnd_full['h_final'][i] for i in range(nh)
-                                        if i not in self.freeze_h_final]
-            nh_opt        = len(h_opt)
-            p_opt[n:]     = h_opt
-            bnd_opt[n:,:] = b_opt
-            n    += nh_opt
-
-        return p_opt, bnd_opt
+        return p_opt, b_opt
 
     #
     def status_func(self, xk, convergence=None):

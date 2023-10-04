@@ -960,7 +960,7 @@ contains
           !
           ! Ket 1I, bra 1I and 1E contributions
           !
-          if (do1I > 0) then
+          if (do1I) then
 
              ! Loop over ket 1I configurations
              do ikconf=cfg%off1I(kn),cfg%off1I(kn+1)-1
@@ -1281,7 +1281,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! 2E - 1I matrix contributions
-                if (do1I > 0) then
+                if (do1I) then
                    if (cfg%off1I(bn) /= cfg%off1I(bn+1)) then
                       call rdm_batch(&
                            bn,ikconf,kconf_full,ksop_full,knopen,knsp,&
@@ -1438,6 +1438,27 @@ contains
     kconf_int=0_ib
     ksop_int=0_ib
 
+!----------------------------------------------------------------------
+! Checks on whether any of the various conf classes are empty
+!----------------------------------------------------------------------
+    if (cfg%n2I == 0) then
+       do2I=.false.
+    else
+       do2I=.true.
+    endif
+
+    if (cfg%n2E == 0) then
+       do2E=.false.
+    else
+       do2E=.true.
+    endif
+
+    if (cfg%n1I1E == 0) then
+       do1I1E=.false.
+    else
+       do1I1E=.true.
+    endif
+    
 !----------------------------------------------------------------------
 ! 2H-2H contributions to the 1-RDMs
 !----------------------------------------------------------------------

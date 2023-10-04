@@ -33,6 +33,7 @@ class Driver:
         param_objs  = []
 
         for obj in calc_array:
+
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
                 mol_objs.append(obj)
@@ -46,7 +47,7 @@ class Driver:
                 si_objs.append(obj)
             elif type(obj).__name__ == 'Parameterize':
                 param_objs.append(obj)
-
+        
         # Sanity check that sections of the same type have 
         # distinct label identifiers
         #-----------------------------------------------------
@@ -141,7 +142,11 @@ class Driver:
                                                  match_all=False)
 
                 # run the SCF calculation
-                scf_obj.run(mol_obj, scf_guess)
+                scf_ener = scf_obj.run(mol_obj, scf_guess)
+                if scf_ener is None:
+                    ostr = scf_obj.label+': SCF did not converge'
+                    output.print_message(ostr)
+                    sys.exit(1)
                 
                 # write scf object to checkpoint file
                 if save_to_chkpt:
@@ -163,12 +168,13 @@ class Driver:
 
                 # perform AO -> MO integral transformation
                 if eri_mo.emo_cut is None or \
-                        eri_mo.emo_cut < ci_calc.mo_cutoff:
+                        eri_mo.emo_cut < ci_calc.mo_cutoff or \
+                          eri_mo.precision != ci_calc.precision:
                     eri_mo.emo_cut = ci_calc.mo_cutoff
-                    eri_mo.run(scf_obj)
+                    eri_mo.run(scf_obj, ci_calc.precision)
 
                 # update ci object with results of ao2mo
-                ci_calc.update_eri(eri_mo)
+                ci_calc.update_eri(eri_mo = eri_mo)
 
                 # guess CI object
                 ci_guess = self.match_sections(ci_calc.guess_label, 
@@ -185,19 +191,21 @@ class Driver:
         # -- these can take ci_objects as arguments
         # ----------------------------------------------------
         for postci_obj in postci_objs:
-            arg_list = self.get_postscf_objs(postci_obj, ci_objs)
+            obj_list = self.get_postscf_objs(postci_obj, ci_objs)
 
-            postci_obj.run(arg_list)
+            postci_obj.run(obj_list)
             if save_to_chkpt:
                 chkpt.write(postci_obj)
 
         # State Interaction sections
         # -- these can take ci_objects or postci_objects as arguments
+        #    ...but expect exactly two arguments: a bra object and
+        #    a ket object
         #------------------------------------------------------------
-        for si_obj in si_objs:
-            arg_list = self.get_postscf_objs(si_obj, 
-                                             ci_objs + postci_objs)            
-            si_obj.run(arg_list)
+        for si_obj in si_objs:            
+            [bra, ket] = self.get_postscf_objs(si_obj, 
+                                               ci_objs + postci_objs)
+            si_obj.run(bra, ket)
             if save_to_chkpt:
                 chkpt.write(si_obj)
 
@@ -301,7 +309,7 @@ class Driver:
             else:
                 ryd_basis = None
                 for obj in calc_array:
-                    if (type(obj).__name__  == 'Rydano' and
+                    if (type(obj).__name__.lower()  == 'rydano' and
                               obj.label == mol_obj.add_rydberg):
                         ryd_basis = obj
                         break

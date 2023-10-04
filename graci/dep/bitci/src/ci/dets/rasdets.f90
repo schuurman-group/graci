@@ -212,19 +212,31 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
   endif
 
 !----------------------------------------------------------------------  
-! Exit if the number of CAS orbitals is greater than n_bits
-! (this is both an insane number and would over-fill the permutation
-! bit string)
+! Exit if the number of orbitals in any of the RAS spaces is greater
+! than n_bits, as this would overflow the bit strings used to hold the
+! RAS permutations
 !----------------------------------------------------------------------
-  if (mras2 > n_bits) then
-     errmsg='Error in generate_cas_excitations: the no. CAS orbitals'&
-          //' is greater than 64'
+  if (mras1 > n_bits) then
+     errmsg='Error in check_ras_input: the no. RAS1 orbitals is '&
+          //'greater than 64'
      call error_control
   endif
 
+  if (mras2 > n_bits) then
+     errmsg='Error in check_ras_input: the no. RAS2 orbitals is '&
+          //'greater than 64'
+     call error_control
+  endif
+
+  if (mras3 > n_bits) then
+     errmsg='Error in check_ras_input: the no. RAS3 orbitals is '&
+          //'greater than 64'
+     call error_control
+  endif  
+
 !----------------------------------------------------------------------
 ! Exit if the user-specified number of active space electrons doesn't
-! match what is in the icas array
+! match what is in the iras2 array
 !----------------------------------------------------------------------
   na=0
   nb=0
@@ -779,7 +791,7 @@ subroutine make_ras_dets(detras,ndet,iras1,iras2,iras3,nras1,mras1,&
   use bitglobal
   use rasperm
   use iomod
-
+  
   implicit none
 
   integer(is), intent(in)    :: ndet
@@ -892,7 +904,7 @@ subroutine make_ras_dets(detras,ndet,iras1,iras2,iras3,nras1,mras1,&
 
                                       ! Save the determinant
                                       detras(:,:,icount)=det
-                                      
+
                                    enddo
                                 enddo
                              enddo
@@ -906,7 +918,7 @@ subroutine make_ras_dets(detras,ndet,iras1,iras2,iras3,nras1,mras1,&
         enddo
      enddo
   enddo
-    
+  
   return
 
 end subroutine make_ras_dets

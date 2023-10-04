@@ -17,19 +17,19 @@ def extract(bra, ket, rep='adiabatic'):
     """
 
     # number of irreps
-    nirr_ket = ket.n_irrep()
     nirr_bra = bra.n_irrep()
+    nirr_ket = ket.n_irrep()
     
     # bitci wave function objects
     wfn_bra = bra.bitci_mrci()
     wfn_ket = ket.bitci_mrci()
 
     # bitwf wave function scratch file numbers
-    wfunits_bra = []
-    wfunits_ket = []
+    wfunits_bra = [0 for i in range(nirr_bra)]
+    wfunits_ket = [0 for i in range(nirr_ket)]
     
     # Extract the bra wave functions
-    for irr in range(nirr_bra):
+    for irr in bra.irreps_nonzero():
     
         # number of states for this irrep
         nstates = bra.n_states_sym(irr)
@@ -48,10 +48,10 @@ def extract(bra, ket, rep='adiabatic'):
         args   = (irr, conf_file, vec_file, nstates, 'bra', wf_scr)
         wf_scr = libs.lib_func('detwf', args)
 
-        wfunits_bra.append(wf_scr)
+        wfunits_bra[irr] = wf_scr
         
     # Extract the ket wave functions
-    for irr in range(nirr_ket):
+    for irr in ket.irreps_nonzero():
     
         # number of states for this irrep
         nstates = ket.n_states_sym(irr)
@@ -69,7 +69,7 @@ def extract(bra, ket, rep='adiabatic'):
         # for this irrep
         args   = (irr, conf_file, vec_file, nstates, 'ket', wf_scr)
         wf_scr = libs.lib_func('detwf', args)
-        wfunits_ket.append(wf_scr)
+        wfunits_ket[irr] = wf_scr
 
     return wfunits_bra, wfunits_ket
     
@@ -115,7 +115,7 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
     # note that we are enforcing equal bra and ket point groups
     # and that the wave function overlaps will be zero
     # unless the bra and ket irreps are the same
-    for irr in range(bra.n_irrep()):
+    for irr in bra.irreps_nonzero():
 
         # pairs of states for this bra irrep and ket irrep
         # bitwf uses Fortran indexing for these, hence the +1
@@ -123,7 +123,7 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
 
         if npairs == 0:
             continue
-        
+
         overlap_pairs = 1 + np.reshape(
             np.array(overlap_list[irr][irr], dtype=int),
             (2*npairs), order='F')
@@ -148,8 +148,8 @@ def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
         overlap[irr][irr] = sij
     
     # fill in the overlaps that are zero by symmetry
-    for bra_irr in range(bra.n_irrep()):
-        for ket_irr in range(ket.n_irrep()):
+    for bra_irr in bra.irreps_nonzero():
+        for ket_irr in ket.irreps_nonzero():
             if bra_irr != ket_irr:
                 npairs = len(overlap_list[bra_irr][ket_irr])
                 if npairs == 0:

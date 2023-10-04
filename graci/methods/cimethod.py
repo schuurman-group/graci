@@ -7,25 +7,11 @@ import numpy as np
 import copy as copy
 import graci.core.params as params
 import graci.core.orbitals as orbitals
+import graci.core.ao2mo as ao2mo
 import graci.utils.timing as timing
 import graci.io.output as output
 import graci.properties.moments as moments
 from pyscf import gto
-
-# Allowed MRCI and DFT/MRCI Hamiltonian labels
-# (not sure if this is the correct home for this, but we
-#  will put it here for now)
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil17_short',
-                  'heil18_standard',
-                  'heil18_short',
-                  'cvs_standard',
-                  'cvs_short']
 
 class Cimethod:
     """Class constructor for CI objects"""
@@ -44,6 +30,7 @@ class Cimethod:
         self.hparam         = None
         self.scf_label      = 'default'
         self.label          = 'default'
+        self.precision      = 'single'
 
         # class variables
         # total number of electrons
@@ -87,8 +74,22 @@ class Cimethod:
 
 # Required functions #############################################################
 
-    def set_scf(self, scf):
+    def set_scf(self, scf, ci_guess=None):
         """set the scf object for the dftmrci class object"""
+
+        # check that the coordinates in the graci.molecule
+        # object agree with pymol. If not: we need re-run SCF
+        if scf.mol.coords_updated():
+            if ci_guess is not None:
+                scf_guess = guess.scf.copy() 
+            else:
+                scf_guess = None
+            scf_ener = scf.run(scf.mol, scf_guess)
+
+            if scf_ener is None:
+                return scf_ener
+
+            self.update_eri()
 
         self.scf = scf
         self.nel = scf.nel
@@ -116,20 +117,50 @@ class Cimethod:
             self.ref_occ[:nclsd]            = 2.
             self.ref_occ[nclsd:nclsd+nopen] = 1.
         
-        return
+        return self.scf.energy
+
+    def set_geometry(self, atms, crds, update_scf=False):
+        """calls set_geometry of the corresponding molecule object"""
+        self.scf.mol.set_geometry(atms, crds)
+        if update_scf:
+            self.set_scf(scf)
 
     def scf_exists(self):
         """return true if scf object is not None"""
         try:
-            return type(self.scf).__name__ is 'Scf'
+            return type(self.scf).__name__ == 'Scf'
         except:
             return False
 
+    def set_hamiltonian(self):
+        """sets the default Hamiltonian based on the XC functional
+        if the user has not specified one"""
+
+        defaults = {'hf'               : 'abinitio',
+                    'hyb_gga_xc_qtp17' : 'qe8',
+                    'bhandhlyp'        : 'r2017'}
+        
+        if self.hamiltonian is None:
+            try:
+                self.hamiltonian = defaults[self.scf.xc.lower()]
+            except:
+                sys.exit('\n\n Error: could not determine a default'
+                         + ' Hamiltonian for XC functional '
+                         + self.scf.xc)
+        
+        return
+        
     # 
     def n_irrep(self):
         """return the number of irreps"""
         return len(self.nstates)
- 
+
+    #
+    def irreps_nonzero(self):
+        """returns the indices of the irreps with a
+        non-zero no. of roots"""        
+        return np.where(self.nstates > 0)[0]
+        
     #
     def n_states(self):
         """total number of states"""
@@ -229,7 +260,7 @@ class Cimethod:
         return
 
     #
-    def update_eri(self, ao2mo):
+    def update_eri(self, eri_mo=None):
         """update the MO integral information used by the CI 
            object. Particularly: the dimension of the MO basis
 
@@ -240,11 +271,15 @@ class Cimethod:
            Returns:
                None
         """
+        if eri_mo == None:
+            eri_mo         = ao2mo.Ao2mo()
+            eri_mo.emo_cut = self.mo_cutoff
+            eri_mo.run(self.scf, self.precision)
 
-        self.nmo   = ao2mo.nmo
-        self.emo   = ao2mo.emo
-        self.mosym = ao2mo.mosym
-        self.mos   = ao2mo.orbs
+        self.nmo   = eri_mo.nmo
+        self.emo   = eri_mo.emo
+        self.mosym = eri_mo.mosym
+        self.mos   = eri_mo.orbs
         #print(self.label+' update_eri, nmo, emo, mosym, mos='+str(self.nmo)+','+str(self.emo)+','+str(self.mosym)+','+str(self.mos.shape),flush=True)
 
         return
@@ -369,9 +404,10 @@ class Cimethod:
 
     #
     def order_energies(self):
-        """orders the self.energies_sym array to create self.energies, a 1D array
-           of energies in ascending order, and a corresponding sym_sorted
-           array of [irrep, st] pairs for each energy in mrci_sorted."""
+        """orders the self.energies_sym array to create self.energies,
+        a 1D array of energies in ascending order, and a corresponding
+        sym_sorted array of [irrep, st] pairs for each energy in 
+        mrci_sorted."""
 
         if self.energies_sym is None:
             sys.exit('error in order_ener: energies_sym is None')
@@ -384,9 +420,9 @@ class Cimethod:
         self.sym_sorted = []
         # mrci_ener_sym is an irrep x maxroots array, with trailing values 
         # of 'zero'. 
-        ener_vals         = np.pad(self.energies_sym, ((0,0),(0,1)), 
-                                   'constant', 
-                                   constant_values=((0,0),(0,0)))
+        ener_vals = np.pad(self.energies_sym, ((0,0),(0,1)), 
+                           'constant', 
+                           constant_values=((0,0),(0,0)))
        
         n_srt = 0
         while n_srt < n_tot:
@@ -414,22 +450,22 @@ class Cimethod:
         nirr = self.n_irrep()
 
         # initialise the list of diabatic potentials
-        self.diabpot = []
+        self.diabpot = [None for i in range(nirr)]
 
         # loop over irreps
-        for irr in range(nirr):
+        for irrep in self.irreps_nonzero():
 
             # no. states
-            nstates = self.n_states_sym(irr)
+            nstates = self.n_states_sym(irrep)
 
             # adiabatic potential matrix
             vmat = np.zeros((nstates, nstates), dtype=float)
-            np.fill_diagonal(vmat, self.energies_sym[irr][:nstates])
+            np.fill_diagonal(vmat, self.energies_sym[irrep][:nstates])
 
             # diabatic potential matrix
-            wmat = np.matmul(self.adt[irr].T,
-                             np.matmul(vmat, self.adt[irr]))
+            wmat = np.matmul(self.adt[irrep].T,
+                             np.matmul(vmat, self.adt[irrep]))
 
-            self.diabpot.append(wmat)
-            
+            self.diabpot[irrep] = wmat
+
         return

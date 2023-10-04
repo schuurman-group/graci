@@ -9,7 +9,7 @@ import graci.utils.basis as basis
 from pyscf.lib import logger
 from pyscf import gto, df
 
-atom_name = ['ghost', 'X' ,'H' , 'He', 
+atom_name = ['Ghost', 'X' ,'H' , 'He', 
              'Li', 'Be', 
              'B' , 'C' , 'N' , 'O' , 'F', 'Ne', 
              'Na', 'Mg', 
@@ -59,7 +59,7 @@ atom_ncore = [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 10, 10, 10, 10, 10, 10,
               10, 10, 10, 10, 10, 16, 16, 16, 16, 16, 16, 16, 16, 16,
               16, 26, 26, 26, 26, 26]
 
-point_grps = ['c1','ci','c2','cs','c2h','c2v','d2 ','d2h']
+point_grps = ['c1','ci','c2','cs','c2h','c2v','d2','d2h']
 nirrep     = [1, 2, 2, 2, 4, 4, 4, 8]
 
 class Molecule:
@@ -75,25 +75,26 @@ class Molecule:
         self.basis    = dict() 
         self.ri_basis = None 
         self.ao_cart  = False
-        self.use_df   = False
+        self.use_df   = True
         self.label    = 'default'
         self.add_rydberg = None
 
         # the following are determined based on user
         # input
-        self.charge    = None 
-        self.mult      = None
-        self.asym      = []
-        self.crds      = None 
-        self.masses    = []
-        self.full_sym  = ''
-        self.comp_sym  = ''
-        self.sym_indx  = -1
-        self.irreplbl  = None
-        self.enuc      = 0.
-        self.mol_obj   = None
-        self.nao       = None
-        self.basis_obj = None
+        self.multi_geom = False
+        self.charge     = None 
+        self.mult       = None
+        self.asym       = []
+        self.crds       = None 
+        self.masses     = []
+        self.full_sym   = ''
+        self.comp_sym   = ''
+        self.sym_indx   = -1
+        self.irreplbl   = None
+        self.enuc       = 0.
+        self.mol_obj    = None
+        self.nao        = None
+        self.basis_obj  = None
 
     def copy(self):
         """create of deepcopy of self"""
@@ -137,7 +138,7 @@ class Molecule:
         self.asym  = atm_strip
         self.masses = np.array([atom_mass[atom_name.index(atm_strip[i])]
                           for i in range(len(self.asym))], dtype=float)
- 
+
         # make the basis set objects from the string alias basis names
         self.make_basis_obj()
 
@@ -175,7 +176,7 @@ class Molecule:
         self.mol_obj.build()
 
         # the nuclear repulsion energy
-        self.enuc     = self.mol_obj.energy_nuc()
+        self.enuc     = self.mol_obj.get_enuc()
         # full point group symmetry of the molecule
         self.full_sym = self.mol_obj.topgroup.lower()
         # point group to be used for computation
@@ -214,17 +215,31 @@ class Molecule:
         if self.ri_basis is None:
             self.ri_basis = {}
 
+        # first go through and make sure asym and basis atom
+        # labels are consistent
+        
+        for iasym in self.asym:
+            acase = [iasym.lower(), iasym.upper(), iasym.capitalize()]
+            for atom, bname in self.basis.items():
+                if atom in acase and atom != iasym:
+                    self.basis[iasym] = self.basis[atom]
+        for atom,bname in self.basis.items():
+            if atom not in self.asym:
+                del self.basis[atom]
+
+        # now go through and make the basis object
         for atom, bname in self.basis.items():
             alias = bname.lower().replace('-','').replace('_','')
 
             # highest priority is the user-specified local directory 
-            if alias in basis.local_basis_sets(local_dir=True):
-                self.basis_obj[atom] = basis.load_basis(atom, bname,
+            if alias in basis.local_basis_sets(local_dir=True, 
+                                               return_alias=True):
+                self.basis_obj[atom] = basis.load_basis(atom, alias,
                                                         local_dir=True)
 
             # ...next the GRACI source directory basis sets
-            elif alias in basis.local_basis_sets():
-                self.basis_obj[atom] = basis.load_basis(atom, bname)
+            elif alias in basis.local_basis_sets(return_alias=True):
+                self.basis_obj[atom] = basis.load_basis(atom, alias)
 
             # next is alias if found in PySCF library, use those
             elif alias in gto.basis.ALIAS.keys():
@@ -274,7 +289,9 @@ class Molecule:
 
     #
     def read_xyz(self):
-        """read the xyz_file specified by 'xyz_file'"""
+        """
+        read the geometry from the xyz_file specified by 'xyz_file'
+        """
 
         # parse contents of xyz file
         try:
@@ -290,10 +307,17 @@ class Molecule:
         self.asym  = []
         xyz        = []
 
+        # do we have a multi-geometry xyz file?
+        ngm = int(len(xyz_gm) / (natm+2))
+        if ngm > 1:
+            self.multi_geom = True
+
+        # parse the geometry
         for i in range(2, natm+2):
             line = xyz_gm[i].strip().split()
             try:
-                atm_indx = atom_name.index(line[0].upper())
+                name_capitalized = line[0][0].upper()+line[0][1:]                
+                atm_indx = atom_name.index(name_capitalized)
                 self.asym.append(atom_name[atm_indx])
             except ValueError:
                 sys.exit('atom '+str(line.strip()[0])+' not found.')
@@ -304,6 +328,7 @@ class Molecule:
                 sys.exit('Cannot interpret input as a geometry')
 
         self.crds = np.array(xyz, dtype=float)
+
         return
 
     # 
@@ -313,13 +338,14 @@ class Molecule:
 
         # if an xyz file is specified, this is default for reading
         # coordinates
-        if self.xyz_file is not None:
+        if self.xyz_file is not None and \
+                              (len(atms)==0 and len(coords)==0):
             self.read_xyz()
             return
 
         # else use the values in atms and coords
-        if all([atm in atom_name for atm in atms]):
-            self.asym = atms
+        if all([atm.capitalize() in atom_name for atm in atms]):
+            self.asym = [atm.capitalize() for atm in atms]
         else:
             print("ATOM list: "+str(atms)+
                   " contains unrecognized atom. Valid atoms are: "+
@@ -339,6 +365,20 @@ class Molecule:
             sys.exit(1)         
             
         return
+
+    # 
+    def coords_updated(self):
+        """return false if the pymol coordinates don't matach the 
+           graci.molecule coordinates"""
+
+        thrsh = 1.e-6
+        pyc   = self.pymol().atom_coords(unit=self.units)
+
+        if pyc.shape != self.crds.shape or \
+                        np.linalg.norm(self.crds - pyc) > thrsh:
+            return True
+        else:
+            return False
 
     # 
     def pymol(self):

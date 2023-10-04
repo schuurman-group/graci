@@ -5,7 +5,7 @@ import sys
 import re
 import pyscf.gto as gto
 
-def local_basis_sets(local_dir=False):
+def local_basis_sets(local_dir=False, return_alias=False):
     """
     Return a list of available local basis sets by alias
     name, i.e. with all special characters stripped 
@@ -19,10 +19,15 @@ def local_basis_sets(local_dir=False):
     else:
         bdir = os.environ['GRACI']+'/graci/utils/basis_sets'
 
-    basis_files = [f.replace('.dat','') for f in os.listdir(bdir) if
-                              os.path.isfile(os.path.join(bdir, f))]
-
-    return basis_files
+    basis_files = [f.replace('.dat','')
+                   for f in os.listdir(bdir) if
+                   os.path.isfile(os.path.join(bdir, f))]
+    
+    if return_alias:
+        return [basis_files[i].lower().replace('-','').replace('_','')
+                                     for i in range(len(basis_files))]
+    else:
+        return basis_files
 
 #
 def load_basis(atom, name, local_dir=False):
@@ -39,12 +44,14 @@ def load_basis(atom, name, local_dir=False):
 
     alias = name.lower().replace('-','').replace('_','')
     basis_avail = local_basis_sets(local_dir=local_dir)
+    basis_alias = local_basis_sets(local_dir=local_dir, return_alias=True)
 
-    if alias not in basis_avail:
+    if alias not in basis_alias:
         sys.exit('basis set: ' + str(name) +
                  ' not in basis sets in directory: ' + str(bdir))
 
-    with open(bdir+'/'+alias+'.dat','r') as bf:
+    fname = basis_alias.index(alias)
+    with open(bdir+'/'+basis_avail[fname]+'.dat','r') as bf:
         bfile = bf.readlines()
 
     bf_atm = ''

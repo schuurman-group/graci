@@ -27,7 +27,7 @@ def truncate_wf(ci_method, rep='adiabatic'):
     # bitci MRCI eigenvector scratch file numbers
     ciunits = mrci_wfn.ci_units[rep]
     
-    for irrep in range(ci_method.n_irrep()):
+    for irrep in ci_method.irreps_nonzero():
         thresh       = ci_method.truncate_thresh
         nroots       = ci_method.n_states_sym(irrep)
         nconf_new    = 0

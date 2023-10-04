@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,ham1,label1,verbose1) bind(c,name="bitci_initialise")
+     escf1,icvs1,ham1,label1,verbose1) bind(c,name="bitci_initialise")
 #else
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,ham1,label1,verbose1)
+     escf1,icvs1,ham1,label1,verbose1)
 #endif
 
   use constants
@@ -29,9 +29,10 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   integer(ib), intent(in)            :: mosym1(nmo1)
   real(dp), intent(in)               :: moen1(nmo1)
   real(dp), intent(in)               :: escf1
+  integer(is), intent(in)            :: icvs1(nmo1)
   logical, intent(in)                :: verbose1
   real(dp)                           :: s,smax
-
+  
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: label1(*),ham1(*)
   character(len=255)                 :: label,ham
@@ -40,9 +41,9 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   character(len=*), intent(in)       :: label1,ham1
   character(len=255)                 :: label
 #endif
-
-  integer(is)                        :: i,iham(1)
   
+  integer(is)                        :: i,iham(1)
+
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the Hamiltonian and calculation
 ! labels from the C char type to the Fortran character type
@@ -133,7 +134,21 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   ! MO energies
   allocate(moen(nmo))
   moen=moen1
-  
+
+!----------------------------------------------------------------------
+! Set the core-valence separation information
+!----------------------------------------------------------------------
+  ! CVS core orbital flags
+  allocate(icvs(nmo))
+  icvs=icvs1
+
+  ! Are we running in the CVS approximation
+  if (sum(icvs) > 0) then
+     lcvs=.true.
+  else
+     lcvs=.false.
+  endif
+
 !----------------------------------------------------------------------
 ! Initialise the symmetry arrays
 !----------------------------------------------------------------------
@@ -245,10 +260,10 @@ end subroutine bitci_initialise
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_int_initialize(integral_src, integral_method, &
-     hcore_file, eri_file) bind(c,name="bitci_int_initialize")
+     integral_precision, hcore_file, eri_file) bind(c,name="bitci_int_initialize")
 #else
 subroutine bitci_int_initialize(integral_src, integral_method, &
-     hcore_file, eri_file)
+     integral_precision, hcore_file, eri_file)
 #endif
 
   use constants
@@ -260,11 +275,13 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: integral_src(*)
   character(kind=C_CHAR), intent(in) :: integral_method(*)
+  character(kind=C_CHAR), intent(in) :: integral_precision(*)
   character(kind=C_CHAR), intent(in) :: hcore_file(*)
   character(kind=C_CHAR), intent(in) :: eri_file(*)
 
   character(len=255)                 :: int_src
   character(len=255)                 :: int_method
+  character(len=255)                 :: int_precision
   character(len=255)                 :: f_core
   character(len=255)                 :: f_eri
 
@@ -272,11 +289,13 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 #else
   character(len=*), intent(in)       :: integral_src
   character(len=*), intent(in)       :: integral_method
+  character(len=*), intent(in)       :: integral_precision
   character(len=*), intent(in)       :: hcore_file
   character(len=*), intent(in)       :: eri_file
 
   character(len=255)                 :: int_src
   character(len=255)                 :: int_method
+  character(len=255)                 :: int_precision
   character(len=255)                 :: hcore
   character(len=255)                 :: eri
 #endif
@@ -290,15 +309,18 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
   call c2fstr(integral_src, int_src,length)
   length=cstrlen(integral_method)
   call c2fstr(integral_method, int_method,length)
+  length=cstrlen(integral_precision)
+  call c2fstr(integral_precision, int_precision, length)
   length=cstrlen(hcore_file)
   call c2fstr(hcore_file, f_core,length)
   length=cstrlen(eri_file)
   call c2fstr(eri_file, f_eri,length)
 #else
-  int_src    = adjustl(trim(integral_src))
-  int_method = adjustl(trim(integral_method))
-  f_core     = adjustl(trim(hcore_file))
-  f_eri      = adjustl(trim(eri_file))
+  int_src       = adjustl(trim(integral_src))
+  int_method    = adjustl(trim(integral_method))
+  int_precision = adjustl(trim(integral_precision))
+  f_core        = adjustl(trim(hcore_file))
+  f_eri         = adjustl(trim(eri_file))
 #endif
 
 !----------------------------------------------------------------------
@@ -306,12 +328,35 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 ! exact, or density df
 !----------------------------------------------------------------------
   if (trim(adjustl(int_method)) .eq. 'exact') then
-     allocate(exact::bitci_ints)
+     select case(trim(adjustl(int_precision)))
+         case ('half')
+           allocate(exact_hp::bitci_ints)
+         case ('single')
+           allocate(exact_sp::bitci_ints)
+         case ('double')
+           allocate(exact_dp::bitci_ints)
+         case default
+           stop 'precision not recognized in bitci_init_intgrals: '&
+                 //trim(adjustl(int_precision)) 
+     end select
+
   else if (trim(adjustl(int_method)) .eq. 'df') then
-     allocate(df::bitci_ints)
+     select case(trim(adjustl(int_precision)))
+         case ('half')
+           allocate(df_hp::bitci_ints)
+         case ('single')
+           allocate(df_sp::bitci_ints)
+         case ('double')
+           allocate(df_dp::bitci_ints)
+         case default
+           stop 'precision not recognized in bitci_init_intgrals: '&
+                 //trim(adjustl(int_precision))
+     end select
+
   else
      stop 'integral method not recognized in bitci_init_integrals: '&
           //trim(adjustl(int_method))
+
   endif
 
 !----------------------------------------------------------------------

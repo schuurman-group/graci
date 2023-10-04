@@ -22,17 +22,6 @@ import graci.interfaces.bitci.mrci_1rdm as mrci_1rdm
 import graci.interfaces.bitci.mrci_wf as mrci_wf
 import graci.interfaces.overlap.bdd as bdd
 
-# MRCI and DFT/MRCI Hamiltonian labels
-hamiltonians   = ['canonical',
-                  'grimme_standard',
-                  'grimme_short',
-                  'lyskov_standard',
-                  'lyskov_short',
-                  'heil17_standard',
-                  'heil17_short',
-                  'heil18_standard',
-                  'heil18_short']
-
 class Dftmrci2(cimethod.Cimethod):
     """Class constructor for DFT/MRCI(2) objects"""
     def __init__(self, ci_obj=None):        
@@ -44,7 +33,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.truncate_thresh = 0.9
         self.regularizer     = 'isa'
         self.regfac          = None
-        self.hamiltonian     = 'heil17_standard'
+        self.hamiltonian     = None
         self.ras1            = []
         self.ras2            = []
         self.ras3            = []
@@ -122,8 +111,13 @@ class Dftmrci2(cimethod.Cimethod):
         """ compute the DFT/MRCI(2) eigenpairs for all irreps """
 
         # set the scf object
-        self.set_scf(scf)
+        scf_energy = self.set_scf(scf, ci_guess=guess)
+        if scf_energy is None:
+            return None
 
+        # set the Hamiltonian
+        self.set_hamiltonian()
+        
         # sanity check on the input variables
         self.sanity_check(scf, guess)
 
@@ -145,7 +139,11 @@ class Dftmrci2(cimethod.Cimethod):
         if self.verbose:
             output.print_coords(self.scf.mol.crds,
                                 self.scf.mol.asym)
-        
+
+        # write the Hamiltonian information to the log file
+        if self.verbose:
+            output.print_hamiltonian(self.hamiltonian)
+            
         # initialize bitci
         bitci_init.init(self)
 
@@ -187,7 +185,7 @@ class Dftmrci2(cimethod.Cimethod):
                 ref_ci_units, ref_ener = ref_diag.diag_follow(self, guess)
             else:
                 ref_ci_units, ref_ener = ref_diag.diag(self)
-            
+
             # set the ci files and reference energies
             self.ref_wfn.set_ciunits(ref_ci_units)
             self.ref_ener = ref_ener
@@ -229,7 +227,7 @@ class Dftmrci2(cimethod.Cimethod):
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
                     q_units, dsp_units = gvvpt2.diag_heff(self)
-                
+
             # set the wfn unit numbers, file names, energies,
             # Q-space info, and damped strong perturber unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
@@ -263,18 +261,17 @@ class Dftmrci2(cimethod.Cimethod):
 
         # diabatisation
         if self.diabatic:
-
             if self.adt_type == 'bdd':
                 # block diagonalisation diabatisation
                 adt_matrices = bdd.adt(guess, self)
                 self.adt     = adt_matrices
                 self.diabatize()
-
-            elif self.adt_type == 'qdpt':
+            elif self.adt_type == 'qdpt':                
                 # QDPT diabatisation
                 diabpots, ciunits, cinames, \
                     confunits, confnames, nconfs = \
                         gvvpt2_diab.diabpot(guess, self)
+                
                 self.diabpot = diabpots
                 self.mrci_wfn.set_ciunits(ciunits, rep='diabatic')
                 self.mrci_wfn.set_ciname(cinames, rep='diabatic')
@@ -298,7 +295,7 @@ class Dftmrci2(cimethod.Cimethod):
                 output.print_diabpot(self.diabpot, nroots,
                                      self.n_irrep(),
                                      self.scf.mol.irreplbl)
-
+                
         # removal of deadwood configurations
         # (this must be called _after_ the CSF-to-det
         #  transformation)
@@ -328,7 +325,7 @@ class Dftmrci2(cimethod.Cimethod):
         # Finalize the bitCI library
         bitci_init.finalize()
         
-        return 
+        return True 
 
     #
     def sanity_check(self, scf, guess):
@@ -381,9 +378,10 @@ class Dftmrci2(cimethod.Cimethod):
         
         # store them in adiabatic energy order
         n_tot = self.n_states()
+        indx  = self.irreps_nonzero()[0]
         for rep in dmat_sym.keys():
             if dmat_sym[rep] is not None:
-                (nmo1, nmo2, n_dum) = dmat_sym[rep][0].shape  
+                (nmo1, nmo2, n_dum) = dmat_sym[rep][indx].shape  
                 self.dmats[rep] = np.zeros((n_tot, nmo1, nmo2), dtype=float)
                 for istate in range(n_tot):
                     irr, st = self.state_sym(istate)

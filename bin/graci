@@ -21,7 +21,7 @@ def main():
     # parse input, construct list of objects and 
     # put them in obj_array
     obj_array = parse.parse_input()
-
+  
     # build and run computation
     graci_driver = driver.Driver()    
     graci_driver.run(obj_array)

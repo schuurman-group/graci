@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import graci.utils.constants as constants
 import graci.utils.timing as timing
 import graci.core.params as params
+import graci.core.hamiltonians as hamiltonians
 
 #
 file_names = {'input_file'   : '',
@@ -33,7 +34,7 @@ def print_message(message_str):
     """Print a message string to the output file"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        outfile.write('ATTN: '+str(message_str)+'\n')
+        outfile.write('\n\n ATTENTION: '+str(message_str)+'\n')
         outfile.flush()
 
     return
@@ -214,7 +215,7 @@ def print_scf_summary(scf):
     with output_file(file_names['out_file'], 'a+') as outfile:
         if scf.mol.use_df:
             outfile.write(' density fitting employed, basis: '+
-                            str(scf.auxbasis)+'\n\n')
+                            str(scf.auxbasis)+'\n')
 
         outfile.write(' REF energy        = {:16.10f}\n'.format(scf.energy))
         outfile.write(' Nuclear Repulsion = {:16.10f}\n\n'.format(scf.mol.enuc))
@@ -302,19 +303,20 @@ def print_refdiag_summary(ci_method):
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n Reference state energies')
         outfile.write('\n -------------------------')
-    
-        nirr = len(ci_method.nstates)
-        for i in range(nirr):
-            if ci_method.n_states_sym(i) > 0:
-                outfile.write('\n')
-                for n in range(ci_method.n_states_sym(i)):
-                    outfile.write('\n {:<3d} {:3} {:10.6f} {:10.6f}'
-                        .format(n+1, ci_method.scf.mol.irreplbl[i],
-                        ci_method.ref_ener[i,n],
-                        (ci_method.ref_ener[i,n]-mine)*constants.au2ev))
-        outfile.write('\n')
-        outfile.flush()
 
+        fmat = '\n {:<3d} {:3} {:10.6f} {:10.6f}'
+        
+        for i in ci_method.irreps_nonzero():
+            outfile.write('\n')
+            for n in range(ci_method.n_states_sym(i)):
+                outfile.write(fmat.format(n+1,
+                                          ci_method.scf.mol.irreplbl[i],
+                                          ci_method.ref_ener[i,n],
+                                          (ci_method.ref_ener[i,n]-mine)*constants.au2ev))
+                outfile.flush()
+
+        outfile.write('\n')
+                
     return
 
 #
@@ -454,6 +456,9 @@ def print_moments(states, irr, momts):
                                       q_tens[1,1], q_tens[1,2],
                                       q_tens[2,2], q2))
 
+    outfile.write('\n')
+    outfile.flush()
+            
     return
 
 #
@@ -479,7 +484,7 @@ def print_transition_header(label):
 
 #
 def print_transition_table(init_st, init_sym, final_st, final_sym, 
-                           exc_ener, f0l, f2l, f0v, f2v, f0xyz,
+                           exc_ener, f0l, f2l, f0v, f2v, f0xyz, mu,
                            promo, rep): 
     """print out the summary files for the transition moments"""
 
@@ -493,7 +498,8 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         outfile.write('\n '+65*'-')
 
         header  = '\n\n  Initial     Final    Exc Ener                  '
-        header += '             Oscillator Strength (V)'
+        header += '             Transition Dipole      '
+        
         if len(promo) == len(final_st):
             header+= '    Promotion Numbers\n'
 
@@ -504,30 +510,25 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
         if len(promo) == len(final_st):
             header += '      attach     detach'
 
-        #f2(L) is actually mixed gauge and often gives nonsensical results:
-        # removing it for now
-        #header += '  State       State      (eV)      f0(L)    f2(L)'
-        #header += '    f0(V)    f2(V)       x        y        z'
-
         fstr   = '\n {:3d}({:>3}) -> {:3d}({:>3}) {:7.2f}'+ \
-                ' {:9.4f}{:9.4f}{:9.4f}  {:9.4f}{:9.4f}{:9.4f} {:8.4f}   {:8.4f}'
-
+            ' '+3*'{:9.4f}'+'  '+3*'{:9.4f}'+' {:8.4f}   {:8.4f}'
+                
         outfile.write(header)
         outfile.write('\n '+undr_str)
         outfile.write('\n')
-
+        
         for i in range(len(final_st)):
             outfile.write(fstr.format(
-                             init_st,
-                             init_sym,
-                             final_st[i],
-                             final_sym[i],
-                             exc_ener[i]*constants.au2ev, 
-                             f0l[i], 
-                             f0v[i], 
-                             f2v[i],
-                             *f0xyz[i][:],
-                             *promo[i]))
+                init_st,
+                init_sym,
+                final_st[i],
+                final_sym[i],
+                exc_ener[i]*constants.au2ev, 
+                f0l[i], 
+                f0v[i], 
+                f2v[i],
+                *mu[i][:],
+                *promo[i]))
 
         outfile.flush()
     return
@@ -553,16 +554,16 @@ def print_spinorbit_header(label):
 
     return
 
-def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
+def print_spinorbit_table(hsoc, hdim, stlbl, socc, thrsh):
     """print out the summary files for the SOC matrix elements"""
 
     # max bra/ket label length
     llen = max([len(lbl[0]) for lbl in stlbl])
 
     # table header
-    delim = ' '+'-'*(53+2*llen)
-    print('\n'+delim, flush=True)
-    fstr = '  {:<'+str(llen)+'}' \
+    delim = ' '+'-'*(53+2*llen)+'\n'
+
+    fstrh = '  {:<'+str(llen)+'}' \
         + ' {:>3}' \
         + ' {:>4}' \
         + '   ' \
@@ -570,20 +571,9 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
         + ' {:>3}' \
         + ' {:>4}' \
         + ' {:>11}' \
-        + ' {:>11}' \
-    
-    print(fstr.format('Bra',
-                      'I',
-                      'M',
-                      'Ket',
-                      'I',
-                      'M',
-                      'Re <SOC>',
-                      'Im <SOC>'), flush=True)
-    print(delim, flush=True)
+        + ' {:>11}\n' \
 
-    # matrix elements
-    fstr = '  {:<'+str(llen)+'}' \
+    fstrm = '  {:<'+str(llen)+'}' \
         + ' {:3d}' \
         + ' {:4.1f}' \
         + '   ' \
@@ -592,28 +582,61 @@ def print_spinorbit_table(hsoc, hdim, stlbl, thrsh):
         + ' {:4.1f}' \
         + ' {:11.4f}' \
         + ' {:11.4f}' \
-        + ' {:>4}'
-    
-    for i in range(hdim):
-        for j in range(0, i):
+        + ' {:>4}\n'
 
-            soc_cm = hsoc[i,j] * constants.au2cm
+    fstrh2 = '  {:<'+str(llen)+'}' \
+        + ' {:>3}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:>3}' \
+        + ' {:>11}\n'
 
-            if np.abs(soc_cm) > thrsh:
-                print(fstr.format(stlbl[i][0],
-                                  stlbl[i][2] + 1,
-                                  stlbl[i][3],
-                                  stlbl[j][0],
-                                  stlbl[j][2] + 1,
-                                  stlbl[j][3],
-                                  np.real(soc_cm),
-                                  np.imag(soc_cm),
-                                  'cm-1'),
-                      flush=True)
-    
-    # footer
-    print(delim, flush=True)
-    
+    fstrm2 = '  {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + '   ' \
+        + ' {:<'+str(llen)+'}' \
+        + ' {:3d}' \
+        + ' {:11.4f}' \
+        + ' {:>4}\n'
+
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n  Spin-Orbit Coupling Matrix')
+        outfile.write('\n'+delim)
+        outfile.write(fstrh.format('Bra','I','M','Ket','I','M',
+                                        'Re <SOC>','Im <SOC>'))
+        outfile.write(delim)
+
+        for i in range(hdim):
+            for j in range(0, i):
+
+                soc_cm = hsoc[i,j] * constants.au2cm
+
+                if np.abs(soc_cm) > thrsh:
+                    outfile.write(fstrm.format(stlbl[i][0],
+                                              stlbl[i][2] + 1,
+                                              stlbl[i][3],
+                                              stlbl[j][0],
+                                              stlbl[j][2] + 1,
+                                              stlbl[j][3],
+                                              np.real(soc_cm),
+                                              np.imag(soc_cm),
+                                              'cm-1'))
+        outfile.write(delim)    
+
+        outfile.write('\n  Spin-Orbit Coupling Constants')
+        outfile.write('\n'+delim)
+        outfile.write(fstrh2.format('Bra','I','Ket','J','SOCC'))
+        outfile.write(delim)
+        for i in range(len(socc)):
+            socc_cm = socc[i][4] * constants.au2cm
+            if np.abs(socc_cm) > thrsh:
+                outfile.write(fstrm2.format(socc[i][0], socc[i][1]+1, 
+                                            socc[i][2], socc[i][3]+1, 
+                                            socc_cm, 'cm-1'))
+        outfile.write(delim)
+        outfile.flush()
+
     return
 
 
@@ -627,40 +650,41 @@ def print_hsoc_eig(eig, vec, hdim, stlbl):
 
     delim = ' '+'-'*(31+llen)
     
-    fstr_en = '  State {:3d}:' \
+    fstr_en = '\n  State {:3d}:' \
         + ' {:10.4f},' \
         + ' {:10.4f} eV'
 
-    fstr_vec = '  ({:7.4f}, {:7.4f})' \
+    fstr_vec = '\n  ({:7.4f}, {:7.4f})' \
         + ' {:<'+str(llen)+'}' \
         + ' {:3d}' \
         + ' {:4.1f}'
 
+   
+    with output_file(file_names['out_file'], 'a+') as outfile:
     
-    for i in range(hdim):
+        outfile.write('\n Spin-Orbit Eigenstates\n')
+        outfile.write(delim+'\n')
+ 
+        for i in range(hdim):
 
-        print('\n'+delim, flush=True)
-        
-        print(fstr_en.format(i+1,
-                             eig[i],
-                             (eig[i] - eig[0]) * constants.au2ev),
-              flush=True)
+            outfile.write('\n'+delim)
+            de = (eig[i] - eig[0]) * constants.au2ev
+            outfile.write(fstr_en.format(i+1, eig[i], de))
+            outfile.write('\n'+delim)
 
-        print(delim, flush=True)
+            indx = np.flip(np.argsort(np.abs(vec[:, i])))
 
-        indx = np.flip(np.argsort(np.abs(vec[:, i])))
-
-        for j in range(hdim):
-            if np.abs(vec[indx[j], i]) > thrsh:
-                print(fstr_vec.format(np.real(vec[indx[j], i]),
-                                      np.imag(vec[indx[j], i]),
-                                      stlbl[indx[j]][0],
-                                      stlbl[indx[j]][2] + 1,
-                                      stlbl[indx[j]][3],),
-                      flush=True)
-                
-        print(delim, flush=True)
-                
+            for j in range(hdim):
+                if np.abs(vec[indx[j], i]) > thrsh:
+                    outfile.write(fstr_vec.format(
+                                          np.real(vec[indx[j], i]),
+                                          np.imag(vec[indx[j], i]),
+                                          stlbl[indx[j]][0],
+                                          stlbl[indx[j]][2] + 1,
+                                          stlbl[indx[j]][3]))
+            outfile.write('\n'+delim+'\n')      
+        outfile.flush()            
+    
     return
 
 
@@ -695,7 +719,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     llen = max(len(bra_label), len(ket_label))
     
     # table header
-    delim = ' '+'-'*(36)
+    delim = ' '+'-'*(45)
     print('\n'+delim, flush=True)
 
     fstr = '  {:'+str(10+llen)+'}'
@@ -714,16 +738,16 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
     print(delim, flush=True)
 
     # Overlaps
-    fstr = '{:4d} {:<7} {:4d} {:<8} {:9.6f}'
+    fstr = '{:4d} {:<7} {:4d} {:<8} {:>9.6f}'
     for indx in range(len(trans_list)):
         
         sij = overlaps[indx]
         
+        if np.imag(sij) == 0.:
+            sij = np.real(sij)
+        
         bk_st = trans_list[indx]
             
-        #[birr, bst]    = bra_obj.state_sym(bk_st[0])
-        #[kirr, kst]    = ket_obj.state_sym(bk_st[1])
-        
         [birr, bst] = bra_state_sym[bk_st[0]]
         [kirr, kst] = ket_state_sym[bk_st[1]]
                 
@@ -738,7 +762,7 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
         
         print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
                           bk_st[1]+1, '('+irrlbl+')',
-                          sij),
+                          np.real(sij)),
               flush=True)
 
     # table footer
@@ -806,7 +830,7 @@ def print_dyson_table(init_st, init_sym, final_st, final_sym,
     return
     
 #
-def print_param_header(p_ref, exc_ref, init_ci, final_ci):
+def print_param_header(p_ref, exc_ref, ci_objs):
     """
     print header for reparameterization run
     """
@@ -831,20 +855,21 @@ def print_param_header(p_ref, exc_ref, init_ci, final_ci):
             outfile.write(' '+str(molecule)+': '+str(states)+'\n')
 
         outfile.write('\n Found Reference States -----\n\n')
-        for molecule in init_ci.keys():
+        for molecule in ci_objs.keys():
             outfile.write(' '+str(molecule) + ': ' + 
-                          str(init_ci[molecule]) + ': ' + 
-                          str(final_ci[molecule])+'\n')
+                              str(ci_objs[molecule]) + '\n') 
 
         outfile.write('\n Initial Parameter Values\n')
         outfile.write(  ' --------------------------------------\n\n')
         for key,value in p_ref.items():
-            if isinstance(value,str):
-                outfile.write(' {:12s}'.format(key) + ' ' + value + '\n')
-            else:
-                pstr = ''.join(['{:10.6f}']*len(value))
-                outfile.write(' {:12s}'.format(key) + ' ' + 
-                               pstr.format(*value) + '\n')
+            if value is not None:
+                if isinstance(value,str):
+                    outfile.write(' {:12s}'.format(key) + ' ' + 
+                                   value + '\n')
+                else:
+                    pstr = ''.join(['{:10.6f}']*len(value))
+                    outfile.write(' {:12s}'.format(key) + ' ' + 
+                                   pstr.format(*value) + '\n')
         outfile.write('\n\n')
         outfile.flush()
 
@@ -928,11 +953,13 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
         outfile.write('\n\n Final Parameter Values')
         outfile.write('\n -----------------------------------------\n')
         for key,value in p_final.items():
-            if isinstance(value, str):
-                outfile.write(' {:12s}'.format(key) + ' ' + value + '\n')
-            else:
-                pstr = ''.join(['{:10.6f}']*len(value))
-                outfile.write(' {:12s}'.format(key) + ' ' +
+            if value is not None:
+                if isinstance(value, str):
+                    outfile.write(' {:12s}'.format(key) + ' ' +
+                                              value + '\n')
+                else:
+                    pstr = ''.join(['{:10.6f}']*len(value))
+                    outfile.write(' {:12s}'.format(key) + ' ' +
                                 pstr.format(*value) + '\n')
 
         outfile.write('\n\n Reference Data')
@@ -1075,7 +1102,9 @@ def print_diabpot(diabpot, nroots, nirr, irrlbl):
     
     # loop over irreps
     for irr in range(nirr):
-    
+        if nroots[irr] == 0:
+            continue
+        
         # sub-table header
         print(delim, flush=True)
         print('  '+irrlbl[irr]+' block', flush=True)
@@ -1106,4 +1135,33 @@ def print_coords(crds, asym):
                           crds[i,2]),
               flush=True)
     
+    return
+
+def print_hamiltonian(hamiltonian):
+    """prints the name of the Hamiltonian"""
+
+    print('\n\n Hamiltonian Information', flush=True)
+    print(' -----------------------', flush=True)
+
+    # Hamiltonian name + deltaE_sel
+    try:
+        info = ' Hamiltonian: ' + hamiltonians.pretty[hamiltonian]
+    except:
+        info = ' ' + hamiltonian
+
+    # XC functional
+    try:
+        info += '\n\n Intended for use with: ' \
+            + hamiltonians.xc_intended[hamiltonian]
+    except:
+        pass
+
+    # Citation
+    try:
+        info += '\n\n Reference: ' + hamiltonians.references[hamiltonian]
+    except:
+        pass
+    
+    print(info, flush=True)
+
     return
