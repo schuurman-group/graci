@@ -71,6 +71,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   use global
   use detfuncs
   use detsort
+  use reorder
   use factors
   use wfoverlap
   use timing
@@ -263,7 +264,16 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      write(6,'(x,a,x,i0,a,i0)')   'No. ket alpha/beta strings:',&
           nalphaK,'/',nbetaK
   endif
-     
+
+!----------------------------------------------------------------------
+! Re-ordering of the alpha and beta strings s.t. the fixed-occupation
+! orbitals come first
+!----------------------------------------------------------------------
+  ! Bra
+  call det_reorder(n_intB,ndetB,detB)
+
+  STOP
+  
 !----------------------------------------------------------------------
 ! Pre-computation of the unique beta factors
 !----------------------------------------------------------------------

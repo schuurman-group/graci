@@ -47,6 +47,9 @@ module global
   ! Unique beta factors
   real(dp), allocatable    :: betafac(:,:)
 
+  ! Fixed-occupation orbital information
+  integer(is)              :: nfixed_alpha,nfixed_beta
+  
   ! Determinant thresholds
   real(dp), parameter      :: hthrsh=1e-6_dp
   real(dp), parameter      :: fthrsh=1e-6_dp
