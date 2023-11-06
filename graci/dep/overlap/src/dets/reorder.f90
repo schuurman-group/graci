@@ -15,6 +15,7 @@ contains
   subroutine det_reorder(n_int,ndet,det)
 
     use constants
+    use detfuncs, only: list_from_bitstring
     
     implicit none
 
@@ -27,9 +28,13 @@ contains
 
     ! Number of fixed-occupation spin orbitals
     integer(is)                :: nfixed(2)
+
+    ! Fixed-occupation spin orbital indices
+    integer(is), allocatable   :: ifixed_alpha(:),ifixed_beta(:)
     
     ! Everything else
     integer(is)                :: n,k
+    integer(ib)                :: string(n_int)
     
 !----------------------------------------------------------------------
 ! Construct the bit string encodings of the fixed-occupation alpha-
@@ -71,6 +76,28 @@ contains
 
 !----------------------------------------------------------------------
 ! Determine the indices of the fixed occupation spin-orbitals
+!----------------------------------------------------------------------
+    ! Allocate arrays
+    allocate(ifixed_alpha(nfixed(1)))
+    allocate(ifixed_beta(nfixed(2)))
+    ifixed_alpha=0
+    ifixed_beta=0
+    
+    ! Alpha spin
+    string=fixed(:,1)
+    call list_from_bitstring(n_int,string,ifixed_alpha,nfixed(1))
+
+    ! Beta spin
+    string=fixed(:,2)
+    call list_from_bitstring(n_int,string,ifixed_beta,nfixed(2))
+
+!----------------------------------------------------------------------
+! Re-order the alpha and beta strings, computing the associated phase
+! factors as we go
+!----------------------------------------------------------------------
+! Important: We are going to treat the orbital re-ordering as a
+!            series of pairwise pi/2 orbital rotations, *not* orbital
+!            permutations
 !----------------------------------------------------------------------
     
     
