@@ -705,6 +705,34 @@ contains
   end subroutine exc
 
 !######################################################################
+! exc_string: Given two strings s1 and s2, returns bitstrings p and h
+!             encoding, respectively, the indices of the particles and
+!             holes created by the excitation linking s1 and s2
+!######################################################################
+  subroutine exc_string(n_int,s1,s2,p,h)
+
+    use constants
+    
+    implicit none
+
+    integer(is), intent(in)  :: n_int
+    integer(ib), intent(in)  :: s1(n_int),s2(n_int)
+    integer(ib), intent(out) :: p(n_int),h(n_int)
+    integer(ib)              :: c
+    integer(is)              :: ispin,k
+    
+    ! Loop over blocks
+    do k=1,n_int
+       c=ieor(s1(k),s2(k))
+       p(k)=iand(c,s2(k))
+       h(k)=iand(c,s1(k))
+    enddo
+     
+    return
+    
+  end subroutine exc_string
+  
+!######################################################################
 ! exc_degree_string: Computes the excitation degree between two alpha
 !                    or beta strings s1 and s2
 !######################################################################  
