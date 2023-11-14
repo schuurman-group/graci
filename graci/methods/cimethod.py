@@ -82,7 +82,7 @@ class Cimethod:
         # If either are true: we need re-run SCF
         if scf.mol.coords_updated() or not ao2mo.moints_exist(scf):
             if ci_guess is not None:
-                scf_guess = guess.scf.copy() 
+                scf_guess = ci_guess.scf.copy() 
             else:
                 scf_guess = None
             scf_ener = scf.run(scf.mol, scf_guess)
