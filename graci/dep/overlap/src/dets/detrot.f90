@@ -68,7 +68,7 @@ contains
              ibX=det2betaB(id)
              
              ! Apply the phase factors
-             vecB(id,n)=phase_alpha(iaX)*phase_beta(ibx)*vecB(id,n)
+             vecB(id,n)=phase_alpha(iaX)*phase_beta(ibX)*vecB(id,n)
              
           enddo
           
@@ -109,7 +109,7 @@ contains
              ibX=det2betaK(id)
              
              ! Apply the phase factors
-             vecK(id,n)=phase_alpha(iaX)*phase_beta(ibx)*vecK(id,n)
+             vecK(id,n)=phase_alpha(iaX)*phase_beta(ibX)*vecK(id,n)
              
           enddo
        
