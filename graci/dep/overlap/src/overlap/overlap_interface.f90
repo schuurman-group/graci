@@ -150,7 +150,8 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   if (allocated(det2betaB)) deallocate(det2betaB)
   if (allocated(det2betaK)) deallocate(det2betaK)
   if (allocated(betafac))   deallocate(betafac)
-
+  if (allocated(invSff))    deallocate(invSff)
+  
 !----------------------------------------------------------------------
 ! Set some globally accessible variables
 !----------------------------------------------------------------------
@@ -266,10 +267,22 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   endif
 
 !----------------------------------------------------------------------
-! Re-ordering of the alpha and beta strings s.t. the fixed-occupation
-! orbitals come first via a series of pi/2 orbital rotations
+! Are we going to use Schur's determinant identity in the calculation
+! of the unique factors? This is only possible if the numbers of bra
+! and ket MOs are equal
 !----------------------------------------------------------------------
-  call rotate_orbitals
+  if (nmoB == nmoK) then
+     schur=.true.
+  else
+     schur=.false.
+  endif
+  
+!----------------------------------------------------------------------
+! If Schur's determinant identity is being used, then re-order the
+! alpha and beta strings s.t. the fixed-occupation orbitals come first
+! via a series of pi/2 orbital rotations
+!----------------------------------------------------------------------
+  if (schur) call rotate_orbitals
 
 !----------------------------------------------------------------------
 ! Pre-computation of the unique beta factors
@@ -277,8 +290,13 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   allocate(betafac(nbetaB,nbetaK))
   betafac=0.0d0
 
-  call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
-
+  if (schur) then
+     call get_all_factors_schur(nel_betaB,nbetaB,nbetaK,betaB,betaK,&
+          betafac)
+  else
+     call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
+  endif
+     
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------

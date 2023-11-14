@@ -100,6 +100,44 @@ contains
   end subroutine get_all_factors
 
 !######################################################################
+! get_all_factors_schur: Calculation of the complete set of alpha/beta
+!                        factors given sets of unique bra and ket
+!                        alpha/beta strings using Schur's determinant
+!                        identity
+!######################################################################
+  subroutine get_all_factors_schur(nelX,nstringB,nstringK,stringB,&
+       stringK,fac)
+
+    use constants
+    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose
+    use detfuncs
+    
+    implicit none
+
+    ! Number of electrons in each bra and ket string
+    ! (these have to be equal for an overlap calculation)
+    integer(is), intent(in)  :: nelX
+    
+    ! Dimensions
+    integer(is), intent(in)  :: nstringB,nstringK
+
+    ! Unique alpha/beta strings
+    integer(ib), intent(in)  :: stringB(n_intB,nstringB)
+    integer(ib), intent(in)  :: stringK(n_intK,nstringK)    
+
+    ! Alpha/beta factors
+    real(dp), intent(out)    :: fac(nstringB,nstringK)
+
+    print*,''
+    print*,'here'
+    print*,''
+    STOP
+    
+    return
+    
+  end subroutine get_all_factors_schur
+    
+!######################################################################
 ! get_one_factor: Calculation of a single alpha/beta factor given a
 !                 pair of alpha/beta strings and corresponding MO
 !                 occupations  
@@ -159,7 +197,37 @@ contains
     return
     
   end subroutine get_one_factor
+
+!######################################################################
+! hadamard_bound: Calculation of the upper bound of the determinant
+!                 of an input matrix using Hadamard's inequality
+!######################################################################
+  function hadamard_bound(dim,mat)
+
+    use constants
     
+    implicit none
+
+    ! Function result
+    real(dp)                :: hadamard_bound
+
+    ! Input matrix
+    integer(is), intent(in) :: dim
+    real(dp), intent(in)    :: mat(dim,dim)
+
+    ! Everything else
+    integer(is)             :: i
+
+    hadamard_bound=1.0d0
+
+    do i=1,dim
+       hadamard_bound=hadamard_bound*dot_product(mat(:,i),mat(:,i))
+    enddo
+    
+    return
+    
+  end function hadamard_bound
+
 !######################################################################
 ! ludet: Calculation of the determinant of a square matrix via its
 !        LU factorisation. The input matrix is overwritten.
@@ -213,37 +281,7 @@ contains
     return
     
   end function ludet
-
-!######################################################################
-! hadamard_bound: Calculation of the upper bound of the determinant
-!                 of an input matrix using Hadamard's inequality
-!######################################################################
-  function hadamard_bound(dim,mat)
-
-    use constants
-    
-    implicit none
-
-    ! Function result
-    real(dp)                :: hadamard_bound
-
-    ! Input matrix
-    integer(is), intent(in) :: dim
-    real(dp), intent(in)    :: mat(dim,dim)
-
-    ! Everything else
-    integer(is)             :: i
-
-    hadamard_bound=1.0d0
-
-    do i=1,dim
-       hadamard_bound=hadamard_bound*dot_product(mat(:,i),mat(:,i))
-    enddo
-    
-    return
-    
-  end function hadamard_bound
-    
+  
 !######################################################################
   
 end module factors

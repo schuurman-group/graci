@@ -34,10 +34,15 @@ contains
     
     ! Orbital transformation matrices
     real(dp), allocatable    :: UB(:,:),UK(:,:)    
+
+    ! Number of fixed-occupation orbitals
+    integer(is)              :: nfixedB(2),nfixedK(2)
     
     ! Everything else
     integer(is)              :: n,iaX,ibX,id,i,j
-    real(dp), allocatable    :: tmp(:,:)
+    integer(is)              :: info
+    real(dp), allocatable    :: work(:,:),work1(:,:)
+    integer(is), allocatable :: ipiv(:)
     
 !----------------------------------------------------------------------
 ! Bra determinants
@@ -47,10 +52,12 @@ contains
     allocate(phase_beta(nbetaB))
     
     ! Rotate the alpha strings and comput the associated phase factors
-    call rotate_string(n_intB,nalphaB,alphaB,phase_alpha,pB,hB)
+    call rotate_string(n_intB,nalphaB,alphaB,phase_alpha,pB,hB,&
+         nfixedB(1))
     
     ! Rotate the beta strings and comput the associated phase factors
-    call rotate_string(n_intB,nbetaB,betaB,phase_beta,pB,hB)
+    call rotate_string(n_intB,nbetaB,betaB,phase_beta,pB,hB,&
+         nfixedB(2))
     
     ! Apply the phase factors to the eigenvectors
     !
@@ -75,7 +82,7 @@ contains
        enddo
     
     enddo
-       
+    
     ! Deallocate arrays
     deallocate(phase_alpha)
     deallocate(phase_beta)
@@ -88,10 +95,12 @@ contains
     allocate(phase_beta(nbetaK))
     
     ! Rotate the alpha strings and comput the associated phase factors
-    call rotate_string(n_intK,nalphaK,alphaK,phase_alpha,pK,hK)
+    call rotate_string(n_intK,nalphaK,alphaK,phase_alpha,pK,hK,&
+         nfixedK(1))
 
     ! Rotate the beta strings and comput the associated phase factors
-    call rotate_string(n_intK,nbetaK,betaK,phase_beta,pK,hK)
+    call rotate_string(n_intK,nbetaK,betaK,phase_beta,pK,hK,&
+         nfixedK(2))
     
     ! Apply the phase factors to the eigenvectors
     !
@@ -121,6 +130,15 @@ contains
     deallocate(phase_alpha)
     deallocate(phase_beta)
 
+!----------------------------------------------------------------------
+! Sanity check on the numbers of fixed-occupation orbitals
+!----------------------------------------------------------------------
+    if (nfixedB(1) /= nfixedB(2) .or. nfixedK(1) /= nfixedK(2)) then
+       write(6,'(/,2x,a)') 'Error in rotate_orbitals: unequal ' &
+            //'numbers of alpha and beta fixed orbitals'
+       stop
+    endif
+    
 !----------------------------------------------------------------------
 ! Rotate the MO overlap matrix
 !----------------------------------------------------------------------
@@ -187,9 +205,67 @@ contains
     enddo
 
     ! Rotate the MO overlap matrix
-    allocate(tmp(nmoB,nmoK))
-    tmp=matmul(smo,UK)
-    smo=matmul(transpose(UB),tmp)
+    allocate(work(nmoB,nmoK))
+    work=matmul(smo,UK)
+    smo=matmul(transpose(UB),work)
+
+    ! Deallocate the work array
+    deallocate(work)
+    
+!----------------------------------------------------------------------
+! Set the dimension of the fixed- and variable-occupation spaces
+! Note that if we are here then nmoB = nmoK    
+!----------------------------------------------------------------------
+    nfixed=min(nfixedB(1),nfixedK(1))
+    nvar=nmoB-nfixed
+
+!----------------------------------------------------------------------
+! Pre-compute the determinant and inverse of the f,f-block of the
+! MO overlap matrix via its LU factorisation
+!----------------------------------------------------------------------
+    ! Allocate arrays
+    allocate(work(nfixed,nfixed))
+    allocate(work1(nfixed,nfixed))
+    allocate(ipiv(nfixed))
+    allocate(invSff(nfixed,nfixed))
+    work=0.0d0
+    work1=0.0d0
+    ipiv=0
+    invSff=0.0d0
+
+    ! LU factorisation if S^(f,f)
+    work=smo(1:nfixed,1:nfixed)
+    call dgetrf(nfixed,nfixed,work,nfixed,ipiv,info)
+
+    ! Exit if dgetrf failed
+    if (info < 0) then
+       write(6,'(/,x,a,i3)') &
+            'Error in rotate_orbitals: LU decomposition failed, info=',&
+            info
+       stop
+    endif
+    
+    ! det S^(f,f)
+    detSff=1.0d0
+    do i=1,nfixed
+       if (ipiv(i) /= i) then
+          detSff=-detSff*work(i,i)
+       else
+          detSff=detSff*work(i,i)
+       endif
+    enddo
+
+    ! (S^(f,f))^-1
+    call dgetri(nfixed,work,nfixed,ipiv,work1,nfixed,info)
+    invSff=work
+
+    ! Exit if dgetri failed
+    if (info < 0) then
+       write(6,'(/,x,a,i3)') &
+            'Error in rotate_orbitals: inversion failed, info=',&
+            info
+       stop
+    endif
     
     return
     
@@ -205,7 +281,7 @@ contains
 !                         and annihilation operator bit strings
 !                         p and h
 !######################################################################
-  subroutine rotate_string(n_int,nsigma,sigma,phase,p,h)
+  subroutine rotate_string(n_int,nsigma,sigma,phase,p,h,nfixed)
 
     use constants
     use detfuncs, only: list_from_bitstring, exc_degree_string, &
@@ -222,6 +298,9 @@ contains
 
     ! Orbital pairs
     integer(ib), intent(out)   :: p(n_int),h(n_int)
+
+    ! Number of fixed-occupation orbitals
+    integer(is), intent(out)   :: nfixed
     
     ! Orbital rotation information
     integer(is)                :: nrot
@@ -236,7 +315,7 @@ contains
 !----------------------------------------------------------------------
 ! Get the lists of orbital pairs to be rotated
 !----------------------------------------------------------------------
-    call get_pairs(n_int,nsigma,sigma,nrot,p,h,plist,hlist)
+    call get_pairs(n_int,nsigma,sigma,nrot,p,h,plist,hlist,nfixed)
 
     ! If there are no orbital rotations to perform, then return here
     if (nrot == 0) return
@@ -325,7 +404,7 @@ contains
 !            to change the spin orbital ordering s.t. the fixed-
 !            occupation orbitals come first
 !######################################################################
-  subroutine get_pairs(n_int,nsigma,sigma,nrot,p,h,plist,hlist)
+  subroutine get_pairs(n_int,nsigma,sigma,nrot,p,h,plist,hlist,nfixed)
 
     use constants
     use detfuncs, only: list_from_bitstring, exc_degree_string, &
@@ -341,12 +420,12 @@ contains
     integer(is), intent(out)   :: nrot
     integer(ib), intent(out)   :: p(n_int),h(n_int)
     integer(is), allocatable   :: plist(:),hlist(:)
+
+    ! Number of fixed-occupation spin orbitals
+    integer(is), intent(out)   :: nfixed
     
     ! Bit string encoding of the fixed-occupation spin orbitals
     integer(ib)                :: fstring(n_int)
-
-    ! Number of fixed-occupation spin orbitals
-    integer(is)                :: nfixed
 
     ! Everything else
     integer(is)                :: n,i,k
