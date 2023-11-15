@@ -46,7 +46,6 @@ contains
 
     ! Everything else
     integer(is)              :: ibra,iket,m,n
-    real(dp)                 :: determinant
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -105,18 +104,20 @@ contains
 !                        alpha/beta strings using Schur's determinant
 !                        identity
 !######################################################################
-  subroutine get_all_factors_schur(nelX,nstringB,nstringK,stringB,&
-       stringK,fac)
+  subroutine get_all_factors_schur(nfixedX,nvarX,nstringB,nstringK,&
+       stringB,stringK,fac)
 
     use constants
-    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose
+    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose,&
+                      invSff,detSff
     use detfuncs
     
     implicit none
 
-    ! Number of electrons in each bra and ket string
+    ! Number of fixed- and variable-occupation orbitals in each
+    ! bra and ket string
     ! (these have to be equal for an overlap calculation)
-    integer(is), intent(in)  :: nelX
+    integer(is), intent(in)  :: nfixedX,nvarX
     
     ! Dimensions
     integer(is), intent(in)  :: nstringB,nstringK
@@ -128,11 +129,103 @@ contains
     ! Alpha/beta factors
     real(dp), intent(out)    :: fac(nstringB,nstringK)
 
-    print*,''
-    print*,'here'
-    print*,''
-    STOP
+    ! Occupied MOs
+    integer(is)              :: nelX,noccB,noccK
+    integer(is), allocatable :: occB(:),occK(:)
+
+    ! Work arrays
+    real(dp), allocatable    :: Svv(:,:),Svf(:,:),Sfv(:,:)
+    real(dp), allocatable    :: work(:,:),invSffSfv(:,:)
+    integer(is), allocatable :: ipiv(:)
+
+    ! Everything else
+    integer(is)              :: ibra,iket,m,n,mm,nn
+    real(dp)                 :: bound
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    ! Total number of electrons
+    nelX=nfixedX+nvarX
+
+    ! Orbital occupations
+    allocate(occB(nelX), occK(nelX))
+    occB=0; occK=0
+
+    ! Blocks of the orbital overlap matrix
+    allocate(Svv(nvarX,nvarX), Svf(nvarX,nfixedX), Sfv(nfixedX,nvarX))
+    Svv=0.0d0; Svf=0.0d0; Sfv=0.0d0
     
+    ! Work arrays
+    allocate(ipiv(nvarX), work(nvarX,nvarX), invSffSfv(nfixedX,nvarX))
+    ipiv=0; work=0.0d0; invSffSfv=0.0d0
+
+!----------------------------------------------------------------------
+! Compute the unique factors
+!----------------------------------------------------------------------
+    ! Loop over ket strings
+    do iket=1,nstringK
+    
+       ! Get the ket occupied MO indices
+       call mo_occ_string(n_intK,stringK(:,iket),nelX,noccK,occK)
+       
+       ! Loop over bra strings
+       do ibra=1,nstringB
+
+          ! Get the bra occupied MO indices
+          call mo_occ_string(n_intB,stringB(:,ibra),nelX,noccB,occB)
+
+          ! Fill in the var-var block of the bra-ket MO overlap matrix,
+          ! S^(v,v)
+          do m=1,nvarX
+             mm=m+nfixedX
+             do n=1,nvarX
+                nn=n+nfixedX
+                Svv(n,m)=smo(occB(nn),occK(mm))
+             enddo
+          enddo
+
+          ! Fill in the var-fixed block of the bra-ket MO overlap matrix,
+          ! S^(v,f)
+          do m=1,nfixedX
+             do n=1,nvarX
+                nn=n+nfixedX
+                Svf(n,m)=smo(occB(nn),occK(m))
+             enddo
+          enddo
+
+          ! Fill in the fixed-var block of the bra-ket MO overlap matrix,
+          ! S^(f,v)
+          do m=1,nvarX
+             mm=m+nfixedX
+             do n=1,nfixedX
+                Sfv(n,m)=smo(occB(n),occK(mm))
+             enddo
+          enddo
+
+          ! [S^(f,f)]^-1 S^(f,v)
+          call dgemm('N','N',nfixedX,nvarX,nfixedX,1.0d0,invSff,&
+               nfixedX,Sfv,nfixedX,0.0d0,invSffSfv,nfixedX)
+          
+          ! S^(v,v) - S^(v,f) [S^(f,f)]^-1 S^(f,v)
+          work=Svv
+          call dgemm('N','N',nvarX,nvarX,nfixedX,-1.0d0,Svf,nvarX,&
+               invSffSfv,nfixedX,1.0d0,work,nvarX)
+
+          ! Determinant screening
+          bound=detSff*hadamard_bound(nvarX,work)
+          if (bound < hthrsh) then
+             fac(ibra,iket)=0.0d0
+             cycle
+          endif
+
+          ! Determinant of the matrix of MO overlaps
+          fac(ibra,iket)=detSff*ludet(nvarX,work,ipiv)
+          
+       enddo
+
+    enddo
+
     return
     
   end subroutine get_all_factors_schur
@@ -155,7 +248,7 @@ contains
     ! Number of electrons in string
     integer(is), intent(in)  :: nelX
     
-    ! Unique alpha/beta strings
+    ! Alpha/beta strings
     integer(ib), intent(in)  :: stringB(n_intB)
     integer(ib), intent(in)  :: stringK(n_intK)    
 
@@ -198,6 +291,113 @@ contains
     
   end subroutine get_one_factor
 
+!######################################################################
+! get_one_factor_schur: Calculation of a single alpha/beta factor given
+!                       a pair of alpha/beta strings and corresponding
+!                       MO occupations using Schur's determinant
+!                       identity
+!######################################################################
+  subroutine get_one_factor_schur(nelX,nfixedX,nvarX,stringB,stringK,&
+       occB,occK,Svv,Svf,Sfv,invSffSfv,work,ipiv,fac)
+
+    use constants
+    use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose,&
+                      invSff,detSff
+    use detfuncs
+    
+    implicit none
+
+    ! Number of electrons
+    integer(is), intent(in) :: nelX
+    
+    ! Number of fixed- and variable-occupation orbitals in each
+    ! bra and ket string
+    ! (these have to be equal for an overlap calculation)
+    integer(is), intent(in)  :: nfixedX,nvarX
+    
+    ! Alpha/beta strings
+    integer(ib), intent(in)  :: stringB(n_intB)
+    integer(ib), intent(in)  :: stringK(n_intK)    
+
+    ! MO occupations
+    integer(is), intent(in)  :: occB(nelX),occK(nelX)
+    
+    ! Work arrays
+    real(dp), intent(out)    :: Svv(nvarX,nvarX),Svf(nvarX,nfixedX),&
+                                Sfv(nfixedX,nvarX),&
+                                invSffSfv(nfixedX,nvarX)
+    real(dp), intent(out)    :: work(nvarX,nvarX)
+    integer(is), intent(out) :: ipiv(nvarX)
+    
+    ! Alpha/beta factor
+    real(dp), intent(out)    :: fac
+
+    ! Everything else
+    integer(is)              :: m,n,mm,nn
+    real(dp)                 :: bound
+
+!----------------------------------------------------------------------
+! Fill in the var-var block of the bra-ket MO overlap matrix, S^(v,v)
+!----------------------------------------------------------------------
+    do m=1,nvarX
+       mm=m+nfixedX
+       do n=1,nvarX
+          nn=n+nfixedX
+          Svv(n,m)=smo(occB(nn),occK(mm))
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the var-fixed block of the bra-ket MO overlap matrix, S^(v,f)
+!----------------------------------------------------------------------
+    do m=1,nfixedX
+       do n=1,nvarX
+          nn=n+nfixedX
+          Svf(n,m)=smo(occB(nn),occK(m))
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the fixed-var block of the bra-ket MO overlap matrix, S^(f,v)
+!----------------------------------------------------------------------
+    do m=1,nvarX
+       mm=m+nfixedX
+       do n=1,nfixedX
+          Sfv(n,m)=smo(occB(n),occK(mm))
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! [S^(f,f)]^-1 S^(f,v)
+!----------------------------------------------------------------------
+    call dgemm('N','N',nfixedX,nvarX,nfixedX,1.0d0,invSff,nfixedX,Sfv,&
+         nfixedX,0.0d0,invSffSfv,nfixedX)
+    
+!----------------------------------------------------------------------
+! S^(v,v) - S^(v,f) [S^(f,f)]^-1 S^(f,v)
+!----------------------------------------------------------------------
+    work=Svv
+    call dgemm('N','N',nvarX,nvarX,nfixedX,-1.0d0,Svf,nvarX,invSffSfv,&
+         nfixedX,1.0d0,work,nvarX)
+    
+!----------------------------------------------------------------------
+! Determinant screening
+!----------------------------------------------------------------------
+    bound=detSff*hadamard_bound(nvarX,work)
+    if (bound < hthrsh) then
+       fac=0.0d0
+       return
+    endif
+    
+!----------------------------------------------------------------------
+! Determinant of the matrix of MO overlaps
+!----------------------------------------------------------------------
+    fac=detSff*ludet(nvarX,work,ipiv)
+    
+    return
+    
+  end subroutine get_one_factor_schur
+    
 !######################################################################
 ! hadamard_bound: Calculation of the upper bound of the determinant
 !                 of an input matrix using Hadamard's inequality

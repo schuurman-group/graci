@@ -214,10 +214,12 @@ contains
     
 !----------------------------------------------------------------------
 ! Set the dimension of the fixed- and variable-occupation spaces
-! Note that if we are here then nmoB = nmoK    
 !----------------------------------------------------------------------
     nfixed=min(nfixedB(1),nfixedK(1))
-    nvar=nmoB-nfixed
+    nvar_alphaB=nel_alphaB-nfixed
+    nvar_betaB=nel_betaB-nfixed
+    nvar_alphaK=nel_alphaK-nfixed
+    nvar_betaK=nel_betaK-nfixed
 
 !----------------------------------------------------------------------
 ! Pre-compute the determinant and inverse of the f,f-block of the

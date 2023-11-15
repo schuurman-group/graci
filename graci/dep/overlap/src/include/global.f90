@@ -51,7 +51,8 @@ module global
   logical                  :: schur
   
   ! Fixed- and variable-occupation orbital information
-  integer(is)              :: nfixed,nvar
+  integer(is)              :: nfixed,nvar_alphaB,nvar_betaB,&
+                              nvar_alphaK,nvar_betaK
 
   ! Determinant and inverse of the fixed-fixed block of the
   ! MO overlap matrix

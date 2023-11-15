@@ -273,17 +273,19 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   if (nmoB == nmoK) then
      schur=.true.
+     write(6,'(/,x,a)') 'Schur''s identity used'
   else
      schur=.false.
+     write(6,'(/,x,a)') 'Schur''s identity not used'
   endif
-  
+
 !----------------------------------------------------------------------
 ! If Schur's determinant identity is being used, then re-order the
 ! alpha and beta strings s.t. the fixed-occupation orbitals come first
 ! via a series of pi/2 orbital rotations
 !----------------------------------------------------------------------
   if (schur) call rotate_orbitals
-
+  
 !----------------------------------------------------------------------
 ! Pre-computation of the unique beta factors
 !----------------------------------------------------------------------
@@ -291,8 +293,8 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   betafac=0.0d0
 
   if (schur) then
-     call get_all_factors_schur(nel_betaB,nbetaB,nbetaK,betaB,betaK,&
-          betafac)
+     call get_all_factors_schur(nfixed,nvar_betaB,nbetaB,nbetaK,&
+          betaB,betaK,betafac)
   else
      call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
   endif
@@ -300,8 +302,12 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------
-  call get_overlaps(npairs,ipairs,Sij)
-
+  if (schur) then
+     call get_overlaps_schur(npairs,ipairs,Sij)
+  else
+     call get_overlaps(npairs,ipairs,Sij)
+  endif
+     
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
