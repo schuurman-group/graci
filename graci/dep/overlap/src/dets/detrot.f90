@@ -19,7 +19,6 @@ contains
     use constants
     use global
     use detfuncs, only: list_from_bitstring,get_nel_string
-    use timing
     
     implicit none
 
@@ -39,21 +38,12 @@ contains
     ! Number of fixed-occupation orbitals
     integer(is)              :: nfixedB(2),nfixedK(2)
 
-    ! Timing variables
-    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
-                                twall_end
-    
     ! Everything else
     integer(is)              :: n,iaX,ibX,id,i,j
     integer(is)              :: info
     real(dp), allocatable    :: work(:,:),work1(:,:)
     integer(is), allocatable :: ipiv(:)
 
-!----------------------------------------------------------------------
-! Start timing
-!----------------------------------------------------------------------
-    call get_times(twall_start,tcpu_start)
-    
 !----------------------------------------------------------------------
 ! Bra determinants
 !----------------------------------------------------------------------
@@ -299,14 +289,6 @@ contains
        stop
     endif
 
-!----------------------------------------------------------------------
-! Stop timing and print report
-!----------------------------------------------------------------------
-    call get_times(twall_end,tcpu_end)
-    if (verbose) &
-         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
-         'rotate_orbitals')
-    
     return
     
   end subroutine rotate_orbitals

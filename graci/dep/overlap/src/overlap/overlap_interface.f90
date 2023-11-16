@@ -267,9 +267,11 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   endif
 
 !----------------------------------------------------------------------
-! For now, we will hard-wire the use of Schur's determinant identity
+! For now, we will turn off the use of Schur's determinant identity
+! as, for most use cases, it doesn't lead to any increase in
+! performance
 !----------------------------------------------------------------------
-  schur=.true.
+  schur=.false.
   
 !----------------------------------------------------------------------
 ! If Schur's determinant identity is being used, then re-order the
@@ -278,7 +280,8 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   if (schur) then
      call rotate_orbitals
-     write(6,'(/,x,a,x,i0)') 'No. fixed-occupation orbitals:',nfixed
+     if (verbose) write(6,'(/,x,a,x,i0)') &
+          'No. fixed-occupation orbitals:',nfixed
   endif
      
 !----------------------------------------------------------------------
