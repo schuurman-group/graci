@@ -19,6 +19,7 @@ contains
     use constants
     use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose
     use detfuncs
+    use timing
     
     implicit none
 
@@ -44,9 +45,18 @@ contains
     real(dp), allocatable    :: work(:,:)
     integer(is), allocatable :: ipiv(:)
 
+    ! Timing variables
+    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
+                                twall_end
+    
     ! Everything else
     integer(is)              :: ibra,iket,m,n
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -94,6 +104,14 @@ contains
        
     enddo
 
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+         'get_all_factors')
+
     return
     
   end subroutine get_all_factors
@@ -111,6 +129,7 @@ contains
     use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose,&
                       invSff,detSff
     use detfuncs
+    use timing
     
     implicit none
 
@@ -138,9 +157,18 @@ contains
     real(dp), allocatable    :: work(:,:),invSffSfv(:,:)
     integer(is), allocatable :: ipiv(:)
 
+    ! Timing variables
+    real(dp)                 :: tcpu_start,tcpu_end,twall_start,&
+                                twall_end
+    
     ! Everything else
     integer(is)              :: ibra,iket,m,n,mm,nn
 
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -235,6 +263,14 @@ contains
 
     enddo
 
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+         'get_all_factors_schur')
+    
     return
     
   end subroutine get_all_factors_schur

@@ -270,7 +270,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 ! For now, we will hard-wire the use of Schur's determinant identity
 !----------------------------------------------------------------------
   schur=.true.
-  write(6,'(/,x,a)') 'Schur''s identity used'
   
 !----------------------------------------------------------------------
 ! If Schur's determinant identity is being used, then re-order the
