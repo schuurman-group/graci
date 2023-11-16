@@ -134,13 +134,12 @@ contains
     integer(is), allocatable :: occB(:),occK(:)
 
     ! Work arrays
-    real(dp), allocatable    :: Svv(:,:),Svf(:,:),Sfv(:,:)
+    real(dp), allocatable    :: S(:,:),Svv(:,:),Svf(:,:),Sfv(:,:)
     real(dp), allocatable    :: work(:,:),invSffSfv(:,:)
     integer(is), allocatable :: ipiv(:)
 
     ! Everything else
     integer(is)              :: ibra,iket,m,n,mm,nn
-    real(dp)                 :: bound
 
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -152,6 +151,10 @@ contains
     allocate(occB(nelX), occK(nelX))
     occB=0; occK=0
 
+    ! Orbital overlap matrix
+    allocate(S(nelX,nelX))
+    S=0.0d0
+    
     ! Blocks of the orbital overlap matrix
     allocate(Svv(nvarX,nvarX), Svf(nvarX,nfixedX), Sfv(nfixedX,nvarX))
     Svv=0.0d0; Svf=0.0d0; Sfv=0.0d0
@@ -175,13 +178,26 @@ contains
           ! Get the bra occupied MO indices
           call mo_occ_string(n_intB,stringB(:,ibra),nelX,noccB,occB)
 
+          ! Fill in the complete bra-ket MO overlap matrix
+          do m=1,nelX
+             do n=1,nelX
+                S(n,m)=smo(occB(n),occK(m))
+             enddo
+          enddo
+
+          ! Determinant screening
+          if (hadamard_bound(nelX,S) < hthrsh) then
+             fac(ibra,iket)=0.0d0
+             cycle
+          endif
+          
           ! Fill in the var-var block of the bra-ket MO overlap matrix,
           ! S^(v,v)
           do m=1,nvarX
              mm=m+nfixedX
              do n=1,nvarX
                 nn=n+nfixedX
-                Svv(n,m)=smo(occB(nn),occK(mm))
+                Svv(n,m)=S(nn,mm)
              enddo
           enddo
 
@@ -190,7 +206,7 @@ contains
           do m=1,nfixedX
              do n=1,nvarX
                 nn=n+nfixedX
-                Svf(n,m)=smo(occB(nn),occK(m))
+                Svf(n,m)=S(nn,m)
              enddo
           enddo
 
@@ -199,7 +215,7 @@ contains
           do m=1,nvarX
              mm=m+nfixedX
              do n=1,nfixedX
-                Sfv(n,m)=smo(occB(n),occK(mm))
+                Sfv(n,m)=S(n,mm)
              enddo
           enddo
 
@@ -211,13 +227,6 @@ contains
           work=Svv
           call dgemm('N','N',nvarX,nvarX,nfixedX,-1.0d0,Svf,nvarX,&
                invSffSfv,nfixedX,1.0d0,work,nvarX)
-
-          ! Determinant screening
-          bound=detSff*hadamard_bound(nvarX,work)
-          if (bound < hthrsh) then
-             fac(ibra,iket)=0.0d0
-             cycle
-          endif
 
           ! Determinant of the matrix of MO overlaps
           fac(ibra,iket)=detSff*ludet(nvarX,work,ipiv)
@@ -298,7 +307,7 @@ contains
 !                       identity
 !######################################################################
   subroutine get_one_factor_schur(nelX,nfixedX,nvarX,stringB,stringK,&
-       occB,occK,Svv,Svf,Sfv,invSffSfv,work,ipiv,fac)
+       occB,occK,S,Svv,Svf,Sfv,invSffSfv,work,ipiv,fac)
 
     use constants
     use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose,&
@@ -323,7 +332,8 @@ contains
     integer(is), intent(in)  :: occB(nelX),occK(nelX)
     
     ! Work arrays
-    real(dp), intent(out)    :: Svv(nvarX,nvarX),Svf(nvarX,nfixedX),&
+    real(dp), intent(out)    :: S(nelX,nelX),Svv(nvarX,nvarX),&
+                                Svf(nvarX,nfixedX),&
                                 Sfv(nfixedX,nvarX),&
                                 invSffSfv(nfixedX,nvarX)
     real(dp), intent(out)    :: work(nvarX,nvarX)
@@ -334,8 +344,24 @@ contains
 
     ! Everything else
     integer(is)              :: m,n,mm,nn
-    real(dp)                 :: bound
 
+!----------------------------------------------------------------------
+! Fill in the complete bra-ket MO overlap matrix
+!----------------------------------------------------------------------
+    do m=1,nelX
+       do n=1,nelX
+          S(n,m)=smo(occB(n),occK(m))
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Determinant screening
+!----------------------------------------------------------------------
+    if (hadamard_bound(nelX,S) < hthrsh) then
+       fac=0.0d0
+       return
+    endif    
+    
 !----------------------------------------------------------------------
 ! Fill in the var-var block of the bra-ket MO overlap matrix, S^(v,v)
 !----------------------------------------------------------------------
@@ -343,7 +369,7 @@ contains
        mm=m+nfixedX
        do n=1,nvarX
           nn=n+nfixedX
-          Svv(n,m)=smo(occB(nn),occK(mm))
+          Svv(n,m)=S(nn,mm)
        enddo
     enddo
 
@@ -353,7 +379,7 @@ contains
     do m=1,nfixedX
        do n=1,nvarX
           nn=n+nfixedX
-          Svf(n,m)=smo(occB(nn),occK(m))
+          Svf(n,m)=S(nn,m)
        enddo
     enddo
 
@@ -363,7 +389,7 @@ contains
     do m=1,nvarX
        mm=m+nfixedX
        do n=1,nfixedX
-          Sfv(n,m)=smo(occB(n),occK(mm))
+          Sfv(n,m)=S(n,mm)
        enddo
     enddo
 
@@ -379,15 +405,6 @@ contains
     work=Svv
     call dgemm('N','N',nvarX,nvarX,nfixedX,-1.0d0,Svf,nvarX,invSffSfv,&
          nfixedX,1.0d0,work,nvarX)
-    
-!----------------------------------------------------------------------
-! Determinant screening
-!----------------------------------------------------------------------
-    bound=detSff*hadamard_bound(nvarX,work)
-    if (bound < hthrsh) then
-       fac=0.0d0
-       return
-    endif
     
 !----------------------------------------------------------------------
 ! Determinant of the matrix of MO overlaps

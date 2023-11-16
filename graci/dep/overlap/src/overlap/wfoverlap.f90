@@ -167,13 +167,14 @@ contains
     integer(is), allocatable :: occB(:),occK(:)
 
     ! Work arrays
-    real(dp), allocatable    :: Svv(:,:),Svf(:,:),Sfv(:,:),&
+    real(dp), allocatable    :: S(:,:),Svv(:,:),Svf(:,:),Sfv(:,:),&
                                 invSffSfv(:,:)
     real(dp), allocatable    :: fwork(:,:)
     integer(is), allocatable :: iwork(:)
 
     ! Everything else
     integer(is)              :: n,isB,isK,iaB,iaK,ibB,ibK,idB,idK
+    integer(is)              :: fdim
     real(dp)                 :: afac,bfac
     
 !----------------------------------------------------------------------
@@ -190,7 +191,8 @@ contains
     allocate(occB(nel_alphaB), occK(nel_alphaB))
     occB=0; occK=0
 
-    allocate(Svv(nvar_alphaB,nvar_alphaB), Svf(nvar_alphaB,nfixed), &
+    allocate(S(nel_alphaB,nel_alphaB),Svv(nvar_alphaB,nvar_alphaB),&
+         Svf(nvar_alphaB,nfixed), &
          Sfv(nfixed,nvar_alphaB), invSffSfv(nfixed,nvar_alphaB))
     Svv=0.0d0; Svf=0.0d0; Sfv=0.0d0; invSffSfv=0.0d0
     
@@ -229,7 +231,7 @@ contains
           call get_one_factor_schur(nel_alphaB,nfixed,nvar_alphaB,&
                alphaB(:,iaB),alphaK(:,iaK),&
                occB,occK,&
-               Svv,Svf,Sfv,invSffSfv,fwork,iwork,&
+               S,Svv,Svf,Sfv,invSffSfv,fwork,iwork,&
                afac)
 
           ! Cycle if the alpha factor is below threshold

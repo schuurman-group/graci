@@ -267,25 +267,21 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   endif
 
 !----------------------------------------------------------------------
-! Are we going to use Schur's determinant identity in the calculation
-! of the unique factors? This is only possible if the numbers of bra
-! and ket MOs are equal
+! For now, we will hard-wire the use of Schur's determinant identity
 !----------------------------------------------------------------------
-  if (nmoB == nmoK) then
-     schur=.true.
-     write(6,'(/,x,a)') 'Schur''s identity used'
-  else
-     schur=.false.
-     write(6,'(/,x,a)') 'Schur''s identity not used'
-  endif
-
+  schur=.true.
+  write(6,'(/,x,a)') 'Schur''s identity used'
+  
 !----------------------------------------------------------------------
 ! If Schur's determinant identity is being used, then re-order the
 ! alpha and beta strings s.t. the fixed-occupation orbitals come first
 ! via a series of pi/2 orbital rotations
 !----------------------------------------------------------------------
-  if (schur) call rotate_orbitals
-  
+  if (schur) then
+     call rotate_orbitals
+     write(6,'(/,x,a,x,i0)') 'No. fixed-occupation orbitals:',nfixed
+  endif
+     
 !----------------------------------------------------------------------
 ! Pre-computation of the unique beta factors
 !----------------------------------------------------------------------

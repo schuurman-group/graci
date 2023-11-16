@@ -28,7 +28,7 @@ contains
     ! Orbital rotation information
     integer(ib)              :: pB(n_intB),hB(n_intB)
     integer(ib)              :: pK(n_intK),hK(n_intK)
-    integer(is)              :: npairsB,npairsK
+    integer(is)              :: npairsB,npairsK,nrotB,nrotK
     integer(is), allocatable :: plistB(:),hlistB(:)
     integer(is), allocatable :: plistK(:),hlistK(:)
     
@@ -51,38 +51,42 @@ contains
     allocate(phase_alpha(nalphaB))
     allocate(phase_beta(nbetaB))
     
-    ! Rotate the alpha strings and comput the associated phase factors
+    ! Rotate the alpha strings and compute the associated phase factors
     call rotate_string(n_intB,nalphaB,alphaB,phase_alpha,pB,hB,&
-         nfixedB(1))
+         nfixedB(1),nrotB)
     
-    ! Rotate the beta strings and comput the associated phase factors
+    ! Rotate the beta strings and compute the associated phase factors
     call rotate_string(n_intB,nbetaB,betaB,phase_beta,pB,hB,&
-         nfixedB(2))
-    
+         nfixedB(2),nrotB)
+
+    !
     ! Apply the phase factors to the eigenvectors
     !
-    ! Loop over roots
-    do n=1,nrootsB
-       
-       ! Loop over alpha strings
-       do iaX=1,nalphaB
-    
-          ! Loop over the determinants corresponding to this alpha
-          ! string
-          do id=offsetB(iaX),offsetB(iaX+1)-1
-    
-             ! Beta string for this determinant
-             ibX=det2betaB(id)
+    if (nrotB > 0) then
+       ! Loop over roots
+       do n=1,nrootsB
+          
+          ! Loop over alpha strings
+          do iaX=1,nalphaB
              
-             ! Apply the phase factors
-             vecB(id,n)=phase_alpha(iaX)*phase_beta(ibX)*vecB(id,n)
+             ! Loop over the determinants corresponding to this alpha
+             ! string
+             do id=offsetB(iaX),offsetB(iaX+1)-1
+                
+                ! Beta string for this determinant
+                ibX=det2betaB(id)
+                
+                ! Apply the phase factors
+                vecB(id,n)=phase_alpha(iaX)*phase_beta(ibX)*vecB(id,n)
+                
+             enddo
              
           enddo
           
        enddo
-    
-    enddo
-    
+
+    endif
+       
     ! Deallocate arrays
     deallocate(phase_alpha)
     deallocate(phase_beta)
@@ -94,37 +98,41 @@ contains
     allocate(phase_alpha(nalphaK))
     allocate(phase_beta(nbetaK))
     
-    ! Rotate the alpha strings and comput the associated phase factors
+    ! Rotate the alpha strings and compute the associated phase factors
     call rotate_string(n_intK,nalphaK,alphaK,phase_alpha,pK,hK,&
-         nfixedK(1))
+         nfixedK(1),nrotK)
 
-    ! Rotate the beta strings and comput the associated phase factors
+    ! Rotate the beta strings and compute the associated phase factors
     call rotate_string(n_intK,nbetaK,betaK,phase_beta,pK,hK,&
-         nfixedK(2))
-    
+         nfixedK(2),nrotK)
+
+    !
     ! Apply the phase factors to the eigenvectors
     !
-    ! Loop over roots
-    do n=1,nrootsK
+    if (nrotK > 0) then
+       ! Loop over roots
+       do n=1,nrootsK
        
-       ! Loop over alpha strings
-       do iaX=1,nalphaK
-    
-          ! Loop over the determinants corresponding to this alpha
-          ! string
-          do id=offsetK(iaX),offsetK(iaX+1)-1
-    
-             ! Beta string for this determinant
-             ibX=det2betaK(id)
+          ! Loop over alpha strings
+          do iaX=1,nalphaK
              
-             ! Apply the phase factors
-             vecK(id,n)=phase_alpha(iaX)*phase_beta(ibX)*vecK(id,n)
+             ! Loop over the determinants corresponding to this alpha
+             ! string
+             do id=offsetK(iaX),offsetK(iaX+1)-1
+                
+                ! Beta string for this determinant
+                ibX=det2betaK(id)
+                
+                ! Apply the phase factors
+                vecK(id,n)=phase_alpha(iaX)*phase_beta(ibX)*vecK(id,n)
+                
+             enddo
              
           enddo
-       
+          
        enddo
-    
-    enddo
+
+    endif
        
     ! Deallocate arrays
     deallocate(phase_alpha)
@@ -145,21 +153,29 @@ contains
     ! Get the number of orbital rotation pairs
     ! N.B. the get_nel_string routine simply counts the no. set bits
     ! in a string and can be utilised for this purpose
-    call get_nel_string(n_intB,pB,npairsB)
-    call get_nel_string(n_intK,pK,npairsK)
+    if (nrotB > 0) call get_nel_string(n_intB,pB,npairsB)
+    if (nrotK > 0) call get_nel_string(n_intK,pK,npairsK)
 
     ! Allocate arrays
-    allocate(plistB(npairsB))
-    allocate(hlistB(npairsB))
-    allocate(plistK(npairsK))
-    allocate(hlistK(npairsK))
-    
+    if (nrotB > 0) then
+       allocate(plistB(npairsB))
+       allocate(hlistB(npairsB))
+    endif
+    if (nrotK > 0) then
+       allocate(plistK(npairsK))
+       allocate(hlistK(npairsK))
+    endif
+       
     ! Get the lists of creation and annihilation operators
-    call list_from_bitstring(n_intB,pB,plistB,npairsB)
-    call list_from_bitstring(n_intB,hB,hlistB,npairsB)
-    call list_from_bitstring(n_intK,pK,plistK,npairsK)
-    call list_from_bitstring(n_intK,hK,hlistK,npairsK)
-
+    if (nrotB > 0) then
+       call list_from_bitstring(n_intB,pB,plistB,npairsB)
+       call list_from_bitstring(n_intB,hB,hlistB,npairsB)
+    endif
+    if (nrotK > 0) then
+       call list_from_bitstring(n_intK,pK,plistK,npairsK)
+       call list_from_bitstring(n_intK,hK,hlistK,npairsK)
+    endif
+       
     ! Bra rotation matrix
     allocate(UB(nmoB,nmoB))
     UB=0.0d0
@@ -168,20 +184,22 @@ contains
        UB(i,i)=1.0d0
     enddo
 
-    do n=1,npairsB
-       i=plistB(n)
-       j=hlistB(n)
-       UB(i,i)=0.0d0
-       UB(j,j)=0.0d0
-       if (i < j) then
-          UB(i,j)=-1.0d0
-          UB(j,i)=1.0d0
-       else
-          UB(i,j)=1.0d0
-          UB(j,i)=-1.0d0
-       endif
-    enddo
-
+    if (nrotB > 0) then
+       do n=1,npairsB
+          i=plistB(n)
+          j=hlistB(n)
+          UB(i,i)=0.0d0
+          UB(j,j)=0.0d0
+          if (i < j) then
+             UB(i,j)=-1.0d0
+             UB(j,i)=1.0d0
+          else
+             UB(i,j)=1.0d0
+             UB(j,i)=-1.0d0
+          endif
+       enddo
+    endif
+    
     ! Ket rotation matrix
     allocate(UK(nmoK,nmoK))
     UK=0.0d0
@@ -190,20 +208,22 @@ contains
        UK(i,i)=1.0d0
     enddo
 
-    do n=1,npairsK
-       i=plistK(n)
-       j=hlistK(n)
-       UK(i,i)=0.0d0
-       UK(j,j)=0.0d0
-       if (i < j) then
-          UK(i,j)=-1.0d0
-          UK(j,i)=1.0d0
-       else
-          UK(i,j)=1.0d0
-          UK(j,i)=-1.0d0
-       endif
-    enddo
-
+    if (nrotK > 0) then
+       do n=1,npairsK
+          i=plistK(n)
+          j=hlistK(n)
+          UK(i,i)=0.0d0
+          UK(j,j)=0.0d0
+          if (i < j) then
+             UK(i,j)=-1.0d0
+             UK(j,i)=1.0d0
+          else
+             UK(i,j)=1.0d0
+             UK(j,i)=-1.0d0
+          endif
+       enddo
+    endif
+    
     ! Rotate the MO overlap matrix
     allocate(work(nmoB,nmoK))
     work=matmul(smo,UK)
@@ -268,7 +288,7 @@ contains
             info
        stop
     endif
-    
+
     return
     
   end subroutine rotate_orbitals
@@ -283,7 +303,7 @@ contains
 !                         and annihilation operator bit strings
 !                         p and h
 !######################################################################
-  subroutine rotate_string(n_int,nsigma,sigma,phase,p,h,nfixed)
+  subroutine rotate_string(n_int,nsigma,sigma,phase,p,h,nfixed,nrot)
 
     use constants
     use detfuncs, only: list_from_bitstring, exc_degree_string, &
@@ -303,9 +323,11 @@ contains
 
     ! Number of fixed-occupation orbitals
     integer(is), intent(out)   :: nfixed
+
+    ! Number of orbital rotations
+    integer(is), intent(out)   :: nrot
     
     ! Orbital rotation information
-    integer(is)                :: nrot
     integer(ib)                :: p1(n_int),h1(n_int)
     integer(is), allocatable   :: plist(:),hlist(:),plist1(:),hlist1(:)
     
@@ -489,7 +511,7 @@ contains
     ! Allocate arrays
     allocate(plist(nrot))
     allocate(hlist(nrot))
-
+    
     ! If there are no orbital rotations to perform, then return here
     if (nrot == 0) return
     
