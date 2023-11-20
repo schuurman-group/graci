@@ -84,7 +84,7 @@ class Cimethod:
             if ci_guess is not None:
                 scf_guess = ci_guess.scf.copy() 
             else:
-                scf_guess = None
+                scf_guess = scf 
             scf_ener = scf.run(scf.mol, scf_guess)
 
             if scf_ener is None:
