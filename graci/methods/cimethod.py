@@ -90,11 +90,12 @@ class Cimethod:
             if scf_ener is None:
                 return scf_ener
 
-        # update the mo integrals
-        self.update_eri(mo_ints)
-
+        # set the local scf object
         self.scf = scf
         self.nel = scf.nel
+
+        # update the mo integrals
+        self.update_eri(mo_ints)
 
         # Default spin multiplicity: inherited from the scf object
         if self.mult is None:
