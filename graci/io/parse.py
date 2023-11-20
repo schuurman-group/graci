@@ -64,11 +64,13 @@ def parse_section(class_name, input_file):
     iline = 0
     while iline < nlines:
 
-        if input_file[iline][0] == '#':
-            pass
+        # remove comments
+        if '#' in input_file[iline]:
+            istr = input_file[iline]
+            input_file[iline] = istr[:istr.index('#')]
 
-        elif '$'+mod_name+' ' in input_file[iline].lower():
-
+        # search for requested class_name section
+        if '$'+mod_name+' ' in input_file[iline].lower():
             iline += 1
 
             # section exists, create class object
@@ -82,11 +84,12 @@ def parse_section(class_name, input_file):
 
             while iline < nlines:
 
-                # if this is comment line: skip
-                if input_file[iline][0] == '#':
-                    pass
+                # remove comments
+                if '#' in input_file[iline]:
+                    istr = input_file[iline]
+                    input_file[iline] = istr[:istr.index('#')]
 
-                elif '$end' in input_file[iline] or iline == nlines-1:
+                if '$end' in input_file[iline] or iline == nlines-1:
                     # if we hit end of section, or end of file,
                     # add object to return list and continue parsing 
                     # the input

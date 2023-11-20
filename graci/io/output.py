@@ -12,9 +12,9 @@ import graci.core.hamiltonians as hamiltonians
 
 #
 file_names = {'input_file'   : '',
-              'out_file'     : '',
+              'out_file'     : None,
               'chkpt_file'   : '',
-              'pyscf_out'    : ''}
+              'pyscf_out'    : None}
 
 orb_formats = {'molden', 'gamess'}
 
