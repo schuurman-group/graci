@@ -11,12 +11,13 @@ import graci.core.params
 import graci.core.orbitals as orbitals
 
 valid_formats = ['molden','gamess']
-orb_objs      = {'-scf' : ['Scf'],
-                 '-nos' : ['Dftmrci','Dftcis'],
-                 '-nto' : ['Transition'],
-                 '-ndo' : ['Transition']}
-wfn_objs      = {'-dets' : ['Dftmrci','Dftcis','Dftmrci2']}                
+orb_objs      = {'-scf'     : ['Scf'],
+                 '-nos'     : ['Dftmrci','Dftcis'],
+                 '-nto'     : ['Transition'],
+                 '-ndo'     : ['Transition']}
+wfn_objs      = {'-dets'    : ['Dftmrci','Dftcis','Dftmrci2']}                
 diab_objs     = {'-diabpot' : ['Dftmrci2']}
+adiab_objs    = {'-adiabpot': ['Dftmrci','Dftmrci2']}
 
 #
 def main():
@@ -34,6 +35,9 @@ def main():
 
     # extract the diabatic potentials if requested
     extract_diabpot(chkpt_file, extract_list)
+
+    # extract the adiabatic potential energies if requested
+    extract_adiabpot(chkpt_file, extract_list)
     
     return
 
@@ -44,15 +48,16 @@ def read_cmdline():
     Set relevant global variables.
     """
 
-    extract_list = {'-scf'     : None,
-                    '-nos'     : None,
-                    '-nto'     : None, 
-                    '-ndo'     : None,
-                    '-dets'    : None,
-                    '-diabpot' : None,
-                    '-format'  : 'molden',
-                    '-cutoff'  : 0,
-                    '-cartao'  : 'true'}
+    extract_list = {'-scf'      : None,
+                    '-nos'      : None,
+                    '-nto'      : None, 
+                    '-ndo'      : None,
+                    '-dets'     : None,
+                    '-diabpot'  : None,
+                    '-adiabpot' : None,
+                    '-format'   : 'molden',
+                    '-cutoff'   : 0,
+                    '-cartao'   : 'true'}
 
     chkpt_file  = sys.argv[1].strip()
     cutoff      = 0.
@@ -96,10 +101,10 @@ def extract_orbitals(chkpt_file, extract_list):
         if value is None:
             continue
 
-        # these are not orbital related 
-        if key=='-dets' or key=='-cutoff' or \
-                key=='-format' or key=='-cartao' \
-                or key == '-diabpot':
+        # these are not orbital related
+        non_orb = ['-dets', '-cutoff', '-format', '-cartao',
+                   '-diabpot', '-adiabpot']
+        if key in non_orb:
             continue
 
         # figure out which object to extract:
@@ -338,6 +343,86 @@ def extract_diabpot(chkpt_file, extract_list):
                                .format(n, wmat[i,j]))
     
     return
+
+
+#
+def extract_adiabpot(chkpt_file, extract_list):
+    """Output the adiabatic potentials"""
+
+    if extract_list['-adiabpot'] is None:
+        return
+
+    # requested Dftmrci/Dftmrci2 object label(s)
+    string = extract_list['-adiabpot']
+    
+    # if the Dftmrci/Dftmrci2 object labels were given in
+    # the string[i:j], format, then convert to
+    # [stringi, stringi+1,..., stringj]
+    if '[' in string and ']' in string:
+        interval = string[string.index('[')+1:string.index(']')]
+        i = int(interval[:interval.index(':')])
+        j = int(interval[interval.index(':')+1:])
+        stem = string[:string.index('[')]
+        labels = [stem+str(k) for k in range(i,j+1)]
+    else:
+        labels = [string]
+    
+    # get the object name(s)
+    chkpt_objs = chkpt.contents(file_name=chkpt_file)
+    valid_objs = adiab_objs['-adiabpot']
+    obj_names  = []
+    for i in range(len(labels)):
+        try:
+            obj_names.append([name for name in chkpt_objs if
+                              name.split('.')[0] in valid_objs
+                              and name.endswith('.'+labels[i])][0])
+        except:
+            pass
+
+    # get the Dftmrci/Dftmrci2 object(s)
+    chkpt_objs = [chkpt.read(obj_names[i], file_name = chkpt_file)
+                  for i in range(len(obj_names))]
+
+    # no. irreps
+    # for now, we are going to enforce these to be the same for
+    # all geometries
+    nirr = set([len(chkpt_objs[i].scf.mol.irreplbl)
+                for i in range(len(chkpt_objs))])
+    if (len(nirr) != 1):
+        sys.exit('Error: different numbers of irreps found across geometries')
+    nirr = list(nirr)[0]
+
+    # irrep labels
+    irreplbl = chkpt_objs[0].scf.mol.irreplbl
+    
+    # make the output directory
+    if not os.path.isdir('adiabpot'):
+        os.mkdir('adiabpot')
+    
+    # output the adiabatic potentials for each symmetry block
+    for irr in range(nirr):
+
+        n_states   = chkpt_objs[0].n_states_sym(irr)
+
+        # open the output files
+        file_names = ['adiabpot/adiabpot_'+irreplbl[irr]
+                      +'_'+str(i+1) for i in range(n_states)]
+
+        f = [open(file_names[i], 'w')
+             for i in range(len(file_names))]
+
+         # write the diabatic potentials to file
+        for n in range(len(chkpt_objs)):
+
+            # Adiabatic potential
+            ener = chkpt_objs[n].energies_sym[irr]
+
+            for i in range(n_states):
+                f[i].write('{:4d} {:10.6f}\n'
+                           .format(n, ener[i]))
+        
+    return
+
 
 #
 def get_next_arg(arg):
