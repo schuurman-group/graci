@@ -77,18 +77,10 @@ class Cimethod:
     def set_scf(self, scf, ci_guess=None, mo_ints=None):
         """set the scf object for the dftmrci class object"""
 
-        # check that the coordinates in the graci.molecule
-        # object agree with pymol, or, if the integrals don't exist.
-        # If either are true: we need re-run SCF
-        if scf.mol.coords_updated() or not ao2mo.moints_exist(scf):
-            if ci_guess is not None:
-                scf_guess = ci_guess.scf.copy() 
-            else:
-                scf_guess = scf 
-            scf_ener = scf.run(scf.mol, scf_guess)
-
-            if scf_ener is None:
-                return scf_ener
+        # if scf is not valid, return None
+        if scf is None or scf.__class__.__name__ != 'Scf':
+            print('Invalid SCF object: '+str(scf))
+            return None
 
         # set the local scf object
         self.scf = scf
@@ -122,12 +114,7 @@ class Cimethod:
         
         return self.scf.energy
 
-    def set_geometry(self, atms, crds, update_scf=False):
-        """calls set_geometry of the corresponding molecule object"""
-        self.scf.mol.set_geometry(atms, crds)
-        if update_scf:
-            self.set_scf(scf)
-
+    #
     def scf_exists(self):
         """return true if scf object is not None"""
         try:
@@ -135,6 +122,7 @@ class Cimethod:
         except:
             return False
 
+    #
     def set_hamiltonian(self):
         """sets the default Hamiltonian based on the XC functional
         if the user has not specified one"""
