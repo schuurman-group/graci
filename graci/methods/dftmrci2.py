@@ -29,6 +29,7 @@ class Dftmrci2(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
+        self.order           = 2
         self.truncate        = True
         self.truncate_thresh = 0.9
         self.regularizer     = 'isa'

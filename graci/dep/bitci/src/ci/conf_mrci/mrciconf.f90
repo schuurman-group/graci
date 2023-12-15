@@ -6,11 +6,11 @@
 ! generate_mrci_confs: generates the MRCI configurations for all irreps
 !######################################################################
 #ifdef CBINDING
-subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
-     ddci) bind(c,name="generate_mrci_confs")
+subroutine generate_mrci_confs(order,nroots,conf0scr,confscr,nconf,&
+     E0max1,ddci) bind(c,name="generate_mrci_confs")
 #else
-subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
-       ddci)
+subroutine generate_mrci_confs(order,nroots,conf0scr,confscr,nconf,&
+     E0max1,ddci)
 #endif
 
   use constants
@@ -24,6 +24,10 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
   use timing
 
   implicit none
+
+  ! Excitation level: order = 1 <-> single excitations
+  !                         = 2 <-> single and double excitations
+  integer(is), intent(in)    :: order
   
   ! Number of roots requested
   integer(is), intent(in)    :: nroots(0:nirrep-1)
@@ -89,7 +93,15 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
      write(6,'(3(x,a))') 'MRCI configuration generation for all irreps'
      write(6,'(72a)') ('-',i=1,52)
   endif
-     
+
+!----------------------------------------------------------------------
+! Sanity check
+!----------------------------------------------------------------------
+  if (order /= 1 .and. order /= 2) then
+     errmsg='Error in generate_mrci_confs: order != 1 or 2'
+     call error_control
+  endif
+
 !----------------------------------------------------------------------
 ! Allocate the MRCI configuraytion derived types
 !----------------------------------------------------------------------
@@ -165,7 +177,7 @@ subroutine generate_mrci_confs(nroots,conf0scr,confscr,nconf,E0max1,&
 !----------------------------------------------------------------------
 ! Generate the 1-hole, 2-hole configurations
 !----------------------------------------------------------------------
-  call generate_hole_confs(cfgM,nroots)
+  call generate_hole_confs(order,cfgM,nroots)
   
 !----------------------------------------------------------------------
 ! Generate the configurations with one internal hole and one external
