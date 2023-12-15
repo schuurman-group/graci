@@ -463,4 +463,3 @@ class Scf:
 
         return smo
 
-

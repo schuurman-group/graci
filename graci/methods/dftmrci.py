@@ -94,10 +94,17 @@ class Dftmrci(cimethod.Cimethod):
         return new
 
     @timing.timed
-    def run(self, scf, guess, mo_ints=None):
+    def run(self, scf, guess=None, mo_ints=None):
         """ compute the DFT/MRCI eigenpairs for all irreps """
 
-        # set the scf object 
+        # set the scf object
+        # currently the guess object is ignored, since propagation of
+        # reference space in absense of root-following is not a good
+        # idea. Root-following for davidson might be implemented in 
+        # the future, though, so for the sake of API consistentcy with
+        # DFT/MRCI(2) class, the argument can be passed, but is currently
+        # ignored 
+        guess      = None
         scf_energy = self.set_scf(scf, ci_guess=guess, mo_ints=mo_ints)
 
         if scf_energy is None:
