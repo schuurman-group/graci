@@ -424,6 +424,9 @@ class Molecule:
 
         for ixyz in range(len(self.mol_obj.atom_coords())):
             coc_xyz += chg[ixyz]*coords[ixyz]
+
+        if self.units == 'Angstrom':
+            coc_xyz *= bohr2ang
  
         return coc_xyz / np.sum(chg)
 
