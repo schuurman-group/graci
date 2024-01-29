@@ -17,7 +17,6 @@ import graci.core.functionals as functionals
 from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 
-
 class Scf:
     """Class constructor for SCF object"""
     def __init__(self):
@@ -114,7 +113,7 @@ class Scf:
             pymol.verbose = 4
         else:
             pymol.verbose = 0
-            
+
         # print standard header 
         if self.verbose:
             output.print_scf_header(self)

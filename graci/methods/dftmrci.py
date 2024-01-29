@@ -26,6 +26,7 @@ class Dftmrci(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
+        self.order          = 2
         self.hamiltonian    = 'qe8'
         self.ras1           = []
         self.ras2           = []
