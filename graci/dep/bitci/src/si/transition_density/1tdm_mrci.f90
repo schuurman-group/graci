@@ -152,9 +152,9 @@ contains
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(scc)
-    deallocate(averageiiB)
-    deallocate(averageiiK)
-
+    if (allocated(averageiiB)) deallocate(averageiiB)
+    if (allocated(averageiiK)) deallocate(averageiiK)
+    
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
