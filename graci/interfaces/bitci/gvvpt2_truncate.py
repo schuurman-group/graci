@@ -26,13 +26,17 @@ def truncate_wf(ci_method, rep='adiabatic'):
 
     # bitci MRCI eigenvector scratch file numbers
     ciunits = mrci_wfn.ci_units[rep]
+
+    # spin-coupling averaged Hii scratch file numbers
+    aviiunits = ci_method.aviiunits
     
     for irrep in ci_method.irreps_nonzero():
         thresh       = ci_method.truncate_thresh
         nroots       = ci_method.n_states_sym(irrep)
         nconf_new    = 0
         args         = (irrep, nroots, ci_confunits[irrep],
-                        ciunits[irrep], thresh, nconf_new)
+                        ciunits[irrep], aviiunits[irrep],
+                        thresh, nconf_new)
         (nconf_new)  = libs.lib_func('truncate_mrci_wf', args)
         nconf[irrep] = nconf_new
 

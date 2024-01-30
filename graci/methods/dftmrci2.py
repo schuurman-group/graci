@@ -78,7 +78,11 @@ class Dftmrci2(cimethod.Cimethod):
         self.allowed_adt_type    = ['bdd', 'qdpt']
         # dictionary of bitci wfns
         self.bitciwfns           = {}
-       
+        # spin-coupling averaged Hii file numbers
+        self.aviiunits           = None
+        # spin-coupling averaged Hii file names
+        self.aviiname            = None
+        
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
                 if hasattr(self, name):
@@ -227,7 +231,8 @@ class Dftmrci2(cimethod.Cimethod):
                     = gvvpt2.diag_heff_follow(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units = gvvpt2.diag_heff(self)
+                    q_units, dsp_units, avii_units, avii_files \
+                    = gvvpt2.diag_heff(self)
 
             # set the wfn unit numbers, file names, energies,
             # Q-space info, and damped strong perturber unit numbers
@@ -238,6 +243,8 @@ class Dftmrci2(cimethod.Cimethod):
             self.dspunits     = dsp_units
             if self.diabatic:
                 self.Aunits   = A_units
+            self.aviiunits    = avii_units
+            self.aviiname     = avii_files
                 
             # generate the energies sorted by value, and their
             # corresponding states
