@@ -48,8 +48,8 @@ bitci_registry = {
     'retrieve_nhpar'          : ['string','int32'],
     'retrieve_hpar'           : ['string','int32','double'],
     'diag_mrci'               : ['int32','int32','int32','int32',
-                                 'int32','double','int32','int32',
-                                 'logical','int32','int32'],
+                                 'int32','int32','double','int32',
+                                 'int32','logical','int32','int32'],
     'print_mrci_states'       : ['int32','int32','int32'],
     'print_pmrci_states'      : ['int32','int32','int32','int32','int32',
                                  'int32'],
@@ -66,7 +66,8 @@ bitci_registry = {
     'retrieve_det_truncated'  : ['int32','int32','int32','int32','int64',
                                  'double','double'],
     'gvvpt2'                  : ['int32','int32','int32','int32','double',
-                                 'int32','int32','int32','int32','int32'],
+                                 'int32','int32','int32','int32','int32',
+                                 'int32'],
     'gvvpt2_follow'           : ['int32','int32','int32','int32','double',
                                  'int32','int32','int32','int64','double',
                                  'int32','double','int32','int32','logical',
@@ -77,7 +78,7 @@ bitci_registry = {
                                  'int32','double','int32','int32','logical',
                                  'int32','int32','int32','double','int32',
                                  'int32','int32'],
-    'truncate_mrci_wf'        : ['int32','int32','int32','int32',
+    'truncate_mrci_wf'        : ['int32','int32','int32','int32','int32',
                                  'double','int32']
 }
 
@@ -110,8 +111,8 @@ bitci_intent = {
     'retrieve_filename'       : ['in','out'],
     'retrieve_nhpar'          : ['in','out'],
     'retrieve_hpar'           : ['in','in','out'],
-    'diag_mrci'               : ['in','in','in','out','in','in','in',
-                                 'in','in','in','in'],
+    'diag_mrci'               : ['in','in','in','out','out','in','in',
+                                 'in','in','in','in','in'],
     'print_mrci_states'       : ['in','in','in'],
     'print_pmrci_states'      : ['in','in','in','in','in','in'],
     'refine_ref_space'        : ['in','out','in','in','in','in','out',
@@ -123,7 +124,7 @@ bitci_intent = {
     'ndet_truncated'          : ['in','in','in','out'],
     'retrieve_det_truncated'  : ['in','in','in','in','out','out','in'],
     'gvvpt2'                  : ['in','in','in','in','in','in','out',
-                                 'in','out','out'],
+                                 'in','out','out','out'],
     'gvvpt2_follow'           : ['in','in','in','in','in','in','in',
                                  'in','in','in','in','in','in','in',
                                  'in','in','out','in','out','out',
@@ -132,32 +133,40 @@ bitci_intent = {
                                  'in','in','in','in','in','in','in',
                                  'in','in','in','in','out','out',
                                  'out','out'],
-    'truncate_mrci_wf'        : ['in','in','in','in','in','out']
+    'truncate_mrci_wf'        : ['in','in','in','in','in','in','out']
 }
 
 
 # registry of bitsi functions
 bitsi_registry = {
-    'bitsi_initialise'        : ['int32','int32','int32','int32','int32',
-                                  'int32','string','logical'],
-    'bitsi_finalise'          : [],
-    'transition_density_mrci' : ['int32','int32','int32','int32','int32',
-                                 'int32','double','string','string',
-                                 'string','string'],
-    'redmat_mrci'             : ['int32','int32','int32','int32','int32',
-                                 'int32','double','string','string',
-                                 'string','string'],
-    'cgcoeff_soc'             : ['int32','int32','double']
+    'bitsi_initialise'                 : ['int32','int32','int32','int32',
+                                          'int32','int32','string','logical'],
+    'bitsi_finalise'                   : [],
+    'transition_density_mrci'          : ['int32','int32','int32','int32',
+                                          'int32','int32','double','string',
+                                          'string','string','string'],
+    'modified_transition_density_mrci' : ['int32','int32','int32','int32',
+                                          'int32','int32','double','string',
+                                          'string','string','string',
+                                          'string','string'],
+    'redmat_mrci'                      : ['int32','int32','int32','int32',
+                                          'int32','int32','double','string',
+                                          'string','string','string'],
+    'cgcoeff_soc'                      : ['int32','int32','double']
 }
 
 bitsi_intent   = {
-    'bitsi_initialise'        : ['in','in','in','in','in','in','in','in'],
-    'bitsi_finalise'          : [],
-    'transition_density_mrci' : ['in','in','in','in','in','in','out',
-                                 'in','in','in','in'],
-    'redmat_mrci'             : ['in','in','in','in','in','in','out',
-                                 'in','in','in','in'],
-    'cgcoeff_soc'             : ['in','in','out']
+    'bitsi_initialise'                 : ['in','in','in','in','in','in',
+                                          'in','in'],
+    'bitsi_finalise'                   : [],
+    'transition_density_mrci'          : ['in','in','in','in','in','in',
+                                          'out','in','in','in','in'],
+    'modified_transition_density_mrci' : ['in','in','in','in','in','in',
+                                          'out','in','in','in','in','in',
+                                          'in'],
+    'redmat_mrci'                      : ['in','in','in','in','in','in',
+                                          'out','in','in','in','in'],
+    'cgcoeff_soc'                      : ['in','in','out']
 }
 
 # registry of bitwf functions

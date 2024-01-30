@@ -64,7 +64,11 @@ class Dftmrci(cimethod.Cimethod):
         self.ref_ener       = None
         # dictionary of bitci wfns
         self.bitciwfns      = {}
-
+        # spin-coupling averaged Hii file numbers
+        self.aviiunits           = None
+        # spin-coupling averaged Hii file names
+        self.aviiname            = None
+        
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
                 if hasattr(self, name):
@@ -201,14 +205,16 @@ class Dftmrci(cimethod.Cimethod):
             self.mrci_wfn.set_equnits(eq_units)
             
             # MRCI diagonalisation
-            mrci_ci_units, mrci_ci_files, mrci_ener_sym = \
-                    mrci_diag.diag(self)
+            mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
+                avii_units, avii_files= mrci_diag.diag(self)
 
-            # set the mrci wfn unit numbers, file names, and mrci 
-            # energies
+            # set the mrci wfn unit numbers, file names, mrci 
+            # energies, and spin-couping averaged Hii unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
             self.mrci_wfn.set_ciname(mrci_ci_files)
             self.energies_sym = mrci_ener_sym
+            self.aviiunits    = avii_units
+            self.aviiname     = avii_files
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
