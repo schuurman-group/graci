@@ -78,7 +78,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.allowed_adt_type    = ['bdd', 'qdpt']
         # dictionary of bitci wfns
         self.bitciwfns           = {}
-       
+        
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
                 if hasattr(self, name):
@@ -223,11 +223,13 @@ class Dftmrci2(cimethod.Cimethod):
             # DFT/MRCI(2) calculation
             if self.diabatic:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units, A_units \
+                    q_units, dsp_units, A_units, \
+                    avii_units, avii_files \
                     = gvvpt2.diag_heff_follow(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units = gvvpt2.diag_heff(self)
+                    q_units, dsp_units, avii_units, avii_files \
+                    = gvvpt2.diag_heff(self)
 
             # set the wfn unit numbers, file names, energies,
             # Q-space info, and damped strong perturber unit numbers
@@ -238,7 +240,9 @@ class Dftmrci2(cimethod.Cimethod):
             self.dspunits     = dsp_units
             if self.diabatic:
                 self.Aunits   = A_units
-                
+            self.mrci_wfn.set_aviiunits(avii_units)
+            self.mrci_wfn.set_aviiname(avii_files)
+            
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
@@ -270,15 +274,19 @@ class Dftmrci2(cimethod.Cimethod):
             elif self.adt_type == 'qdpt':                
                 # QDPT diabatisation
                 diabpots, ciunits, cinames, \
-                    confunits, confnames, nconfs = \
-                        gvvpt2_diab.diabpot(guess, self)
-                
+                    confunits, confnames, nconfs, \
+                    avii_units, avii_files = \
+                    gvvpt2_diab.diabpot(guess, self)
+
                 self.diabpot = diabpots
                 self.mrci_wfn.set_ciunits(ciunits, rep='diabatic')
                 self.mrci_wfn.set_ciname(cinames, rep='diabatic')
                 self.mrci_wfn.set_confunits(confunits, rep='diabatic')
                 self.mrci_wfn.set_confname(confnames, rep='diabatic')
                 self.mrci_wfn.set_nconf(nconfs, rep='diabatic')
+                self.mrci_wfn.set_aviiunits(avii_units, rep='diabatic')
+                self.mrci_wfn.set_aviiname(avii_files, rep='diabatic')
+                
                 mrci_wf.extract_wf(self, rep='diabatic')
 
             # temporary: delete the previous geometry wave functions

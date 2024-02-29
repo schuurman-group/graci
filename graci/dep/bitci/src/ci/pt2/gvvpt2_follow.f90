@@ -6,12 +6,12 @@
 #ifdef CBINDING
 subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr) &
+     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr,aviiscr) &
      bind(c,name="gvvpt2_follow")
 #else
 subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr)
+     confscr,vecscr,vec0scr,Qscr,dspscr,Ascr,aviiscr)
 #endif
 
   use constants
@@ -75,6 +75,10 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! A-vector scratch file number
   integer(is), intent(out) :: Ascr
+
+  ! Spin-coupling-averaged on-diagonal Hamiltonian matrix elements
+  ! scratch file number
+  integer(is), intent(out) :: aviiscr
   
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
@@ -122,7 +126,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=250)       :: vecfile,Qfile,Afile
+  character(len=250)       :: vecfile,Qfile,Afile,aviifile
   character(len=2)         :: amult,airrep
   
   ! Everything else
@@ -248,6 +252,31 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 !----------------------------------------------------------------------
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
 
+!----------------------------------------------------------------------
+! Save the spin-coupling-averaged on-diagonal Hamiltonian matrix
+! elements to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('avhii'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),aviifile)
+  call register_scratch_file(aviiscr,aviifile)
+
+  ! Open the scratch file
+  iscratch=scrunit(aviiscr)
+  open(iscratch,file=scrname(aviiscr),form='unformatted', &
+       status='unknown')
+
+  ! Number of configurations
+  write(iscratch) cfg%confdim
+
+  ! Averaged matrix elements
+  write(iscratch) averageii
+  
+  ! Close the scratch file
+  close(iscratch)
+  
 !----------------------------------------------------------------------
 ! Compute the unscaled A-vectors <Psi_I^(0)|H|Omega>
 !----------------------------------------------------------------------

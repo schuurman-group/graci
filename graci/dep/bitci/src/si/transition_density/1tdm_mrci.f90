@@ -13,6 +13,12 @@ module tdm
   
   ! Spin-coupling coefficients
   real(dp), allocatable, private :: scc(:)
+
+  ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
+  real(dp), allocatable, private :: averageiiB(:),averageiiK(:)
+
+  ! Modified (damped) spin-coupling coefficients
+  logical, private               :: modified
   
 contains
 
@@ -23,7 +29,7 @@ contains
 !            Note that the 1-TDMS have the 'Canonical' MO indexing
 !######################################################################
   subroutine tdm_mrci(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
-       vecK,npairs,rhoij,Bmap,Kmap)
+       vecK,npairs,rhoij,Bmap,Kmap,aviiscrB,aviiscrK)
 
     use constants
     use bitglobal
@@ -35,33 +41,47 @@ contains
     implicit none
 
     ! MRCI configuration derived types
-    type(mrcfg), intent(in) :: cfgB,cfgK
+    type(mrcfg), intent(in)           :: cfgB,cfgK
 
     ! Dimensions
-    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+    integer(is), intent(in)           :: csfdimB,csfdimK,nvecB,&
+                                         nvecK,npairs
 
     ! Eigenvectors
-    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
-    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+    real(dp), intent(in)              :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)              :: vecK(csfdimK,nvecK)
 
     ! 1-TDMs
-    real(dp), intent(out)   :: rhoij(nmo,nmo,npairs)
+    real(dp), intent(out)             :: rhoij(nmo,nmo,npairs)
 
     ! Bra-ket pair to eigenvector mapping arrays
-    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+    integer(is), intent(in)           :: Bmap(npairs),Kmap(npairs)
+
+    ! Spin-coupling averaged on-diagonal Hamiltonian matrix
+    ! element scratch file numbers
+    integer(is), intent(in), optional :: aviiscrB,aviiscrK
 
     ! Everything else
-    integer(is)             :: arrdim
+    integer(is)                       :: arrdim
     
     ! Timing variables
-    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
-                               twall_end
+    real(dp)                          :: tcpu_start,tcpu_end,&
+                                         twall_start,twall_end
     
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
     call get_times(twall_start,tcpu_start)
 
+!----------------------------------------------------------------------
+! Are we using modified (damped) spin-coupling coefficients?
+!----------------------------------------------------------------------
+    if (present(aviiscrB) .and. present(aviiscrK)) then
+       modified=.true.
+    else
+       modified=.false.
+    endif
+    
 !----------------------------------------------------------------------
 ! Allocate and initialise arrays
 !----------------------------------------------------------------------
@@ -70,6 +90,27 @@ contains
     arrdim=maxval(ncsfs(0:nomax))**2
     allocate(scc(arrdim))
     scc=0.0d0
+
+    if (modified) then
+       allocate(averageiiB(cfgB%confdim))
+       allocate(averageiiK(cfgK%confdim))
+       averageiiB=0.0d0
+       averageiiK=0.0d0
+    endif
+    
+!----------------------------------------------------------------------
+! Read in the spin-coupling averaged on-diagonal Hamiltonian matrix
+! elements
+!----------------------------------------------------------------------
+    if (modified) then
+       
+       ! Bra
+       call read_averageii(aviiscrB,cfgB%confdim,averageiiB)
+       
+       ! Ket
+       call read_averageii(aviiscrK,cfgK%confdim,averageiiK)
+
+    endif
     
 !----------------------------------------------------------------------
 ! (1) Ref - Ref contributions to the 1-TDMs
@@ -111,7 +152,9 @@ contains
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(scc)
-
+    if (allocated(averageiiB)) deallocate(averageiiB)
+    if (allocated(averageiiK)) deallocate(averageiiK)
+    
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
@@ -174,6 +217,8 @@ contains
     real(dp)                :: kcoe,bcoe
     real(dp)                :: prod
 
+    real(dp)                :: damping
+        
 !----------------------------------------------------------------------
 ! Contributions from bra and ket reference space CSFs
 !----------------------------------------------------------------------
@@ -229,6 +274,13 @@ contains
           i=cfgB%m2c(hlist(1))
           a=cfgB%m2c(plist(1))
 
+          ! Damping function value
+          if (modified) then
+             damping=damping_function(ibconf,ikconf)
+          else
+             damping=1.0d0
+          endif
+             
           ! Loop over 1-TDMs
           do ipair=1,npairs
 
@@ -249,7 +301,7 @@ contains
                    counter=counter+1
                    
                    ! Contribution to the 1-TDM
-                   prod=kcoe*bcoe*scc(counter)
+                   prod=kcoe*bcoe*scc(counter)*damping
                    rhoij(a,i,ipair)=rhoij(a,i,ipair)+prod
                    
                 enddo
@@ -1889,6 +1941,8 @@ contains
     integer(is)             :: counter
     real(dp)                :: bcoe,kcoe,prod
 
+    real(dp) :: damping
+    
     ! Loop over the bra confs generated by the hole conf
     do ibconf=boffset(bn),boffset(bn+1)-1
 
@@ -1922,6 +1976,13 @@ contains
        i=m2c(hlist(1))
        a=m2c(plist(1))
 
+       ! Damping function value
+       if (modified) then
+          damping=damping_function(ibconf,ikconf)
+       else
+          damping=1.0d0
+       endif
+          
        ! Loop over 1-TDMs
        do ipair=1,npairs
 
@@ -1946,7 +2007,7 @@ contains
                 counter=counter+1
                 
                 ! Contribution to the 1-TDM
-                prod=kcoe*bcoe*scc(counter)
+                prod=kcoe*bcoe*scc(counter)*damping
                 if (transpose) then
                    rhoij(i,a,ipair)=rhoij(i,a,ipair)+prod
                 else
@@ -2029,6 +2090,32 @@ contains
     return
     
   end function spincp_coeff
+  
+!######################################################################
+
+  function damping_function(ibconf,ikconf) result(func)
+
+    use constants
+    
+    implicit none
+
+    real(dp)                :: func
+    integer(is), intent(in) :: ibconf,ikconf
+
+    real(dp)                :: av1,av2
+    real(dp)                :: DEp3
+
+    av1=averageiiK(ikconf)
+
+    av2=averageiiB(ibconf)
+
+    DEp3=abs(av1-av2)**8.0d0
+
+    func=0.80*exp(-4.611269d0*DEp3)
+        
+    return
+    
+  end function damping_function
   
 !######################################################################
   

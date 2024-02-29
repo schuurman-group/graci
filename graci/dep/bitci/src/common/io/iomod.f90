@@ -116,8 +116,8 @@ contains
   end subroutine freeunit
 
 !########################################################################
-! check_exists:  confirm that file exists and, if not, call error control
-!                and terminate execution
+! check_exists: confirm that file exists and, if not, call error control
+!               and terminate execution
 !########################################################################
   subroutine confirm_exists(scrnum)
 
@@ -1078,7 +1078,7 @@ contains
     allocate(vec1(ndet))
    
     ! 
-    ! confirm file exists
+    ! Confirm file exists
     !
     call confirm_exists(wfscr)
  
@@ -1149,6 +1149,63 @@ contains
     
   end subroutine read_detwf
 
+!######################################################################
+! read_averageii: reads the spin-coupling averaged on-diagonal
+!                 Hamiltonian matrix elements from the scratch file
+!                 numbered aviiscr
+!######################################################################
+  subroutine read_averageii(aviiscr,confdim,averageii)
+
+    use constants
+    use bitglobal
+    
+    implicit none
+
+    ! Scratch file number
+    integer(is), intent(in) :: aviiscr
+
+    ! Number of configurations
+    integer(is), intent(in) :: confdim
+
+    ! Spin-coupling averaged on-diagonal Hamiltonian matrix
+    ! elements
+    real(dp), intent(out)   :: averageii(confdim)
+    
+    ! Everything else
+    integer(is)             :: iscratch,idum
+    
+    !
+    ! Confirm that the file exists
+    !
+    call confirm_exists(aviiscr)
+
+    !
+    ! Open the scratch file
+    !
+    iscratch=scrunit(aviiscr)
+    open(iscratch,file=scrname(aviiscr),form='unformatted',status='old')
+
+    !
+    ! Sanity check on dimensions
+    !
+    read(iscratch) idum
+    if (idum /= confdim) then
+       errmsg='Error in read_averageii: incorrect value of confdim'
+       call error_control
+    endif
+
+    ! Spin-coupling averaged Hii elements
+    read(iscratch) averageii
+    
+    !
+    ! Close the scratch file
+    !
+    close(iscratch)
+    
+    return
+    
+  end subroutine read_averageii
+  
 !######################################################################
   
 end module iomod
