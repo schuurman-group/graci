@@ -241,6 +241,9 @@ def autoras(ci_method):
             print('\n Setting nelec3 = 2', flush=True) 
         ci_method.nelec3 = 2
 
+    # Make sure that RAS2 is empty
+    ci_method.ras2 = np.array([])
+    
     return
 
 @timing.timed

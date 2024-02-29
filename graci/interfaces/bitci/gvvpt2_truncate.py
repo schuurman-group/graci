@@ -28,8 +28,8 @@ def truncate_wf(ci_method, rep='adiabatic'):
     ciunits = mrci_wfn.ci_units[rep]
 
     # spin-coupling averaged Hii scratch file numbers
-    aviiunits = ci_method.aviiunits
-    
+    aviiunits = mrci_wfn.avii_units[rep]
+
     for irrep in ci_method.irreps_nonzero():
         thresh       = ci_method.truncate_thresh
         nroots       = ci_method.n_states_sym(irrep)

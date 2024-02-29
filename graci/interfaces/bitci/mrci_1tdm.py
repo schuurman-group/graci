@@ -65,10 +65,10 @@ def tdm(bra, ket, trans_list, modified, rep='adiabatic'):
             ket_vec  = ket_wfn.ci_name[rep][ket_irr]
 
             # spin-coupling averaged Hii file names: bra wfn
-            bra_avii = bra.aviiname[bra_irr]
+            bra_avii = bra_wfn.avii_name[rep][bra_irr]
 
             # spin-coupling averaged Hii file names: ket wfn
-            ket_avii = ket.aviiname[ket_irr]
+            ket_avii = ket_wfn.avii_name[rep][ket_irr]
             
             # compute the 1-TDMs for all states in this irrep
             if modified:
@@ -87,7 +87,7 @@ def tdm(bra, ket, trans_list, modified, rep='adiabatic'):
             rho[bra_irr][ket_irr] = np.reshape(rhoij,
                                                (nmo, nmo, npairs),
                                                order='F')
-            
+
             ## Temporary: save the 1-TDMs to disk
             #pairs = np.reshape(tdm_pairs, (npairs, 2), order='F')
             #for n in range(npairs):

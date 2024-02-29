@@ -149,7 +149,7 @@ class Cimethod:
     #
     def irreps_nonzero(self):
         """returns the indices of the irreps with a
-        non-zero no. of roots"""        
+        non-zero no. of roots"""
         return np.where(self.nstates > 0)[0]
         
     #

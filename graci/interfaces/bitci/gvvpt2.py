@@ -137,15 +137,17 @@ def diag_heff_follow(ci_method, ci_method0):
 
     # Initialise the list to hold the eigenvector, Q-space info
     # DSP, and A-vector scratch file numbers
-    ciunit   = 0
-    ciunits  = [0 for i in range(nirr)]
-    qunit    = 0
-    qunits   = [0 for i in range(nirr)]
-    dspunit  = 0
-    dspunits = [0 for i in range(nirr)]
-    Aunit    = 0
-    Aunits   = [0 for i in range(nirr)]
-
+    ciunit    = 0
+    ciunits   = [0 for i in range(nirr)]
+    qunit     = 0
+    qunits    = [0 for i in range(nirr)]
+    dspunit   = 0
+    dspunits  = [0 for i in range(nirr)]
+    Aunit     = 0
+    Aunits    = [0 for i in range(nirr)]
+    aviiunit  = 0
+    aviiunits = [0 for i in range(nirr)]
+    
     # MO overlaps
     nmo0 = ci_method0.nmo
     nmo  = ci_method.nmo
@@ -188,18 +190,20 @@ def diag_heff_follow(ci_method, ci_method0):
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
                 ci_confunits, ciunit, ref_ciunits, qunit,
-                dspunit, Aunit)
+                dspunit, Aunit, aviiunit)
 
-        ciunit, qunit, dspunit, Aunit = \
+        ciunit, qunit, dspunit, Aunit, aviiunit = \
             libs.lib_func('gvvpt2_follow', args)
-
+        
+        
         # Bitci eigenvector, Q-space, intruder state, and A-vector
         # scratch numbers
         ciunits[irrep]  = ciunit
         qunits[irrep]   = qunit
         dspunits[irrep] = dspunit
         Aunits[irrep]   = Aunit
-
+        aviiunits[irrep] = aviiunit
+        
     # Retrieve the DFT/MRCI(2) energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
@@ -219,13 +223,22 @@ def diag_heff_follow(ci_method, ci_method0):
         name = libs.lib_func('retrieve_filename', args)
         ciname[irrep] = name
 
+    # Retrieve the spin-coupling averaged on-diagonal Hamiltonian
+    # matrix element scratch file names
+    aviiname = ['' for i in range(nirr)]
+    for irrep in ci_method.irreps_nonzero():
+        args = (aviiunits[irrep], name)
+        name = libs.lib_func('retrieve_filename', args)
+        aviiname[irrep] = name
+
     # Print the report of the DFT/MRCI(2) states 
     if ci_method.verbose:
         output.print_dftmrci2_states_header()
 
     ciunits = np.array(ciunits, dtype=int)
+    aviiunits = np.array(aviiunits, dtype=int)
     nstates = ci_method.n_states_sym()
     args = (ci_confunits, ciunits, nstates)
     libs.lib_func('print_mrci_states', args)
     
-    return ciunits, ciname, ener, qunits, dspunits, Aunits
+    return ciunits, ciname, ener, qunits, dspunits, Aunits, aviiunits, aviiname
