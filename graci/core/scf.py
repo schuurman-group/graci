@@ -16,6 +16,7 @@ import graci.core.solvents as solvents
 import graci.core.functionals as functionals
 from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
+from pyscf.scf import stability
 
 class Scf:
     """Class constructor for SCF object"""
@@ -122,11 +123,6 @@ class Scf:
         if self.verbose:
             output.print_coords(self.mol.crds, self.mol.asym)
             
-        # set the file names based on class label
-        # save integrals -- tie them to the scf object for
-        self.moint_1e     = '1e_'+str(self.label).strip()+'.h5'
-        self.moint_2e_eri = '2e_eri_'+str(self.label).strip()+'.h5'
-
         # this is just to tell user the nature of the auxiliary basis
         if self.mol.use_df:
             # tell user what RI basis if ri_basis is not set
@@ -322,9 +318,8 @@ class Scf:
             
         # set the integral file names
         if hasattr(mf, 'with_df'):
-            if self.mol.use_df:
-                mf.with_df._cderi_to_save = self.moint_2e_eri
-            else:
+            aoint_file = '2e_eri_'+str(self.label).strip()+'.h5'
+            if not self.mol.use_df: 
                 mf.with_df = None
 
         # set the dynamic level shift, if request
@@ -387,7 +382,7 @@ class Scf:
         # if not converged, kill things
         if not mf.converged:
             return None
-    
+   
         # MO phase convention: positive dominant coefficients
         # for degenerate coefficients, pick the first occurrence
         # N.B. this is essential for diabatisation runs
@@ -416,10 +411,10 @@ class Scf:
         # PySCF mol objects
         mol  = self.mol.mol_obj
         mol0 = guess.mol.mol_obj
-        
+       
         # current AO overlaps
         s = mol.intor_symmetric('int1e_ovlp')
-        
+    
         # guess MOs and occupations
         mo0  = guess.orbs
         occ0 = guess.orb_occ
@@ -436,7 +431,10 @@ class Scf:
                                     [mo_occa, mo_occb])
 
         return dm[0] + dm[1]
-   
+
+        return dm   
+
+
     #
     def make_chkfile_name(self, label):
         """
