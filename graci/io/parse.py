@@ -524,7 +524,7 @@ def replicate_sections(run_list):
             si_list = [obj for obj in si_objs
                        if obj.init_label in all_ci_labels
                        or obj.final_label in all_ci_labels]    
-            
+
         if mol.multi_geom:
             # Create replicate objects for all geometries
             
@@ -597,7 +597,7 @@ def replicate_sections(run_list):
                 new_run_list.append(postci)
             for si in si_list:
                 new_run_list.append(si)
-    
+
     # assume graci objs are geometry independent
     for gobj in graci_objs:
         new_run_list.append(gobj)

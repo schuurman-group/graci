@@ -156,7 +156,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
      Bmap(i)=sum(iBra(1:iroots(i,1)))
      Kmap(i)=sum(iKet(1:iroots(i,2)))
   enddo
-
+  
 !----------------------------------------------------------------------
 ! Read in the bra eigenvectors
 !----------------------------------------------------------------------
@@ -175,7 +175,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
         ireadB(k)=i
      endif
   enddo
-
+  
   ! Read in the eigenvectors
   call read_some_eigenpairs(vecscrB,vecB,enerB,cfgB%csfdim,nvecB,&
        ireadB)
@@ -198,7 +198,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
         ireadK(k)=i
      endif
   enddo
-
+  
   ! Read in the eigenvectors
   call read_some_eigenpairs(vecscrK,vecK,enerK,cfgK%csfdim,nvecK,&
        ireadK)
