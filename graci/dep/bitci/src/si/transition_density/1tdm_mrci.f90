@@ -118,6 +118,7 @@ contains
     call tdm_0h_0h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
          npairs,rhoij,Bmap,Kmap)
 
+    
 !----------------------------------------------------------------------
 ! (2) Ref - 1H contributions to the 1-TDMs
 !----------------------------------------------------------------------
@@ -1076,7 +1077,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 2I - bra 1I contributions
-                if (nac <= 3 &
+                if (cfgB%n1I > 0 .and. nac <= 3 &
                      .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1090,7 +1091,7 @@ contains
                 endif
 
                 ! Ket 2I - bra 1E contributions
-                if (nac <= 1 &
+                if (cfgB%n1E > 0 .and. nac <= 1 &
                      .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1106,7 +1107,7 @@ contains
              enddo
 
           endif
-
+          
           !
           ! Ket: 2E
           ! Bra: 1I and 1E
@@ -1144,7 +1145,7 @@ contains
                 endif
 
                 ! Ket 2E - bra 1E contributions
-                if (cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
+                if (cfgB%n1E > 0 .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1E,cfgK%n2E,&       ! no. bra and ket confs
@@ -1192,7 +1193,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 1I1E - bra 1I contributions
-                if (cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
+                if (cfgB%n1I > 0 .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1I,cfgK%n1I1E,&       ! no. bra and ket confs
@@ -1205,7 +1206,7 @@ contains
                 endif
 
                 ! Ket 1I1E - bra 1E contributions
-                if (cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
+                if (cfgB%n1E > 0 .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1E,cfgK%n1I1E,&       ! no. bra and ket confs
@@ -1287,7 +1288,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 2I - bra 1I contributions
-                if (nac <= 3 &
+                if (cfgK%n1I > 0 .and. nac <= 3 &
                      .and. cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1301,7 +1302,7 @@ contains
                 endif
 
                 ! Ket 2I - bra 1E contributions
-                if (nac <= 1 &
+                if (cfgK%n1E > 0 .and. nac <= 1 &
                      .and. cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1355,7 +1356,7 @@ contains
                 endif
 
                 ! Ket 2E - bra 1E contributions
-                if (cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
+                if (cfgK%n1E > 0 .and. cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgK%n1E,cfgB%n2E,&       ! no. bra and ket confs
@@ -1403,7 +1404,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 1I1E - bra 1I contributions
-                if (cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
+                if (cfgK%n1I > 0 .and. cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgK%n1I,cfgB%n1I1E,&       ! no. bra and ket confs
@@ -1416,7 +1417,7 @@ contains
                 endif
 
                 ! Ket 1I1E - bra 1E contributions
-                if (cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
+                if (cfgK%n1E > 0 .and. cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgK%n1E,cfgB%n1I1E,&       ! no. bra and ket confs
