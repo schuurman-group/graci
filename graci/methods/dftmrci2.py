@@ -384,7 +384,7 @@ class Dftmrci2(cimethod.Cimethod):
         dmat_sym['adiabatic'] = mrci_1rdm.rdm(self)
         if do_diabatic:
             dmat_sym['diabatic'] = mrci_1rdm.rdm(self, rep='diabatic')        
-        
+
         # store them in adiabatic energy order
         n_tot = self.n_states()
         indx  = self.irreps_nonzero()[0]

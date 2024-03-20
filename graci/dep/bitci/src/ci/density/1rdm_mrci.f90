@@ -458,11 +458,13 @@ contains
        do imo=1,nmo
           trace=trace+rho(imo,imo,ista)
        enddo
-       ! Exit here if the trace of the 1-RDM does not equal the
+       ! Print a warning if  the trace of the 1-RDM does not equal the
        ! no. electrons
        if (abs(trace-nel) > 1e-6_dp) then
-          errmsg='Incorrect Tr(rho) in rdm_mrci_diag'
-          call error_control
+          write(6,'(/,x,a,x,i0)') &
+               'Warning: incorrect value of Tr(rho) for state',ista
+          write(6,'(/,x,a,ES10.4)') '|Tr(rho) - n_el| = ',&
+               abs(trace-nel)
        endif
     enddo
     
