@@ -84,6 +84,9 @@ def diabpot(ci_method0, ci_method):
     else:
         delete_core = True
 
+    # Norm-based wave function truncation threshold
+    norm_thresh = ci_method.norm_thresh
+        
     # Loop over irreps
     for irrep in ci_method.irreps_nonzero():
 
@@ -118,9 +121,9 @@ def diabpot(ci_method0, ci_method):
         args = (irrep, nroots, nextra, ireg, regfac,
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
-                ci_confunits, ref_ciunits, Aunit, diabpot,
-                diab_ciunit, diab_confunit, diab_nconf,
-                diab_aviiunit)
+                norm_thresh, ci_confunits, ref_ciunits,
+                Aunit, diabpot, diab_ciunit, diab_confunit,
+                diab_nconf, diab_aviiunit)
 
         diabpot, diab_ciunit, diab_confunit, diab_nconf, \
             diab_aviiunit = libs.lib_func('gvvpt2_diab', args)
