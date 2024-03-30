@@ -548,8 +548,8 @@ def replicate_sections(run_list):
                     new_scf           = scf.copy()
                     new_scf.label     = scf.label+str(i+1)
                     new_scf.mol_label = scf.mol_label+str(i+1)
-                    if i > 0:
-                        new_scf.guess_label = scf.label+str(i)
+                    #if i > 0:
+                    #    new_scf.guess_label = scf.label+str(i)
                     new_run_list.append(new_scf)
                     
                 # ci object(s)
