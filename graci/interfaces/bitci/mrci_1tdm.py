@@ -87,7 +87,7 @@ def tdm(bra, ket, trans_list, modified, rep='adiabatic'):
             rho[bra_irr][ket_irr] = np.reshape(rhoij,
                                                (nmo, nmo, npairs),
                                                order='F')
-
+            
             ## Temporary: save the 1-TDMs to disk
             #pairs = np.reshape(tdm_pairs, (npairs, 2), order='F')
             #for n in range(npairs):
