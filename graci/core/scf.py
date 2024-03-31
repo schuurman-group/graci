@@ -16,6 +16,7 @@ import graci.core.solvents as solvents
 import graci.core.functionals as functionals
 from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
+from pyscf.scf import stability
 
 class Scf:
     """Class constructor for SCF object"""
@@ -43,6 +44,8 @@ class Scf:
         self.solvent        = None
         self.mol_label      = 'default'
         self.guess_label    = None
+        self.direct_scf     = True
+        self.chk_stable     = False
         
         # computed quantities
         self.mol          = None 
@@ -110,7 +113,7 @@ class Scf:
 
         # set the verbosity of the output
         if self.verbose:
-            pymol.verbose = 4
+            pymol.verbose = 4 
         else:
             pymol.verbose = 0
 
@@ -122,11 +125,6 @@ class Scf:
         if self.verbose:
             output.print_coords(self.mol.crds, self.mol.asym)
             
-        # set the file names based on class label
-        # save integrals -- tie them to the scf object for
-        self.moint_1e     = '1e_'+str(self.label).strip()+'.h5'
-        self.moint_2e_eri = '2e_eri_'+str(self.label).strip()+'.h5'
-
         # this is just to tell user the nature of the auxiliary basis
         if self.mol.use_df:
             # tell user what RI basis if ri_basis is not set
@@ -166,10 +164,8 @@ class Scf:
             self.orb_sym   = [0] * len(self.orbs)
 
         # construct density matrix
-        self.rdm_ao = np.zeros((self.nmo, self.nmo), dtype=float)
-        for i in range(self.nmo):
-            self.rdm_ao += self.orb_occ[i]*np.outer(self.orbs[:,i],\
-                                                    self.orbs[:,i])
+        occmos = self.orbs[:,self.orb_occ>0]
+        self.rdm_ao = occmos @ np.diag(self.orb_occ[self.orb_occ>0]) @ occmos.T 
 
         # print the summary of the output to file
         if self.verbose:
@@ -183,7 +179,7 @@ class Scf:
                                      orb_ener=self.orb_ener,
                                      orb_dir='scf.'+str(self.label), 
                                      cart=True)
-        
+       
         return self.energy
 
     #
@@ -321,11 +317,10 @@ class Scf:
         mf.conv_tol = self.conv_tol
             
         # set the integral file names
-        if hasattr(mf, 'with_df'):
-            if self.mol.use_df:
-                mf.with_df._cderi_to_save = self.moint_2e_eri
-            else:
-                mf.with_df = None
+        #if hasattr(mf, 'with_df'):
+        #    aoint_file = '2e_eri_'+str(self.label).strip()+'.h5'
+        #    if not self.mol.use_df: 
+        #        mf.with_df = None
 
         # set the dynamic level shift, if request
         #if self.lvl_shift is not None:
@@ -340,10 +335,10 @@ class Scf:
         mf.max_cycle = self.max_iter
 
         # default chkfile name based on object label name
-        mf.chkfile = self.make_chkfile_name(self.label)
+        #mf.chkfile = self.make_chkfile_name(self.label)
       
         # how to define initial guess orbitals
-        if guess is None:
+        if guess == None:
             dm = None
 
             # check if a restart file exists, if so, use same chkfile
@@ -363,6 +358,7 @@ class Scf:
 
         # use scf object passed to run
         else:
+            #dm = guess.rdm_ao 
             dm = self.guess_dm(guess)
 
         # SCF CONVERGENCE OPTIONS
@@ -380,14 +376,36 @@ class Scf:
         # if this is an atom: preserve spherical symmetry
         #if self.mult != 1: 
         #    mf = scf.addons.frac_occ(mf)
+        mf.direct_scf = self.direct_scf 
 
         # run the scf computation
         self.energy = mf.kernel(dm0=dm)
-        
+       
         # if not converged, kill things
         if not mf.converged:
             return None
-    
+
+        # check stability
+        if self.chk_stable:
+            new_mo, _, stable, _ = mf.stability(return_status=True)
+            chk_iter = 1
+            while (not stable and chk_iter <= 3):
+                if self.verbose:
+                    output.print_message('Orbital instability found.' + 
+                               ' Re-optimizing, attempt '+str(chk_iter))
+                dm1 = mf.make_rdm1(new_mo, mf.mo_occ)
+                mf  = mf.run(dm1)
+                self.energy = mf.e_tot
+                new_mo, _, stable, _ = mf.stability(return_status=True)
+                chk_iter += 1
+          
+            # if stable orbitals not found, return None
+            if not stable:
+                if self.verbose:
+                    output.print_message('Stable Orbitals not found '
+                     'after ' + str(chk_iter) + ' attempts. Exiting...')
+                return None 
+
         # MO phase convention: positive dominant coefficients
         # for degenerate coefficients, pick the first occurrence
         # N.B. this is essential for diabatisation runs
@@ -401,7 +419,7 @@ class Scf:
                     for i in range(nao)].index(1)
             if mf.mo_coeff[indx, i] < 0.:
                 mf.mo_coeff[:, i] *= -1.
-            
+        
         return mf
 
     #
@@ -416,10 +434,10 @@ class Scf:
         # PySCF mol objects
         mol  = self.mol.mol_obj
         mol0 = guess.mol.mol_obj
-        
+       
         # current AO overlaps
         s = mol.intor_symmetric('int1e_ovlp')
-        
+    
         # guess MOs and occupations
         mo0  = guess.orbs
         occ0 = guess.orb_occ
@@ -436,7 +454,10 @@ class Scf:
                                     [mo_occa, mo_occb])
 
         return dm[0] + dm[1]
-   
+
+        return dm   
+
+
     #
     def make_chkfile_name(self, label):
         """
