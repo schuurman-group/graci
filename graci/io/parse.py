@@ -579,7 +579,7 @@ def replicate_sections(run_list):
                 # si object(s)
                 for si in si_list:
                     new_si             = si.copy()
-                    new_si.label       = ci.label+str(i+1)
+                    new_si.label       = si.label+str(i+1)
                     new_si.init_label  = si.init_label+str(i+1)
                     new_si.final_label = si.final_label+str(i+1)
                     if new_si.representation == 'diabatic' and i == 0:

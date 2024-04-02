@@ -8,6 +8,8 @@ import importlib as importlib
 import graci.io.output as output
 import graci.utils.timing as timing
 
+import scipy as sp
+
 #
 @timing.timed
 def build_nos(rdm, basis='AO', mos=None):
@@ -83,7 +85,7 @@ def build_ndos(rdm, rdm_ref, basis='mo', mos=None):
 @timing.timed
 def build_ntos(tdm, basis='ao', mos=None):
     """build the natural transition orbitals"""
-
+    
     # get dimensions of the NOs
     if mos is not None:
         (nbas, nmo) = mos.shape
@@ -94,7 +96,7 @@ def build_ntos(tdm, basis='ao', mos=None):
     # particle orbitals and weights and convert
     # orbitals to AO basis
     part, s, hole = np.linalg.svd(tdm)
-
+    
     if basis.lower() == 'ao':
         part = np.matmul(mos, part)
         hole = np.matmul(mos, hole.T)
