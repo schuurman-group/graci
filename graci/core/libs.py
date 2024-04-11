@@ -178,7 +178,7 @@ bitwf_registry = {
     'bitwf_finalise'   : [],
     'detwf'            : ['int32','string','string','int32','string',
                           'int32'],
-    'detoverlap'       : ['int32','int32','int32','int32','int32',
+    'detoverlap'       : ['int32','int32','int32','int32','int32','int32',
                           'int32','int32','double','int32','int32',
                           'logical','double'],
     'detdyson'         : ['int32','int32','int32','int32','int32','int32',
@@ -190,7 +190,7 @@ bitwf_intent = {
                           'in','in','in','in'],
     'bitwf_finalise'   : [],
     'detwf'            : ['in','in','in','in','in','out'],
-    'detoverlap'       : ['in','in','in','in','in','in','in','in',
+    'detoverlap'       : ['in','in','in','in','in','in','in','in','in',
                           'in','in','in','out'],
     'detdyson'         : ['in','in','in','in','in','in','in','in',
                           'in','in','out']

@@ -87,7 +87,7 @@ class Scf:
     @timing.timed
     def run(self, mol, guess):
         """compute the DFT energy and KS orbitals"""
-
+        
         # set the GRaCI mol object
         self.mol = mol
        
@@ -137,7 +137,7 @@ class Scf:
  
         # extract orbitals, occupations and energies
         self.orbs      = scf_pyscf.mo_coeff
-
+        
         # orb_occ are the MO occupation numbers
         self.orb_occ   = scf_pyscf.mo_occ
         # orb_ener is the array of MO energies
@@ -179,7 +179,7 @@ class Scf:
                                      orb_ener=self.orb_ener,
                                      orb_dir='scf.'+str(self.label), 
                                      cart=True)
-       
+        
         return self.energy
 
     #

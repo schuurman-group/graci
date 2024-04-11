@@ -20,11 +20,11 @@ class Overlap(interaction.Interaction):
         super().__init__()
 
         # user defined quantities
-        self.bra_label    = None
-        self.ket_label    = None
-        self.bra_states   = None
-        self.ket_states   = None
-        self.norm_thresh  = 0.999
+        self.bra_label      = None
+        self.ket_label      = None
+        self.bra_states     = None
+        self.ket_states     = None
+        self.norm_thresh    = 0.999
         self.representation = 'adiabatic'
 
         # ----------------------------------------------------------
@@ -118,7 +118,7 @@ class Overlap(interaction.Interaction):
                                                  sym_blk=True)
 
                 # overlaps over the spin-free CI states
-                ci_ovrlp =  self.build_ci_overlaps(b_lbl, k_lbl,
+                ci_ovrlp = self.build_ci_overlaps(b_lbl, k_lbl,
                                                   ci_tran, ci_tran_sym)
 
                 # rotate overlaps to final state basis
@@ -194,11 +194,6 @@ class Overlap(interaction.Interaction):
                         self.get_ci_obj('ket',k_lbl).nel):
                     sys.exit('Error: unequal bra and ket N_el')
         
-                # bitwf currently only supports equal bra and ket point groups
-                if (self.get_ci_obj('bra', b_lbl).scf.mol.sym_indx != 
-                        self.get_ci_obj('ket',k_lbl).scf.mol.sym_indx):
-                    sys.exit('Error: unequal bra and ket point groups')                
-
         return
 
     #

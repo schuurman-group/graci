@@ -573,7 +573,10 @@ class Interaction:
         if sym_blk:
             nb = self.groups[bra_grp].ci_objs[bra_ci].n_irrep()
             nk = self.groups[ket_grp].ci_objs[ket_ci].n_irrep()
-            pair_list = [[[] for b in range(nb)] for k in range(nk)]
+            #pair_list = [[[] for b in range(nb)] for k in range(nk)]
+
+            pair_list = [[[] for k in range(nk)] for b in range(nb)]
+            
         else:
             pair_list = []
 
@@ -596,7 +599,7 @@ class Interaction:
                     ksym = self.groups[ket_grp].ci_st_irr[ket_ci][k]
                     kind = self.groups[ket_grp].ci_st_sym[ket_ci][k]
                     bsym = self.groups[bra_grp].ci_st_irr[bra_ci][b]
-                    bind = self.groups[bra_grp].ci_st_sym[bra_ci][b]                       
+                    bind = self.groups[bra_grp].ci_st_sym[bra_ci][b]
                     pair_list[bsym][ksym].append([bind, kind])
                 else:
                     pair_list.append([bst, kst])
