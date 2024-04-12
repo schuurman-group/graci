@@ -11,12 +11,12 @@
 !             call to liboverlap.
 !######################################################################
 #ifdef CBINDING
-subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij) &
+subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+     wfscrB,wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij) &
      bind(c,name='detoverlap')
 #else
-subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
-     wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij)
+subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
+     wfscrB,wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij)
 #endif
 
   use constants
@@ -25,8 +25,8 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 
   implicit none
 
-  ! Irrep and no. roots
-  integer(is), intent(in)  :: irrep,nrootsB,nrootsK
+  ! Irreps and no. roots
+  integer(is), intent(in)  :: irrepB,irrepK,nrootsB,nrootsK
 
   ! Indices of the pairs of states for which overlaps are requested
   integer(is), intent(in)  :: npairs
@@ -66,12 +66,16 @@ subroutine detoverlap(irrep,nrootsB,nrootsK,npairs,iroots,wfscrB,&
 !----------------------------------------------------------------------
   if (verbose) then
      write(6,'(/,52a)') ('-',i=1,52)
-     write(6,'(2(x,a))') &
+     write(6,'(3(x,a),/,3(x,a))') &
           'Wave function overlap calculation for the',&
-          trim(irreplbl(irrep,ipg)),'subspace'
+          trim(irreplbl(irrepB,ipgB)),&
+          '(bra)',&
+          'and',&
+          trim(irreplbl(irrepK,ipgK)),&
+          '(ket) subspaces'
      write(6,'(52a)') ('-',i=1,52)
   endif
-     
+
 !----------------------------------------------------------------------
 ! Get the number of bra and ket determinants
 !----------------------------------------------------------------------
