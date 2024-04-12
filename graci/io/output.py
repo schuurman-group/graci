@@ -710,7 +710,8 @@ def print_overlap_header(label):
 
 
 def print_overlaps(trans_list, overlaps, bra_label, ket_label,
-                   irreplbl, bra_state_sym, ket_state_sym):
+                   bra_irreplbl, ket_irreplbl, bra_state_sym,
+                   ket_state_sym):
     """
     Prints the table of wave function overlaps
     """
@@ -751,17 +752,17 @@ def print_overlaps(trans_list, overlaps, bra_label, ket_label,
         [birr, bst] = bra_state_sym[bk_st[0]]
         [kirr, kst] = ket_state_sym[bk_st[1]]
                 
-        if birr != kirr:
-            continue
+        #if birr != kirr:
+        #    continue
 
         if np.abs(sij) < 1e-6:
             continue
         
-        irr    = birr
-        irrlbl = irreplbl[irr]
+        bra_irrlbl = bra_irreplbl[birr]
+        ket_irrlbl = ket_irreplbl[kirr]
         
-        print(fstr.format(bk_st[0]+1, '('+irrlbl+')',
-                          bk_st[1]+1, '('+irrlbl+')',
+        print(fstr.format(bk_st[0]+1, '('+bra_irrlbl+')',
+                          bk_st[1]+1, '('+ket_irrlbl+')',
                           np.real(sij)),
               flush=True)
 

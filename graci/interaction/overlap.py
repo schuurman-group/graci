@@ -139,8 +139,9 @@ class Overlap(interaction.Interaction):
 
         if self.verbose:
             output.print_overlaps(self.trans_list, self.overlaps,
-                                  self.ket_label, self.bra_label,
+                                  self.bra_label, self.ket_label,
                                   self.bra_obj.scf.mol.irreplbl,
+                                  self.ket_obj.scf.mol.irreplbl,
                                   bra_state_sym, ket_state_sym)
 
     #
