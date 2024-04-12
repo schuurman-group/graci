@@ -68,10 +68,10 @@ subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
      write(6,'(/,52a)') ('-',i=1,52)
      write(6,'(3(x,a),/,3(x,a))') &
           'Wave function overlap calculation for the',&
-          trim(irreplbl(irrepB,ipg)),&
+          trim(irreplbl(irrepB,ipgB)),&
           '(bra)',&
-          'and ',&
-          trim(irreplbl(irrepk,ipg)),&
+          'and',&
+          trim(irreplbl(irrepK,ipgK)),&
           '(ket) subspaces'
      write(6,'(52a)') ('-',i=1,52)
   endif
