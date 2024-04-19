@@ -22,7 +22,7 @@ contains
 !######################################################################
   subroutine get_pds_basis(cfg,refdim,nvec,vec0,nmoR0,n_intR0,ndetR0,&
        nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds,&
-       normthrsh)
+       normthrsh,detthrsh)
     
     use constants
     use bitglobal
@@ -66,7 +66,7 @@ contains
     real(dp), intent(in)     :: normthrsh
 
     ! Determinant screening threshold
-    real(dp)                 :: hthrsh
+    real(dp), intent(in)     :: detthrsh
     
     ! Dummy ref space configuration derived type
     type(mrcfg)              :: cfg_ref
@@ -169,10 +169,9 @@ contains
     
     ! Compute the overlaps
     lprint=.true.
-    hthrsh=1e-6_dp
     call overlap(nmo,nmoR0,n_int,n_intR0,ndet_ref,ndetR0,nvec,&
          nrootsR0,det_ref,detR0,vec0_det,vecR0,smoT,normthrsh,&
-         hthrsh,ncore,icore,lfrzcore,npairs,Sij,ipairs,lprint)
+         detthrsh,ncore,icore,lfrzcore,npairs,Sij,ipairs,lprint)
     
 !----------------------------------------------------------------------
 ! Fill in the precursor state coefficients

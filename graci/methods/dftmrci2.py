@@ -47,6 +47,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.diabatic        = False
         self.adt_type        = 'bdd'
         self.norm_thresh     = 0.999
+        self.det_thresh      = 1e-6
         self.nbuffer         = []
         self.refsel          = 'dynamic'
 
