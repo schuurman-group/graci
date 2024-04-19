@@ -11,7 +11,8 @@ import graci.core.molecule as molecule
 
 @timing.timed
 def dyson(bra, ket, mo_basis, n_basis, bra_wfunit,
-          ket_wfunit, norm_thresh, trans_list):
+          ket_wfunit, norm_thresh, det_thresh,
+          trans_list):
     """
     Calculation of the Dyson orbitals for all pairs of states
     in trans_list using their expansion in terms of Slater
@@ -59,7 +60,7 @@ def dyson(bra, ket, mo_basis, n_basis, bra_wfunit,
             # of states
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs,
                     dyson_pairs, bra_unit, ket_unit, norm_thresh,
-                    n_basis, dysij)
+                    det_thresh, n_basis, dysij)
 
             dysij = libs.lib_func('detdyson', args)
 

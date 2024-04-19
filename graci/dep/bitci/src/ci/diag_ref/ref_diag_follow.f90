@@ -119,6 +119,9 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
   ! Norm-based truncation threshold
   real(dp)                   :: normthrsh
 
+  ! Determinant screening threshold
+  real(dp)                   :: hthrsh
+  
   ! Wave function overlaps
   integer(is)                :: npairs
   integer(is), allocatable   :: ipairs(:,:)
@@ -301,9 +304,10 @@ subroutine ref_diag_mrci_follow(irrep,nroots,confscr,n_intR0,ndetR0,&
 
   ! Compute the overlaps
   lprint=.false.
+  hthrsh=1e-6_dp
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nsave,&
-       detR0,det,vecR0,vec_det,smat,normthrsh,ncore,icore,lfrzcore,&
-       npairs,Sij,ipairs,lprint)
+       detR0,det,vecR0,vec_det,smat,normthrsh,hthrsh,ncore,icore,&
+       lfrzcore,npairs,Sij,ipairs,lprint)
 
 !----------------------------------------------------------------------
 ! Determine the reference eigenfunctions of interest

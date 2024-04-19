@@ -49,7 +49,8 @@ def adt(ref_obj, disp_obj):
         
         # wave function truncation threshold
         norm_thresh = 0.999
-
+        det_thresh  = 1e-6
+        
         # pairs of states for which we want overlaps
         npairs = nstates**2
         pairs  = np.array([[i,j] for i in range(nstates)
@@ -58,7 +59,7 @@ def adt(ref_obj, disp_obj):
         # get the overlaps
         Sij = overlap.overlap(ref_obj, disp_obj, disp_obj.smo,
                               pairs, irrep, norm_thresh,
-                              disp_obj.verbose)
+                              det_thresh, disp_obj.verbose)
 
         # reshape the wave function overlaps into a more
         # useful form

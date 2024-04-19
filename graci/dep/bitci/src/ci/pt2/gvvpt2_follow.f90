@@ -116,6 +116,7 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   integer(is), allocatable :: ipairs(:,:)
   real(dp), allocatable    :: Sij(:)
   real(dp)                 :: normthrsh
+  real(dp)                 :: hthrsh
 
   ! Wave function selection
   integer(is)              :: imin(1),imax(1)
@@ -383,6 +384,9 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! Truncation threshold
   normthrsh=0.95d0
 
+  ! Determinant screening threshold
+  hthrsh=1e-6_dp
+  
   ! Fill in the array of bra-ket overlaps required
   n=0
   do i=1,nrootsR0
@@ -396,8 +400,8 @@ subroutine gvvpt2_follow(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! Compute the overlaps
   lprint=.false.
   call overlap(nmoR0,nmo,n_intR0,n_int,ndetR0,ndet,nrootsR0,nvec,&
-       detR0,det,vecR0,Avec_det,smoR0,normthrsh,ncore,icore,lfrzcore,&
-       npairs,Sij,ipairs,lprint)
+       detR0,det,vecR0,Avec_det,smoR0,normthrsh,hthrsh,ncore,icore,&
+       lfrzcore,npairs,Sij,ipairs,lprint)
 
 !----------------------------------------------------------------------
 ! Deallocate the Avec_det array now that it is no longer needed

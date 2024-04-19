@@ -25,6 +25,7 @@ class Overlap(interaction.Interaction):
         self.bra_states     = None
         self.ket_states     = None
         self.norm_thresh    = 0.999
+        self.det_thresh     = 1e-6
         self.representation = 'adiabatic'
 
         # ----------------------------------------------------------
@@ -216,7 +217,8 @@ class Overlap(interaction.Interaction):
                                           self.bra_wfunit,
                                           self.ket_wfunit,
                                           ci_trans_sym,
-                                          self.norm_thresh)
+                                          self.norm_thresh,
+                                          self.det_thresh)
         # make the overlap list
         npairs   = len(ci_trans)
         overlaps = np.zeros((npairs), dtype=float)

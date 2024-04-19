@@ -12,11 +12,11 @@
 !######################################################################
 #ifdef CBINDING
 subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     wfscrB,wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij) &
+     wfscrB,wfscrK,norm_thresh,det_thresh,ncore,icore,lfrzcore,Sij) &
      bind(c,name='detoverlap')
 #else
 subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     wfscrB,wfscrK,norm_thresh,ncore,icore,lfrzcore,Sij)
+     wfscrB,wfscrK,norm_thresh,det_thresh,ncore,icore,lfrzcore,Sij)
 #endif
 
   use constants
@@ -38,6 +38,9 @@ subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   ! Norm-based wave function truncation threshold
   real(dp), intent(in)     :: norm_thresh
 
+  ! Determinant screening threshold
+  real(dp)                 :: det_thresh
+  
   ! Frozen/deleted core MOs
   integer(is), intent(in)  :: ncore
   integer(is), intent(in)  :: icore(ncore)
@@ -45,7 +48,7 @@ subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   
   ! Wave function overlaps
   real(dp), intent(out)    :: Sij(npairs)
-
+  
   ! Determinant bit strings
   integer(ib), allocatable :: detB(:,:,:),detK(:,:,:)
 
@@ -186,8 +189,8 @@ subroutine detoverlap(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 ! Call to liboverlap
 !----------------------------------------------------------------------
   call overlap(nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,nvecK,&
-       detB,detK,vecB,vecK,smo,norm_thresh,ncore,icore,lfrzcore,&
-       npairs,Sij,ipairs,verbose)
+       detB,detK,vecB,vecK,smo,norm_thresh,det_thresh,ncore,icore,&
+       lfrzcore,npairs,Sij,ipairs,verbose)
 
 !----------------------------------------------------------------------
 ! Flush stdout

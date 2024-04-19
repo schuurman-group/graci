@@ -3,7 +3,7 @@
 !######################################################################
 subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
      nrootsL,nrootsR,detL,detR,vecL,vecR,mosymL,mosymR,smo1,normthrsh,&
-     npairs,n_basis,dysorb,ipairs1,verbose1)
+     hthrsh1,npairs,n_basis,dysorb,ipairs1,verbose1)
 
   use constants
   use global
@@ -46,6 +46,9 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
   
   ! Norm-based truncation threshold
   real(dp), intent(in)        :: normthrsh
+
+  ! Determinant screening threshold
+  real(dp), intent(in)        :: hthrsh1
   
   ! Indices of the pairs of states for which overlaps are requested
   integer(is), intent(in)     :: npairs
@@ -136,6 +139,9 @@ subroutine dyson(irrepL,irrepR,nmoL,nmoR,n_intL,n_intR,ndetL,ndetR,&
 !
 ! Hence, there may be a bit of shuffling here
 !----------------------------------------------------------------------
+  ! Determinant screening threshold
+  hthrsh=hthrsh1
+
   if (nelL == nelR - 1) then
      !
      ! L<->bra and R<->ket

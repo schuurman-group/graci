@@ -28,6 +28,7 @@ class Dyson(interaction.Interaction):
         self.final_states   = None
         self.final_label    = None
         self.norm_thresh    = 0.999
+        self.det_thresh     = 1e-6
         self.print_orbitals = False
         self.representation = 'adiabatic'
 
@@ -259,6 +260,7 @@ class Dyson(interaction.Interaction):
                                   self.mo_basis, self.n_basis,
                                   bra_wfunit, ket_wfunit, 
                                   self.norm_thresh,
+                                  self.det_thresh,
                                   ci_trans_sym)
 
         # make the Dyson orbital list

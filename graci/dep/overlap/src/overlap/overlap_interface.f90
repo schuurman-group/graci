@@ -2,8 +2,8 @@
 ! overlap_c: overlap interface with C bindings
 !######################################################################
 subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
-     nrootsB1,nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
-     icore,lfrzcore,npairs,Sij,ipairs,verbose1) &
+     nrootsB1,nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,&
+     hthrsh,ncore,icore,lfrzcore,npairs,Sij,ipairs,verbose1) &
      bind(c,name="overlap_c")
 
   use constants
@@ -37,6 +37,9 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
   ! Norm-based truncation threshold
   real(dp), intent(in)    :: normthrsh
 
+  ! Determinant screening threshold
+  real(dp), intent(in)    :: hthrsh
+  
   ! Frozen/deleted core MOs
   integer(is), intent(in) :: ncore
   integer(is), intent(in) :: icore(ncore)
@@ -53,8 +56,8 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
   logical, intent(in)     :: verbose1
 
   call overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
-       nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
-       icore,lfrzcore,npairs,Sij,ipairs,verbose1)
+       nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,hthrsh,&
+       ncore,icore,lfrzcore,npairs,Sij,ipairs,verbose1)
   
   return
   
@@ -64,8 +67,8 @@ end subroutine overlap_c
 ! overlap: overlap interface with Fortran bindings
 !######################################################################
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
-     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
-     lfrzcore,npairs,Sij,ipairs,verbose1)
+     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,hthrsh1,ncore,&
+     icore,lfrzcore,npairs,Sij,ipairs,verbose1)
 
   use constants
   use global
@@ -105,6 +108,9 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Norm-based truncation threshold
   real(dp), intent(in)    :: normthrsh
 
+  ! Determinant screening threshold
+  real(dp), intent(in)    :: hthrsh1
+  
   ! Frozen/deleted core MOs
   integer(is), intent(in) :: ncore
   integer(is), intent(in) :: icore(ncore)
@@ -170,6 +176,9 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra-ket overlaps
   allocate(smo(nmoB,nmoK))
   smo=smo1
+
+  ! Determinant screening threshold
+  hthrsh=hthrsh1
   
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)

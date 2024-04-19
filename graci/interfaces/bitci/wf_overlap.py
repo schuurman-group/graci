@@ -74,20 +74,23 @@ def extract(bra, ket, rep='adiabatic'):
     return wfunits_bra, wfunits_ket
 
 @timing.timed
-def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh):
+def overlap(bra, ket, bra_wfunit, ket_wfunit, overlap_list, norm_thresh,
+            det_thresh):
 
     if bra.scf.mol.sym_indx == ket.scf.mol.sym_indx:
         overlap = overlap_same_sym(bra, ket, bra_wfunit, ket_wfunit,
-                                   overlap_list, norm_thresh)
+                                   overlap_list, norm_thresh,
+                                   det_thresh)
     else:
         overlap = overlap_diff_sym(bra, ket, bra_wfunit, ket_wfunit,
-                                   overlap_list, norm_thresh)
+                                   overlap_list, norm_thresh,
+                                   det_thresh)
         
     
     return overlap
 
 def overlap_same_sym(bra, ket, bra_wfunit, ket_wfunit, overlap_list,
-                     norm_thresh):
+                     norm_thresh, det_thresh):
     """
     Calculation of the overlaps between all pairs of states
     in overlap_list using the determinant representation
@@ -151,8 +154,8 @@ def overlap_same_sym(bra, ket, bra_wfunit, ket_wfunit, overlap_list,
 
         # compute the overlaps for all requested pairs of states
         args = (irr, irr, bra_tot, ket_tot, npairs, overlap_pairs,
-                bra_unit, ket_unit, norm_thresh, ncore, icore,
-                delete_core, sij)
+                bra_unit, ket_unit, norm_thresh, det_thresh,
+                ncore, icore, delete_core, sij)
 
         sij  = libs.lib_func('detoverlap', args)
 
@@ -171,7 +174,7 @@ def overlap_same_sym(bra, ket, bra_wfunit, ket_wfunit, overlap_list,
     return overlap
 
 def overlap_diff_sym(bra, ket, bra_wfunit, ket_wfunit, overlap_list,
-                     norm_thresh):
+                     norm_thresh, det_thresh):
     """
     Calculation of the overlaps between all pairs of states
     in overlap_list using the determinant representation
@@ -236,8 +239,8 @@ def overlap_diff_sym(bra, ket, bra_wfunit, ket_wfunit, overlap_list,
 
             # compute the overlaps for all requested pairs of states
             args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, overlap_pairs,
-                    bra_unit, ket_unit, norm_thresh, ncore, icore,
-                    delete_core, sij)
+                    bra_unit, ket_unit, norm_thresh, det_thresh,
+                    ncore, icore, delete_core, sij)
 
             sij  = libs.lib_func('detoverlap', args)
 

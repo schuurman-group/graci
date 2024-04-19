@@ -64,6 +64,9 @@ contains
 
     ! Norm-based wave function truncation threshold
     real(dp), intent(in)     :: normthrsh
+
+    ! Determinant screening threshold
+    real(dp)                 :: hthrsh
     
     ! Dummy ref space configuration derived type
     type(mrcfg)              :: cfg_ref
@@ -166,9 +169,10 @@ contains
     
     ! Compute the overlaps
     lprint=.true.
+    hthrsh=1e-6_dp
     call overlap(nmo,nmoR0,n_int,n_intR0,ndet_ref,ndetR0,nvec,&
          nrootsR0,det_ref,detR0,vec0_det,vecR0,smoT,normthrsh,&
-         ncore,icore,lfrzcore,npairs,Sij,ipairs,lprint)
+         hthrsh,ncore,icore,lfrzcore,npairs,Sij,ipairs,lprint)
     
 !----------------------------------------------------------------------
 ! Fill in the precursor state coefficients
