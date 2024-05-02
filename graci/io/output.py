@@ -128,7 +128,7 @@ def print_rydano_header(rydano):
                ' constructed from the low-lying\n' + \
                '    virtual orbitals of the corresponding cation.\n'
 
-        ostr+= '\n       See: K. Kaufmann, W. Baumeistert, M. Jungen'+\
+        ostr+= '\n       See: K. Kaufmann, W. Baumeister, M. Jungen'+\
                '\n            J. Phys. B: At. Mol. Opt. Phys., 22, '+\
                ' 2223-2240, (1989).\n\n'
 

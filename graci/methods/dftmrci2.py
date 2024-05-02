@@ -45,7 +45,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.refiter         = 3
         self.ref_prune       = True
         self.diabatic        = False
-        self.adt_type        = 'bdd'
+        self.adt_type        = 'qdpt'
         self.norm_thresh     = 0.999
         self.det_thresh      = 1e-6
         self.nbuffer         = []
