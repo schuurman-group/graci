@@ -60,7 +60,7 @@ module global
   real(dp), allocatable    :: invSff(:,:)
   
   ! Determinant thresholds
-  real(dp), parameter      :: hthrsh=1e-6_dp
+  real(dp)                 :: hthrsh
   real(dp), parameter      :: fthrsh=1e-6_dp
 
   !

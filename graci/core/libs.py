@@ -76,9 +76,8 @@ bitci_registry = {
     'gvvpt2_diab'             : ['int32','int32','int32','int32','double',
                                  'int32','int32','int32','int64','double',
                                  'int32','double','int32','int32','logical',
-                                 'double',
-                                 'int32','int32','int32','double','int32',
-                                 'int32','int32','int32'],
+                                 'double','double','int32','int32','int32',
+                                 'double','int32','int32','int32','int32'],
     'truncate_mrci_wf'        : ['int32','int32','int32','int32','int32',
                                  'double','int32']
 }
@@ -132,8 +131,8 @@ bitci_intent = {
                                  'out','out'],
     'gvvpt2_diab'             : ['in','in','in','in','in','in','in',
                                  'in','in','in','in','in','in','in',
-                                 'in','in','in','in','in','out','out',
-                                 'out','out','out'],
+                                 'in','in','in','in','in','in','out',
+                                 'out','out','out','out'],
     'truncate_mrci_wf'        : ['in','in','in','in','in','in','out']
 }
 
@@ -173,41 +172,42 @@ bitsi_intent   = {
 # registry of bitwf functions
 bitwf_registry = {
     'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
-                          'double','int32','int64','int64','string',
+                          'double','int32','int32','int64','int64','string',
                           'logical'],
     'bitwf_finalise'   : [],
     'detwf'            : ['int32','string','string','int32','string',
                           'int32'],
-    'detoverlap'       : ['int32','int32','int32','int32','int32',
-                          'int32','int32','double','int32','int32',
+    'detoverlap'       : ['int32','int32','int32','int32','int32','int32',
+                          'int32','int32','double','double','int32','int32',
                           'logical','double'],
     'detdyson'         : ['int32','int32','int32','int32','int32','int32',
-                          'int32','int32','double','int32','double']
+                          'int32','int32','double','double','int32',
+                          'double']
 }
 
 bitwf_intent = {
-    'bitwf_initialise' : ['in','in','in','in','in','in','in','in',
+    'bitwf_initialise' : ['in','in','in','in','in','in','in','in','in',
                           'in','in','in','in'],
     'bitwf_finalise'   : [],
     'detwf'            : ['in','in','in','in','in','out'],
-    'detoverlap'       : ['in','in','in','in','in','in','in','in',
-                          'in','in','in','out'],
+    'detoverlap'       : ['in','in','in','in','in','in','in','in','in',
+                          'in','in','in','in','out'],
     'detdyson'         : ['in','in','in','in','in','in','in','in',
-                          'in','in','out']
+                          'in','in','in','out']
 }
 
 # registry of overlap functions
 overlap_registry = {
     'overlap_c' : ['int32','int32','int32','int32','int32','int32',
                    'int32','int32','int64','int64','double','double',
-                   'double','double','int32','int32','logical','int32',
-                   'double','int32','logical']
+                   'double','double','double','int32','int32','logical',
+                   'int32','double','int32','logical']
 }
 
 overlap_intent = {
     'overlap_c' : ['in','in','in','in','in','in','in','in','in','in',
-                   'in','in','in','in','in','in','in','in','out','in',
-                   'in']
+                   'in','in','in','in','in','in','in','in','in','out',
+                   'in','in']
 }
 
 # list of existing library objects

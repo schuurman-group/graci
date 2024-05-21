@@ -590,7 +590,7 @@ class Parameterize:
         bra_st  = list(ref_states.values())
         ket_st  = list(range(ci_new.n_states()))
         Smat = overlap.overlap_st(ci_ref, ci_new, bra_st, ket_st, smo,
-                                                   0.975, self.verbose) 
+                                  0.975, 1e-6, self.verbose) 
 
         root_found   = {st:True for st in ref_states.keys()}
         states_found = []

@@ -62,7 +62,7 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
                               twall_end
   
   ! Everything else
-  integer(is)              :: i,iscratch
+  integer(is)              :: i,ipgBK,iscratch
   real(dp), allocatable    :: S2expec(:)
   real(dp)                 :: S,S2
   real(dp), parameter      :: tiny=5e-12_dp
@@ -96,10 +96,15 @@ subroutine detwf(irrep,conffile_in,vecfile_in,nroots,bkstr_in,wfscr)
 ! Output what we are doing
 !----------------------------------------------------------------------
   if (verbose) then
+     if (bkstr == 'bra') then
+        ipgBK=ipgB
+     else if (bkstr == 'ket') then
+        ipgBK=ipgK
+     endif
      write(6,'(/,52a)') ('-',i=1,52)
      write(6,'(4(x,a))') &
           trim(bkstr),'CSF-to-det conversion for the',&
-          trim(irreplbl(irrep,ipg)),'subspace'
+          trim(irreplbl(irrep,ipgBK)),'subspace'
      write(6,'(52a)') ('-',i=1,52)
   endif
      
