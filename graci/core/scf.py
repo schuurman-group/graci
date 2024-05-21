@@ -45,7 +45,7 @@ class Scf:
         self.mol_label      = 'default'
         self.guess_label    = None
         self.direct_scf     = True
-        self.chk_stable     = False
+        self.chk_stable     = [False, False]
         
         # computed quantities
         self.mol          = None 
@@ -386,25 +386,45 @@ class Scf:
             return None
 
         # check stability
-        if self.chk_stable:
-            new_mo, _, stable, _ = mf.stability(return_status=True)
+        if any(self.chk_stable):
+            mo_i, mo_e, stbl_i, stbl_e = mf.stability(
+                                            return_status=True,
+                                            external=self.chk_stable[1])
+            # this should be cleaned up: if we're not checking for 
+            # external instabilities, set stbl_e to True so mo_e is 
+            # never taken
+            if not self.chk_stable[1]:
+                stbl_e = True
+
             chk_iter = 1
-            while (not stable and chk_iter <= 3):
+            while (not all([stbl_i, stbl_e]) and chk_iter <= 3):
                 if self.verbose:
                     output.print_message('Orbital instability found.' + 
-                               ' Re-optimizing, attempt '+str(chk_iter))
+                              ' Re-optimizing, attempt '+str(chk_iter))
+
+                if not stbl_i:
+                    new_mo = mo_i
+                else:
+                    new_mo = mo_e[0]
+
                 dm1 = mf.make_rdm1(new_mo, mf.mo_occ)
                 mf  = mf.run(dm1)
                 self.energy = mf.e_tot
-                new_mo, _, stable, _ = mf.stability(return_status=True)
+                mo_i, mo_e, stbl_i, stbl_e = mf.stability(
+                                            return_status=True, 
+                                            external=self.chk_stable[1])
+
+                if not self.chk_stable[1]:
+                    stbl_e = True
+
                 chk_iter += 1
           
             # if stable orbitals not found, return None
-            if not stable:
+            if not all([stbl_i, stbl_e]):
                 if self.verbose:
                     output.print_message('Stable Orbitals not found '
-                     'after ' + str(chk_iter) + ' attempts. Exiting...')
-                return None 
+                     'after ' + str(chk_iter) + ' attempts. Continuing')
+                #return None 
 
         # MO phase convention: positive dominant coefficients
         # for degenerate coefficients, pick the first occurrence

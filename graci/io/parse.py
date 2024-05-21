@@ -437,6 +437,7 @@ def convert_array(arg_list):
     new_list = []
     for arg in conv_list:
 
+        # try to parse as integers
         try:
             arr = np.array(arg).astype(int)
             new_list.append(arr)
@@ -444,8 +445,18 @@ def convert_array(arg_list):
         except ValueError:
             pass
 
+        # try to parse as floats
         try:
             arr = np.array(arg).astype(float)
+            new_list.append(arr)
+            continue
+        except ValueError:
+            pass
+
+        # try to parse as booleans
+        try:
+            tarr = ['TRUE','true','True']
+            arr = np.array([argi in tarr for argi in arg]).astype(bool)
             new_list.append(arr)
             continue
         except ValueError:
