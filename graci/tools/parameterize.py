@@ -7,6 +7,9 @@ import scipy.optimize as sp_opt
 import numpy as np
 import h5py as h5py
 import os as os
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing as mp
+
 import shutil as shutil
 import graci.core.libs as libs
 import graci.core.params as params
@@ -80,6 +83,9 @@ class Parameterize:
         # bounds for xc parameters
         self.xc_bounds       = None
 
+        # number of worker proceses for parallel runs
+        self.max_workers     = 1
+
         # scan run options
         self.ngrid           = None
         self.scan_var        = []
@@ -107,6 +113,8 @@ class Parameterize:
     def run(self):
         """re-parameterize the Hamiltonian"""
 
+        print('cpu count='+str(mp.cpu_count()))
+
         # parse the target data file
         exc_ref, states  = self.parse_ref_file()
 
@@ -118,6 +126,9 @@ class Parameterize:
 
         # set initial parameter set
         p_init = self.set_init_params()
+
+        # allocate number of workers/threads
+        self.allocate_workers(ci_objs)
 
         # print header info to output file defined in module output
         output.print_param_header(p_init, exc_ref, ci_objs)
@@ -186,6 +197,9 @@ class Parameterize:
         # going to set initial and final ci object keywords here as
         # well. This should be moved eventually.
         hams = [self.valence, self.cvs]
+        ci   = [self.val_method, self.cvs_method]
+        args = [self.val_args, self.cvs_args]
+        keys = ['valence', 'cvs']
         ci   = [self.val_method, self.cvs_method]
         args = [self.val_args, self.cvs_args]
         keys = ['valence', 'cvs']
@@ -403,20 +417,21 @@ class Parameterize:
         topdir    = os.getcwd()
         energies  = {}
 
-        if params.nproc > 1:
-            from mpi4py.futures import MPIPoolExecutor
+        if self.max_workers > 1:
 
-            with MPIPoolExecutor(max_workers=params.nproc,
-                                                 root=0) as executor:
+            with ProcessPoolExecutor(max_workers=self.max_workers,
+                      mp_context=mp.get_context("spawn")) as executor:
+
                 if executor is not None:
 
                     args = ((p_full, molecule, topdir, self.wfn_lib,
-                             scf_dirs[molecule], scf_names[molecule], 
-                             ci_objs[molecule], True, gen_orbs)
-                             for molecule in mol_names)
+                        scf_dirs[molecule], scf_names[molecule],         
+                        ci_objs[molecule], True, gen_orbs)
+                        for molecule in mol_names)
 
-                    for res in executor.starmap(self.eval_energy, args):
+                    for res in executor.map(self.eval_energy, *zip(*args)):
                         energies.update(res)
+
         else:
 
             for molecule in mol_names:
@@ -882,9 +897,6 @@ class Parameterize:
         #...else construct functional string
         # first indx for exchange part, second indx for correlation part
         n_xc   = [len(self.xc_coef[i]) for i in range(2)]
-        xc_str = ''
-        cfmt   = '{:7.5f}'
-
         for ixc in range(2):
             for ifunc in range(n_xc[ixc]):
                 cstr = self.xc_coef[ixc][ifunc]
@@ -999,6 +1011,20 @@ class Parameterize:
 
         return
 
+    #
+    def allocate_workers(self, objs):
+        """
+        allocate the number of worker threads, and number of
+        threads per worker. The latter will simply be set
+        via the environment variable, OMP_NUM_THREAD
+        """
+        
+        if params.nproc == 1:
+            self.max_workers = 1
+        else:
+            self.max_workers = params.nproc
+      
+        return
 
     #
     def hard_exit(self, message):
