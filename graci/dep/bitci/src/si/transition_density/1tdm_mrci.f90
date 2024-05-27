@@ -258,10 +258,9 @@ contains
           ! Same bra and ket configurations: compute the contribution
           ! to the on-diagonal 1-TDM elements
           if (nexci == 0) then
-             call tdm_diag(ibconf,ikconf,cfgK%sop0h(:,:,ikconf),&
-                  n_int_I,knsp,npairs,rhoij,Bmap,Kmap,csfdimB,csfdimK,&
-                  nvecB,nvecK,vecB,vecK,cfgB%csfs0h(ibconf),&
-                  cfgK%csfs0h(ikconf),cfgB%m2c)
+             call tdm_diag(cfgK%sop0h(:,:,ikconf),n_int_I,knsp,npairs,&
+                  rhoij,Bmap,Kmap,csfdimB,csfdimK,nvecB,nvecK,vecB,&
+                  vecK,cfgB%csfs0h(ibconf),cfgK%csfs0h(ikconf),cfgB%m2c)
              cycle
           endif
           
@@ -1888,8 +1887,8 @@ contains
 !           single configuration common to both the bra and ket
 !           wave functions
 !######################################################################
-  subroutine tdm_diag(ibconf,ikconf,sop,ldsop,nsp,npairs,rhoij,Bmap,&
-       Kmap,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,offsetB,offsetK,m2c)
+  subroutine tdm_diag(sop,ldsop,nsp,npairs,rhoij,Bmap,Kmap,csfdimB,&
+       csfdimK,nvecB,nvecK,vecB,vecK,offsetB,offsetK,m2c)
 
     use constants
     use bitglobal
@@ -1897,9 +1896,6 @@ contains
     
     implicit none
 
-     ! Indices of the bra and ket confs
-    integer(is), intent(in) :: ibconf,ikconf
-    
     ! SOP
     integer(is), intent(in) :: ldsop
     integer(ib), intent(in) :: sop(ldsop,2)
@@ -1933,7 +1929,7 @@ contains
     ! Everything else
     integer(is)             :: ipair,i,imo,isp
     integer(is)             :: Bindx,Kindx
-    real(dp)                :: prod,damping
+    real(dp)                :: prod
     
 !----------------------------------------------------------------------
 ! Get the lists of singly-occupied and doubly-occupied MOs
@@ -1941,15 +1937,6 @@ contains
     call sop_socc_list(sop,ldsop,socc,nmo,nsocc)
     call sop_docc_list(sop,ldsop,docc,nmo,ndocc)
 
-!----------------------------------------------------------------------
-! Damping function value
-!----------------------------------------------------------------------
-    if (modified) then
-       damping=damping_function(ibconf,ikconf)
-    else
-       damping=1.0d0
-    endif
-    
 !----------------------------------------------------------------------
 ! Contributions to the 1-TDMs
 !----------------------------------------------------------------------
@@ -1963,10 +1950,8 @@ contains
        ! Loop over CSFs
        do isp=1,nsp
 
-          ! Product of the bra and ket coefficients and the
-          ! damping function value
-          prod=vecB(offsetB+isp-1,Bindx)*vecK(offsetK+isp-1,Kindx)&
-               *damping
+          ! Product of the bra and ket coefficients
+          prod=vecB(offsetB+isp-1,Bindx)*vecK(offsetK+isp-1,Kindx)
           
           ! Loop over singly-occupied MOs
           do i=1,nsocc
@@ -2077,9 +2062,9 @@ contains
        ! Same bra and ket configurations: compute the contribution
        ! to the on-diagonal 1-TDM elements
        if (nexci == 0) then
-          call tdm_diag(ibconf,ikconf,ksop,n_int,knsp,npairs,rhoij,&
-               Bmap,Kmap,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
-               bcsfs(ibconf),kcsfs(ikconf),m2c)
+          call tdm_diag(ksop,n_int,knsp,npairs,rhoij,Bmap,Kmap,csfdimB,&
+               csfdimK,nvecB,nvecK,vecB,vecK,bcsfs(ibconf),&
+               kcsfs(ikconf),m2c)
           cycle
        endif
           
