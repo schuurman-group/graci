@@ -160,6 +160,9 @@ contains
     integer(is)             :: n_int_I
     real(dp)                :: c2,trace
 
+    ! Error threshold on the traces of the 1-RDMs
+    real(dp), parameter    :: thresh=1e-6_dp
+    
 !----------------------------------------------------------------------
 ! Initialisation
 !----------------------------------------------------------------------
@@ -460,7 +463,7 @@ contains
        enddo
        ! Print a warning if  the trace of the 1-RDM does not equal the
        ! no. electrons
-       if (abs(trace-nel) > 1e-6_dp) then
+       if (abs(trace-nel) > thresh) then
           write(6,'(/,x,a,x,i0)') &
                'Warning: incorrect value of Tr(rho) for state',ista
           write(6,'(/,x,a,ES10.4)') '|Tr(rho) - n_el| = ',&
