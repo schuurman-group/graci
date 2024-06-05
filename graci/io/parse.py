@@ -107,11 +107,9 @@ def parse_section(class_name, input_file):
                 elif '=' in input_file[iline]:
                     (kword,value) = input_file[iline].split('=')
                     kword = kword.strip().lower()
-
                     if kword in params.kwords[class_name].keys():
                         expected = params.kwords[class_name][kword]
                         val      = parse_value(value, expected)
-
                         if correct_type(val, expected):
                             setattr(sec_obj, kword, val)
                         else:
@@ -433,7 +431,7 @@ def convert_array(arg_list):
         conv_list = [arg_list]
     else:  
         conv_list = arg_list
-    
+
     new_list = []
     for arg in conv_list:
 
@@ -452,16 +450,19 @@ def convert_array(arg_list):
             continue
         except ValueError:
             pass
-
+        
         # try to parse as booleans
-        try:
-            tarr = ['TRUE','true','True']
-            arr = np.array([argi in tarr for argi in arg]).astype(bool)
-            new_list.append(arr)
-            continue
-        except ValueError:
-            pass
+        bool_strings = ['TRUE', 'true', 'True', 'FALSE', 'false', 'False']
+        if set(arg) <= set(bool_strings):
+            try:
+                tarr = ['TRUE', 'true', 'True']
+                arr = np.array([argi in tarr for argi in arg]).astype(bool)
+                new_list.append(arr)
+                continue
+            except ValueError:
+                pass
 
+        # parse as strings
         arr = np.array(arg, dtype=h5py.string_dtype(encoding='utf-8'))
         new_list.append(arr)
 
