@@ -454,14 +454,17 @@ def convert_array(arg_list):
             pass
 
         # try to parse as booleans
-        try:
-            tarr = ['TRUE','true','True']
-            arr = np.array([argi in tarr for argi in arg]).astype(bool)
-            new_list.append(arr)
-            continue
-        except ValueError:
-            pass
+        bool_strings = ['TRUE', 'true', 'True', 'FALSE', 'false', 'False']
+        if set(arg) <= set(bool_strings):
+            try:
+                tarr = ['TRUE', 'true', 'True']
+                arr = np.array([argi in tarr for argi in arg]).astype(bool)
+                new_list.append(arr)
+                continue
+            except ValueError:
+                pass
 
+        # parse as strings
         arr = np.array(arg, dtype=h5py.string_dtype(encoding='utf-8'))
         new_list.append(arr)
 
