@@ -1953,13 +1953,13 @@ contains
           ! Product of the bra and ket coefficients
           prod=vecB(offsetB+isp-1,Bindx)*vecK(offsetK+isp-1,Kindx)
           
-          ! Loop over singly-occupied MOs
+          ! Singly-occupied MOs
           do i=1,nsocc
              imo=m2c(socc(i))
              rhoij(imo,imo,ipair)=rhoij(imo,imo,ipair)+prod
           enddo
 
-          ! Loop over doubly-occupied MOs
+          ! Doubly-occupied MOs
           do i=1,ndocc
              imo=m2c(docc(i))
              rhoij(imo,imo,ipair)=rhoij(imo,imo,ipair)+2.0d0*prod

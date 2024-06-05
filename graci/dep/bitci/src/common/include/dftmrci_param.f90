@@ -155,10 +155,10 @@ module hparam
   ! delta E_sel = 0.8
   real(dp), parameter, dimension(5) :: qe8_short= &
        [0.419d0, & ! pJ
-       0.258d0,  &  ! pF
-       0.712d0,  &  ! p1
-       4.69d0,   &  ! p2
-       8.0d0]         ! n
+       0.258d0,  & ! pF
+       0.712d0,  & ! p1
+       4.69d0,   & ! p2
+       8.0d0]      ! n
   
   real(dp), parameter, dimension(7) :: cvs_qe8= &
        [0.425623d0, & ! pJ_vv

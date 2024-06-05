@@ -45,6 +45,8 @@ class Transition(interaction.Interaction):
         # optional modification/damping of the spin-coupling
         # coefficients
         self.modified         = False
+        # 1-TDM damping function parameters
+        self.damping_param    = None
         
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
