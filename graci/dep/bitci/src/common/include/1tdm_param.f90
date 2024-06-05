@@ -10,26 +10,26 @@ module tdm_param
   save
 
   ! Number of 1-TDM damping functions implemented
-  integer(is), parameter :: ntdm = 2
+  integer(is), parameter :: ndamp = 2
 
   ! 1-TDM damping function labels
-  character(len=20), parameter, dimension(ntdm) :: tdmlbl= &
+  character(len=20), parameter, dimension(ndamp) :: damplbl= &
        ['abinitio            ', &
        'qe8                  ']
 
   ! 1-TDM damping function integer label
-  integer(is)            :: itdm
+  integer(is)            :: idamping
 
   ! 1-TDM damping function parameters
-  real(dp), allocatable  :: tdmpar(:)
+  real(dp), allocatable  :: damppar(:)
 
   ! Number of 1-TDM damping function parameters
-  integer(is)            :: ntdmpar
+  integer(is)            :: ndamppar
 
 !----------------------------------------------------------------------
 ! QE8 damping function
 !----------------------------------------------------------------------
-  real(dp), parameter, dimension(5) :: qe8= &
+  real(dp), parameter, dimension(3) :: qe8_damping= &
        [0.692173d0, & ! p1
        4.611269d0, &  ! p2
        8.0d0]         ! n
@@ -39,7 +39,7 @@ contains
 !######################################################################
 ! load_hpar: loads the 1-TDM damping function parameters
 !######################################################################
-  subroutine load_tdm(idamp)
+  subroutine load_damping(idamp)
 
     use constants
     use bitglobal
@@ -53,20 +53,37 @@ contains
 !----------------------------------------------------------------------
 ! Set the 1-TDM damping function integer label
 !----------------------------------------------------------------------
-    itdm=idamp
+    idamping=idamp
 
 !----------------------------------------------------------------------
 ! Load the 1-TDM damping function parameters
 !----------------------------------------------------------------------
+    select case(idamp)
+    
+    case(1)
+       ! Ab initio 1-TDMs: do nothing
+       ltdmdamp=.false.
+       return
 
-    print*,''
-    print*,'itdm:',itdm
-    print*,''
-    stop
+    case(2)
+       ! QE8 damping function
+       ltdmdamp=.true.
+       ndamppar=3
+       allocate(damppar(ndamppar))
+       damppar=qe8_damping
+       
+    case default
+       ! Unrecognised 1-TDM damping function
+       write(errmsg,'(a,x,i0)') &
+            'Error in load_damping: unrecognised damping '&
+            //'function number',idamp
+       call error_control
+       
+    end select
     
     return
     
-  end subroutine load_tdm
+  end subroutine load_damping
 
 !######################################################################
   

@@ -17,9 +17,6 @@ module tdm
   ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
   real(dp), allocatable, private :: averageiiB(:),averageiiK(:)
 
-  ! Modified (damped) spin-coupling coefficients
-  logical, private               :: modified
-  
 contains
 
 !######################################################################
@@ -74,15 +71,6 @@ contains
     call get_times(twall_start,tcpu_start)
 
 !----------------------------------------------------------------------
-! Are we using modified (damped) spin-coupling coefficients?
-!----------------------------------------------------------------------
-    if (present(aviiscrB) .and. present(aviiscrK)) then
-       modified=.true.
-    else
-       modified=.false.
-    endif
-    
-!----------------------------------------------------------------------
 ! Allocate and initialise arrays
 !----------------------------------------------------------------------
     rhoij=0.0d0
@@ -91,7 +79,7 @@ contains
     allocate(scc(arrdim))
     scc=0.0d0
 
-    if (modified) then
+    if (ltdmdamp) then
        allocate(averageiiB(cfgB%confdim))
        allocate(averageiiK(cfgK%confdim))
        averageiiB=0.0d0
@@ -102,7 +90,7 @@ contains
 ! Read in the spin-coupling averaged on-diagonal Hamiltonian matrix
 ! elements
 !----------------------------------------------------------------------
-    if (modified) then
+    if (ltdmdamp) then
        
        ! Bra
        call read_averageii(aviiscrB,cfgB%confdim,averageiiB)
@@ -289,7 +277,7 @@ contains
           a=cfgB%m2c(plist(1))
 
           ! Damping function value
-          if (modified) then
+          if (ltdmdamp) then
              damping=damping_function(ibconf,ikconf)
           else
              damping=1.0d0
@@ -2091,7 +2079,7 @@ contains
        a=m2c(plist(1))
 
        ! Damping function value
-       if (modified) then
+       if (ltdmdamp) then
           damping=damping_function(ibconf,ikconf)
        else
           damping=1.0d0
@@ -2206,31 +2194,61 @@ contains
   end function spincp_coeff
   
 !######################################################################
-
+! damping_function: calculation of the damping function to be applied
+!                   to a spin-coupling coefficient corresponding to
+!                   a given pair of bra and ket configurations
+!######################################################################
   function damping_function(ibconf,ikconf) result(func)
 
     use constants
+    use tdm_param
     
     implicit none
 
     real(dp)                :: func
     integer(is), intent(in) :: ibconf,ikconf
 
-    real(dp)                :: av1,av2
-    real(dp)                :: DEp3
+    select case(idamping)
 
-    av1=averageiiK(ikconf)
-
-    av2=averageiiB(ibconf)
-
-    DEp3=abs(av1-av2)**8.0d0
-
-    func=0.80*exp(-4.611269d0*DEp3)
-        
+    case(2)
+       ! QE8 damping function
+       func=damping_function_qe8(ibconf,ikconf)
+       
+    end select
+    
     return
     
   end function damping_function
 
+!######################################################################
+! damping_function_qe8: QE8 exponential damping function
+!######################################################################
+  function damping_function_qe8(ibconf,ikconf) result(func)
+
+    use constants
+    use tdm_param
+    
+    implicit none
+
+    real(dp)                :: func
+
+    integer(is), intent(in) :: ibconf,ikconf
+
+    real(dp)                :: av1,av2
+    real(dp)                :: DEp3
+    
+    av1=averageiiK(ikconf)
+
+    av2=averageiiB(ibconf)
+
+    DEp3=abs(av1-av2)**damppar(3)
+
+    func=damppar(1)*exp(-damppar(2)*DEp3)
+    
+    return
+    
+  end function damping_function_qe8
+  
 !######################################################################
 ! check_trace: check to make sure that the 1-TDMs are traceless
 !######################################################################

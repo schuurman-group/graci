@@ -11,6 +11,7 @@ subroutine bitsi_finalise()
 
   use constants
   use bitglobal
+  use tdm_param
   
   implicit none
 
@@ -40,6 +41,7 @@ subroutine bitsi_finalise()
   if (allocated(detvec))         deallocate(detvec)
   if (allocated(detvecB))        deallocate(detvecB)
   if (allocated(detvecK))        deallocate(detvecK)
+  if (allocated(damppar))        deallocate(damppar)
   
   !
   ! To be on the safe side, scrub all other global variables
@@ -73,6 +75,8 @@ subroutine bitsi_finalise()
   nelK_alpha=0
   nelK_beta=0
   nelK_spin=0
+  ndamppar=0
+  ltdmdamp=.false.
 
   return
   

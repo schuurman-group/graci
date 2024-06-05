@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
-     calctype_in,verbose1) bind(c,name='bitsi_initialise')
+     calctype_in,damping1,verbose1) bind(c,name='bitsi_initialise')
 #else
 subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
-     calctype_in,verbose1)
+     calctype_in,damping1,verbose1)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -19,18 +19,19 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   use spin_coupling
   use spin_coupling_k0
   use spin_coupling_k1
+  use tdm_param
   use iomod
   
   implicit none
 
-  ! Calculation type
+  ! Calculation type and 1-TDM damping function
 #ifdef CBINDING
-  character(kind=C_CHAR), intent(in) :: calctype_in(*)
-  character(len=255)                 :: calctype
+  character(kind=C_CHAR), intent(in) :: calctype_in(*),damping1(*)
+  character(len=255)                 :: calctype,damping
   integer(is)                        :: length
 #else
-  character(len=*), intent(in)       :: calctype_in
-  character(len=255)                 :: calctype
+  character(len=*), intent(in)       :: calctype_in,dampint1
+  character(len=255)                 :: calctype,damping
 #endif
   
   ! Bra and Ket spin multiplicities and numbers of electrons
@@ -49,9 +50,21 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   logical                 :: samemult
   
   ! Everything else
+  integer(is)             :: idamp(1)
   real(dp)                :: s,smax,sb,sk
   real(dp)                :: tiny=1e-10_dp
 
+!----------------------------------------------------------------------
+! If C bindings are on, then convert the 1-TDM damping function label
+! from the C char type to the Fortran character type
+!----------------------------------------------------------------------
+#ifdef CBINDING
+  length=cstrlen(damping)
+  call c2fstr(damping1,damping,length)
+#else
+  damping=adjustl(trim(damping1))
+#endif
+  
 !----------------------------------------------------------------------
 ! If C bindings are on, then convert the calculation type character
 ! string from the C char type to the Fortran character type
@@ -117,6 +130,19 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
   endif
 
 !----------------------------------------------------------------------
+! Make sure that the requested 1-TDM damping function is supported
+!----------------------------------------------------------------------
+  ! Hamiltonian index
+  idamp=findloc(damplbl,value=trim(damping))
+
+  ! Exit if the Hamiltonian label was not found
+  if (idamp(1) == 0) then
+     write(errmsg,'(a,1x,a)') 'Unrecognised 1-TDM damping function:',&
+          trim(damping)
+     call error_control
+  endif
+
+!----------------------------------------------------------------------
 ! Set the verbosity flag
 !----------------------------------------------------------------------
   verbose=verbose1
@@ -152,6 +178,11 @@ subroutine bitsi_intialise(imultB1,imultK1,nelB1,nelK1,nmo1,ipg1,&
 !----------------------------------------------------------------------
   n_int=(nmo-1)/n_bits+1
 
+!----------------------------------------------------------------------
+! Load the 1-TDM damping function parameters
+!----------------------------------------------------------------------
+  call load_damping(idamp(1))
+  
 !----------------------------------------------------------------------
 ! Initialise the symmetry arrays
 !----------------------------------------------------------------------

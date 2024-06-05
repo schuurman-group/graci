@@ -196,7 +196,7 @@ contains
     select case(iham)
 
     case(1)
-       ! Canonical: do nothing
+       ! Ab initio: do nothing
        ldftmrci=.false.
        desel=999.9d0
        return

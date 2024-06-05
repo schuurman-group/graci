@@ -215,6 +215,11 @@ module bitglobal
   integer(is), allocatable :: offminus(:)       ! k=-1 spincp array offsets for the
                                                 ! different coefficient cases
 
+  !
+  ! Damped 1-TDMs logical flag
+  !
+  logical :: ltdmdamp
+  
 !----------------------------------------------------------------------
 ! Determinant-based wave function calculation variables
 !----------------------------------------------------------------------

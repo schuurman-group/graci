@@ -7,7 +7,7 @@ import numpy as np
 import graci.core.libs as libs
 
 #
-def init(bra, ket, calctype, verbose):
+def init(bra, ket, calctype, damping, verbose):
     """Initialize the bitsi library"""
 
     # if the number of mos is different between bra and ket, end
@@ -30,9 +30,20 @@ def init(bra, ket, calctype, verbose):
 
     # call to bitsi_initialise
     args = (multBra, multKet, nelBra, nelKet, nmo, pgrp, calctype,
-            verbose)
+            damping, verbose)
     libs.lib_func('bitsi_initialise', args)
+    
+    return
 
+def override_damping(damping_param):
+    """overrides the 1-TDM damping function parameters"""
+    
+    nparam = damping_param.size
+
+    args   = (nparam, damping_param)
+
+    libs.lib_func('override_damping_param', args)
+    
     return
 
 def finalize():

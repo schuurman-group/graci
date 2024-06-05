@@ -141,7 +141,7 @@ transition_kword = {'init_states'      : int,
                     'print_orbitals'   : bool,
                     'print_orb_thresh' : float,
                     'representation'   : str,
-                    'modified'         : bool,
+                    'damping_function' : str,
                     'damping_param'    : float,
                     'verbose'          : bool,
                     'label'            : str}

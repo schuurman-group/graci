@@ -10,7 +10,7 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 
 @timing.timed
-def tdm(bra, ket, trans_list, modified, rep='adiabatic'):
+def tdm(bra, ket, trans_list, rep='adiabatic'):
     """
     Calculation of the MRCI 1-TDMs for all pairs of states
     in trans_list
@@ -71,18 +71,12 @@ def tdm(bra, ket, trans_list, modified, rep='adiabatic'):
             ket_avii = ket_wfn.avii_name[rep][ket_irr]
             
             # compute the 1-TDMs for all states in this irrep
-            if modified:
-                args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
-                        tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
-                        ket_vec, bra_avii, ket_avii)
-                rhoij = libs.lib_func('modified_transition_density_mrci',
-                                      args)
-            else:
-                args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
+            args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
                     tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
-                    ket_vec)
-                rhoij = libs.lib_func('transition_density_mrci', args)
-            
+                    ket_vec, bra_avii, ket_avii)
+            rhoij = libs.lib_func('modified_transition_density_mrci',
+                                  args)
+
             # add the 1-TDMs to the list
             rho[bra_irr][ket_irr] = np.reshape(rhoij,
                                                (nmo, nmo, npairs),

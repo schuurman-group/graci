@@ -42,9 +42,8 @@ class Transition(interaction.Interaction):
         self.final_states     = None
         # label of section to get final states 
         self.final_label      = None
-        # optional modification/damping of the spin-coupling
-        # coefficients
-        self.modified         = False
+        # 1-TDM damping function
+        self.damping_function = 'abinitio'
         # 1-TDM damping function parameters
         self.damping_param    = None
         
@@ -159,8 +158,15 @@ class Transition(interaction.Interaction):
                 
                 # initialize the bitsi library for the calculation 
                 # of 1-TDMs
-                bitsi_init.init(bra_ci, ket_ci, 'tdm', self.verbose)
+                bitsi_init.init(bra_ci, ket_ci, 'tdm',
+                                self.damping_function,
+                                self.verbose)
 
+                # optional overriding of the 1-TDM damping function
+                # parameters
+                if self.damping_param is not None:
+                    bitsi_init.override_damping(self.damping_param)
+                
                 # this is main transition_list: stored by adiabatic label
                 ci_tran = self.ci_pair_list('bra', b_lbl, 'ket', k_lbl, 
                                                     pairs=pair_type)
@@ -304,7 +310,6 @@ class Transition(interaction.Interaction):
         tdm_list = mrci_1tdm.tdm(self.get_ci_obj('bra', b_lbl), 
                                  self.get_ci_obj('ket', k_lbl), 
                                  ci_trans_sym,
-                                 self.modified,
                                  self.representation)
 
         # make the tdm list

@@ -140,8 +140,10 @@ bitci_intent = {
 # registry of bitsi functions
 bitsi_registry = {
     'bitsi_initialise'                 : ['int32','int32','int32','int32',
-                                          'int32','int32','string','logical'],
+                                          'int32','int32','string','string',
+                                          'logical'],
     'bitsi_finalise'                   : [],
+    'override_damping_param'           : ['int32','double'],
     'transition_density_mrci'          : ['int32','int32','int32','int32',
                                           'int32','int32','double','string',
                                           'string','string','string'],
@@ -157,8 +159,9 @@ bitsi_registry = {
 
 bitsi_intent   = {
     'bitsi_initialise'                 : ['in','in','in','in','in','in',
-                                          'in','in'],
+                                          'in','in','in'],
     'bitsi_finalise'                   : [],
+    'override_damping_param'           : ['in','in'],
     'transition_density_mrci'          : ['in','in','in','in','in','in',
                                           'out','in','in','in','in'],
     'modified_transition_density_mrci' : ['in','in','in','in','in','in',

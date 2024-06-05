@@ -135,7 +135,8 @@ class Spinorbit(interaction.Interaction):
 
                 # initialize the bitsi library for the calculation of
                 # spin-orbit matrix elements
-                bitsi_init.init(b_obj, k_obj, 'soc', self.verbose)
+                bitsi_init.init(b_obj, k_obj, 'soc', 'abinitio',
+                                self.verbose)
 
                 # get the reduced matrix elements
                 # <S' M'=S' psi_m||T_ij^(1)||S M=S psi'_n>
