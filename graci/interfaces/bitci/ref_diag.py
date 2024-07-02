@@ -16,7 +16,7 @@ def diag(ci_method):
     """
     Diagonalisation of the reference space Hamiltonian
     """
-    
+
     # length of nstates vector is the number of irreps
     nirr    = ci_method.n_irrep()
 
@@ -45,10 +45,12 @@ def diag(ci_method):
 
         # Number of extra roots
         nextra = ci_method.nextra['max'][irrep]
-
         # Call to the bitci reference space diagonalisation routine
         args = (irrep, nroots+nextra, confunits, nconf, ciunit)
-        (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
+        if ci_method.ref_sci:
+            (nroots, ciunit) = libs.lib_func('ref_diag_mrci_sci',args)
+        else:
+            (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
 
         # Bitci eigenvector scratch number
         ciunits[irrep] = ciunit

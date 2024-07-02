@@ -43,6 +43,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.autoras         = False
         self.icvs            = []
         self.refiter         = 3
+        self.ref_sci         = False
         self.ref_prune       = True
         self.diabatic        = False
         self.adt_type        = 'qdpt'

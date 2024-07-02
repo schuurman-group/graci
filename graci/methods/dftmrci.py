@@ -36,6 +36,7 @@ class Dftmrci(cimethod.Cimethod):
         self.autoras        = False
         self.icvs           = []
         self.refiter        = 3
+        self.ref_sci        = False
         self.ref_prune      = True
         self.prune          = False
         self.prune_thresh   = 0.90
