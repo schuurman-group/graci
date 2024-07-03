@@ -475,7 +475,7 @@ contains
 !                           of Hamiltonian to disk for a selected
 !                           subset of the total set of configurations
 !######################################################################
-  subroutine save_hij_double_selected(nsel,isel,nconf,hdim,&
+  subroutine save_hij_double_selected(nsel,isel,offset_sel,nconf,hdim,&
        offset,averageii,conf,sop,n_int_in,m2c,irrep,hscr,nrec,hstem)
     
     use constants
@@ -497,6 +497,7 @@ contains
     ! Selected configurations
     integer(is), intent(in)      :: nsel
     integer(is), intent(in)      :: isel(:)
+    integer(is), intent(in)      :: offset_sel(nsel+1)
     
     ! Dimensions
     integer(is), intent(in)      :: nconf,hdim
@@ -647,10 +648,10 @@ contains
           ! Save the above threshold matrix elements
           count=0
           ! Loop over ket CSFs
-          do kcsf=offset(iconf),offset(iconf+1)-2
+          do kcsf=offset_sel(i),offset_sel(i+1)-2
              ! Loop over bra CSFs
-             do bcsf=kcsf+1,offset(iconf+1)-1
-                count=count+1
+             do bcsf=kcsf+1,offset_sel(i+1)-1
+                 count=count+1
                 if (abs(harr(count)) > epshij) then
                    nbuf=nbuf+1
                    ibuffer(1,nbuf)=bcsf
@@ -731,8 +732,8 @@ contains
         
           ! Save the above threshold matrix elements
           count=0
-          do kcsf=offset(kconf),offset(kconf+1)-1
-             do bcsf=offset(bconf),offset(bconf+1)-1
+          do kcsf=offset_sel(i),offset_sel(i+1)-1
+             do bcsf=offset_sel(j),offset_sel(j+1)-1
                 count=count+1
                 if (abs(harr2(count)) > epshij) then
                    nbuf=nbuf+1
