@@ -94,17 +94,23 @@ contains
 
     ! 2nd-order energy corrections
     real(dp), allocatable      :: E2(:)
+
+    ! P space weights
+    real(dp), allocatable      :: WP(:)
     
     ! Temporary hard-wiring of the maximum number of iterations
     integer(is), parameter     :: maxiter=15
 
+    ! Temporary hard-wiring of the P space weight convergence
+    ! threshold
+    real(dp), parameter        :: WP_thrsh=0.95_dp
+    
     ! Work arrays
     integer(is)                :: harr2dim
     real(dp), allocatable      :: harr2(:)
     
     ! Everything else
     integer(is)                :: i,iroot
-    real(dp), allocatable      :: Eold(:)
     logical                    :: converged
     
 !----------------------------------------------------------------------
@@ -184,7 +190,7 @@ contains
     allocate(offsetP(nconf1+1))
     allocate(offsetQ(nconf1+1))
     allocate(EP(nroots))
-    allocate(Eold(nroots))
+    allocate(WP(nroots))
     hii=0.0d0
     averageii=0.0d0
     E2=0.0d0
@@ -198,7 +204,7 @@ contains
     offsetP=0
     offsetQ=0
     EP=0.0d0
-    Eold=0.0d0
+    WP=0.0d0
     
 !----------------------------------------------------------------------
 ! Compute the on-diagonal Hamiltonian matrix elements and the
@@ -222,6 +228,14 @@ contains
 !----------------------------------------------------------------------
 ! Iterative improvement of the P space
 !----------------------------------------------------------------------
+    ! Table header
+    if (verbose) then
+       write(6,'(/,x,29a)') ('*', i=1,29)
+       write(6,'(2x,a)') 'Iteration  Nconf   min W(P)'
+       write(6,'(x,29a)') ('*', i=1,29)
+    endif
+       
+    ! Perform the iterations
     do i=1,maxiter
 
        ! Allocate the P space eigenvector array
@@ -233,26 +247,10 @@ contains
             offsetP,averageii,hiiP,conf,sop,n_int_I,m2c,irrep,&
             vecP,EP,vecscr)
 
-       ! Check for convergence
-       call check_conv(nroots,EP,Eold,converged)
-
-       print*,''
-       print*,i,nP,converged
-
-       if (converged) exit
-       
-       ! Save the old P space energies
-       Eold=EP
-       
-       ! Set the P space part of the 1st-order corrected wave functions
-       do iroot=1,nroots
-          Avec(1:csfdimP,iroot)=vecP(:,iroot)
-       enddo
-       
        ! Compute the ENPT2 wave function and energy corrections
        call pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
             hiiQ,Avec,E2,n_int_I,nconf1,conf,sop,nP,nQ,iP,iQ,offset,&
-            averageii,harr2dim,harr2,m2c,offsetP,offsetQ)
+            averageii,harr2dim,harr2,m2c,offsetP,offsetQ,WP)
 
        ! Update the P and Q spaces
        call update_partitioning(nconf1,csfdim,csfdimP,csfdimQ,nroots,&
@@ -263,14 +261,23 @@ contains
        call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf1,&
             offset,nP,iP,nQ,iQ,averageii,averageiiP)
        
+       ! Output our progress
+       if (verbose) write(6,'(4x,i5,4x,i5,4x,F6.4)') i,nP,minval(WP)
+       
+       ! Exit if we have reached convergence
+       converged=check_conv(nroots,WP,WP_thrsh)
+       if (converged) exit
+       
     enddo
+
+    ! Table footer
+    if (verbose) write(6,'(x,29a)') ('*', i=1,29)
 
 !----------------------------------------------------------------------
 ! Prune the reference space
 !----------------------------------------------------------------------
     
     STOP
-
     
     return
   
@@ -349,8 +356,7 @@ contains
     ! Initialisation
     isurvive=0
 
-    ! For now we shall hardwire the number of initially selected
-    ! CSFs to be 2x the no. roots
+    ! For now we shall hardwire the number of initially selected CSFs
     nlow=2*nroots
         
     ! Loop over the lowest energy CSFs
@@ -387,7 +393,7 @@ contains
           iQ(countQ)=i
        endif
     enddo
-
+    
 !----------------------------------------------------------------------
 ! Fill in the CSF offsets for the P and Q space configurations
 !----------------------------------------------------------------------
@@ -578,7 +584,14 @@ contains
 
     ! Everything else
     integer(is)              :: hscr,nrec
-
+    logical                  :: verbose_save
+    
+!----------------------------------------------------------------------
+! Make the output non-verbose
+!----------------------------------------------------------------------
+    verbose_save=verbose
+    verbose=.false.
+    
 !----------------------------------------------------------------------
 ! Save to disk the non-zero P space off-diagonal Hamiltonian matrix
 ! elements
@@ -600,6 +613,11 @@ contains
 
     ! Subtract off E_SCF from the energies to get the true eigenvalues
     EP=EP-escf
+
+!----------------------------------------------------------------------
+! Restore the original verbose flag value
+!----------------------------------------------------------------------
+    verbose=verbose_save
     
     return
     
@@ -610,7 +628,7 @@ contains
 !######################################################################
   subroutine pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
        hiiQ,Avec,E2,n_int_I,nconf,conf,sop,nP,nQ,iP,iQ,offset,&
-       averageii,harr2dim,harr2,m2c,offsetP,offsetQ)
+       averageii,harr2dim,harr2,m2c,offsetP,offsetQ,WP)
 
     use constants
     use bitglobal
@@ -664,6 +682,9 @@ contains
     ! CSF offsets for the P and Q space configurations
     integer(is), intent(in) :: offsetP(nconf+1)
     integer(is), intent(in) :: offsetQ(nconf+1)
+
+    ! P space weights
+    real(dp), intent(out)   :: WP(nroots)
     
     ! Difference configuration information
     integer(is)             :: ndiff
@@ -689,6 +710,15 @@ contains
     integer(is)             :: nexci
     integer(is)             :: iroot,counter
     real(dp)                :: ediff,norm
+
+!----------------------------------------------------------------------
+! Initialise the A-vectors to the P-space eigenvectors
+!----------------------------------------------------------------------
+    Avec=0.0d0
+
+    do iroot=1,nroots
+       Avec(1:csfdimP,iroot)=vecP(:,iroot)
+    enddo
     
 !----------------------------------------------------------------------
 ! Compute the matrix elements <w omega|H|Psi_I^0>
@@ -815,6 +845,9 @@ contains
        norm=dot_product(Avec(:,iroot),Avec(:,iroot))
        norm=sqrt(norm)
 
+       ! P space weight
+       WP(iroot)=1.0d0/norm
+       
        ! Normalisation
        Avec(:,iroot)=Avec(:,iroot)/norm
        
@@ -855,7 +888,7 @@ contains
     integer(is), intent(inout) :: offsetQ(nconf+1)
     
     ! Configuration selection threshold (hard-wired for now)
-    real(dp), parameter        :: thrsh=0.03d0
+    real(dp), parameter        :: thrsh=0.03_dp
 
     ! Selected CSFs and confs
     integer(is), allocatable   :: isel_csf(:),isel_conf(:)
@@ -897,13 +930,13 @@ contains
     ! Loop over P space configurations
     do i=1,nP
        iconf=iP(i)
-
+       
        ! Loop over the P space CSFs generated by this configuration
        do icsfP=offsetP(i),offsetP(i+1)-1
-
+       
           ! Are we at a dominant CSF?
           if (isel_csf(icsfP) == 1) then
-
+       
              isel_conf(iconf)=1
              
           endif
@@ -921,10 +954,10 @@ contains
 
        ! Loop over the Q space CSFs generated by this configuration
        do icsfQ=offsetQ(i),offsetQ(i+1)-1
-
+       
           ! Are we at a dominant CSF?
-          if (isel_csf(icsfQ) == 1) then
-
+          if (isel_csf(csfdimP+icsfQ) == 1) then
+       
              isel_conf(iconf)=1
              
           endif
@@ -942,27 +975,33 @@ contains
 !----------------------------------------------------------------------
 ! Fill in the arraya of P and Q space configurations
 !----------------------------------------------------------------------
+    iP=0
+    iQ=0
+
     countP=0
     countQ=0
     
-    do i=1,nconf
-       if (isel_conf(i) == 1) then
+    do iconf=1,nconf
+       if (isel_conf(iconf) == 1) then
           countP=countP+1
-          iP(countP)=i
+          iP(countP)=iconf
        else
           countQ=countQ+1
-          iQ(countQ)=i
+          iQ(countQ)=iconf
        endif
     enddo
 
 !----------------------------------------------------------------------
 ! Fill in the CSF offsets for the P and Q space configurations
 !----------------------------------------------------------------------
+    offsetP=0
+    offsetQ=0
+
     totalP=1
     totalQ=1
     countP=0
     countQ=0
-        
+    
     do iconf=1,nconf
        if (isel_conf(iconf) == 1) then
           countP=countP+1
@@ -977,54 +1016,41 @@ contains
 
     offsetP(nP+1)=totalP
     offsetQ(nQ+1)=totalQ
-    
+
     return
     
   end subroutine update_partitioning
   
 !######################################################################
 
-  subroutine check_conv(nroots,EP,Eold,converged)
+  function check_conv(nroots,WP,thrsh) result(converged)
 
     use constants
-    
+
     implicit none
+
+    ! Function result
+    logical                 :: converged
 
     ! Number of roots
     integer(is), intent(in) :: nroots
-
-    ! Energies
-    real(dp), intent(in)    :: EP(nroots),Eold(nroots)
-
-    ! Convergence flag
-    logical, intent(out)    :: converged
-
-    ! Convergence threshold (hard-wired for now)
-    real(dp), parameter     :: Ethrsh=0.025d0/eh2ev
     
+    ! P space weights
+    real(dp), intent(in)    :: WP(nroots)
+
+    ! Convergence threshold
+    real(dp), intent(in)    :: thrsh
+
     ! Everything else
-    integer(is)             :: i
+    integer(is)             :: iroot
     integer(is)             :: iconv(nroots)
 
-    ! Initialisation
     iconv=0
-
-
-    print*,''
     
-    
-    ! Loop over roots
-    do i=1,nroots
-
-       ! Has this root converged?
-
-       print*,i,abs(EP(i)-Eold(i))*eh2ev
-
-       if (abs(EP(i)-Eold(i)) < Ethrsh) iconv(i)=1
-       
+    do iroot=1,nroots
+       if (WP(iroot) >= thrsh) iconv(iroot)=1
     enddo
 
-    ! Have we reached convergence
     if (sum(iconv) == nroots) then
        converged=.true.
     else
@@ -1033,7 +1059,7 @@ contains
     
     return
     
-  end subroutine check_conv
+  end function check_conv
   
 !######################################################################
   
