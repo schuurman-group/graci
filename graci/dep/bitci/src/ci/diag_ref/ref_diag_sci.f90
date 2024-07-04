@@ -21,11 +21,7 @@ contains
     use constants
     use bitglobal
     use hbuild_double
-    use ref_guess
-    use full_diag
-    use utils
     use iomod
-    use conftype
   
     implicit none
 
@@ -78,21 +74,22 @@ contains
     ! Number of Hamiltonian scratch file records
     integer(is)                :: nrec
 
-    ! On-diagonal Hamiltonian matrix elements for the selected
-    ! and unselected subspaces
-    integer(is)                :: csfdim_sel
-    real(dp), allocatable      :: hii_sel(:),averageii_sel(:)
-    real(dp), allocatable      :: hii_unsel(:)
+    ! On-diagonal Hamiltonian matrix elements for the P and Q
+    ! subspaces
+    integer(is)                :: csfdimP
+    real(dp), allocatable      :: hiiP(:),averageiiP(:)
+    real(dp), allocatable      :: hiiQ(:)
     
-    ! Selected subspace information
-    integer(is)                :: nsel,nunsel,csfdim_unsel
-    integer(is), allocatable   :: isel(:),iunsel(:)
-    integer(is), allocatable   :: offset_sel(:),offset_unsel(:)
+    ! P and Q space information
+    integer(is)                :: nP,nQ,csfdimQ
+    integer(is), allocatable   :: iP(:),iQ(:)
+    integer(is), allocatable   :: offsetP(:),offsetQ(:)
+    integer(is), allocatable   :: confmap(:)
     
     ! Eigenpairs of the projected reference space Hamiltonian
-    real(dp), allocatable      :: vec_sel(:,:),ener_sel(:)
+    real(dp), allocatable      :: vecP(:,:),EP(:)
 
-    ! A-vectors
+    ! 1st-order corrected wave functions
     real(dp), allocatable      :: Avec(:,:)
 
     ! 2nd-order energy corrections
@@ -106,8 +103,10 @@ contains
     real(dp), allocatable      :: harr2(:)
     
     ! Everything else
-    integer(is)                :: i
-
+    integer(is)                :: i,iroot
+    real(dp), allocatable      :: Eold(:)
+    logical                    :: converged
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -175,10 +174,32 @@ contains
     allocate(hii(csfdim))
     allocate(averageii(nconf1))
     allocate(E2(nroots))
+    allocate(Avec(csfdim,nroots))
+    allocate(confmap(csfdim))
+    allocate(iP(nconf1))
+    allocate(iQ(nconf1))
+    allocate(hiiP(csfdim))
+    allocate(hiiQ(csfdim))
+    allocate(averageiiP(nconf1))
+    allocate(offsetP(nconf1+1))
+    allocate(offsetQ(nconf1+1))
+    allocate(EP(nroots))
+    allocate(Eold(nroots))
     hii=0.0d0
     averageii=0.0d0
     E2=0.0d0
-
+    Avec=0.0d0
+    confmap=0
+    iP=0
+    iQ=0
+    hiiP=0.0d0
+    hiiQ=0.0d0
+    averageiiP=0.0d0
+    offsetP=0
+    offsetQ=0
+    EP=0.0d0
+    Eold=0.0d0
+    
 !----------------------------------------------------------------------
 ! Compute the on-diagonal Hamiltonian matrix elements and the
 ! their spin-coupling averaged values
@@ -187,68 +208,67 @@ contains
          hii,averageii)
 
 !----------------------------------------------------------------------
-! Determine the initial subspace
+! Initialialise the P and Q spaces
 !----------------------------------------------------------------------
-    call init_subspace(nroots,nconf1,offset,csfdim,hii,nsel,isel,&
-         nunsel,iunsel,offset_sel,offset_unsel)
+    ! Determine the P and Q spaces
+    call partition_confs(nroots,nconf1,offset,csfdim,hii,nP,iP,nQ,iQ,&
+         offsetP,offsetQ,confmap)
 
-!----------------------------------------------------------------------
-! Diagonalisation of the reference space Hamiltonian projected onto
-! the initial subspace
-!----------------------------------------------------------------------
-    ! Fill in the selected on-diagonal Hamiltonian matrix elements
-    call hii_selected(csfdim,hii,csfdim_sel,csfdim_unsel,hii_sel,&
-         hii_unsel,nconf1,offset,nsel,isel,nunsel,iunsel,averageii,&
-         averageii_sel)
-    
-    ! Save to disk the non-zero selected off-diagonal Hamiltonian
-    ! matrix elements
-    call save_hij_double_selected(nsel,isel,offset_sel,nconf1,&
-         csfdim,offset,averageii,conf,sop,n_int_I,m2c,irrep,hscr,&
-         nrec,'hij_ref')
-
-    ! Diagonalise the projected reference space Hamiltonian
-    call diag_full(hscr,nrec,csfdim_sel,hii_sel,irrep,nroots,vecscr,&
-         'refvec')
-
-!----------------------------------------------------------------------
-! Retrieve the eigenpairs of the projected reference space Hamiltonian
-!----------------------------------------------------------------------
-    ! Allocate arrays
-    allocate(vec_sel(csfdim_sel,nroots))
-    allocate(ener_sel(nroots))
-    vec_sel=0.0d0
-    ener_sel=0.0d0
-
-    ! Read in the eigenpairs
-    call read_all_eigenpairs(vecscr,vec_sel,ener_sel,csfdim_sel,nroots)
-
-    ! Subtract off E_SCF from the energies to get the true eigenvalues
-    ener_sel=ener_sel-escf
+    ! Fill in the P and Q space on-diagonal Hamiltonian matrix
+    ! elements
+    call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf1,&
+         offset,nP,iP,nQ,iQ,averageii,averageiiP)
     
 !----------------------------------------------------------------------
-! Iterative improvement of the subspace
+! Iterative improvement of the P space
 !----------------------------------------------------------------------
     do i=1,maxiter
 
-       ! Allocate arrays
-       if (allocated(Avec)) deallocate(Avec)
-       allocate(Avec(csfdim_unsel,nroots))
-       Avec=0.0d0
+       ! Allocate the P space eigenvector array
+       if (allocated(vecP)) deallocate(vecP)
+       allocate(vecP(csfdimP,nroots))
+       
+       ! Diagonalise the P space Hamiltonian
+       call diag_pspace(nconf1,nP,csfdim,csfdimP,nroots,iP,offset,&
+            offsetP,averageii,hiiP,conf,sop,n_int_I,m2c,irrep,&
+            vecP,EP,vecscr)
+
+       ! Check for convergence
+       call check_conv(nroots,EP,Eold,converged)
+
+       print*,''
+       print*,i,nP,converged
+
+       if (converged) exit
+       
+       ! Save the old P space energies
+       Eold=EP
+       
+       ! Set the P space part of the 1st-order corrected wave functions
+       do iroot=1,nroots
+          Avec(1:csfdimP,iroot)=vecP(:,iroot)
+       enddo
        
        ! Compute the ENPT2 wave function and energy corrections
-       call pt2_corrections(csfdim_sel,csfdim_unsel,nroots,vec_sel,&
-            ener_sel,hii_unsel,Avec,E2,n_int_I,nconf1,conf,sop,nsel,&
-            nunsel,isel,iunsel,offset,averageii,harr2dim,harr2,m2c,&
-            offset_sel,offset_unsel)
+       call pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
+            hiiQ,Avec,E2,n_int_I,nconf1,conf,sop,nP,nQ,iP,iQ,offset,&
+            averageii,harr2dim,harr2,m2c,offsetP,offsetQ)
 
-       ! Find the most important unselected configurations
-       
-       STOP
+       ! Update the P and Q spaces
+       call update_partitioning(nconf1,csfdim,csfdimP,csfdimQ,nroots,&
+            Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
+
+       ! Fill in the P and Q space on-diagonal Hamiltonian matrix
+       ! elements
+       call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf1,&
+            offset,nP,iP,nQ,iQ,averageii,averageiiP)
        
     enddo
-    
 
+!----------------------------------------------------------------------
+! Prune the reference space
+!----------------------------------------------------------------------
+    
     STOP
 
     
@@ -258,8 +278,8 @@ contains
 
 !######################################################################
 
-  subroutine init_subspace(nroots,nconf,offset,ncsf,hii,nsel,isel,&
-       nunsel,iunsel,offset_sel,offset_unsel)
+  subroutine partition_confs(nroots,nconf,offset,csfdim,hii,nP,iP,nQ,iQ,&
+       offsetP,offsetQ,confmap)
 
     use constants
     use bitglobal
@@ -274,41 +294,38 @@ contains
     integer(is), intent(in)  :: offset(nconf+1)
 
     ! On-diagonal Hamiltonian matrix elements
-    integer(is), intent(in)  :: ncsf
-    real(dp), intent(in)     :: hii(ncsf)
+    integer(is), intent(in)  :: csfdim
+    real(dp), intent(in)     :: hii(csfdim)
 
-    ! Selected configurations
-    integer(is), intent(out) :: nsel,nunsel
-    integer(is), allocatable :: isel(:),iunsel(:)
-    integer(is), allocatable :: offset_sel(:),offset_unsel(:)
+    ! P and Q space configurations
+    integer(is), intent(out) :: nP,nQ
+    integer(is), intent(out) :: iP(nconf),iQ(nconf)
+    integer(is), intent(out) :: offsetP(nconf+1),offsetQ(nconf+1)
+    integer(is), intent(out) :: confmap(csfdim)
     
     ! Sorting arrays
     integer(is), allocatable :: indx(:)
     
     ! Everything else
     integer(is)              :: iconf,icsf,i
-    integer(is)              :: count_sel,count_unsel
-    integer(is)              :: total_sel,total_unsel
+    integer(is)              :: countP,countQ
+    integer(is)              :: totalP,totalQ
     integer(is)              :: nlow
-    integer(is), allocatable :: confmap(:)
     integer(is), allocatable :: isurvive(:)
     
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(confmap(ncsf))
-    confmap=0
-
     allocate(isurvive(nconf))
     isurvive=0
 
-    allocate(indx(ncsf))
+    allocate(indx(csfdim))
     indx=0
     
 !----------------------------------------------------------------------
 ! Sort the on-diagonal Hamiltonian matrix elements
 !----------------------------------------------------------------------
-    call dsortindxa1('A',ncsf,hii,indx)
+    call dsortindxa1('A',csfdim,hii,indx)
 
 !----------------------------------------------------------------------  
 ! Determine the configurations from which each CSF is generated
@@ -327,7 +344,7 @@ contains
     enddo
 
 !----------------------------------------------------------------------  
-! Determine the configurations corresponding to the selected CSFs
+! Determine the configurations corresponding to the P space CSFs
 !----------------------------------------------------------------------
     ! Initialisation
     isurvive=0
@@ -350,67 +367,58 @@ contains
     enddo
 
 !----------------------------------------------------------------------
-! Number of selected configurations
+! Number of P and Q space configurations
 !----------------------------------------------------------------------
-    nsel=sum(isurvive)
-    nunsel=nconf-nsel
+    nP=sum(isurvive)
+    nQ=nconf-nP
     
 !----------------------------------------------------------------------
-! Fill in the array of selected configurations
+! Fill in the arrays of P and Q space configurations
 !----------------------------------------------------------------------
-    allocate(isel(nsel))
-    allocate(iunsel(nunsel))
-    
-    count_sel=0
-    count_unsel=0
+    countP=0
+    countQ=0
   
     do i=1,nconf
        if (isurvive(i) == 1) then
-          count_sel=count_sel+1
-          isel(count_sel)=i
+          countP=countP+1
+          iP(countP)=i
        else
-          count_unsel=count_unsel+1
-          iunsel(count_unsel)=i
+          countQ=countQ+1
+          iQ(countQ)=i
        endif
     enddo
 
 !----------------------------------------------------------------------
-! Fill in the CSF offsets for the selected configurations
+! Fill in the CSF offsets for the P and Q space configurations
 !----------------------------------------------------------------------
-    allocate(offset_sel(nsel+1))
-    allocate(offset_unsel(nunsel+1))
-    offset_sel=0
-    offset_unsel=0
-    
-    total_sel=1
-    total_unsel=1
-    count_sel=0
-    count_unsel=0
+    totalP=1
+    totalQ=1
+    countP=0
+    countQ=0
         
     do iconf=1,nconf
        if (isurvive(iconf) == 1) then
-          count_sel=count_sel+1
-          offset_sel(count_sel)=total_sel
-          total_sel=total_sel+offset(iconf+1)-offset(iconf)
+          countP=countP+1
+          offsetP(countP)=totalP
+          totalP=totalP+offset(iconf+1)-offset(iconf)
        else
-          count_unsel=count_unsel+1
-          offset_unsel(count_unsel)=total_unsel
-          total_unsel=total_unsel+offset(iconf+1)-offset(iconf)
+          countQ=countQ+1
+          offsetQ(countQ)=totalQ
+          totalQ=totalQ+offset(iconf+1)-offset(iconf)
        endif
     enddo
 
-    offset_sel(nsel+1)=total_sel
-    offset_unsel(nunsel+1)=total_unsel
+    offsetP(nP+1)=totalP
+    offsetQ(nQ+1)=totalQ
     
     return
   
-  end subroutine init_subspace
+  end subroutine partition_confs
 
 !######################################################################
 
-  subroutine hii_selected(csfdim,hii,csfdim_sel,csfdim_unsel,hii_sel,&
-       hii_unsel,nconf,offset,nsel,isel,nunsel,iunsel,averageii,&
-       averageii_sel)
+  subroutine partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,&
+       nconf,offset,nP,iP,nQ,iQ,averageii,averageiiP)
 
     use constants
     use bitglobal
@@ -421,108 +429,97 @@ contains
     integer(is), intent(in)  :: csfdim
     real(dp), intent(in)     :: hii(csfdim)
  
-    ! On-diagonal Hamiltonian matrix elements for the selected
-    ! and unselected subspaces
-    integer(is), intent(out) :: csfdim_sel,csfdim_unsel
-    real(dp), allocatable    :: hii_sel(:),hii_unsel(:)
+    ! On-diagonal Hamiltonian matrix elements for the P and Q
+    ! spaces
+    integer(is), intent(out) :: csfdimP,csfdimQ
+    real(dp), intent(out)    :: hiiP(csfdim),hiiQ(csfdim)
 
     ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
     real(dp), intent(in)     :: averageii(nconf)
 
     ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
-    ! for the selected subspace
-    real(dp), allocatable    :: averageii_sel(:)
+    ! for the P space
+    real(dp), intent(out)    :: averageiiP(nconf+1)
     
     ! CSF offsets
     integer(is), intent(in)  :: nconf
     integer(is), intent(in)  :: offset(nconf+1)
 
-    ! Selected and unselected configurations
-    integer(is), intent(in)  :: nsel,nunsel
-    integer(is), intent(in)  :: isel(nsel),iunsel(nunsel)
+    ! P and Q space configurations
+    integer(is), intent(in)  :: nP,nQ
+    integer(is), intent(in)  :: iP(nconf),iQ(nconf)
     
     ! Everything else
     integer(is)              :: i,iconf,icsf,ncsf,count
 
 !----------------------------------------------------------------------
-! Determine the dimension of the Hamiltonian projected onto the
-! selected subspace
+! Number of P and Q space CSFs
 !----------------------------------------------------------------------
     ! Initialisation
-    csfdim_sel=0
+    csfdimP=0
 
-    ! Loop over the selected configurations
-    do i=1,nsel
-       iconf=isel(i)
+    ! Loop over the P space configurations
+    do i=1,nP
+       iconf=iP(i)
 
        ! Number of CSFs generated by this configuration
        ncsf=offset(iconf+1)-offset(iconf)
 
-       ! Running total number of selected CSFs
-       csfdim_sel=csfdim_sel+ncsf
+       ! Running total number of P space CSFs
+       csfdimP=csfdimP+ncsf
        
     enddo
 
-    ! Number of unselected CSFs
-    csfdim_unsel=csfdim-csfdim_sel
+    ! Number of Q space CSFs
+    csfdimQ=csfdim-csfdimP
 
-!----------------------------------------------------------------------
-! Allocate arrays
-!----------------------------------------------------------------------
-    allocate(hii_sel(csfdim_sel))
-    allocate(hii_unsel(csfdim_unsel))
-    allocate(averageii_sel(nsel))
-    hii_sel=0.0d0
-    hii_unsel=0.0d0
-    averageii_sel=0.0d0
-    
 !----------------------------------------------------------------------    
-! Fill in the selected on-diagonal matrix element array
+! Fill in the P space on-diagonal matrix element array
 !----------------------------------------------------------------------
-    ! Selected CSF counter
+    ! P space CSF counter
     count=0
     
-    ! Loop over selected configurations
-    do i=1,nsel
-       iconf=isel(i)
+    ! Loop over P space configurations
+    do i=1,nP
+       iconf=iP(i)
 
        ! Loop over the CSFs generated by this configuration
        do icsf=offset(iconf),offset(iconf+1)-1
 
-          ! Update the selected CSF counter
+          ! Update the P space CSF counter
           count=count+1
 
           ! Save the on-diagonal Hamiltonian matrix element
           ! for this CSF
-          hii_sel(count)=hii(icsf)
+          hiiP(count)=hii(icsf)
           
        enddo
 
        ! Save the spin-coupling averaged on-diagonal Hamiltonian
        ! matrix element value for this configuration
-       averageii_sel(i)=averageii(iconf)
+       averageiiP(i)=averageii(iconf)
               
     enddo
 
 !----------------------------------------------------------------------    
-! Fill in the unselected on-diagonal matrix element array
+! Fill in the Q space on-diagonal matrix element array
 !----------------------------------------------------------------------
-    ! Unselected CSF counter
+    ! Q space CSF counter
     count=0
 
-    ! Loop over unselected configurations
-    do i=1,nunsel
-       iconf=iunsel(i)
+    ! Loop over Q space configurations
+    do i=1,nQ
+       iconf=iQ(i)
 
        ! Loop over the CSFs generated by this configuration
        do icsf=offset(iconf),offset(iconf+1)-1
 
-          ! Update the unselected CSF counter
+          ! Update the Q space CSF counter
           count=count+1
 
           ! Save the on-diagonal Hamiltonian matrix element
           ! for this CSF
-          hii_unsel(count)=hii(icsf)
+          hiiQ(count)=hii(icsf)
           
        enddo
        
@@ -530,15 +527,90 @@ contains
     
     return
     
-  end subroutine hii_selected
-  
+  end subroutine partition_hii
+
+!######################################################################  
+
+  subroutine diag_pspace(nconf,nP,csfdim,csfdimP,nroots,iP,offset,&
+       offsetP,averageii,hiiP,conf,sop,n_int_I,m2c,irrep,vecP,EP,&
+       vecscr)
+
+    use constants
+    use bitglobal
+    use hbuild_double
+    use full_diag
+    use iomod
+    
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in)  :: nconf,nP,csfdim,csfdimP,nroots
+
+    ! P space configurations
+    integer(is), intent(in)  :: iP(nconf)
+
+    ! CSF offsets
+    integer(is), intent(in)  :: offset(nconf+1)
+    integer(is), intent(in)  :: offsetP(nconf+1)
+
+    ! P space on-diagonal Hamiltonian matrix elements
+    real(dp), intent(in)     :: hiiP(csfdim)
+    
+    ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
+    real(dp), intent(in)     :: averageii(nconf)
+
+    ! Configurations and SOPs
+    integer(is), intent(in)  :: n_int_I
+    integer(ib), intent(in)  :: conf(n_int_I,2,nconf)
+    integer(ib), intent(in)  :: sop(n_int_I,2,nconf)
+
+    ! MO mapping array
+    integer(is), intent(in)  :: m2c(nmo)
+
+    ! Irrep number
+    integer(is), intent(in)  :: irrep
+
+    ! P space eigenpairs
+    real(dp), intent(out)    :: vecP(csfdimP,nroots),EP(nroots)
+    
+    ! P space eigenvector scratch file number
+    integer(is), intent(out) :: vecscr
+
+    ! Everything else
+    integer(is)              :: hscr,nrec
+
+!----------------------------------------------------------------------
+! Save to disk the non-zero P space off-diagonal Hamiltonian matrix
+! elements
+!----------------------------------------------------------------------
+    call save_hij_double_selected(nP,iP,offsetP,nconf,csfdim,offset,&
+         averageii,conf,sop,n_int_I,m2c,irrep,hscr,nrec,'hij_ref')
+
+!----------------------------------------------------------------------
+! Diagonalise the P space Hamiltonian
+!----------------------------------------------------------------------
+    call diag_full(hscr,nrec,csfdimP,hiiP,irrep,nroots,vecscr,&
+         'refvec')
+
+!----------------------------------------------------------------------
+! Retrieve the P space eigenpairs
+!----------------------------------------------------------------------
+    ! Read in the eigenpairs
+    call read_all_eigenpairs(vecscr,vecP,EP,csfdimP,nroots)
+
+    ! Subtract off E_SCF from the energies to get the true eigenvalues
+    EP=EP-escf
+    
+    return
+    
+  end subroutine diag_pspace
+    
 !######################################################################
 ! pt2_corrections: Calculation of the ENPT2 corrections
 !######################################################################
-  subroutine pt2_corrections(csfdim_sel,csfdim_unsel,nroots,vec_sel,&
-       ener_sel,hii_unsel,Avec,E2,n_int_I,nconf,conf,sop,nsel,nunsel,&
-       isel,iunsel,offset,averageii,harr2dim,harr2,m2c,offset_sel,&
-       offset_unsel)
+  subroutine pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
+       hiiQ,Avec,E2,n_int_I,nconf,conf,sop,nP,nQ,iP,iQ,offset,&
+       averageii,harr2dim,harr2,m2c,offsetP,offsetQ)
 
     use constants
     use bitglobal
@@ -550,19 +622,19 @@ contains
     implicit none
 
     ! Dimensions
-    integer(is), intent(in) :: csfdim_sel,csfdim_unsel,nroots
+    integer(is), intent(in) :: csfdim,csfdimP,csfdimQ,nroots
 
     ! Eigenpairs of the reference space Hamiltonian projected
-    ! onto the selected subspace
-    real(dp), intent(in)    :: vec_sel(csfdim_sel,nroots)
-    real(dp), intent(in)    :: ener_sel(nroots)
+    ! onto the P space
+    real(dp), intent(in)    :: vecP(csfdimP,nroots)
+    real(dp), intent(in)    :: EP(nroots)
 
-    ! On-diagonal Hamiltonian matrix elements for the unselected
+    ! On-diagonal Hamiltonian matrix elements for the Q space
     ! CSFs
-    real(dp), intent(in)    :: hii_unsel(csfdim_unsel)
+    real(dp), intent(in)    :: hiiQ(csfdim)
     
-    ! A-vectors
-    real(dp), intent(out)   :: Avec(csfdim_unsel,nroots)
+    ! 1st-order corrected wave functions
+    real(dp), intent(out)   :: Avec(csfdim,nroots)
 
     ! 2nd-order energy corrections
     real(dp), intent(out)   :: E2(nroots)
@@ -572,9 +644,9 @@ contains
     integer(ib), intent(in) :: conf(n_int_I,2,nconf)
     integer(ib), intent(in) :: sop(n_int_I,2,nconf)
 
-    ! Selected/unselected confs
-    integer(is), intent(in) :: nsel,nunsel
-    integer(is), intent(in) :: isel(nsel),iunsel(nunsel)
+    ! P and Q space configurations
+    integer(is), intent(in) :: nP,nQ
+    integer(is), intent(in) :: iP(nconf),iQ(nconf)
 
     ! CSF offsets
     integer(is), intent(in) :: offset(nconf+1)
@@ -589,9 +661,9 @@ contains
     ! MO mapping array
     integer(is), intent(in) :: m2c(nmo)
 
-    ! CSF offsets for the selected and unselected configurations
-    integer(is), intent(in) :: offset_sel(nsel+1)
-    integer(is), intent(in) :: offset_unsel(nunsel+1)
+    ! CSF offsets for the P and Q space configurations
+    integer(is), intent(in) :: offsetP(nconf+1)
+    integer(is), intent(in) :: offsetQ(nconf+1)
     
     ! Difference configuration information
     integer(is)             :: ndiff
@@ -616,17 +688,14 @@ contains
     integer(is)             :: knopen,knsp,bnopen,bnsp
     integer(is)             :: nexci
     integer(is)             :: iroot,counter
-    real(dp)                :: ediff
+    real(dp)                :: ediff,norm
     
 !----------------------------------------------------------------------
 ! Compute the matrix elements <w omega|H|Psi_I^0>
 !----------------------------------------------------------------------
-    ! Initialisation
-    Avec=0.0d0
-
-    ! Loop over the ket (selected) configurations
-    do iket=1,nsel
-       kconf=isel(iket)
+    ! Loop over the ket (P space) configurations
+    do iket=1,nP
+       kconf=iP(iket)
        
        ! Number of open shells in the ket configuration
        knopen=sop_nopen(sop(:,:,kconf),n_int_I)
@@ -644,9 +713,9 @@ contains
        call package_confinfo_offdiag(ksop_full,kconf_full,socc,nsocc,&
             Dw,ndiff,nbefore)
 
-       ! Loop over the bra (unselected) configurations
-       do ibra=1,nunsel
-          bconf=iunsel(ibra)
+       ! Loop over the bra (Q space) configurations
+       do ibra=1,nQ
+          bconf=iQ(ibra)
 
           ! Compute the excitation degree between the two
           ! configurations
@@ -687,18 +756,19 @@ contains
 
              counter=0
 
-             ! Loop over the ket (selected) CSFs
-             do ikcsf=offset_sel(iket),offset_sel(iket+1)-1
+             ! Loop over the ket (P space) CSFs
+             do ikcsf=offsetP(iket),offsetP(iket+1)-1
 
                 ! Cycle if the ket CSF coefficient is tiny
-                if (abs(vec_sel(ikcsf,iroot)) < epshij) cycle
+                if (abs(vecP(ikcsf,iroot)) < epshij) cycle
                 
-                ! Loop over the ket (selected) CSFs
-                do ibcsf=offset_unsel(ibra),offset_unsel(ibra+1)-1
+                ! Loop over the bra (Q space) CSFs
+                do ibcsf=offsetQ(ibra),offsetQ(ibra+1)-1
                    counter=counter+1
 
-                   Avec(ibcsf,iroot)=Avec(ibcsf,iroot)&
-                        +harr2(counter)*vec_sel(ikcsf,iroot)
+                   Avec(csfdimP+ibcsf,iroot)=&
+                        Avec(csfdimP+ibcsf,iroot)&
+                        +harr2(counter)*vecP(ikcsf,iroot)
                    
                 enddo
                    
@@ -719,26 +789,252 @@ contains
     ! Loop over roots
     do iroot=1,nroots
 
-       ! Loop over the unselected CSFs
-       do icsf=1,csfdim_unsel
+       ! Loop over the Q space CSFs
+       do icsf=1,csfdimQ
 
           ! E^(0) - H_ii
-          ediff=ener_sel(iroot)-hii_unsel(icsf)
+          ediff=EP(iroot)-hiiQ(icsf)
 
           ! Energy correction
-          E2(iroot)=E2(iroot)+Avec(icsf,iroot)**2/ediff
+          E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/ediff
 
           ! A-vector element
-          Avec(icsf,iroot)=Avec(icsf,iroot)/ediff
-          
+          Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/ediff
+
        enddo
 
+    enddo
+
+!----------------------------------------------------------------------
+! Normalisation of the 1st-order wave function corrections
+!----------------------------------------------------------------------
+    ! Loop over roots
+    do iroot=1,nroots
+
+       ! Norm of the 1st-order corrected wave function
+       norm=dot_product(Avec(:,iroot),Avec(:,iroot))
+       norm=sqrt(norm)
+
+       ! Normalisation
+       Avec(:,iroot)=Avec(:,iroot)/norm
+       
     enddo
     
     return
     
   end subroutine pt2_corrections
 
+!######################################################################
+
+  subroutine update_partitioning(nconf,csfdim,csfdimP,csfdimQ,nroots,&
+       Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
+
+    use constants
+    use bitglobal
+    use utils
+    
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in)    :: nconf,csfdim,nroots
+    integer(is), intent(inout) :: csfdimP,csfdimQ
+    
+    ! 1st-order corrected wave functions
+    real(dp), intent(in)       :: Avec(csfdim,nroots)
+
+    ! CSF-to-conf map
+    integer(is), intent(in)    :: confmap(csfdim)
+
+    ! P and Q space configurations
+    integer(is), intent(inout) :: nP,nQ
+    integer(is), intent(inout) :: iP(nconf),iQ(nconf)
+    
+    ! CSF offsets
+    integer(is), intent(in)    :: offset(nconf+1)
+    integer(is), intent(inout) :: offsetP(nconf+1)
+    integer(is), intent(inout) :: offsetQ(nconf+1)
+    
+    ! Configuration selection threshold (hard-wired for now)
+    real(dp), parameter        :: thrsh=0.03d0
+
+    ! Selected CSFs and confs
+    integer(is), allocatable   :: isel_csf(:),isel_conf(:)
+    
+    ! Everything else
+    integer(is)                :: i,iroot,icsf,icsfP,icsfQ,iconf
+    integer(is)                :: countP,countQ,totalP,totalQ
+
+!----------------------------------------------------------------------    
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(isel_csf(csfdim))
+    allocate(isel_conf(nconf))
+
+!----------------------------------------------------------------------
+! Initialisation
+!----------------------------------------------------------------------
+    isel_csf=0
+    isel_conf=0
+    
+!----------------------------------------------------------------------
+! Determine the indices of the dominant CSFs
+!----------------------------------------------------------------------
+    ! Loop over roots
+    do iroot=1,nroots
+
+       ! Loop over CSFs
+       do icsf=1,csfdim
+
+          if (abs(Avec(icsf,iroot)) > thrsh) isel_csf(icsf)=1
+          
+       enddo
+              
+    enddo
+
+!----------------------------------------------------------------------  
+! Determine the P space configurations that generate dominant CSFs
+!----------------------------------------------------------------------
+    ! Loop over P space configurations
+    do i=1,nP
+       iconf=iP(i)
+
+       ! Loop over the P space CSFs generated by this configuration
+       do icsfP=offsetP(i),offsetP(i+1)-1
+
+          ! Are we at a dominant CSF?
+          if (isel_csf(icsfP) == 1) then
+
+             isel_conf(iconf)=1
+             
+          endif
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------  
+! Determine the Q space configurations that generate dominant CSFs
+!----------------------------------------------------------------------
+    ! Loop over Q space configurations
+    do i=1,nQ
+       iconf=iQ(i)
+
+       ! Loop over the Q space CSFs generated by this configuration
+       do icsfQ=offsetQ(i),offsetQ(i+1)-1
+
+          ! Are we at a dominant CSF?
+          if (isel_csf(icsfQ) == 1) then
+
+             isel_conf(iconf)=1
+             
+          endif
+          
+       enddo
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Number of P and Q space configurations
+!----------------------------------------------------------------------
+    nP=sum(isel_conf)
+    nQ=nconf-nP
+
+!----------------------------------------------------------------------
+! Fill in the arraya of P and Q space configurations
+!----------------------------------------------------------------------
+    countP=0
+    countQ=0
+    
+    do i=1,nconf
+       if (isel_conf(i) == 1) then
+          countP=countP+1
+          iP(countP)=i
+       else
+          countQ=countQ+1
+          iQ(countQ)=i
+       endif
+    enddo
+
+!----------------------------------------------------------------------
+! Fill in the CSF offsets for the P and Q space configurations
+!----------------------------------------------------------------------
+    totalP=1
+    totalQ=1
+    countP=0
+    countQ=0
+        
+    do iconf=1,nconf
+       if (isel_conf(iconf) == 1) then
+          countP=countP+1
+          offsetP(countP)=totalP
+          totalP=totalP+offset(iconf+1)-offset(iconf)
+       else
+          countQ=countQ+1
+          offsetQ(countQ)=totalQ
+          totalQ=totalQ+offset(iconf+1)-offset(iconf)
+       endif
+    enddo
+
+    offsetP(nP+1)=totalP
+    offsetQ(nQ+1)=totalQ
+    
+    return
+    
+  end subroutine update_partitioning
+  
+!######################################################################
+
+  subroutine check_conv(nroots,EP,Eold,converged)
+
+    use constants
+    
+    implicit none
+
+    ! Number of roots
+    integer(is), intent(in) :: nroots
+
+    ! Energies
+    real(dp), intent(in)    :: EP(nroots),Eold(nroots)
+
+    ! Convergence flag
+    logical, intent(out)    :: converged
+
+    ! Convergence threshold (hard-wired for now)
+    real(dp), parameter     :: Ethrsh=0.025d0/eh2ev
+    
+    ! Everything else
+    integer(is)             :: i
+    integer(is)             :: iconv(nroots)
+
+    ! Initialisation
+    iconv=0
+
+
+    print*,''
+    
+    
+    ! Loop over roots
+    do i=1,nroots
+
+       ! Has this root converged?
+
+       print*,i,abs(EP(i)-Eold(i))*eh2ev
+
+       if (abs(EP(i)-Eold(i)) < Ethrsh) iconv(i)=1
+       
+    enddo
+
+    ! Have we reached convergence
+    if (sum(iconv) == nroots) then
+       converged=.true.
+    else
+       converged=.false.
+    endif
+    
+    return
+    
+  end subroutine check_conv
+  
 !######################################################################
   
 end module ref_sci

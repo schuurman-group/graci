@@ -475,7 +475,7 @@ contains
 !                           of Hamiltonian to disk for a selected
 !                           subset of the total set of configurations
 !######################################################################
-  subroutine save_hij_double_selected(nsel,isel,offset_sel,nconf,hdim,&
+  subroutine save_hij_double_selected(nP,iP,offsetP,nconf,hdim,&
        offset,averageii,conf,sop,n_int_in,m2c,irrep,hscr,nrec,hstem)
     
     use constants
@@ -495,9 +495,9 @@ contains
     integer(is), intent(in)      :: irrep
 
     ! Selected configurations
-    integer(is), intent(in)      :: nsel
-    integer(is), intent(in)      :: isel(:)
-    integer(is), intent(in)      :: offset_sel(nsel+1)
+    integer(is), intent(in)      :: nP
+    integer(is), intent(in)      :: iP(nconf)
+    integer(is), intent(in)      :: offsetP(nconf+1)
     
     ! Dimensions
     integer(is), intent(in)      :: nconf,hdim
@@ -614,9 +614,9 @@ contains
 ! (1) Off-diagonal elements between CSFs with the same spatial
 !     configuration but different spin-couplings
 !----------------------------------------------------------------------
-    ! Loop over configurations
-    do i=1,nsel
-       iconf=isel(i)
+    ! Loop over the selected configurations
+    do i=1,nP
+       iconf=iP(i)
        
        ! Number of open shells
        nopen=sop_nopen(sop(:,:,iconf),n_int_in)
@@ -648,9 +648,9 @@ contains
           ! Save the above threshold matrix elements
           count=0
           ! Loop over ket CSFs
-          do kcsf=offset_sel(i),offset_sel(i+1)-2
+          do kcsf=offsetP(i),offsetP(i+1)-2
              ! Loop over bra CSFs
-             do bcsf=kcsf+1,offset_sel(i+1)-1
+             do bcsf=kcsf+1,offsetP(i+1)-1
                  count=count+1
                 if (abs(harr(count)) > epshij) then
                    nbuf=nbuf+1
@@ -674,9 +674,9 @@ contains
 ! (2) Off-diagonal elements between CSFs with different spatial
 !     configurations
 !----------------------------------------------------------------------
-    ! Loop over ket configurations
-    do i=1,nsel-1
-       kconf=isel(i)
+    ! Loop over selected ket configurations
+    do i=1,nP-1
+       kconf=iP(i)
        
        ! Number of open shells in the ket configuration
        knopen=sop_nopen(sop(:,:,kconf),n_int_in)
@@ -695,8 +695,8 @@ contains
             nunocc,nsocc,ndocc,Dw,ndiff,nbefore)
 
        ! Loop over bra configurations
-       do j=i+1,nsel
-          bconf=isel(j)
+       do j=i+1,nP
+          bconf=iP(j)
           
           ! Compute the excitation degree between the two configurations
           nexci=exc_degree_conf(conf(:,:,kconf),conf(:,:,bconf),n_int_in)
@@ -732,8 +732,8 @@ contains
         
           ! Save the above threshold matrix elements
           count=0
-          do kcsf=offset_sel(i),offset_sel(i+1)-1
-             do bcsf=offset_sel(j),offset_sel(j+1)-1
+          do kcsf=offsetP(i),offsetP(i+1)-1
+             do bcsf=offsetP(j),offsetP(j+1)-1
                 count=count+1
                 if (abs(harr2(count)) > epshij) then
                    nbuf=nbuf+1
