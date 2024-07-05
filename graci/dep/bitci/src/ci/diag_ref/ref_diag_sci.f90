@@ -9,32 +9,237 @@ contains
   
 !######################################################################
 ! ref_diag_mrci_sci: Diagonalisation of the reference space Hamiltonian
-!                    using an SCI algorithm
+!                    using an SCI algorithm. Also performs a pruning
+!                    of the deadwood reference configurations
 !######################################################################
 #ifdef CBINDING
-  subroutine ref_diag_mrci_sci(irrep,nroots,confscr,nconf,vecscr) &
+  subroutine ref_diag_mrci_sci(nroots,confscr,nconf,vecscr) &
        bind(c,name="ref_diag_mrci_sci")
 #else
-  subroutine ref_diag_mrci_sci(irrep,nroots,confscr,nconf,vecscr)
+  subroutine ref_diag_mrci_sci(nroots,confscr,nconf,vecscr)
 #endif
+    
+    use constants
+    use bitglobal
+    use mrciutils
+    use refconf
+    use iomod
+  
+    implicit none
+
+    ! Array of requested numbers of roots
+    integer(is), intent(inout) :: nroots(0:nirrep-1)
+    
+    ! Array of reference configuration scratch file numbers
+    integer(is), intent(in)    :: confscr(0:nirrep-1)
+
+    ! Array of numbers of referecne configurations
+    integer(is), intent(inout) :: nconf(0:nirrep-1)
+
+    ! Array of eigenvector scratch file indices
+    integer(is), intent(out)   :: vecscr(0:nirrep-1)
+
+    ! Deadwood configurations
+    integer(is), allocatable   :: idead(:)
+
+    ! Number of configurations found in the scratch file
+    integer(is)                :: nconf1
+    
+    ! Number of (n_bits)-bit integers required to represent the
+    ! internal MOs
+    integer(is)                :: n_int_I
+    
+    ! Internal and external MOs
+    integer(is)                :: nmoI,nmoE
+    integer(is)                :: Ilist(nmo),Elist(nmo)
+    
+    ! Reference configurations and SOPs
+    integer(ib), allocatable   :: conf(:,:,:),sop(:,:,:)
+    integer(ib), allocatable   :: conf_new(:,:,:),sop_new(:,:,:)
+    
+    ! MO mapping arrays
+    integer(is)                :: m2c(nmo),c2m(nmo)
+
+    ! Everything else
+    integer(is)                :: irrep,istart,iend,iconf,n
+    integer(is)                :: nconf_tot,nconf_tot_old
+    integer(ib), allocatable   :: conf1(:,:,:),sop1(:,:,:)
+
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    ! Total number of confs
+    nconf_tot=sum(nconf)
+
+    ! Reference space confs and SOPs across all irreps
+    allocate(conf(n_int,2,nconf_tot))
+    allocate(sop(n_int,2,nconf_tot))
+    conf=0_ib
+    sop=0_ib
+    
+    ! Deadwood conf indices
+    allocate(idead(nconf_tot))
+    idead=0
+    
+!----------------------------------------------------------------------
+! Peform the SCI diagonalisation in the reference space for each irrep
+!----------------------------------------------------------------------
+    ! Initialisation
+    istart=1
+    iend=0
+
+    ! Loop over irreps
+    do irrep=0,nirrep-1
+
+       ! Cycle if there are no roots for this irrep
+       if (nroots(irrep) == 0) cycle
+
+       ! Start and end points in the total conf & SOP arrays
+       if (irrep > 0) istart=istart+nconf(irrep-1)
+       iend=iend+nconf(irrep)
+       
+       ! SCI diagonalisation for this irrep
+       call sci_diag(irrep,nroots(irrep),confscr(irrep),nconf(irrep),&
+            idead(istart:iend),vecscr(irrep))
+       
+    enddo
+    
+!----------------------------------------------------------------------
+! Read in the reference space configurations
+!----------------------------------------------------------------------
+! Note that n_int_I, nmoI, nmoE, m2c, and c2m will be the same
+! for all irreps
+!----------------------------------------------------------------------
+    ! Initialisation
+    istart=1
+    iend=0
+  
+    ! Loop over irreps
+    do irrep=0,nirrep-1
+
+       ! Start and end points in the total conf & SOP arrays
+       if (irrep > 0) istart=istart+nconf(irrep-1)
+       iend=iend+nconf(irrep)
+
+       ! Read in the configurations
+       call read_ref_confs(confscr(irrep),nconf1,n_int_I,nmoI,nmoE,&
+            conf1,sop1,m2c,c2m)
+
+       ! Sanity check on the number of configurations
+       if (nconf(irrep) /= nconf1) then
+          errmsg='Error in ref_diag_mrci_sci: '&
+               //'inconsistent configuration numbers'
+          call error_control
+       endif
+
+       ! Save the confs & SOPs
+       conf(1:n_int_I,:,istart:iend)=conf1
+       sop(1:n_int_I,:,istart:iend)=sop1
+       
+       ! Deallocate arrays
+       deallocate(conf1,sop1)
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Construct the array of surviving configurations
+!----------------------------------------------------------------------
+    ! No. surviving confs
+    nconf_tot_old=nconf_tot
+    nconf_tot=nconf_tot_old-sum(idead)
+
+    ! Allocate arrays
+    allocate(conf_new(n_int,2,nconf_tot))
+    conf_new=0_ib
+    
+    ! Fill in the new conf array
+    n=0
+    do iconf=1,nconf_tot_old
+       if (idead(iconf) == 0) then
+          n=n+1
+          conf_new(:,:,n)=conf(:,:,iconf)
+       endif
+    enddo
+
+!----------------------------------------------------------------------
+! Put the surviving configurations into the canonical MO ordering
+!----------------------------------------------------------------------
+    call reorder_confs(nmo,m2c,conf_new,nconf_tot)
+
+!----------------------------------------------------------------------
+! Update the internal-external MO spaces
+!----------------------------------------------------------------------
+    ! Get the lists of internal and external MOs
+    call get_internal_external_mos(conf_new,nconf_tot,nmoI,nmoE,&
+         Ilist,Elist)
+  
+    ! Construct the new canonical-to-MRCI MO index mapping array
+    call get_mo_mapping(nmoI,nmoE,Ilist,Elist,m2c,c2m)
+  
+!----------------------------------------------------------------------
+! Generate the surviving SOPs in the canonical MO ordering
+!----------------------------------------------------------------------
+    ! Allocate arrays
+    allocate(sop_new(n_int,2,nconf_tot))
+    sop_new=0_ib
+
+    ! Compute the SOPs
+    do iconf=1,nconf_tot
+       sop_new(:,:,iconf)=conf_to_sop(conf_new(:,:,iconf),n_int)
+    enddo
+    
+!----------------------------------------------------------------------
+! Re-arrange the surviving configurations s.t. the internal MOs come
+! before the external MOs
+!----------------------------------------------------------------------
+    call rearrange_ref_confs(c2m,conf_new,sop_new,nconf_tot)
+
+!----------------------------------------------------------------------
+! Determine the new number of configurations per irrep
+!----------------------------------------------------------------------
+    nconf=0
+  
+    do iconf=1,nconf_tot
+       irrep=sop_sym_mrci(sop_new(:,:,iconf),m2c)
+       nconf(irrep)=nconf(irrep)+1
+    enddo
+
+!----------------------------------------------------------------------
+! Write the surviving configurations to file
+!----------------------------------------------------------------------
+    call rewrite_ref_confs(nroots,conf_new,sop_new,nconf_tot,nconf,&
+         m2c,c2m,nmoI,nmoE,confscr)
+    
+    return
+    
+  end subroutine ref_diag_mrci_sci
+
+!######################################################################
+  
+  subroutine sci_diag(irrep,nroots,confscr,nconf,idead,vecscr)
       
     use constants
     use bitglobal
     use hbuild_double
     use iomod
-  
+    use timing
+    
     implicit none
 
     ! Irrep number and the requested number of roots
     integer(is), intent(in)    :: irrep
     integer(is), intent(inout) :: nroots
     
-    ! Array of reference configuration scratch file numbers
-    integer(is), intent(in)    :: confscr(0:nirrep-1)
+    ! Configuration scratch file number
+    integer(is), intent(in)    :: confscr
 
-    ! Array of numbers of referecne configurations
-    integer(is), intent(in)    :: nconf(0:nirrep-1)
+    ! Numbers of reference configurations
+    integer(is), intent(in)    :: nconf
 
+    ! Deadwood configurations, i.e., the Q space confs
+    ! at the end of the SCI calculation
+    integer(is), intent(out)   :: idead(nconf)
+    
     ! Eigenvector scratch file index
     integer(is), intent(out)   :: vecscr
 
@@ -103,7 +308,7 @@ contains
 
     ! Temporary hard-wiring of the P space weight convergence
     ! threshold
-    real(dp), parameter        :: WP_thrsh=0.95_dp
+    real(dp), parameter        :: WP_thrsh=0.99_dp
     
     ! Work arrays
     integer(is)                :: harr2dim
@@ -112,6 +317,15 @@ contains
     ! Everything else
     integer(is)                :: i,iroot
     logical                    :: converged
+
+    ! Timing variables
+    real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
+                                  twall_end
+
+!----------------------------------------------------------------------
+! Start timing
+!----------------------------------------------------------------------
+    call get_times(twall_start,tcpu_start)
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -134,7 +348,7 @@ contains
 !----------------------------------------------------------------------
 ! Return if there are no configurations for the current irrep
 !----------------------------------------------------------------------
-    if (nconf(irrep) == 0) then
+    if (nconf == 0) then
        if (verbose) &
             write(6,'(/,x,a)') 'No reference space configurations of '&
             //trim(irreplbl(irrep,ipg))//' symmetry'
@@ -145,14 +359,14 @@ contains
 !----------------------------------------------------------------------
 ! Read the configurations from file
 !----------------------------------------------------------------------
-    call read_ref_confs(confscr(irrep),nconf1,n_int_I,nmoI,nmoE,conf,&
+    call read_ref_confs(confscr,nconf1,n_int_I,nmoI,nmoE,conf,&
          sop,m2c,c2m)
 
 !----------------------------------------------------------------------
 ! Sanity check on the number of configurations
 !----------------------------------------------------------------------
-    if (nconf(irrep) /= nconf1) then
-       errmsg='Error in ref_diag_mrci: '&
+    if (nconf /= nconf1) then
+       errmsg='Error in sci_diag: '&
             //'inconsistent configuration numbers'
        call error_control
     endif
@@ -161,16 +375,16 @@ contains
 ! Determine the total number of CSFs and the offsets for each
 ! configuration
 !----------------------------------------------------------------------
-    allocate(offset(nconf1+1))
+    allocate(offset(nconf+1))
     offset=0
 
-    call basis_dimensions(csfdim,offset,sop,n_int_I,nconf1)
+    call basis_dimensions(csfdim,offset,sop,n_int_I,nconf)
 
 !----------------------------------------------------------------------
 ! Sanity check on the number of roots
 !----------------------------------------------------------------------
     if (csfdim < nroots) then
-       errmsg='Error in ref_diag_mrci: N_roots > N_CSF'
+       errmsg='Error in sci_diag: N_roots > N_CSF'
        call error_control
     endif
 
@@ -178,17 +392,17 @@ contains
 ! Allocate arrays
 !----------------------------------------------------------------------
     allocate(hii(csfdim))
-    allocate(averageii(nconf1))
+    allocate(averageii(nconf))
     allocate(E2(nroots))
     allocate(Avec(csfdim,nroots))
     allocate(confmap(csfdim))
-    allocate(iP(nconf1))
-    allocate(iQ(nconf1))
+    allocate(iP(nconf))
+    allocate(iQ(nconf))
     allocate(hiiP(csfdim))
     allocate(hiiQ(csfdim))
-    allocate(averageiiP(nconf1))
-    allocate(offsetP(nconf1+1))
-    allocate(offsetQ(nconf1+1))
+    allocate(averageiiP(nconf))
+    allocate(offsetP(nconf+1))
+    allocate(offsetQ(nconf+1))
     allocate(EP(nroots))
     allocate(WP(nroots))
     hii=0.0d0
@@ -210,21 +424,16 @@ contains
 ! Compute the on-diagonal Hamiltonian matrix elements and the
 ! their spin-coupling averaged values
 !----------------------------------------------------------------------
-    call hii_double(nconf1,csfdim,offset,conf,sop,n_int_I,m2c,irrep,&
+    call hii_double(nconf,csfdim,offset,conf,sop,n_int_I,m2c,irrep,&
          hii,averageii)
 
 !----------------------------------------------------------------------
 ! Initialialise the P and Q spaces
 !----------------------------------------------------------------------
     ! Determine the P and Q spaces
-    call partition_confs(nroots,nconf1,offset,csfdim,hii,nP,iP,nQ,iQ,&
+    call partition_confs(nroots,nconf,offset,csfdim,hii,nP,iP,nQ,iQ,&
          offsetP,offsetQ,confmap)
 
-    ! Fill in the P and Q space on-diagonal Hamiltonian matrix
-    ! elements
-    call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf1,&
-         offset,nP,iP,nQ,iQ,averageii,averageiiP)
-    
 !----------------------------------------------------------------------
 ! Iterative improvement of the P space
 !----------------------------------------------------------------------
@@ -238,28 +447,28 @@ contains
     ! Perform the iterations
     do i=1,maxiter
 
+       ! Update the P and Q spaces
+       if (i > 1) call update_partitioning(i,nconf,csfdim,csfdimP,&
+            csfdimQ,nroots,Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
+       
+       ! Fill in the P and Q space on-diagonal Hamiltonian matrix
+       ! elements
+       call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf,&
+            offset,nP,iP,nQ,iQ,averageii,averageiiP)
+              
        ! Allocate the P space eigenvector array
        if (allocated(vecP)) deallocate(vecP)
        allocate(vecP(csfdimP,nroots))
        
        ! Diagonalise the P space Hamiltonian
-       call diag_pspace(nconf1,nP,csfdim,csfdimP,nroots,iP,offset,&
+       call diag_pspace(nconf,nP,csfdim,csfdimP,nroots,iP,offset,&
             offsetP,averageii,hiiP,conf,sop,n_int_I,m2c,irrep,&
             vecP,EP,vecscr)
 
        ! Compute the ENPT2 wave function and energy corrections
        call pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
-            hiiQ,Avec,E2,n_int_I,nconf1,conf,sop,nP,nQ,iP,iQ,offset,&
+            hiiQ,Avec,E2,n_int_I,nconf,conf,sop,nP,nQ,iP,iQ,offset,&
             averageii,harr2dim,harr2,m2c,offsetP,offsetQ,WP)
-
-       ! Update the P and Q spaces
-       call update_partitioning(nconf1,csfdim,csfdimP,csfdimQ,nroots,&
-            Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
-
-       ! Fill in the P and Q space on-diagonal Hamiltonian matrix
-       ! elements
-       call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf1,&
-            offset,nP,iP,nQ,iQ,averageii,averageiiP)
        
        ! Output our progress
        if (verbose) write(6,'(4x,i5,4x,i5,4x,F6.4)') i,nP,minval(WP)
@@ -267,21 +476,37 @@ contains
        ! Exit if we have reached convergence
        converged=check_conv(nroots,WP,WP_thrsh)
        if (converged) exit
-       
+          
     enddo
-
+       
     ! Table footer
     if (verbose) write(6,'(x,29a)') ('*', i=1,29)
 
 !----------------------------------------------------------------------
-! Prune the reference space
+! Fill in the deadwood configuration array
 !----------------------------------------------------------------------
-    
-    STOP
+    ! Initialisation
+    idead=0
+
+    ! Loop over Q space configurations
+    do i=1,nQ
+
+       ! Flag the Q space conf as deadwood
+       idead(iQ(i))=1
+       
+    enddo
+
+!----------------------------------------------------------------------
+! Stop timing and print report
+!----------------------------------------------------------------------
+    call get_times(twall_end,tcpu_end)
+    if (verbose) &
+         call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
+         'sci_diag')
     
     return
   
-  end subroutine ref_diag_mrci_sci
+  end subroutine sci_diag
 
 !######################################################################
 
@@ -291,7 +516,7 @@ contains
     use constants
     use bitglobal
     use utils
-  
+    
     implicit none
 
     ! Dimensions
@@ -319,6 +544,7 @@ contains
     integer(is)              :: totalP,totalQ
     integer(is)              :: nlow
     integer(is), allocatable :: isurvive(:)
+
     
 !----------------------------------------------------------------------
 ! Allocate arrays
@@ -357,8 +583,8 @@ contains
     isurvive=0
 
     ! For now we shall hardwire the number of initially selected CSFs
-    nlow=2*nroots
-        
+    nlow=3*nroots
+    
     ! Loop over the lowest energy CSFs
     do i=1,nlow
 
@@ -859,14 +1085,17 @@ contains
 
 !######################################################################
 
-  subroutine update_partitioning(nconf,csfdim,csfdimP,csfdimQ,nroots,&
-       Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
+  subroutine update_partitioning(iter,nconf,csfdim,csfdimP,csfdimQ,&
+       nroots,Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
 
     use constants
     use bitglobal
     use utils
     
     implicit none
+
+    ! Iteration number
+    integer(is), intent(in)    :: iter
 
     ! Dimensions
     integer(is), intent(in)    :: nconf,csfdim,nroots
@@ -888,7 +1117,7 @@ contains
     integer(is), intent(inout) :: offsetQ(nconf+1)
     
     ! Configuration selection threshold (hard-wired for now)
-    real(dp), parameter        :: thrsh=0.03_dp
+    real(dp), parameter        :: thrsh=0.02_dp
 
     ! Selected CSFs and confs
     integer(is), allocatable   :: isel_csf(:),isel_conf(:)
@@ -918,7 +1147,8 @@ contains
        ! Loop over CSFs
        do icsf=1,csfdim
 
-          if (abs(Avec(icsf,iroot)) > thrsh) isel_csf(icsf)=1
+          if (abs(Avec(icsf,iroot)) > thrsh*(1.0d0-0.1d0*(iter-1))) &
+               isel_csf(icsf)=1
           
        enddo
               

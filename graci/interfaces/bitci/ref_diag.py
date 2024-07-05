@@ -17,6 +17,19 @@ def diag(ci_method):
     Diagonalisation of the reference space Hamiltonian
     """
 
+    if ci_method.ref_sci:
+        ciunits, ener = diag_sci(ci_method)
+    else:
+        ciunits, ener = diag_full(ci_method)
+
+    return ciunits, ener
+
+def diag_full(ci_method):
+    """
+    Diagonalisation of the Hamiltonian projected onto the
+    full reference space
+    """
+    
     # length of nstates vector is the number of irreps
     nirr    = ci_method.n_irrep()
 
@@ -47,10 +60,7 @@ def diag(ci_method):
         nextra = ci_method.nextra['max'][irrep]
         # Call to the bitci reference space diagonalisation routine
         args = (irrep, nroots+nextra, confunits, nconf, ciunit)
-        if ci_method.ref_sci:
-            (nroots, ciunit) = libs.lib_func('ref_diag_mrci_sci',args)
-        else:
-            (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
+        (nroots, ciunit) = libs.lib_func('ref_diag_mrci',args)
 
         # Bitci eigenvector scratch number
         ciunits[irrep] = ciunit
@@ -78,6 +88,63 @@ def diag(ci_method):
                     libs.lib_func('retrieve_some_energies', args)
 
     return ciunits, ener 
+
+def diag_sci(ci_method):
+    """
+    Diagonalisation of Hamiltonian projected onto a selected
+    subspace of the reference space
+    """
+
+    # length of nstates vector is the number of irreps
+    nirr    = ci_method.n_irrep()
+
+    # bitci reference space wfn
+    ref_wfn = ci_method.bitci_ref()
+
+    # Print the section header
+    if ci_method.verbose:
+        output.print_refdiag_header()
+    
+    # Bitci reference configuration scratch file numbers
+    confunits = np.array(ref_wfn.conf_units['adiabatic'], dtype=int)
+
+    # Numbers of configurations
+    nconf = np.array(ref_wfn.nconf['adiabatic'], dtype=int)
+
+    # Bitci eigenvector scratch file numbers
+    ciunits = np.array([0 for i in range(nirr)])
+
+    # Numbers of roots
+    nroots = np.array([ci_method.n_states_sym(irrep)
+                       for irrep in range(nirr)])
+
+    # Number of extra roots
+    nextra = np.array(ci_method.nextra['max'])
+    
+    # Call to the bitci reference space diagonalisation routine
+    args = (nroots+nextra, confunits, nconf, ciunits)
+    (nroots, nconf, ciunits) = libs.lib_func('ref_diag_mrci_sci',args)
+
+    # Re-set the number of reference space confs
+    ci_method.ref_wfn.set_nconf(nconf)
+
+    # Retrieve the reference space energies
+    maxroots = max(ci_method.n_states_sym())
+    ener     = np.zeros((nirr, maxroots), dtype=float)
+    for irrep in ci_method.irreps_nonzero():
+        if ci_method.n_states_sym(irrep) > 0:
+    
+            # Number of roots for the current irrep
+            nroots = ci_method.n_states_sym(irrep)
+    
+            # Retrieve the energies
+            args = (ciunits[irrep], nroots, ener[irrep, :nroots],
+                    np.array([n+1 for n in range(nroots)], dtype=int))
+            
+            (ener[irrep, :nroots]) = \
+                    libs.lib_func('retrieve_some_energies', args)
+
+    return ciunits, ener
 
 @timing.timed
 def n_extra(ci_method):

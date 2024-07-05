@@ -117,6 +117,11 @@ class Dftmrci(cimethod.Cimethod):
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
 
+        # Make sure that ref space pruning is not turned on
+        # if SCI ref space diagonalisation is to be used
+        if self.ref_sci:
+            self.ref_prune = False
+            
         # write the output logfile header for this run
         if self.verbose:
             output.print_dftmrci_header(self.label)
