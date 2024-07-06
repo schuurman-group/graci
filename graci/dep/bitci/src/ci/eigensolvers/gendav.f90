@@ -912,43 +912,8 @@ contains
     ki=currdim+1
     kf=currdim+nnew
     
-!!----------------------------------------------------------------------
-!! Old: compute the (non-normalised) new subspace vectors using MGS
-!!      orthogonalisation    
-!!----------------------------------------------------------------------
-!    ! Loop over correction vectors
-!    k1=0
-!    do k=ki,kf
-!       k1=k1+1
-!    
-!       ! Orthogonalise the correction vector against all previous
-!       ! subspace vectors
-!       do i=1,k-1
-!          bvec(:,k)=bvec(:,k) &
-!               -dot_product(bvec(:,k),bvec(:,i))*bvec(:,i) &
-!               /dot_product(bvec(:,i),bvec(:,i))
-!       enddo
-!    
-!       ! Norm of the orthogonalised correction vector
-!       bnorm(k1)=sqrt(dot_product(bvec(:,k),bvec(:,k)))
-!       
-!    enddo
-!
-!!----------------------------------------------------------------------
-!! Expand the subspace by adding orthonormalised correction vectors 
-!!----------------------------------------------------------------------
-!    ! Loop over orthogonalised correction vectors
-!    n=0
-!    do k=ki,kf
-!       
-!       ! Add the orthonormalised correction vector to the subspace
-!       n=n+1
-!       bvec(:,k)=bvec(:,k)/bnorm(n)
-!    
-!    enddo
-
 !----------------------------------------------------------------------
-! New orthonormalisation of the correction vectors
+! Orthonormalisation of the correction vectors
 !----------------------------------------------------------------------
 ! Performed in two steps:
 !
