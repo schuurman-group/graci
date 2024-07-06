@@ -262,10 +262,6 @@ contains
     ! Numbers of CSFs
     integer(is)                :: csfdim
     integer(is), allocatable   :: offset(:)
-      
-    ! Dimension of the CSF basis past which full diagonalisation
-    ! will not be used
-    integer(is), parameter     :: full_lim=1200
     
     ! On-diagonal Hamiltonian matrix elements
     real(dp), allocatable      :: hii(:)
@@ -771,6 +767,9 @@ contains
     use bitglobal
     use hbuild_double
     use full_diag
+    use ref_guess
+    use gendav
+    use conftype
     use iomod
     
     implicit none
@@ -808,10 +807,30 @@ contains
     ! P space eigenvector scratch file number
     integer(is), intent(out) :: vecscr
 
+    ! Dimension of the CSF basis past which full diagonalisation
+    ! will not be used
+    integer(is), parameter   :: full_lim=1000
+
+    ! Guess vector scratch file number
+    integer(is)              :: guessscr
+    
+    ! Subspace dimension to be used in the generation of the
+    ! guess vectors
+    integer(is)              :: guessdim
+    
+    ! Davidson variables
+    integer(is)              :: blocksize,maxvec,ipre,niter
+    real(dp)                 :: tol
+
+    ! Dummy MRCI configuration derived type: temporarily required
+    ! to be passed to the Davidson routines
+    type(mrcfg)              :: cfg
+    
     ! Everything else
     integer(is)              :: hscr,nrec
+    integer(is)              :: isigma(3)
     logical                  :: verbose_save
-    
+        
 !----------------------------------------------------------------------
 ! Make the output non-verbose
 !----------------------------------------------------------------------
@@ -828,8 +847,50 @@ contains
 !----------------------------------------------------------------------
 ! Diagonalise the P space Hamiltonian
 !----------------------------------------------------------------------
-    call diag_full(hscr,nrec,csfdimP,hiiP,irrep,nroots,vecscr,&
-         'refvec')
+    if (csfdimP <= full_lim) then
+
+       !
+       ! Full diagonalisation
+       !
+
+       call diag_full(hscr,nrec,csfdimP,hiiP,irrep,nroots,vecscr,&
+            'refvec')
+    else
+
+       !
+       ! Iterative diagonalisation
+       !
+
+       ! Davidson parameters
+       blocksize=2*nroots
+       maxvec=4*blocksize
+       niter=100
+       tol=1e-4_dp
+
+       ! Dimension of the subspace used to generate the guess vectors
+       guessdim=750
+       if (guessdim > csfdimP) guessdim=int(csfdimP*0.9d0)
+
+       ! Guess vector generation
+       call ref_guess_subspace(guessscr,blocksize,csfdimP,guessdim,&
+            hiiP,nrec,hscr)
+
+       ! Set the sigma-vector algorithm information: disk-based only
+       ! for now
+       isigma(1)=1
+       isigma(2)=hscr
+       isigma(3)=nrec
+       
+       ! Set the preconditioner: DPR makes sense due to the small
+       ! no. CSFs in a reference space diagonalisation
+       ipre=1
+     
+       ! Generalised Davidson diagonalisation
+       call generalised_davidson(irrep,isigma,cfg,csfdimP,hiiP,&
+            guessscr,vecscr,'refvec',nroots,blocksize,maxvec,tol,&
+            niter,ipre)
+       
+    endif
 
 !----------------------------------------------------------------------
 ! Retrieve the P space eigenpairs

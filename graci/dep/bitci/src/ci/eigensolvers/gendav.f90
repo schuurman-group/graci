@@ -202,8 +202,8 @@ contains
 ! of the block size
 !----------------------------------------------------------------------
     if (mod(maxvec,blocksize) /= 0) then
-       errmsg='The maximum subspace dimension is an integer multiple'&
-            //' of the block size'
+       errmsg='The maximum subspace dimension is not an integer '&
+            //' multiple of the block size'
        call error_control
     endif
 
