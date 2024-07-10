@@ -309,6 +309,8 @@ contains
     ! Work arrays
     integer(is)                :: harr2dim
     real(dp), allocatable      :: harr2(:)
+    integer(is), allocatable   :: iwork(:)
+    real(dp), allocatable      :: fwork(:)
     
     ! Everything else
     integer(is)                :: i,iroot
@@ -329,7 +331,7 @@ contains
     harr2dim=maxval(ncsfs(0:nomax))**2
     allocate(harr2(harr2dim))
     harr2=0.0d0
-    
+
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -401,6 +403,8 @@ contains
     allocate(offsetQ(nconf+1))
     allocate(EP(nroots))
     allocate(WP(nroots))
+    allocate(iwork(csfdim))
+    allocate(fwork(csfdim))    
     hii=0.0d0
     averageii=0.0d0
     E2=0.0d0
@@ -415,6 +419,8 @@ contains
     offsetQ=0
     EP=0.0d0
     WP=0.0d0
+    iwork=0
+    fwork=0.0d0
     
 !----------------------------------------------------------------------
 ! Compute the on-diagonal Hamiltonian matrix elements and the
@@ -445,7 +451,8 @@ contains
 
        ! Update the P and Q spaces
        if (i > 1) call update_partitioning(i,nconf,csfdim,csfdimP,&
-            csfdimQ,nroots,Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
+            csfdimQ,nroots,Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,&
+            offsetQ,iwork,fwork)
        
        ! Fill in the P and Q space on-diagonal Hamiltonian matrix
        ! elements
@@ -1147,7 +1154,8 @@ contains
 !######################################################################
 
   subroutine update_partitioning(iter,nconf,csfdim,csfdimP,csfdimQ,&
-       nroots,Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ)
+       nroots,Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,offsetQ,iwork,&
+       fwork)
 
     use constants
     use bitglobal
@@ -1176,17 +1184,22 @@ contains
     integer(is), intent(in)    :: offset(nconf+1)
     integer(is), intent(inout) :: offsetP(nconf+1)
     integer(is), intent(inout) :: offsetQ(nconf+1)
+
+    ! Work arrays
+    integer(is)                :: iwork(csfdim)
+    real(dp)                   :: fwork(csfdim)
     
     ! Configuration selection threshold (hard-wired for now)
-    real(dp), parameter        :: thrsh=0.02_dp
-
+    real(dp), parameter        :: normsq_thrsh=0.99_dp
+    
     ! Selected CSFs and confs
     integer(is), allocatable   :: isel_csf(:),isel_conf(:)
     
     ! Everything else
     integer(is)                :: i,iroot,icsf,icsfP,icsfQ,iconf
     integer(is)                :: countP,countQ,totalP,totalQ
-
+    real(dp)                   :: normsq
+    
 !----------------------------------------------------------------------    
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -1205,14 +1218,28 @@ contains
     ! Loop over roots
     do iroot=1,nroots
 
-       ! Loop over CSFs
-       do icsf=1,csfdim
+       ! Sort the A-vector for this state
+       fwork=abs(Avec(:,iroot))
+       call dsortindxa1('D',csfdim,fwork,iwork)
 
-          if (abs(Avec(icsf,iroot)) > thrsh*(1.0d0-0.1d0*(iter-1))) &
-               isel_csf(icsf)=1
+       ! Initialisation of the squared norm
+       normsq=0.0d0
+       
+       ! Loop over CSFs in order of importance
+       do icsf=1,csfdim
+          
+          ! Update the squared norm
+          normsq=normsq+Avec(iwork(icsf),iroot)**2
+
+          ! If we have reached the squared norm threshold, then
+          ! exit...
+          if (normsq > normsq_thrsh) exit
+
+          !...else add this to the list of dominant CSFs
+          isel_csf(iwork(icsf))=1
           
        enddo
-              
+       
     enddo
 
 !----------------------------------------------------------------------  
