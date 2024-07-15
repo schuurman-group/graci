@@ -252,7 +252,7 @@ def parse_value(valstr, val_type):
         val_list = val_list[end+1:]
 
     # if just a single element of this 2D list, convert to vector
-    if len(vec_str)==1: 
+    if len(vec_str)==1:
         return convert_array(vec_str[0])
     else:
         return convert_array(vec_str)
@@ -454,15 +454,15 @@ def convert_array(arg_list):
             pass
 
         # try to parse as booleans
-        try:
-            tarr = ['TRUE','true','True']
-            arr = np.array([argi in tarr for argi in arg]).astype(bool)
+        if set(arg).issubset(set(['TRUE','true','True',
+                                            'FALSE','false','False'])):
+            arr = np.array([argi.captialize() for argi in arg]).astype(bool)
             new_list.append(arr)
             continue
-        except ValueError:
-            pass
 
+        # pass as string
         arr = np.array(arg, dtype=h5py.string_dtype(encoding='utf-8'))
+        #arr = np.array(arg, dtype=StringDType())
         new_list.append(arr)
 
     if type(arg_list[0]) != list:
