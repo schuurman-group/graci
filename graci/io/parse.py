@@ -456,9 +456,13 @@ def convert_array(arg_list):
         # try to parse as booleans
         if set(arg).issubset(set(['TRUE','true','True',
                                             'FALSE','false','False'])):
-            arr = np.array([argi.captialize() for argi in arg]).astype(bool)
-            new_list.append(arr)
-            continue
+            try:
+                arr = np.array([argi.captialize() 
+                                         for argi in arg]).astype(bool)
+                new_list.append(arr)
+                continue
+            except ValueError:
+                pass
 
         # pass as string
         arr = np.array(arg, dtype=h5py.string_dtype(encoding='utf-8'))

@@ -150,6 +150,11 @@ contains
          npairs,rhoij,Bmap,Kmap)
 
 !----------------------------------------------------------------------
+! Check on traces of the 1-TDMs
+!----------------------------------------------------------------------
+    call check_trace(npairs,rhoij,Bmap,Kmap)
+    
+!----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(scc)
@@ -215,10 +220,9 @@ contains
     integer(is)             :: i,a,ipair,Bindx,Kindx
     integer(is)             :: ikcsf,ibcsf
     integer(is)             :: counter
+    integer(is)             :: nomega
     real(dp)                :: kcoe,bcoe
-    real(dp)                :: prod
-
-    real(dp)                :: damping
+    real(dp)                :: prod,damping
         
 !----------------------------------------------------------------------
 ! Contributions from bra and ket reference space CSFs
@@ -251,6 +255,15 @@ contains
           nexci=exc_degree_conf(cfgK%conf0h(:,:,ikconf),&
                cfgB%conf0h(:,:,ibconf),n_int_I)
 
+          ! Same bra and ket configurations: compute the contribution
+          ! to the on-diagonal 1-TDM elements
+          if (nexci == 0) then
+             call tdm_diag(cfgK%sop0h(:,:,ikconf),n_int_I,knsp,npairs,&
+                  rhoij,Bmap,Kmap,csfdimB,csfdimK,nvecB,nvecK,vecB,&
+                  vecK,cfgB%csfs0h(ibconf),cfgK%csfs0h(ikconf),cfgB%m2c)
+             cycle
+          endif
+          
           ! Cycle if the excitation degree is not equal to 1
           if (nexci /= 1) cycle
 
@@ -1868,7 +1881,98 @@ contains
     return
     
   end subroutine tdm_2h_2h
+
+!######################################################################
+! tdm_diag: computes to the on-diagonal elements of the 1-TDMs of a
+!           single configuration common to both the bra and ket
+!           wave functions
+!######################################################################
+  subroutine tdm_diag(sop,ldsop,nsp,npairs,rhoij,Bmap,Kmap,csfdimB,&
+       csfdimK,nvecB,nvecK,vecB,vecK,offsetB,offsetK,m2c)
+
+    use constants
+    use bitglobal
+    use mrciutils
     
+    implicit none
+
+    ! SOP
+    integer(is), intent(in) :: ldsop
+    integer(ib), intent(in) :: sop(ldsop,2)
+
+    ! Number of spin-coupling coefficients
+    integer(is), intent(in) :: nsp
+
+    ! 1-TDMs
+    integer(is), intent(in) :: npairs
+    real(dp), intent(inout) :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Eigenvectors
+    integer(is), intent(in) :: csfdimB,csfdimK
+    integer(is), intent(in) :: nvecB,nvecK
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+
+    ! Starting points of the bra and ket coefficients
+    integer(is), intent(in) :: offsetB,offsetK
+    
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! MO classes
+    integer(is)             :: socc(nmo),docc(nmo)
+    integer(is)             :: nsocc,ndocc
+
+    ! Everything else
+    integer(is)             :: ipair,i,imo,isp
+    integer(is)             :: Bindx,Kindx
+    real(dp)                :: prod
+    
+!----------------------------------------------------------------------
+! Get the lists of singly-occupied and doubly-occupied MOs
+!----------------------------------------------------------------------
+    call sop_socc_list(sop,ldsop,socc,nmo,nsocc)
+    call sop_docc_list(sop,ldsop,docc,nmo,ndocc)
+
+!----------------------------------------------------------------------
+! Contributions to the 1-TDMs
+!----------------------------------------------------------------------
+    ! Loop over 1-TDms
+    do ipair=1,npairs
+
+       ! Bra and ket eigenvector indices
+       Bindx=Bmap(ipair)
+       Kindx=Kmap(ipair)
+
+       ! Loop over CSFs
+       do isp=1,nsp
+
+          ! Product of the bra and ket coefficients
+          prod=vecB(offsetB+isp-1,Bindx)*vecK(offsetK+isp-1,Kindx)
+          
+          ! Loop over singly-occupied MOs
+          do i=1,nsocc
+             imo=m2c(socc(i))
+             rhoij(imo,imo,ipair)=rhoij(imo,imo,ipair)+prod
+          enddo
+
+          ! Loop over doubly-occupied MOs
+          do i=1,ndocc
+             imo=m2c(docc(i))
+             rhoij(imo,imo,ipair)=rhoij(imo,imo,ipair)+2.0d0*prod
+          enddo
+                    
+       enddo
+       
+    enddo
+       
+    return
+    
+  end subroutine tdm_diag
+  
 !######################################################################
 ! tdm_batch: Computes all the contributions to the 1-TDMs from a
 !            ket conf and a single class (1I, 2I, etc.) of confs
@@ -1954,7 +2058,16 @@ contains
        ! Compute the excitation degree between the two
        ! configurations
        nexci=exc_degree_conf(kconf,bconf,n_int)
-       
+
+       ! Same bra and ket configurations: compute the contribution
+       ! to the on-diagonal 1-TDM elements
+       if (nexci == 0) then
+          call tdm_diag(ksop,n_int,knsp,npairs,rhoij,Bmap,Kmap,csfdimB,&
+               csfdimK,nvecB,nvecK,vecB,vecK,bcsfs(ibconf),&
+               kcsfs(ikconf),m2c)
+          cycle
+       endif
+          
        ! Cycle if the excitation degree is not equal to 1
        if (nexci /= 1) cycle
 
@@ -2117,7 +2230,52 @@ contains
     return
     
   end function damping_function
-  
+
+!######################################################################
+! check_trace: check to make sure that the 1-TDMs are traceless
+!######################################################################
+  subroutine check_trace(npairs,rhoij,Bmap,Kmap)
+
+    use constants
+    use bitglobal
+        
+    implicit none
+
+    ! 1-TDMs
+    integer(is), intent(in) :: npairs
+    real(dp), intent(in)    :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+    
+    ! Everything else
+    integer(is) :: ipair,i
+    real(dp)    :: trace
+    real(dp)    :: thresh=1e-6_dp
+    
+    ! Loop over 1-TDMs
+    do ipair=1,npairs
+
+       ! Compute the trace of the 1-TDM
+       trace=0.0d0
+       do i=1,nmo
+          trace=trace+rhoij(i,i,ipair)
+       enddo
+
+       ! Print a warning if the trace is above threshold
+       if (abs(trace) > thresh) then
+          write(6,'(/,x,a,x,i0,x,a,x,i0)') &
+               'Warning: incorrect value of Tr(rhoij) for bra and ket '&
+               //'states',Bmap(ipair),'and',Kmap(ipair)
+          write(6,'(/,x,a,ES10.4)') '|Tr(rhoij)| = ',abs(trace)
+       endif
+
+    enddo
+    
+    return
+    
+  end subroutine check_trace
+    
 !######################################################################
   
 end module tdm

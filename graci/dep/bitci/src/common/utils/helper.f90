@@ -207,7 +207,7 @@ subroutine retrieve_some_energies(scrnum,nroots,ener,iroots)
   integer(is)             :: iscratch,ndum,nentries,n,i
   integer(is)             :: ipos(1)
   real(dp), allocatable   :: ener1(:)
-  
+
   !
   ! Open the scratch file
   !

@@ -43,6 +43,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.autoras         = False
         self.icvs            = []
         self.refiter         = 3
+        self.ref_sci         = False
         self.ref_prune       = True
         self.diabatic        = False
         self.adt_type        = 'qdpt'
@@ -133,6 +134,11 @@ class Dftmrci2(cimethod.Cimethod):
         # not been given
         if self.regfac is None:
             self.regfac = self.default_regfac[self.regularizer]
+
+        # Make sure that ref space pruning is not turned on
+        # if SCI ref space diagonalisation is to be used
+        if self.ref_sci:
+            self.ref_prune = False
             
         # write the output log file header for this run
         if self.verbose:
