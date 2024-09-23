@@ -1,9 +1,10 @@
 module dfmod
 
-  use h5_ops
+  !use h5_ops
   use constants
   use integrals
-  
+  use iomod
+
   implicit none
 
   !
@@ -66,50 +67,70 @@ contains
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
     logical                 :: exists
+    real(dp)                :: dp
+    integer(is)             :: i
+    integer(is)             :: unit
     integer(is)             :: n_ij
-    integer(is)             :: rank
     integer(is)             :: dims(2)
-    integer(is)             :: dims_read(2)
     integer(is)             :: n_bra_ket
 
     ! load the one hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
-    if(.not.exists) stop 'cannot find hcore_mo in file='//f_name
+    if(.not.exists) stop 'cannot find hcore_mo file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
+
+    ! read in the 1-e integrals
+    ! --------------------------
     ints%nmo = dims(1) 
-
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    call read_dataset(f_name, dset_name, ints%h_core, dims_read)
+    do i = 1,ints%nmo
+      read(unit)ints%h_core(:, i)
+    enddo
+    close(unit)
 
     ! load ERI
     !--------------------------------------------------------------
     f_name    = trim(adjustl(eri_file))
     dset_name = 'eri_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
     if(.not.exists) stop 'cannot find eri_mo in file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
-    n_ij       = ints%nmo * (ints%nmo + 1)/2
-    ints%n_aux = dims(2)    
-    if(dims(1) /= n_ij) stop 'ERI data set wrong size, file='//f_name
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    do i = 1,2
+      read(unit)dims(i) 
+    enddo
 
-    ! dataset written as (n_ij, n_aux) -- we want the transpose
+    n_ij       = ints%nmo * (ints%nmo + 1)/2
+    ints%n_aux = dims(1)  
+
+    ! read in the 2-e integrals
+    ! -------------------------
     dims = (/ints%n_aux, n_ij/)
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
 
-    ! this method performs buffered read of dataset and transposes on the fly
-    ! since the DF tensor from PySCF is stored (n_ij, n_aux)
-    call read_dataset_t(f_name, dset_name, ints%bra_ket, dims_read)
+    do i = 1, n_ij
+      read(unit)ints%bra_ket(:,i)
+    enddo
+    close(unit)
 
     return
 
@@ -180,51 +201,78 @@ contains
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
+    real(dp),allocatable    :: dp_record(:)
     logical                 :: exists
+    integer(is)             :: i
+    integer(is)             :: unit
     integer(is)             :: n_ij
-    integer(is)             :: rank
     integer(is)             :: dims(2)
-    integer(is)             :: dims_read(2)
     integer(is)             :: n_bra_ket
 
     ! load the one hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
-    if(.not.exists) stop 'cannot find hcore_mo in file='//f_name
+    if(.not.exists) stop 'cannot find hcore_mo file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
     ints%nmo = dims(1)
 
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    call read_dataset(f_name, dset_name, ints%h_core, dims_read)
+    do i = 1,ints%nmo
+      read(unit)ints%h_core(:, i)
+    enddo
+    close(unit)
 
     ! load ERI
     !--------------------------------------------------------------
     f_name    = trim(adjustl(eri_file))
     dset_name = 'eri_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
     if(.not.exists) stop 'cannot find eri_mo in file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
+
     n_ij       = ints%nmo * (ints%nmo + 1)/2
-    ints%n_aux = dims(2)
-    if(dims(1) /= n_ij) stop 'ERI data set wrong size, file='//f_name
+    ints%n_aux = dims(1)
+
+    !if(dims(1) /= n_ij) stop 'ERI data set wrong size, file='//f_name
 
     ! dataset written as (n_ij, n_aux) -- we want the transpose
     dims = (/ints%n_aux, n_ij/)
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
+    allocate(dp_record(ints%n_aux))
 
     ! this method performs buffered read of dataset and transposes on the fly
     ! since the DF tensor from PySCF is stored (n_ij, n_aux)
-    call read_dataset_t(f_name, dset_name, ints%bra_ket, dims_read)
+    do i = 1, n_ij
+      read(unit)dp_record
+      ints%bra_ket(:,i) = dp_record
+    enddo
+    close(unit)
+
+    deallocate(dp_record)
 
     return
 
@@ -263,6 +311,7 @@ contains
     class(df_sp)           :: ints
     integer(is),intent(in) :: i, j, k, l
 
+    integer(is), save      :: count = 0
     real(dp)               :: int_val
 
     int_val = dot_product(ints%bra_ket(:,ints%indx_ut(i,j)), \
@@ -295,51 +344,73 @@ contains
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
+    real(dp), allocatable   :: dp_record(:)
     logical                 :: exists
+    integer(is)             :: i
+    integer(is)             :: unit
     integer(is)             :: n_ij
-    integer(is)             :: rank
     integer(is)             :: dims(2)
-    integer(is)             :: dims_read(2)
     integer(is)             :: n_bra_ket
 
     ! load the one hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
-    if(.not.exists) stop 'cannot find hcore_mo in file='//f_name
+    if(.not.exists) stop 'cannot find hcore_mo file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
     ints%nmo = dims(1)
-
+    
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    call read_dataset(f_name, dset_name, ints%h_core, dims_read)
-
+    do i = 1,ints%nmo
+      read(unit)ints%h_core(:, i)
+    enddo
+    close(unit)
+  
     ! load ERI
     !--------------------------------------------------------------
     f_name    = trim(adjustl(eri_file))
     dset_name = 'eri_mo'
-    exists    = dataset_exists(f_name, dset_name)
-
+    inquire(file=f_name, exist=exists)
+    
     if(.not.exists) stop 'cannot find eri_mo in file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
-    n_ij       = ints%nmo * (ints%nmo + 1)/2
-    ints%n_aux = dims(2)
-    if(dims(1) /= n_ij) stop 'ERI data set wrong size, file='//f_name
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
 
-    ! dataset written as (n_ij, n_aux) -- we want the transpose
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
+        
+    n_ij       = ints%nmo * (ints%nmo + 1)/2
+    ints%n_aux = dims(1)
+
     dims = (/ints%n_aux, n_ij/)
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
+    allocate(dp_record(ints%n_aux))
 
-    ! this method performs buffered read of dataset and transposes on the fly
-    ! since the DF tensor from PySCF is stored (n_ij, n_aux)
-    call read_dataset_t(f_name, dset_name, ints%bra_ket, dims_read)
+    do i = 1, n_ij
+      read(unit)dp_record
+      ints%bra_ket(:,i) = dp_record
+    enddo
+    close(unit)
+
+    deallocate(dp_record)
 
     return
   end subroutine init_pyscf_df_hp 
