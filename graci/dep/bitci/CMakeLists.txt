@@ -33,12 +33,12 @@ endif()
 #
 # HDF5 include and lib directories
 #
-if (HDF5_INC_DIR)
-  include_directories(${HDF5_INC_DIR})
-endif()
-if (HDF5_LIB_DIR)
-  link_directories(${HDF5_LIB_DIR})
-endif()
+#if (HDF5_INC_DIR)
+#  include_directories(${HDF5_INC_DIR})
+#endif()
+#if (HDF5_LIB_DIR)
+#  link_directories(${HDF5_LIB_DIR})
+#endif()
 
 #
 # overlap library directory
@@ -83,9 +83,9 @@ file(GLOB_RECURSE SIsources src/wf/* src/common/* src/integrals/*)
 add_library(bitwf SHARED ${SIsources})
 
 # Link the targets to the HDF5 Fortran library
-target_link_libraries(bitci -lhdf5_fortran)
-target_link_libraries(bitsi -lhdf5_fortran)
-target_link_libraries(bitwf -lhdf5_fortran)
+#target_link_libraries(bitci -lhdf5_fortran)
+#target_link_libraries(bitsi -lhdf5_fortran)
+#target_link_libraries(bitwf -lhdf5_fortran)
 
 # Link the bitci and bitwf target to the overlap library
 target_link_libraries(bitci -loverlap)
