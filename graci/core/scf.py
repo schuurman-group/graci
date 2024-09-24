@@ -339,6 +339,7 @@ class Scf:
       
         # how to define initial guess orbitals
         if guess == None:
+
             dm = None
 
             # check if a restart file exists, if so, use same chkfile

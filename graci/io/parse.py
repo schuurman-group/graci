@@ -616,10 +616,25 @@ def replicate_sections(run_list):
     # assume graci objs are geometry independent
     for gobj in graci_objs:
         new_run_list.append(gobj)
- 
+
     # might want to re-think this a bit...
     for hparam in hparam_objs:
         new_run_list.append(hparam)                
+
+    # if we have any diabatisation runs, then check
+    # and, if necessary, disable the propagation of MOs
+    new_scf_objs = [obj for obj in new_run_list
+                    if type(obj).__name__ == 'Scf']
+    new_ci_objs  = [obj for obj in new_run_list
+                    if type(obj).__name__ in params.ci_objs]
+    for ci_obj in new_ci_objs:
+        try:
+            if not ci_obj.propagate_mos:
+                scf_obj = [obj for obj in new_scf_objs
+                           if obj.label == ci_obj.scf_label][0]
+                scf_obj.guess_label = None
+        except:
+            pass
     
     return new_run_list
 
