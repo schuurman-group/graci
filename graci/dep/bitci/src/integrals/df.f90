@@ -96,9 +96,10 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    do i = 1,ints%nmo
-      read(unit)ints%h_core(:, i)
-    enddo
+    !do i = 1,ints%nmo
+      !read(unit)ints%h_core(:, i)
+    !enddo
+    read(unit)ints%h_core
     close(unit)
 
     ! load ERI
@@ -127,9 +128,7 @@ contains
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
 
-    do i = 1, n_ij
-      read(unit)ints%bra_ket(:,i)
-    enddo
+    read(unit)ints%bra_ket
     close(unit)
 
     return
@@ -201,7 +200,6 @@ contains
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
-    real(dp),allocatable    :: dp_record(:)
     logical                 :: exists
     integer(is)             :: i
     integer(is)             :: unit
@@ -230,9 +228,7 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    do i = 1,ints%nmo
-      read(unit)ints%h_core(:, i)
-    enddo
+    read(unit)ints%h_core
     close(unit)
 
     ! load ERI
@@ -262,17 +258,11 @@ contains
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
-    allocate(dp_record(ints%n_aux))
 
     ! this method performs buffered read of dataset and transposes on the fly
     ! since the DF tensor from PySCF is stored (n_ij, n_aux)
-    do i = 1, n_ij
-      read(unit)dp_record
-      ints%bra_ket(:,i) = dp_record
-    enddo
+    read(unit)ints%bra_ket
     close(unit)
-
-    deallocate(dp_record)
 
     return
 
@@ -344,7 +334,6 @@ contains
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
-    real(dp), allocatable   :: dp_record(:)
     logical                 :: exists
     integer(is)             :: i
     integer(is)             :: unit
@@ -373,9 +362,7 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    do i = 1,ints%nmo
-      read(unit)ints%h_core(:, i)
-    enddo
+    read(unit)ints%h_core
     close(unit)
   
     ! load ERI
@@ -402,15 +389,9 @@ contains
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
-    allocate(dp_record(ints%n_aux))
 
-    do i = 1, n_ij
-      read(unit)dp_record
-      ints%bra_ket(:,i) = dp_record
-    enddo
+    read(unit)ints%bra_ket
     close(unit)
-
-    deallocate(dp_record)
 
     return
   end subroutine init_pyscf_df_hp 

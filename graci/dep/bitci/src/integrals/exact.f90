@@ -65,7 +65,6 @@ contains
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
-    real(dp),allocatable    :: dp_record(:)
     logical                 :: exists
     integer(is)             :: i
     integer(is)             :: unit
@@ -95,9 +94,7 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    do i = 1,ints%nmo
-      read(unit)ints%h_core(:, i)
-    enddo
+    read(unit)ints%h_core
 
     close(unit)
 
@@ -125,9 +122,7 @@ contains
     allocate(ints%bra_ket(n_bra_ket, n_bra_ket))
 
     ! reads in the 2e ERIs column by column
-    do i = 1, n_bra_ket
-      read(unit)ints%bra_ket(:,i)
-    enddo
+    read(unit)ints%bra_ket
     close(unit)
 
     return
@@ -202,7 +197,6 @@ contains
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
-    real(dp),allocatable    :: dp_record(:)
     logical                 :: exists
     integer(is)             :: i
     integer(is)             :: unit
@@ -232,10 +226,7 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    do i = 1,ints%nmo
-      read(unit)ints%h_core(:, i)
-    enddo
-
+    read(unit)ints%h_core
     close(unit)
 
     ! load ERI
@@ -260,15 +251,9 @@ contains
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(n_bra_ket, n_bra_ket))
-    allocate(dp_record(n_bra_ket))
 
-    do i = 1, n_bra_ket
-      read(unit)dp_record
-      ints%bra_ket(:,i) = dp_record
-    enddo
+    read(unit)ints%bra_ket
     close(unit)
-
-    deallocate(dp_record)
 
     return
 
@@ -342,7 +327,6 @@ contains
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
-    real(dp),allocatable    :: dp_record(:)
     logical                 :: exists
     integer(is)             :: i
     integer(is)             :: unit
@@ -372,10 +356,7 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    do i = 1,ints%nmo
-      read(unit)ints%h_core(:, i)
-    enddo
-
+    read(unit)ints%h_core
     close(unit)
 
     ! load ERI
@@ -400,15 +381,9 @@ contains
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(n_bra_ket, n_bra_ket))
-    allocate(dp_record(n_bra_ket))
 
-    do i = 1, n_bra_ket 
-      read(unit)dp_record
-      ints%bra_ket(:,i) = dp_record
-    enddo
+    read(unit)ints%bra_ket
     close(unit)
-
-    deallocate(dp_record)
 
     return
    end subroutine init_pyscf_exact_hp

@@ -25,8 +25,8 @@ def moints_exist(scf):
 class Ao2mo:
     """Class constructor for ao2mo object"""
 
-    def __init__(self, precision='double'):
-        self.precision    = precision
+    def __init__(self):
+        self.precision_2e = None
         self.moint_2e_eri = None
         self.moint_1e     = None
         self.nmo          = None
@@ -38,11 +38,21 @@ class Ao2mo:
         self.allowed_precision = ['single', 'double']
 
     @timing.timed
-    def run(self, scf, int_precision=None):
+    def run(self, scf, int_precision='single'):
         """perform AO to MO integral transformation using the current
            orbitals"""
 
         self.load_scf(scf)
+
+        # by default, reload bitci using newly generate MO integral
+        # files
+        if int_precision.strip() in self.allowed_precision:
+            self.precision_2e = int_precision.strip()
+        else:
+            print('Integral precision not recognized: '+
+                   str(int_precision.strip())+
+                  ', proceeding with single precision')
+            self.precision_2e = 'single'
 
         # Do the AO -> MO transformation
         if scf.mol.use_df:
@@ -71,7 +81,8 @@ class Ao2mo:
             #with h5py.File(self.moint_2e_eri, 'w') as f:
             #    f['eri_mo'] = eri_mo
 
-        self.write_integrals(eri_mo, self.moint_2e_eri)
+        self.write_integrals(eri_mo, self.precision_2e, 
+                                                 self.moint_2e_eri)
         del(eri_mo)
 
         # Construct the core Hamiltonian
@@ -82,15 +93,10 @@ class Ao2mo:
         # transform the core Hamiltonian to MO basis explicitly 
         # and write to file
         h1_mo = np.matmul(np.matmul(self.orbs.T, hcore_ao), self.orbs)
-        self.write_integrals(h1_mo, self.moint_1e)
+        self.write_integrals(h1_mo, 'double', self.moint_1e)
         #with h5py.File(self.moint_1e, 'w') as f:
         #    f['hcore_mo'] = h1_mo
 
-        # by default, reload bitci using newly generate MO integral
-        # files
-        if (int_precision is not None and 
-                         int_precision in self.allowed_precision):
-            self.precision = int_precision
         self.load_bitci(scf)
 
         return
@@ -110,7 +116,7 @@ class Ao2mo:
             type_str = 'exact'
 
         libs.lib_func('bitci_int_initialize',
-                ['pyscf', type_str, self.precision, 
+                ['pyscf', type_str, self.precision_2e, 
                            self.moint_1e, self.moint_2e_eri])
 
         return
@@ -136,7 +142,7 @@ class Ao2mo:
 
         return
 
-    def write_integrals(self, int_tensor, file_name):
+    def write_integrals(self, int_tensor, precision, file_name):
         """
         write integrals to a Fortran binary file with name
         file_name 
@@ -146,8 +152,11 @@ class Ao2mo:
         for i in range(len(int_tensor.shape)):
             f.write_record(int_tensor.shape[i])
 
-        for i in range(int_tensor.shape[1]):
-            f.write_record(int_tensor[:,i])
+        out_tensor = np.transpose(int_tensor)
+        if precision == 'single':
+            f.write_record(np.float32(out_tensor))
+        else:
+            f.write_record(out_tensor) 
 
         f.close()
 

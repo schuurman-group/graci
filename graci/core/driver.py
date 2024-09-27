@@ -169,7 +169,7 @@ class Driver:
                 # perform AO -> MO integral transformation
                 if eri_mo.emo_cut is None or \
                         eri_mo.emo_cut < ci_calc.mo_cutoff or \
-                          eri_mo.precision != ci_calc.precision:
+                          eri_mo.precision_2e != ci_calc.precision:
                     eri_mo.emo_cut = ci_calc.mo_cutoff
                     eri_mo.run(scf_obj, ci_calc.precision)
 
