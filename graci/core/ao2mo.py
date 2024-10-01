@@ -148,17 +148,74 @@ class Ao2mo:
         file_name 
         """
         f = sp_io.FortranFile(file_name, 'w')
+ 
+        # we will keep records to <= 2GB in order to maintain compatability
+        # with FortranFile, as it does not support subrecords for standard
+        # compilers
+        nrecs, cprec = self.n_records(int_tensor.shape, precision)
 
+        # write dimensions of the tensor
         for i in range(len(int_tensor.shape)):
             f.write_record(int_tensor.shape[i])
 
-        out_tensor = np.transpose(int_tensor)
+        # write information regarding record sizes
+        f.write_record(nrecs)
+        f.write_record(cprec)
+
+        # always write entire columns of data (rend constant)
+        rend = int_tensor.shape[0]
+
+        # for single precision we want to ensure we do not inadvertently
+        # copy data. So: we create a float32 view, then step through 
+        # every other column index since the data now occupies half the 
+        # space. This would be ::4 if we implement half precision. NOTE: 
+        # the transpose view must be create AFTER float32 view, else
+        # scipy/numpy squawks about Fortran ordering
         if precision == 'single':
-            f.write_record(np.float32(out_tensor))
+            out_tensor        = int_tensor.view(np.float32)
+            out_tensor[:,::2] = int_tensor
+            print_tensor      = out_tensor[:,::2].T
+            for j in range(nrecs):
+                cend = min((j+1)*cprec, int_tensor.shape[1])
+                f.write_record(print_tensor[j*cprec:cend, 0:rend])
+
+        # double precision straightforward: note that taking transpose 
+        # just creates a new view and no data is copied.
         else:
-            f.write_record(out_tensor) 
+            out_tensor = int_tensor.T
+            for j in range(nrecs):
+                cend = min((j+1)*cprec, int_tensor.shape[1])
+                f.write_record(out_tensor[j*cprec:cend, 0:rend])
 
         f.close()
 
         return
+
+    def n_records(self, tensor_dims, precision):
+        """
+        determine the number of columns to write at once to ensure the
+        record length remains < 2GB
+        """
+
+        # we should revisit this in the future: the maximum record size
+        # is currently, arbitrarily, set to 268435456*0.9 = 241591910
+        #  double precision numbers
+        #nfp = 268435456*0.9
+        nftp = 241591910
+
+        if precision == 'single':
+            nfp *= 2
+           
+        nelem = np.prod(tensor_dims)
+        nrec  = int(np.ceil(nelem / nfp))
+        cpr   = int(np.ceil(tensor_dims[1] / nrec))
+
+        return nrec, cpr
+
+
+
+
+
+
+
 

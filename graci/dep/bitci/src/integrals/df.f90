@@ -69,12 +69,15 @@ contains
     logical                 :: exists
     real(dp)                :: dp
     integer(is)             :: i
+    integer(is)             :: nrec
+    integer(is)             :: cpr
+    integer(is)             :: rend
     integer(is)             :: unit
     integer(is)             :: n_ij
     integer(is)             :: dims(2)
     integer(is)             :: n_bra_ket
 
-    ! load the one hamiltonian
+    ! load the one-electron hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
@@ -96,10 +99,16 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    !do i = 1,ints%nmo
-      !read(unit)ints%h_core(:, i)
-    !enddo
-    read(unit)ints%h_core
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, ints%nmo)
+      read(unit)ints%h_core( 1:ints%nmo, 1 + (i-1)*cpr: rend)
+    enddo
     close(unit)
 
     ! load ERI
@@ -118,8 +127,8 @@ contains
       read(unit)dims(i) 
     enddo
 
-    n_ij       = ints%nmo * (ints%nmo + 1)/2
     ints%n_aux = dims(1)  
+    n_ij       = dims(2)
 
     ! read in the 2-e integrals
     ! -------------------------
@@ -128,7 +137,16 @@ contains
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
 
-    read(unit)ints%bra_ket
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, n_ij)
+      read(unit)ints%bra_ket( 1:ints%n_aux, 1 + (i-1)*cpr: rend)
+    enddo
     close(unit)
 
     return
@@ -202,12 +220,15 @@ contains
     character(len=255)      :: dset_name
     logical                 :: exists
     integer(is)             :: i
+    integer(is)             :: nrec
+    integer(is)             :: cpr
+    integer(is)             :: rend
     integer(is)             :: unit
     integer(is)             :: n_ij
     integer(is)             :: dims(2)
     integer(is)             :: n_bra_ket
 
-    ! load the one hamiltonian
+    ! load the one-electron hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
@@ -228,7 +249,16 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    read(unit)ints%h_core
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, ints%nmo)
+      read(unit)ints%h_core( 1:ints%nmo, 1 + (i-1)*cpr : rend)
+    enddo
     close(unit)
 
     ! load ERI
@@ -251,17 +281,22 @@ contains
     n_ij       = ints%nmo * (ints%nmo + 1)/2
     ints%n_aux = dims(1)
 
-    !if(dims(1) /= n_ij) stop 'ERI data set wrong size, file='//f_name
-
     ! dataset written as (n_ij, n_aux) -- we want the transpose
     dims = (/ints%n_aux, n_ij/)
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
 
-    ! this method performs buffered read of dataset and transposes on the fly
-    ! since the DF tensor from PySCF is stored (n_ij, n_aux)
-    read(unit)ints%bra_ket
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, n_ij)
+      read(unit)ints%bra_ket( 1:ints%n_aux, 1 + (i-1)*cpr: rend)
+    enddo
     close(unit)
 
     return
@@ -336,12 +371,15 @@ contains
     character(len=255)      :: dset_name
     logical                 :: exists
     integer(is)             :: i
+    integer(is)             :: nrec
+    integer(is)             :: cpr
+    integer(is)             :: rend
     integer(is)             :: unit
     integer(is)             :: n_ij
     integer(is)             :: dims(2)
     integer(is)             :: n_bra_ket
 
-    ! load the one hamiltonian
+    ! load the one-electron hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
@@ -362,9 +400,18 @@ contains
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    read(unit)ints%h_core
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, ints%nmo)
+      read(unit)ints%h_core( 1:ints%nmo, 1 + (i-1)*cpr: rend)
+    enddo
     close(unit)
-  
+
     ! load ERI
     !--------------------------------------------------------------
     f_name    = trim(adjustl(eri_file))
@@ -390,7 +437,16 @@ contains
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(ints%n_aux, n_ij))
 
-    read(unit)ints%bra_ket
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, n_ij)
+      read(unit)ints%bra_ket( 1:ints%n_aux, 1 + (i-1)*cpr: rend)
+    enddo
     close(unit)
 
     return
