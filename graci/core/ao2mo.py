@@ -201,7 +201,7 @@ class Ao2mo:
         # is currently, arbitrarily, set to 268435456*0.9 = 241591910
         #  double precision numbers
         #nfp = 268435456*0.9
-        nftp = 241591910
+        nfp = 241591910
 
         if precision == 'single':
             nfp *= 2
