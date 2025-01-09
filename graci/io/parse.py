@@ -457,7 +457,7 @@ def convert_array(arg_list):
         if set(arg).issubset(set(['TRUE','true','True',
                                             'FALSE','false','False'])):
             try:
-                arr = np.array([argi.captialize() 
+                arr = np.array([argi.capitalize() 
                                          for argi in arg]).astype(bool)
                 new_list.append(arr)
                 continue
@@ -563,7 +563,7 @@ def replicate_sections(run_list):
                     new_scf           = scf.copy()
                     new_scf.label     = scf.label+str(i+1)
                     new_scf.mol_label = scf.mol_label+str(i+1)
-                    if i > 0:
+                    if i > 0 and False:
                         new_scf.guess_label = scf.label+str(i)
                     new_run_list.append(new_scf)
                     
