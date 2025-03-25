@@ -231,7 +231,7 @@ class Interaction:
         self.groups         = {}
         self.verbose        = True
         self.label          = 'default'
-        self.allowed_reps   = ['adiabatic']
+        self.allowed_reps   = ['adiabatic', 'diabatic']
 
     #
     def add_group(self, grp_name, ci_objs, 

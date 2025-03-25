@@ -304,7 +304,8 @@ contains
 
     ! Temporary hard-wiring of the P space weight convergence
     ! threshold
-    real(dp), parameter        :: WP_thrsh=0.99_dp
+    !real(dp), parameter        :: WP_thrsh=0.99_dp
+    real(dp), parameter        :: WP_thrsh=0.975_dp
     
     ! Work arrays
     integer(is)                :: harr2dim
