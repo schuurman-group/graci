@@ -40,7 +40,7 @@ class Dyson(interaction.Interaction):
         self.dyson_norms   = None
         self.mo_basis      = None
         self.n_basis       = 0
-        self.allowed_reps = ['adiabatic']    
+        self.allowed_reps = ['adiabatic', 'diabatic']
             
     def copy(self):
         """create of deepcopy of self"""

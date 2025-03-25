@@ -2,6 +2,7 @@
 Orbitals module. This handles the construction and output of molecular
  orbitals from each method and class.
 """
+import sys as sys
 import os as os
 import numpy as np
 import importlib as importlib
@@ -96,7 +97,7 @@ def build_ntos(tdm, basis='ao', mos=None):
     # particle orbitals and weights and convert
     # orbitals to AO basis
     part, s, hole = np.linalg.svd(tdm)
-    
+
     if basis.lower() == 'ao':
         part = np.matmul(mos, part)
         hole = np.matmul(mos, hole.T)

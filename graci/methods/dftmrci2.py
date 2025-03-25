@@ -47,6 +47,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.ref_prune       = True
         self.diabatic        = False
         self.adt_type        = 'qdpt'
+        self.propagate_mos   = True
         self.norm_thresh     = 0.999
         self.det_thresh      = 1e-6
         self.nbuffer         = []
