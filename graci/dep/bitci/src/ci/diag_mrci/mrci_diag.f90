@@ -7,11 +7,11 @@
 !            a given symmetry subspace
 !######################################################################
 #ifdef CBINDING
-subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
-     blocksize,ldeflate,iguess,vec0scr) bind(c,name="diag_mrci")
+subroutine diag_mrci(irrep,nroots,confscr,vecscr,aviiscr,ialg,tol,&
+     niter,blocksize,ldeflate,iguess,vec0scr) bind(c,name="diag_mrci")
 #else
-subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
-     blocksize,ldeflate,iguess,vec0scr)
+subroutine diag_mrci(irrep,nroots,confscr,vecscr,aviiscr,ialg,tol,&
+     niter,blocksize,ldeflate,iguess,vec0scr)
 #endif
 
   use constants
@@ -44,6 +44,10 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   ! Eigenpair scratch file number
   integer(is), intent(out) :: vecscr
 
+  ! Spin-coupling averaged on-diagonal Hamiltonian matrix
+  ! element scratch file number
+  integer(is), intent(out) :: aviiscr
+  
   ! Davidson parameters
   integer(is), intent(in)  :: ialg,blocksize,niter,iguess
   real(dp), intent(in)     :: tol
@@ -84,13 +88,18 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
 
   ! Preconditioner integer flag
   integer(is)              :: ipre
-  
+
+  ! I/O variables
+  integer(is)              :: iscratch
+  character(len=250)       :: aviifile
+  character(len=2)         :: amult,airrep
+    
   ! Everything else
   integer(is)              :: i,k
   integer(is)              :: isigma(3)
   real(dp)                 :: mem
   character(len=20)        :: vecstem
-  
+
 !----------------------------------------------------------------------
 ! Output what we are doing
 !----------------------------------------------------------------------
@@ -150,6 +159,30 @@ subroutine diag_mrci(irrep,nroots,confscr,vecscr,ialg,tol,niter,&
   ! Compute the diagonal elements
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
 
+!----------------------------------------------------------------------
+! Write the spin-coupling averaged on-diagonal elements to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('avhii'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),aviifile)
+  call register_scratch_file(aviiscr,aviifile)
+
+  ! Open the scratch file
+  iscratch=scrunit(aviiscr)
+  open(iscratch,file=scrname(aviiscr),form='unformatted', &
+       status='unknown')
+
+  ! Number of configurations
+  write(iscratch) cfg%confdim
+
+  ! Averaged matrix elements
+  write(iscratch) averageii
+  
+  ! Close the scratch file
+  close(iscratch)
+  
 !----------------------------------------------------------------------
 ! If we are using disk-based sigma-vector builds, then save the
 ! non-zero off-diagonal elements of the Hamiltonian matrix to disk

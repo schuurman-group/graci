@@ -56,7 +56,7 @@ class Driver:
         self.check_labels(ci_objs)
         self.check_labels(postci_objs)
         self.check_labels(si_objs)
-
+        
         # Load required libraries
         #-----------------------------------------------------
         # for now, assume postscf will require the bitci and
@@ -169,19 +169,19 @@ class Driver:
                 # perform AO -> MO integral transformation
                 if eri_mo.emo_cut is None or \
                         eri_mo.emo_cut < ci_calc.mo_cutoff or \
-                          eri_mo.precision != ci_calc.precision:
+                          eri_mo.precision_2e != ci_calc.precision:
                     eri_mo.emo_cut = ci_calc.mo_cutoff
                     eri_mo.run(scf_obj, ci_calc.precision)
 
                 # update ci object with results of ao2mo
-                ci_calc.update_eri(eri_mo = eri_mo)
+                #ci_calc.update_eri(eri_mo = eri_mo)
 
                 # guess CI object
                 ci_guess = self.match_sections(ci_calc.guess_label, 
                                                'label', ci_objs, 
                                                 match_all=False)
                
-                ci_calc.run(scf_obj, ci_guess)
+                ci_calc.run(scf_obj, ci_guess, mo_ints = eri_mo)
                 chkpt.write(ci_calc)
 
         # All SCF + CI objects are created and run() called before 

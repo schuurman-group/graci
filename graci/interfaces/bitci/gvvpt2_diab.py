@@ -36,6 +36,11 @@ def diabpot(ci_method0, ci_method):
     diab_confunit  = 0
     diab_confunits = [0 for i in range(nirr)]
 
+    # initialise the list to hold the bitci spin-coupling averaged
+    # Hii scratch file numbers
+    diab_aviiunit  = 0
+    diab_aviiunits = [0 for i in range(nirr)]
+    
     # initialise the list to hold the numbers of diabatic confs
     diab_nconf  = 0
     diab_nconfs = [0 for i in range(nirr)]
@@ -79,6 +84,12 @@ def diabpot(ci_method0, ci_method):
     else:
         delete_core = True
 
+    # Norm-based wave function truncation threshold
+    norm_thresh = ci_method.norm_thresh
+
+    # Determinant screening threshold
+    det_thresh = ci_method.det_thresh
+    
     # Loop over irreps
     for irrep in ci_method.irreps_nonzero():
 
@@ -113,11 +124,12 @@ def diabpot(ci_method0, ci_method):
         args = (irrep, nroots, nextra, ireg, regfac,
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
-                ci_confunits, ref_ciunits, Aunit, diabpot,
-                diab_ciunit, diab_confunit, diab_nconf)
+                norm_thresh, det_thresh, ci_confunits,
+                ref_ciunits, Aunit, diabpot, diab_ciunit,
+                diab_confunit, diab_nconf, diab_aviiunit)
 
-        diabpot, diab_ciunit, diab_confunit, diab_nconf = \
-            libs.lib_func('gvvpt2_diab', args)
+        diabpot, diab_ciunit, diab_confunit, diab_nconf, \
+            diab_aviiunit = libs.lib_func('gvvpt2_diab', args)
 
         # Bitci diabatic state vector scratch file number
         diab_ciunits[irrep] = diab_ciunit
@@ -127,6 +139,10 @@ def diabpot(ci_method0, ci_method):
 
         # Number of diabatic confs
         diab_nconfs[irrep] = diab_nconf
+
+        # Bitci diabatic spin-coupling averaged Hii scratch
+        # file numbers
+        diab_aviiunits[irrep] = diab_aviiunit
         
         # Save the diabatic potential
         diabpots[irrep] = np.reshape(diabpot, (nroots, nroots), order='F')
@@ -147,5 +163,14 @@ def diabpot(ci_method0, ci_method):
         name = libs.lib_func('retrieve_filename', args)
         diab_confnames[irrep] = name
 
+    # Retrieve the spin-coupling averaged on-diagonal Hamiltonian
+    # matrix element scratch file names
+    diab_aviiname = ['' for i in range(nirr)]
+    for irrep in ci_method.irreps_nonzero():
+        args = (diab_aviiunits[irrep], name)
+        name = libs.lib_func('retrieve_filename', args)
+        diab_aviiname[irrep] = name
+        
     return diabpots, np.array(diab_ciunits, dtype=int), diab_cinames,\
-        np.array(diab_confunits, dtype=int), diab_confnames, diab_nconfs
+        np.array(diab_confunits, dtype=int), diab_confnames, diab_nconfs, \
+        np.array(diab_aviiunits), diab_aviiname

@@ -28,6 +28,7 @@ class Dyson(interaction.Interaction):
         self.final_states   = None
         self.final_label    = None
         self.norm_thresh    = 0.999
+        self.det_thresh     = 1e-6
         self.print_orbitals = False
         self.representation = 'adiabatic'
 
@@ -39,7 +40,7 @@ class Dyson(interaction.Interaction):
         self.dyson_norms   = None
         self.mo_basis      = None
         self.n_basis       = 0
-        self.allowed_reps = ['adiabatic']    
+        self.allowed_reps = ['adiabatic', 'diabatic']
             
     def copy(self):
         """create of deepcopy of self"""
@@ -259,6 +260,7 @@ class Dyson(interaction.Interaction):
                                   self.mo_basis, self.n_basis,
                                   bra_wfunit, ket_wfunit, 
                                   self.norm_thresh,
+                                  self.det_thresh,
                                   ci_trans_sym)
 
         # make the Dyson orbital list

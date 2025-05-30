@@ -74,25 +74,20 @@ class Cimethod:
 
 # Required functions #############################################################
 
-    def set_scf(self, scf, ci_guess=None):
+    def set_scf(self, scf, ci_guess=None, mo_ints=None):
         """set the scf object for the dftmrci class object"""
 
-        # check that the coordinates in the graci.molecule
-        # object agree with pymol. If not: we need re-run SCF
-        if scf.mol.coords_updated():
-            if ci_guess is not None:
-                scf_guess = guess.scf.copy() 
-            else:
-                scf_guess = None
-            scf_ener = scf.run(scf.mol, scf_guess)
+        # if scf is not valid, return None
+        if scf is None or scf.__class__.__name__ != 'Scf':
+            print('Invalid SCF object: '+str(scf))
+            return None
 
-            if scf_ener is None:
-                return scf_ener
-
-            self.update_eri()
-
+        # set the local scf object
         self.scf = scf
         self.nel = scf.nel
+
+        # update the mo integrals
+        self.update_eri(mo_ints)
 
         # Default spin multiplicity: inherited from the scf object
         if self.mult is None:
@@ -119,12 +114,7 @@ class Cimethod:
         
         return self.scf.energy
 
-    def set_geometry(self, atms, crds, update_scf=False):
-        """calls set_geometry of the corresponding molecule object"""
-        self.scf.mol.set_geometry(atms, crds)
-        if update_scf:
-            self.set_scf(scf)
-
+    #
     def scf_exists(self):
         """return true if scf object is not None"""
         try:
@@ -132,6 +122,7 @@ class Cimethod:
         except:
             return False
 
+    #
     def set_hamiltonian(self):
         """sets the default Hamiltonian based on the XC functional
         if the user has not specified one"""
@@ -158,7 +149,7 @@ class Cimethod:
     #
     def irreps_nonzero(self):
         """returns the indices of the irreps with a
-        non-zero no. of roots"""        
+        non-zero no. of roots"""
         return np.where(self.nstates > 0)[0]
         
     #
@@ -271,7 +262,7 @@ class Cimethod:
            Returns:
                None
         """
-        if eri_mo == None:
+        if eri_mo is None:
             eri_mo         = ao2mo.Ao2mo()
             eri_mo.emo_cut = self.mo_cutoff
             eri_mo.run(self.scf, self.precision)
@@ -280,7 +271,6 @@ class Cimethod:
         self.emo   = eri_mo.emo
         self.mosym = eri_mo.mosym
         self.mos   = eri_mo.orbs
-        #print(self.label+' update_eri, nmo, emo, mosym, mos='+str(self.nmo)+','+str(self.emo)+','+str(self.mosym)+','+str(self.mos.shape),flush=True)
 
         return
 

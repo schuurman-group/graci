@@ -5,13 +5,13 @@
 #ifdef CBINDING
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr,diabpot,diab_vecscr,diab_confscr,&
-     diab_nconf) bind(c,name="gvvpt2_diab")
+     normthrsh,detthrsh,confscr,vec0scr,Ascr,diabpot,diab_vecscr,&
+     diab_confscr,diab_nconf,diab_aviiscr) bind(c,name="gvvpt2_diab")
 #else
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
-     confscr,vec0scr,Ascr,diabpot,diab_vecscr,diab_confscr,&
-     diab_nconf)
+     normthrsh,detthrsh,confscr,vec0scr,Ascr,diabpot,diab_vecscr,&
+     diab_confscr,diab_nconf,diab_aviiscr)
 #endif
 
   use constants
@@ -56,6 +56,12 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   integer(is), intent(in)  :: ncore
   integer(is), intent(in)  :: icore(ncore)
   logical(is), intent(in)  :: lfrzcore
+
+  ! Norm-based wave function truncation threshold
+  real(dp), intent(in)     :: normthrsh
+
+  ! Determinant screening threshold
+  real(dp), intent(in)     :: detthrsh
   
   ! Array of MRCI configuration scratch file numbers
   integer(is), intent(in)  :: confscr(0:nirrep-1)
@@ -77,6 +83,10 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Number of diabatic configurations
   integer(is), intent(out) :: diab_nconf
+
+  ! Spin-coupling-averaged on-diagonal Hamiltonian matrix elements
+  ! scratch file number
+  integer(is), intent(out) :: diab_aviiscr
   
   ! MRCI configuration derived types
   type(mrcfg)              :: cfg
@@ -112,7 +122,8 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=250)       :: diab_vecfile,diab_conffile
+  character(len=250)       :: diab_vecfile,diab_conffile,&
+                              diab_aviifile
   character(len=2)         :: amult,airrep
   
   ! Timing variables
@@ -207,6 +218,31 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 ! Compute the on-diagonal Hamiltonian matrix elements
 !----------------------------------------------------------------------
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
+
+!----------------------------------------------------------------------
+! Save the spin-coupling-averaged on-diagonal Hamiltonian matrix
+! elements to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('diabavhii'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),diab_aviifile)
+  call register_scratch_file(diab_aviiscr,diab_aviifile)
+
+  ! Open the scratch file
+  iscratch=scrunit(diab_aviiscr)
+  open(iscratch,file=scrname(diab_aviiscr),form='unformatted', &
+       status='unknown')
+
+  ! Number of configurations
+  write(iscratch) cfg%confdim
+
+  ! Averaged matrix elements
+  write(iscratch) averageii
+  
+  ! Close the scratch file
+  close(iscratch)
   
 !----------------------------------------------------------------------
 ! Compute the prototype diabatic states
@@ -217,7 +253,8 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Compute the prototype diabatic states in the ref CSF basis
   call get_pds_basis(cfg,refdim,nvec,vec0,nmoR0,n_intR0,ndetR0,&
-       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds)
+       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds,&
+       normthrsh,detthrsh)
 
 !----------------------------------------------------------------------
 ! Calculation of the complement space states

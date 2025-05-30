@@ -2,11 +2,14 @@
 Orbitals module. This handles the construction and output of molecular
  orbitals from each method and class.
 """
+import sys as sys
 import os as os
 import numpy as np
 import importlib as importlib
 import graci.io.output as output
 import graci.utils.timing as timing
+
+import scipy as sp
 
 #
 @timing.timed
@@ -83,7 +86,7 @@ def build_ndos(rdm, rdm_ref, basis='mo', mos=None):
 @timing.timed
 def build_ntos(tdm, basis='ao', mos=None):
     """build the natural transition orbitals"""
-
+    
     # get dimensions of the NOs
     if mos is not None:
         (nbas, nmo) = mos.shape

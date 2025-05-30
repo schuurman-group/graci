@@ -1,9 +1,10 @@
 module exactmod
 
-  use h5_ops
+  !use h5_ops
   use constants
   use integrals
-  
+  use iomod
+
   implicit none
 
   !
@@ -65,43 +66,83 @@ contains
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
     logical                 :: exists
+    integer(is)             :: i
+    integer(is)             :: nrec
+    integer(is)             :: cpr
+    integer(is)             :: rend
+    integer(is)             :: unit
     integer(is)             :: rank
     integer(is)             :: dims(2)
     integer(is)             :: dims_read(2)
     integer(is)             :: n_bra_ket
 
-    ! load the one hamiltonian
+    ! load the one-electron hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
-    if(.not.exists) stop 'cannot find hcore_mo in file='//f_name
+    if(.not.exists) stop 'cannot find hcore_mo file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
-    ints%nmo = dims(1) 
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
+    ints%nmo = dims(1)
 
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    call read_dataset_dble(f_name, dset_name, ints%h_core, dims_read)
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, ints%nmo)
+      read(unit)ints%h_core( 1:ints%nmo, 1 + (i-1)*cpr: rend)
+    enddo
+    close(unit)
 
     ! load ERI
     !--------------------------------------------------------------
     f_name    = trim(adjustl(eri_file))
     dset_name = 'eri_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
     if(.not.exists) stop 'cannot find eri_mo in file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
-    n_bra_ket = ints%nmo * (ints%nmo + 1)/2
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
+
+    n_bra_ket  = ints%nmo * (ints%nmo + 1)/2
     if( any(dims /= (/n_bra_ket, n_bra_ket /))) stop 'ERI data set wrong size, file='//f_name
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(n_bra_ket, n_bra_ket))
 
-    call read_dataset_dble(f_name, dset_name, ints%bra_ket, dims_read)
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, n_bra_ket)
+      read(unit)ints%bra_ket( 1:n_bra_ket, 1 + (i-1)*cpr: rend)
+    enddo
+    close(unit)
 
     return
 
@@ -176,43 +217,83 @@ contains
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
     logical                 :: exists
+    integer(is)             :: i
+    integer(is)             :: nrec
+    integer(is)             :: cpr
+    integer(is)             :: rend
+    integer(is)             :: unit
     integer(is)             :: rank
     integer(is)             :: dims(2)
     integer(is)             :: dims_read(2)
     integer(is)             :: n_bra_ket
 
-    ! load the one hamiltonian
+    ! load the one-electron hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
-    if(.not.exists) stop 'cannot find hcore_mo in file='//f_name
+    if(.not.exists) stop 'cannot find hcore_mo file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
     ints%nmo = dims(1)
 
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    call read_dataset(f_name, dset_name, ints%h_core, dims_read)
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, ints%nmo)
+      read(unit)ints%h_core( 1:ints%nmo, 1 + (i-1)*cpr: rend)
+    enddo
+    close(unit)
 
     ! load ERI
     !--------------------------------------------------------------
     f_name    = trim(adjustl(eri_file))
     dset_name = 'eri_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
     if(.not.exists) stop 'cannot find eri_mo in file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
-    n_bra_ket = ints%nmo * (ints%nmo + 1)/2
+     ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
+
+    n_bra_ket       = ints%nmo * (ints%nmo + 1)/2
     if( any(dims /= (/n_bra_ket, n_bra_ket /))) stop 'ERI data set wrong size,file='//f_name
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(n_bra_ket, n_bra_ket))
 
-    call read_dataset(f_name, dset_name, ints%bra_ket, dims_read)
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, n_bra_ket)
+      read(unit)ints%bra_ket( 1:n_bra_ket, 1 + (i-1)*cpr: rend)
+    enddo
+    close(unit)
 
     return
 
@@ -287,43 +368,83 @@ contains
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
     logical                 :: exists
+    integer(is)             :: i
+    integer(is)             :: nrec
+    integer(is)             :: cpr
+    integer(is)             :: rend
+    integer(is)             :: unit
     integer(is)             :: rank
     integer(is)             :: dims(2)
     integer(is)             :: dims_read(2)
     integer(is)             :: n_bra_ket
 
-    ! load the one hamiltonian
+    ! load the one-electron hamiltonian
     !------------------------------------------------------------
     f_name    = trim(adjustl(core_file))
     dset_name = 'hcore_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
-    if(.not.exists) stop 'cannot find hcore_mo in file='//f_name
+    if(.not.exists) stop 'cannot find hcore_mo file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
     ints%nmo = dims(1)
 
     if(allocated(ints%h_core))deallocate(ints%h_core)
     allocate(ints%h_core(ints%nmo, ints%nmo))
 
-    call read_dataset(f_name, dset_name, ints%h_core, dims_read)
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, ints%nmo)
+      read(unit)ints%h_core( 1:ints%nmo, 1 + (i-1)*cpr: rend)
+    enddo
+    close(unit)
 
     ! load ERI
     !--------------------------------------------------------------
     f_name    = trim(adjustl(eri_file))
     dset_name = 'eri_mo'
-    exists    = dataset_exists(f_name, dset_name)
+    inquire(file=f_name, exist=exists)
 
     if(.not.exists) stop 'cannot find eri_mo in file='//f_name
 
-    call dataset_dims(f_name, dset_name, rank, dims)
-    n_bra_ket = ints%nmo * (ints%nmo + 1)/2
+    ! read in the tensor dimensions
+    ! -----------------------------
+    call freeunit(unit)
+    open(unit, file=f_name, form='unformatted')
+    
+    do i = 1,2
+      read(unit) dims(i)
+    enddo
+
+    n_bra_ket       = ints%nmo * (ints%nmo + 1)/2
     if( any(dims /= (/n_bra_ket, n_bra_ket /))) stop 'ERI data set wrong size,file='//f_name
 
     if(allocated(ints%bra_ket))deallocate(ints%bra_ket)
     allocate(ints%bra_ket(n_bra_ket, n_bra_ket))
 
-    call read_dataset(f_name, dset_name, ints%bra_ket, dims_read)
+    ! number of floating point records
+    read(unit)nrec
+    ! number of tensor columns per record
+    read(unit)cpr
+
+    ! read in the integral tensor column-wise
+    do i = 1,nrec
+      rend = min(i*cpr, n_bra_ket)
+      read(unit)ints%bra_ket( 1:n_bra_ket, 1 + (i-1)*cpr: rend)
+    enddo
+    close(unit)
 
     return
    end subroutine init_pyscf_exact_hp

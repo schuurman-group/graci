@@ -10,10 +10,10 @@ module global
   save
 
   ! Verbose output
-  logical     :: verbose
+  logical                  :: verbose
   
   ! Number of bra and ket MOs
-  integer(is) :: nmoB,nmoK
+  integer(is)              :: nmoB,nmoK
 
   ! Number of bra and ket electrons
   integer(is)              :: nelB,nelK,nel_alphaB,nel_alphaK,&
@@ -47,8 +47,20 @@ module global
   ! Unique beta factors
   real(dp), allocatable    :: betafac(:,:)
 
+  ! Flag controlling the use of Schur's determinant identity
+  logical                  :: schur
+  
+  ! Fixed- and variable-occupation orbital information
+  integer(is)              :: nfixed,nvar_alphaB,nvar_betaB,&
+                              nvar_alphaK,nvar_betaK
+
+  ! Determinant and inverse of the fixed-fixed block of the
+  ! MO overlap matrix
+  real(dp), allocatable    :: detSff
+  real(dp), allocatable    :: invSff(:,:)
+  
   ! Determinant thresholds
-  real(dp), parameter      :: hthrsh=1e-6_dp
+  real(dp)                 :: hthrsh
   real(dp), parameter      :: fthrsh=1e-6_dp
 
   !

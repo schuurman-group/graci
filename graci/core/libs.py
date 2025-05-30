@@ -31,13 +31,14 @@ bitci_registry = {
     'ras_guess_dftcis'        : ['int32','int32','int32','int32'],
     'ref_diag_mrci'           : ['int32','int32','int32','int32',
                                  'int32'],
+    'ref_diag_mrci_sci'       : ['int32','int32','int32','int32'],
     'ref_diag_mrci_follow'    : ['int32','int32','int32','int32','int32',
                                  'int32','int64','double','int32','double',
                                  'int32','int32','logical','int32','int32'],
     'prune_ref_space'         : ['int32','int32','int32','int32','int32'],
     'retrieve_energies'       : ['int32','int32','double'],
     'retrieve_some_energies'  : ['int32','int32','double','int32'],
-    'generate_mrci_confs'     : ['int32','int32','int32', 'int32',
+    'generate_mrci_confs'     : ['int32','int32','int32','int32', 'int32',
                                  'double','logical'],
     'mrci_prune'              : ['double','int32','int32','int32',
                                  'double','int32', 'int32','int32','int32'],
@@ -48,8 +49,8 @@ bitci_registry = {
     'retrieve_nhpar'          : ['string','int32'],
     'retrieve_hpar'           : ['string','int32','double'],
     'diag_mrci'               : ['int32','int32','int32','int32',
-                                 'int32','double','int32','int32',
-                                 'logical','int32','int32'],
+                                 'int32','int32','double','int32',
+                                 'int32','logical','int32','int32'],
     'print_mrci_states'       : ['int32','int32','int32'],
     'print_pmrci_states'      : ['int32','int32','int32','int32','int32',
                                  'int32'],
@@ -66,18 +67,19 @@ bitci_registry = {
     'retrieve_det_truncated'  : ['int32','int32','int32','int32','int64',
                                  'double','double'],
     'gvvpt2'                  : ['int32','int32','int32','int32','double',
-                                 'int32','int32','int32','int32','int32'],
+                                 'int32','int32','int32','int32','int32',
+                                 'int32'],
     'gvvpt2_follow'           : ['int32','int32','int32','int32','double',
                                  'int32','int32','int32','int64','double',
                                  'int32','double','int32','int32','logical',
                                  'int32','int32','int32','int32','int32',
-                                 'int32'],
+                                 'int32', 'int32'],
     'gvvpt2_diab'             : ['int32','int32','int32','int32','double',
                                  'int32','int32','int32','int64','double',
                                  'int32','double','int32','int32','logical',
-                                 'int32','int32','int32','double','int32',
-                                 'int32','int32'],
-    'truncate_mrci_wf'        : ['int32','int32','int32','int32',
+                                 'double','double','int32','int32','int32',
+                                 'double','int32','int32','int32','int32'],
+    'truncate_mrci_wf'        : ['int32','int32','int32','int32','int32',
                                  'double','int32']
 }
 
@@ -96,13 +98,14 @@ bitci_intent = {
     'diag_dftcis'             : ['in','in','out','in','in'],
     'ras_guess_dftcis'        : ['in','in','out','out'],
     'ref_diag_mrci'           : ['in','out','in','in','out'],
+    'ref_diag_mrci_sci'       : ['out','in','out','out'],
     'ref_diag_mrci_follow'    : ['in','out','in','in','in','in','in',
                                  'in','in','in','in','in','in','in',
                                  'out'],
     'prune_ref_space'         : ['in','in','in','out','in'],
     'retrieve_energies'       : ['in','in','out'],
     'retrieve_some_energies'  : ['in','in','out','in'],
-    'generate_mrci_confs'     : ['in','in','out','out','in','in'],
+    'generate_mrci_confs'     : ['in','in','in','out','out','in','in'],
     'mrci_prune'              : ['in','in','in','in','in','in','in',
                                  'out','out'],
     'retrieve_qcorr'          : ['in','in','in','in','in','in','in',
@@ -110,8 +113,8 @@ bitci_intent = {
     'retrieve_filename'       : ['in','out'],
     'retrieve_nhpar'          : ['in','out'],
     'retrieve_hpar'           : ['in','in','out'],
-    'diag_mrci'               : ['in','in','in','out','in','in','in',
-                                 'in','in','in','in'],
+    'diag_mrci'               : ['in','in','in','out','out','in','in',
+                                 'in','in','in','in','in'],
     'print_mrci_states'       : ['in','in','in'],
     'print_pmrci_states'      : ['in','in','in','in','in','in'],
     'refine_ref_space'        : ['in','out','in','in','in','in','out',
@@ -123,81 +126,90 @@ bitci_intent = {
     'ndet_truncated'          : ['in','in','in','out'],
     'retrieve_det_truncated'  : ['in','in','in','in','out','out','in'],
     'gvvpt2'                  : ['in','in','in','in','in','in','out',
-                                 'in','out','out'],
+                                 'in','out','out','out'],
     'gvvpt2_follow'           : ['in','in','in','in','in','in','in',
                                  'in','in','in','in','in','in','in',
                                  'in','in','out','in','out','out',
-                                 'out'],
+                                 'out','out'],
     'gvvpt2_diab'             : ['in','in','in','in','in','in','in',
                                  'in','in','in','in','in','in','in',
-                                 'in','in','in','in','out','out',
-                                 'out','out'],
-    'truncate_mrci_wf'        : ['in','in','in','in','in','out']
+                                 'in','in','in','in','in','in','out',
+                                 'out','out','out','out'],
+    'truncate_mrci_wf'        : ['in','in','in','in','in','in','out']
 }
 
 
 # registry of bitsi functions
 bitsi_registry = {
-    'bitsi_initialise'        : ['int32','int32','int32','int32','int32',
-                                  'int32','string','logical'],
-    'bitsi_finalise'          : [],
-    'transition_density_mrci' : ['int32','int32','int32','int32','int32',
-                                 'int32','double','string','string',
-                                 'string','string'],
-    'redmat_mrci'             : ['int32','int32','int32','int32','int32',
-                                 'int32','double','string','string',
-                                 'string','string'],
-    'cgcoeff_soc'             : ['int32','int32','double']
+    'bitsi_initialise'                 : ['int32','int32','int32','int32',
+                                          'int32','int32','string','logical'],
+    'bitsi_finalise'                   : [],
+    'transition_density_mrci'          : ['int32','int32','int32','int32',
+                                          'int32','int32','double','string',
+                                          'string','string','string'],
+    'modified_transition_density_mrci' : ['int32','int32','int32','int32',
+                                          'int32','int32','double','string',
+                                          'string','string','string',
+                                          'string','string'],
+    'redmat_mrci'                      : ['int32','int32','int32','int32',
+                                          'int32','int32','double','string',
+                                          'string','string','string'],
+    'cgcoeff_soc'                      : ['int32','int32','double']
 }
 
 bitsi_intent   = {
-    'bitsi_initialise'        : ['in','in','in','in','in','in','in','in'],
-    'bitsi_finalise'          : [],
-    'transition_density_mrci' : ['in','in','in','in','in','in','out',
-                                 'in','in','in','in'],
-    'redmat_mrci'             : ['in','in','in','in','in','in','out',
-                                 'in','in','in','in'],
-    'cgcoeff_soc'             : ['in','in','out']
+    'bitsi_initialise'                 : ['in','in','in','in','in','in',
+                                          'in','in'],
+    'bitsi_finalise'                   : [],
+    'transition_density_mrci'          : ['in','in','in','in','in','in',
+                                          'out','in','in','in','in'],
+    'modified_transition_density_mrci' : ['in','in','in','in','in','in',
+                                          'out','in','in','in','in','in',
+                                          'in'],
+    'redmat_mrci'                      : ['in','in','in','in','in','in',
+                                          'out','in','in','in','in'],
+    'cgcoeff_soc'                      : ['in','in','out']
 }
 
 # registry of bitwf functions
 bitwf_registry = {
     'bitwf_initialise' : ['int32','int32','int32','int32','int32','int32',
-                          'double','int32','int64','int64','string',
+                          'double','int32','int32','int64','int64','string',
                           'logical'],
     'bitwf_finalise'   : [],
     'detwf'            : ['int32','string','string','int32','string',
                           'int32'],
-    'detoverlap'       : ['int32','int32','int32','int32','int32',
-                          'int32','int32','double','int32','int32',
+    'detoverlap'       : ['int32','int32','int32','int32','int32','int32',
+                          'int32','int32','double','double','int32','int32',
                           'logical','double'],
     'detdyson'         : ['int32','int32','int32','int32','int32','int32',
-                          'int32','int32','double','int32','double']
+                          'int32','int32','double','double','int32',
+                          'double']
 }
 
 bitwf_intent = {
-    'bitwf_initialise' : ['in','in','in','in','in','in','in','in',
+    'bitwf_initialise' : ['in','in','in','in','in','in','in','in','in',
                           'in','in','in','in'],
     'bitwf_finalise'   : [],
     'detwf'            : ['in','in','in','in','in','out'],
-    'detoverlap'       : ['in','in','in','in','in','in','in','in',
-                          'in','in','in','out'],
+    'detoverlap'       : ['in','in','in','in','in','in','in','in','in',
+                          'in','in','in','in','out'],
     'detdyson'         : ['in','in','in','in','in','in','in','in',
-                          'in','in','out']
+                          'in','in','in','out']
 }
 
 # registry of overlap functions
 overlap_registry = {
     'overlap_c' : ['int32','int32','int32','int32','int32','int32',
                    'int32','int32','int64','int64','double','double',
-                   'double','double','int32','int32','logical','int32',
-                   'double','int32','logical']
+                   'double','double','double','int32','int32','logical',
+                   'int32','double','int32','logical']
 }
 
 overlap_intent = {
     'overlap_c' : ['in','in','in','in','in','in','in','in','in','in',
-                   'in','in','in','in','in','in','in','in','out','in',
-                   'in']
+                   'in','in','in','in','in','in','in','in','in','out',
+                   'in','in']
 }
 
 # list of existing library objects

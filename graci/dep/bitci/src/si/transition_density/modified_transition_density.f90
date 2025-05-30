@@ -1,18 +1,16 @@
-!**********************************************************************
-! Calculation of 1-TDMs for MRCI wavefunctions
-!**********************************************************************
-
 !######################################################################
-! transition_density_mrci: Controls the calculation of MRCI 1-TDMs
+! modified_transition_density_mrci: Controls the calculation of MRCI
+!                                   modified (damped) 1-TDMs
 !######################################################################
 #ifdef CBINDING
-subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
-     npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
-     vecfileK_in) bind(c,name='transition_density_mrci')
+subroutine modified_transition_density_mrci(irrepB,irrepK,nrootsB,&
+     nrootsK,npairs,iroots,rhoij,conffileB_in,vecfileB_in,&
+     conffileK_in,vecfileK_in,aviifileB_in,aviifileK_in) &
+     bind(c,name='modified_transition_density_mrci')
 #else
-subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
-     npairs,iroots,rhoij,conffileB_in,vecfileB_in,conffileK_in,&
-     vecfileK_in)
+subroutine modified_transition_density_mrci(irrepB,irrepK,nrootsB,&
+     nrootsK,npairs,iroots,rhoij,conffileB_in,vecfileB_in,&
+     conffileK_in,vecfileK_in,aviifileB_in,aviifileK_in)
 #endif
 
   use iso_c_binding, only: C_CHAR
@@ -28,15 +26,19 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   ! MRCI configuration and eigenvector file names
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: conffileB_in(*),vecfileB_in(*),&
-                                        conffileK_in(*),vecfileK_in(*)
+                                        conffileK_in(*),vecfileK_in(*),&
+                                        aviifileB_in(*),aviifileK_in(*)
   character(len=255)                 :: conffileB,vecfileB,&
-                                        conffileK,vecfileK
+                                        conffileK,vecfileK,&
+                                        aviifileB,aviifileK
   integer(is)                        :: length
 #else
   character(len=*), intent(in)       :: conffileB_in,vecfileB_in,&
-                                        conffileK_in,vecfileK_in
+                                        conffileK_in,vecfileK_in,&
+                                        aviifileB_in,aviifileK_in
   character(len=255)                 :: conffileB,vecfileB,&
-                                        conffileK,vecfileK
+                                        conffileK,vecfileK,&
+                                        aviifileB,aviifileK
 #endif
 
   ! Irreps and no. roots
@@ -53,11 +55,12 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   type(mrcfg)              :: cfgB,cfgK
 
   ! Scratch file numbers
-  integer(is)              :: confscrB,vecscrB,confscrK,vecscrK
+  integer(is)              :: confscrB,vecscrB,aviiscrB,confscrK,&
+                              vecscrK,aviiscrK
 
   ! Eigenpairs
   real(dp), allocatable    :: vecB(:,:),enerB(:),vecK(:,:),enerK(:)
-  
+
   ! Everything else
   integer(is)              :: i,j,k
   integer(is)              :: nvecB,nvecK
@@ -87,26 +90,35 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   call c2fstr(conffileB_in,conffileB,length)
   length=cstrlen(vecfileB_in)
   call c2fstr(vecfileB_in,vecfileB,length)
+  length=cstrlen(aviifileB_in)
+  call c2fstr(aviifileB_in,aviifileB,length)
   length=cstrlen(conffileK_in)
   call c2fstr(conffileK_in,conffileK,length)
   length=cstrlen(vecfileK_in)
   call c2fstr(vecfileK_in,vecfileK,length)
+  length=cstrlen(aviifileK_in)
+  call c2fstr(aviifileK_in,aviifileK,length)
 #else
   conffileB=adjustl(trim(conffileB_in))
   vecfileB=adjustl(trim(conffileB_in))
+  aviifileB=adjustl(trim(aviifileB_in))
   conffileK=adjustl(trim(conffileK_in))
   vecfileK=adjustl(trim(vecfileK_in))
+  aviifileK=adjustl(trim(aviifileK_in))
 #endif
 
 !----------------------------------------------------------------------
-! Register the configuration and eigenvector scratch files
+! Register the configuration, eigenvector and spin-coupling averaged
+! Hii scratch files
 !----------------------------------------------------------------------
   call register_scratch_file(confscrB,conffileB)
   call register_scratch_file(vecscrB,vecfileB)
-
+  call register_scratch_file(aviiscrB,aviifileB)
+  
   call register_scratch_file(confscrK,conffileK)
   call register_scratch_file(vecscrK,vecfileK)
-
+  call register_scratch_file(aviiscrK,aviifileK)
+  
 !----------------------------------------------------------------------
 ! Set up the bra and ket configuration derived types
 !----------------------------------------------------------------------
@@ -156,7 +168,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
      Bmap(i)=sum(iBra(1:iroots(i,1)))
      Kmap(i)=sum(iKet(1:iroots(i,2)))
   enddo
-  
+
 !----------------------------------------------------------------------
 ! Read in the bra eigenvectors
 !----------------------------------------------------------------------
@@ -175,7 +187,7 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
         ireadB(k)=i
      endif
   enddo
-  
+
   ! Read in the eigenvectors
   call read_some_eigenpairs(vecscrB,vecB,enerB,cfgB%csfdim,nvecB,&
        ireadB)
@@ -198,17 +210,17 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
         ireadK(k)=i
      endif
   enddo
-  
+
   ! Read in the eigenvectors
   call read_some_eigenpairs(vecscrK,vecK,enerK,cfgK%csfdim,nvecK,&
        ireadK)
-  
+
 !----------------------------------------------------------------------
 ! Compute the 1-TDMs
 !----------------------------------------------------------------------
   call tdm_mrci(cfgB,cfgK,cfgB%csfdim,cfgK%csfdim,nvecB,nvecK,vecB,&
-       vecK,npairs,rhoij,Bmap,Kmap)
-  
+       vecK,npairs,rhoij,Bmap,Kmap,aviiscrB,aviiscrK)
+
 !----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
@@ -232,5 +244,5 @@ subroutine transition_density_mrci(irrepB,irrepK,nrootsB,nrootsK,&
   
   return
     
-end subroutine transition_density_mrci
+end subroutine modified_transition_density_mrci
 

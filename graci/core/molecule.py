@@ -6,6 +6,7 @@ import numpy as np
 import copy as copy
 import graci.io.output as output
 import graci.utils.basis as basis
+import graci.utils.constants as constants
 from pyscf.lib import logger
 from pyscf import gto, df
 
@@ -424,6 +425,9 @@ class Molecule:
 
         for ixyz in range(len(self.mol_obj.atom_coords())):
             coc_xyz += chg[ixyz]*coords[ixyz]
+
+        if self.units == 'Angstrom':
+            coc_xyz *= constants.bohr2ang
  
         return coc_xyz / np.sum(chg)
 

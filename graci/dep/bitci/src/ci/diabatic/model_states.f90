@@ -21,7 +21,8 @@ contains
 !                    states
 !######################################################################
   subroutine get_pds_basis(cfg,refdim,nvec,vec0,nmoR0,n_intR0,ndetR0,&
-       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds)
+       nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds,&
+       normthrsh,detthrsh)
     
     use constants
     use bitglobal
@@ -61,6 +62,12 @@ contains
     ! Protoype diabatic states in the ref CSF basis
     real(dp), intent(out)    :: vec_pds(refdim,nrootsR0)
 
+    ! Norm-based wave function truncation threshold
+    real(dp), intent(in)     :: normthrsh
+
+    ! Determinant screening threshold
+    real(dp), intent(in)     :: detthrsh
+    
     ! Dummy ref space configuration derived type
     type(mrcfg)              :: cfg_ref
 
@@ -80,7 +87,6 @@ contains
     integer(is), allocatable :: ipairs(:,:)
     real(dp), allocatable    :: Sij(:),Smat(:,:)
     real(dp), allocatable    :: smoT(:,:)
-    real(dp)                 :: normthrsh
     logical                  :: lprint
     
     ! Everything else
@@ -148,9 +154,6 @@ contains
 !       diabatic wave functions in terms onto the space spanned by the
 !       current geometry reference space wave functions
 !----------------------------------------------------------------------
-    ! Truncation threshold
-    normthrsh=0.999d0
-
     ! Fill in the array of bra-ket overlaps required
     n=0
     do i=1,nvec
@@ -168,7 +171,7 @@ contains
     lprint=.true.
     call overlap(nmo,nmoR0,n_int,n_intR0,ndet_ref,ndetR0,nvec,&
          nrootsR0,det_ref,detR0,vec0_det,vecR0,smoT,normthrsh,&
-         ncore,icore,lfrzcore,npairs,Sij,ipairs,lprint)
+         detthrsh,ncore,icore,lfrzcore,npairs,Sij,ipairs,lprint)
     
 !----------------------------------------------------------------------
 ! Fill in the precursor state coefficients

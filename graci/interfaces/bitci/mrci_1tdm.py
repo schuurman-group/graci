@@ -10,7 +10,7 @@ import graci.core.libs as libs
 import graci.utils.timing as timing
 
 @timing.timed
-def tdm(bra, ket, trans_list, rep='adiabatic'):
+def tdm(bra, ket, trans_list, modified, rep='adiabatic'):
     """
     Calculation of the MRCI 1-TDMs for all pairs of states
     in trans_list
@@ -31,7 +31,7 @@ def tdm(bra, ket, trans_list, rep='adiabatic'):
 
     # 1-TDMs for all irreps
     rho = [[[] for i in range(nirr_bra)] for j in range(nirr_ket)]
-
+    
     # Loop over pairs of irreps for the initial and final manifolds
     for ket_irr in ket.irreps_nonzero():
         for bra_irr in bra.irreps_nonzero():
@@ -63,18 +63,31 @@ def tdm(bra, ket, trans_list, rep='adiabatic'):
             # configuration and eigenvector files: ket wfn
             ket_conf = ket_wfn.conf_name[rep][ket_irr]
             ket_vec  = ket_wfn.ci_name[rep][ket_irr]
+
+            # spin-coupling averaged Hii file names: bra wfn
+            bra_avii = bra_wfn.avii_name[rep][bra_irr]
+
+            # spin-coupling averaged Hii file names: ket wfn
+            ket_avii = ket_wfn.avii_name[rep][ket_irr]
             
             # compute the 1-TDMs for all states in this irrep
-            args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
+            if modified:
+                args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
+                        tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
+                        ket_vec, bra_avii, ket_avii)
+                rhoij = libs.lib_func('modified_transition_density_mrci',
+                                      args)
+            else:
+                args = (bra_irr, ket_irr, bra_tot, ket_tot, npairs, 
                     tdm_pairs, rhoij,  bra_conf, bra_vec, ket_conf, 
                     ket_vec)
-            rhoij = libs.lib_func('transition_density_mrci', args)
-
+                rhoij = libs.lib_func('transition_density_mrci', args)
+            
             # add the 1-TDMs to the list
             rho[bra_irr][ket_irr] = np.reshape(rhoij,
                                                (nmo, nmo, npairs),
                                                order='F')
-            
+
             ## Temporary: save the 1-TDMs to disk
             #pairs = np.reshape(tdm_pairs, (npairs, 2), order='F')
             #for n in range(npairs):

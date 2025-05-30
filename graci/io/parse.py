@@ -46,7 +46,7 @@ def parse_input():
     # and create all required replicate class objects
     # if any are found
     run_list = replicate_sections(run_list)
-        
+    
     # check the input
     check_input(run_list)
  
@@ -64,11 +64,13 @@ def parse_section(class_name, input_file):
     iline = 0
     while iline < nlines:
 
-        if input_file[iline][0] == '#':
-            pass
+        # remove comments
+        if '#' in input_file[iline]:
+            istr = input_file[iline]
+            input_file[iline] = istr[:istr.index('#')]
 
-        elif '$'+mod_name+' ' in input_file[iline].lower():
-
+        # search for requested class_name section
+        if '$'+mod_name+' ' in input_file[iline].lower():
             iline += 1
 
             # section exists, create class object
@@ -82,11 +84,12 @@ def parse_section(class_name, input_file):
 
             while iline < nlines:
 
-                # if this is comment line: skip
-                if input_file[iline][0] == '#':
-                    pass
+                # remove comments
+                if '#' in input_file[iline]:
+                    istr = input_file[iline]
+                    input_file[iline] = istr[:istr.index('#')]
 
-                elif '$end' in input_file[iline] or iline == nlines-1:
+                if '$end' in input_file[iline] or iline == nlines-1:
                     # if we hit end of section, or end of file,
                     # add object to return list and continue parsing 
                     # the input
@@ -249,7 +252,7 @@ def parse_value(valstr, val_type):
         val_list = val_list[end+1:]
 
     # if just a single element of this 2D list, convert to vector
-    if len(vec_str)==1: 
+    if len(vec_str)==1:
         return convert_array(vec_str[0])
     else:
         return convert_array(vec_str)
@@ -434,6 +437,7 @@ def convert_array(arg_list):
     new_list = []
     for arg in conv_list:
 
+        # try to parse as integers
         try:
             arr = np.array(arg).astype(int)
             new_list.append(arr)
@@ -441,6 +445,7 @@ def convert_array(arg_list):
         except ValueError:
             pass
 
+        # try to parse as floats
         try:
             arr = np.array(arg).astype(float)
             new_list.append(arr)
@@ -448,7 +453,20 @@ def convert_array(arg_list):
         except ValueError:
             pass
 
+        # try to parse as booleans
+        if set(arg).issubset(set(['TRUE','true','True',
+                                            'FALSE','false','False'])):
+            try:
+                arr = np.array([argi.capitalize() 
+                                         for argi in arg]).astype(bool)
+                new_list.append(arr)
+                continue
+            except ValueError:
+                pass
+
+        # pass as string
         arr = np.array(arg, dtype=h5py.string_dtype(encoding='utf-8'))
+        #arr = np.array(arg, dtype=StringDType())
         new_list.append(arr)
 
     if type(arg_list[0]) != list:
@@ -460,11 +478,17 @@ def convert_array(arg_list):
 def replicate_sections(run_list):
     """
     checks for the existence of multi-geometry molecule objects
-    if any are found, then replicate molecule objects are creates for
-    each geometry along with any associated scf, dftmrci, si, etc.
+    if any are found, then replicate molecule objects are created for
+    each geometry along with any associated scf, ci, si, etc.
     objects
     """
 
+    # do nothing if no multi-geometry objects are found
+    mol_objs    = [obj for obj in run_list
+                     if type(obj).__name__ == 'Molecule']
+    if True not in set([obj.multi_geom for obj in mol_objs]):
+        return run_list
+    
     # initialise the new list of class objects to run
     new_run_list = []
 
@@ -476,8 +500,6 @@ def replicate_sections(run_list):
     for g_obj in ['Molecule','Scf','Parameterize']:
         misc_objs.remove(g_obj)
 
-    mol_objs    = [obj for obj in run_list
-                     if type(obj).__name__ == 'Molecule']
     scf_objs    = [obj for obj in run_list
                      if type(obj).__name__ == 'Scf']
     ci_objs     = [obj for obj in run_list
@@ -498,7 +520,7 @@ def replicate_sections(run_list):
         # associated with this molecule object
         scf_list   = [obj for obj in scf_objs
                       if obj.mol_label == mol.label]
-        scf_labels = [obj.label for obj in scf_list]        
+        scf_labels = [obj.label for obj in scf_list]
         ci_list   = [obj for obj in ci_objs
                      if obj.scf_label in scf_labels]
         ci_labels = [obj.label for obj in ci_list]
@@ -516,9 +538,8 @@ def replicate_sections(run_list):
             # everything else has 'initial' and 'final' labels
             si_list = [obj for obj in si_objs
                        if obj.init_label in all_ci_labels
-                       or obj.final_label in all_ci_labels]
-            
-            
+                       or obj.final_label in all_ci_labels]    
+
         if mol.multi_geom:
             # Create replicate objects for all geometries
             
@@ -542,7 +563,7 @@ def replicate_sections(run_list):
                     new_scf           = scf.copy()
                     new_scf.label     = scf.label+str(i+1)
                     new_scf.mol_label = scf.mol_label+str(i+1)
-                    if i > 0:
+                    if i > 0 and False:
                         new_scf.guess_label = scf.label+str(i)
                     new_run_list.append(new_scf)
                     
@@ -573,13 +594,13 @@ def replicate_sections(run_list):
                 # si object(s)
                 for si in si_list:
                     new_si             = si.copy()
-                    new_si.label       = ci.label+str(i+1)
+                    new_si.label       = si.label+str(i+1)
                     new_si.init_label  = si.init_label+str(i+1)
                     new_si.final_label = si.final_label+str(i+1)
                     if new_si.representation == 'diabatic' and i == 0:
                         new_si.representation = 'adiabatic'
                     new_run_list.append(new_si)
-                  
+                    
         else:
             # add the single-geometry objects to the list
             new_run_list.append(mol)
@@ -591,14 +612,29 @@ def replicate_sections(run_list):
                 new_run_list.append(postci)
             for si in si_list:
                 new_run_list.append(si)
-   
-    # assume graci objs are geometry indepenent
+
+    # assume graci objs are geometry independent
     for gobj in graci_objs:
         new_run_list.append(gobj)
- 
+
     # might want to re-think this a bit...
     for hparam in hparam_objs:
         new_run_list.append(hparam)                
+
+    # if we have any diabatisation runs, then check
+    # and, if necessary, disable the propagation of MOs
+    new_scf_objs = [obj for obj in new_run_list
+                    if type(obj).__name__ == 'Scf']
+    new_ci_objs  = [obj for obj in new_run_list
+                    if type(obj).__name__ in params.ci_objs]
+    for ci_obj in new_ci_objs:
+        try:
+            if not ci_obj.propagate_mos:
+                scf_obj = [obj for obj in new_scf_objs
+                           if obj.label == ci_obj.scf_label][0]
+                scf_obj.guess_label = None
+        except:
+            pass
     
     return new_run_list
 
