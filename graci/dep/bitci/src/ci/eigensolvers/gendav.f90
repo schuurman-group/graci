@@ -202,8 +202,8 @@ contains
 ! of the block size
 !----------------------------------------------------------------------
     if (mod(maxvec,blocksize) /= 0) then
-       errmsg='The maximum subspace dimension is an integer multiple'&
-            //' of the block size'
+       errmsg='The maximum subspace dimension is not an integer '&
+            //' multiple of the block size'
        call error_control
     endif
 
@@ -912,43 +912,8 @@ contains
     ki=currdim+1
     kf=currdim+nnew
     
-!!----------------------------------------------------------------------
-!! Old: compute the (non-normalised) new subspace vectors using MGS
-!!      orthogonalisation    
-!!----------------------------------------------------------------------
-!    ! Loop over correction vectors
-!    k1=0
-!    do k=ki,kf
-!       k1=k1+1
-!    
-!       ! Orthogonalise the correction vector against all previous
-!       ! subspace vectors
-!       do i=1,k-1
-!          bvec(:,k)=bvec(:,k) &
-!               -dot_product(bvec(:,k),bvec(:,i))*bvec(:,i) &
-!               /dot_product(bvec(:,i),bvec(:,i))
-!       enddo
-!    
-!       ! Norm of the orthogonalised correction vector
-!       bnorm(k1)=sqrt(dot_product(bvec(:,k),bvec(:,k)))
-!       
-!    enddo
-!
-!!----------------------------------------------------------------------
-!! Expand the subspace by adding orthonormalised correction vectors 
-!!----------------------------------------------------------------------
-!    ! Loop over orthogonalised correction vectors
-!    n=0
-!    do k=ki,kf
-!       
-!       ! Add the orthonormalised correction vector to the subspace
-!       n=n+1
-!       bvec(:,k)=bvec(:,k)/bnorm(n)
-!    
-!    enddo
-
 !----------------------------------------------------------------------
-! New orthonormalisation of the correction vectors
+! Orthonormalisation of the correction vectors
 !----------------------------------------------------------------------
 ! Performed in two steps:
 !
@@ -1107,24 +1072,24 @@ contains
 !----------------------------------------------------------------------
     if (k == 1) then
        if (verbose) then
-          write(6,'(/,43a)') ('*',i=1,43)
-          write(6,'(x,a,2x,a,3x,a,7x,a)') &
+          write(6,'(/,x,43a)') ('*',i=1,43)
+          write(6,'(2x,a,2x,a,3x,a,7x,a)') &
                'Iteration','Nvec','Max rnorm','Nconv'
-          write(6,'(43a)') ('*',i=1,43)
+          write(6,'(x,43a)') ('*',i=1,43)
        endif
     endif
     
 !----------------------------------------------------------------------
 ! Information for the current iteration
 !----------------------------------------------------------------------
-    if (verbose) write(6,'(x,i4,7x,i4,3x,E13.7,3x,i4)') &
+    if (verbose) write(6,'(2x,i4,7x,i4,3x,E13.7,3x,i4)') &
          k,currdim,maxval(rnorm(1:nstates)),sum(iconv(1:nstates))
 
 !----------------------------------------------------------------------    
 ! Table footer
 !----------------------------------------------------------------------
     if (verbose .and. sum(iconv(1:nstates)) == nstates) &
-         write(6,'(43a)') ('*',i=1,43)
+         write(6,'(x,43a)') ('*',i=1,43)
     
 !----------------------------------------------------------------------
 ! Flush stdout

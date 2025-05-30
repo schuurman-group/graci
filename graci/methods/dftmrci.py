@@ -26,6 +26,7 @@ class Dftmrci(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
+        self.order          = 2
         self.hamiltonian    = 'qe8'
         self.ras1           = []
         self.ras2           = []
@@ -35,6 +36,7 @@ class Dftmrci(cimethod.Cimethod):
         self.autoras        = False
         self.icvs           = []
         self.refiter        = 3
+        self.ref_sci        = False
         self.ref_prune      = True
         self.prune          = False
         self.prune_thresh   = 0.90
@@ -49,7 +51,7 @@ class Dftmrci(cimethod.Cimethod):
         self.diag_deflate   = False
 
         # MO energy cutoff: MOs above this value excluded
-        self.mo_cutoff      = 1.0
+        self.mo_cutoff      = 1.
         # No. extra ref space roots needed
         # for various tasks
         self.nextra         = {}
@@ -63,7 +65,7 @@ class Dftmrci(cimethod.Cimethod):
         self.ref_ener       = None
         # dictionary of bitci wfns
         self.bitciwfns      = {}
-
+                
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
                 if hasattr(self, name):
@@ -93,19 +95,32 @@ class Dftmrci(cimethod.Cimethod):
         return new
 
     @timing.timed
-    def run(self, scf, guess):
+    def run(self, scf, guess=None, mo_ints=None):
         """ compute the DFT/MRCI eigenpairs for all irreps """
 
-        # set the scf object 
-        scf_energy = self.set_scf(scf, ci_guess=guess)
+        # set the scf object
+        # currently the guess object is ignored, since propagation of
+        # reference space in absense of root-following is not a good
+        # idea. Root-following for davidson might be implemented in 
+        # the future, though, so for the sake of API consistentcy with
+        # DFT/MRCI(2) class, the argument can be passed, but is currently
+        # ignored 
+        guess      = None
+        scf_energy = self.set_scf(scf, ci_guess=guess, mo_ints=mo_ints)
+
         if scf_energy is None:
             return None
 
         # set the Hamiltonian
         self.set_hamiltonian()
-        
+
         if self.scf.mol is None or self.scf is None:
             sys.exit('ERROR: mol and scf objects not set in dftmrci')
+
+        # Make sure that ref space pruning is not turned on
+        # if SCI ref space diagonalisation is to be used
+        if self.ref_sci:
+            self.ref_prune = False
             
         # write the output logfile header for this run
         if self.verbose:
@@ -119,12 +134,12 @@ class Dftmrci(cimethod.Cimethod):
         # write the Hamiltonian information to the log file
         if self.verbose:
             output.print_hamiltonian(self.hamiltonian)
-            
+        
         # if a guess CI object has been passed, compute the
         # MO overlaps
         if guess is not None:
             self.smo = self.scf.mo_overlaps(guess.scf)[:guess.nmo,:self.nmo]
-     
+
         # initialize bitci
         bitci_init.init(self)
 
@@ -192,14 +207,17 @@ class Dftmrci(cimethod.Cimethod):
             self.mrci_wfn.set_equnits(eq_units)
             
             # MRCI diagonalisation
-            mrci_ci_units, mrci_ci_files, mrci_ener_sym = \
-                    mrci_diag.diag(self)
+            mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
+                avii_units, avii_files= mrci_diag.diag(self)
 
-            # set the mrci wfn unit numbers, file names, and mrci 
-            # energies
+            # set the mrci wfn unit numbers, file names, mrci 
+            # energies, and spin-couping averaged Hii unit numbers
             self.mrci_wfn.set_ciunits(mrci_ci_units)
             self.mrci_wfn.set_ciname(mrci_ci_files)
             self.energies_sym = mrci_ener_sym
+            self.mrci_wfn.set_aviiunits(avii_units)
+            self.mrci_wfn.set_aviiname(avii_files)
+
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()

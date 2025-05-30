@@ -10,7 +10,7 @@ import graci.core.molecule as molecule
 
 @timing.timed
 def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
-            verbose):
+            det_thresh, verbose):
     """
     Computes the overlaps between the pairs of bra and ket
     wave functions specified in the pairs list for a single
@@ -75,8 +75,8 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
     args = (nmo_bra, nmo_ket, n_int_bra, n_int_ket,
             ndet_bra, ndet_ket, nroots_bra, nroots_ket,
             det_bra, det_ket, vec_bra, vec_ket, smo1,
-            norm_thresh, ncore, icore, delete_core, npairs,
-            Sij, pairs1, verbose)
+            norm_thresh, det_thresh, ncore, icore, delete_core,
+            npairs, Sij, pairs1, verbose)
 
     Sij  = libs.lib_func('overlap_c', args)
     
@@ -84,7 +84,7 @@ def overlap(bra_obj, ket_obj, smo, pairs, irrep, norm_thresh,
 
 @timing.timed
 def overlap_st(bra_obj, ket_obj, bra_st, ket_st, smo, norm_thresh,
-               verbose):
+               det_thresh, verbose):
     """
     call overlap by constructing pair list and iterating over irreps
     """
@@ -111,7 +111,8 @@ def overlap_st(bra_obj, ket_obj, bra_st, ket_st, smo, norm_thresh,
         if len(pairs) > 0:
             Sij   = overlap(bra_obj, ket_obj, smo, 
                             np.asarray(pairs, dtype=int), 
-                            irr, norm_thresh, verbose)
+                            irr, norm_thresh, det_thresh,
+                            verbose)
 
         for pindx in range(len(pairs)):
             badia = bra_obj.state_index(irr, pairs[pindx][0])

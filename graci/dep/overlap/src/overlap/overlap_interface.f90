@@ -2,8 +2,8 @@
 ! overlap_c: overlap interface with C bindings
 !######################################################################
 subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
-     nrootsB1,nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
-     icore,lfrzcore,npairs,Sij,ipairs,verbose1) &
+     nrootsB1,nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,&
+     hthrsh,ncore,icore,lfrzcore,npairs,Sij,ipairs,verbose1) &
      bind(c,name="overlap_c")
 
   use constants
@@ -37,6 +37,9 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
   ! Norm-based truncation threshold
   real(dp), intent(in)    :: normthrsh
 
+  ! Determinant screening threshold
+  real(dp), intent(in)    :: hthrsh
+  
   ! Frozen/deleted core MOs
   integer(is), intent(in) :: ncore
   integer(is), intent(in) :: icore(ncore)
@@ -53,8 +56,8 @@ subroutine overlap_c(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,&
   logical, intent(in)     :: verbose1
 
   call overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
-       nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,&
-       icore,lfrzcore,npairs,Sij,ipairs,verbose1)
+       nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,hthrsh,&
+       ncore,icore,lfrzcore,npairs,Sij,ipairs,verbose1)
   
   return
   
@@ -64,13 +67,14 @@ end subroutine overlap_c
 ! overlap: overlap interface with Fortran bindings
 !######################################################################
 subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
-     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,ncore,icore,&
-     lfrzcore,npairs,Sij,ipairs,verbose1)
+     nrootsK1,detB1,detK1,vecB1,vecK1,smo1,normthrsh,hthrsh1,ncore,&
+     icore,lfrzcore,npairs,Sij,ipairs,verbose1)
 
   use constants
   use global
   use detfuncs
   use detsort
+  use detrot
   use factors
   use wfoverlap
   use timing
@@ -104,6 +108,9 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Norm-based truncation threshold
   real(dp), intent(in)    :: normthrsh
 
+  ! Determinant screening threshold
+  real(dp), intent(in)    :: hthrsh1
+  
   ! Frozen/deleted core MOs
   integer(is), intent(in) :: ncore
   integer(is), intent(in) :: icore(ncore)
@@ -149,7 +156,8 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   if (allocated(det2betaB)) deallocate(det2betaB)
   if (allocated(det2betaK)) deallocate(det2betaK)
   if (allocated(betafac))   deallocate(betafac)
-
+  if (allocated(invSff))    deallocate(invSff)
+  
 !----------------------------------------------------------------------
 ! Set some globally accessible variables
 !----------------------------------------------------------------------
@@ -168,6 +176,9 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra-ket overlaps
   allocate(smo(nmoB,nmoK))
   smo=smo1
+
+  ! Determinant screening threshold
+  hthrsh=hthrsh1
   
   ! No. electrons
   call get_nel(n_intB,detB1(:,:,1),nelB,nel_alphaB,nel_betaB)
@@ -263,6 +274,24 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      write(6,'(x,a,x,i0,a,i0)')   'No. ket alpha/beta strings:',&
           nalphaK,'/',nbetaK
   endif
+
+!----------------------------------------------------------------------
+! For now, we will turn off the use of Schur's determinant identity
+! as, for most use cases, it doesn't lead to any increase in
+! performance
+!----------------------------------------------------------------------
+  schur=.false.
+  
+!----------------------------------------------------------------------
+! If Schur's determinant identity is being used, then re-order the
+! alpha and beta strings s.t. the fixed-occupation orbitals come first
+! via a series of pi/2 orbital rotations
+!----------------------------------------------------------------------
+  if (schur) then
+     call rotate_orbitals
+     if (verbose) write(6,'(/,x,a,x,i0)') &
+          'No. fixed-occupation orbitals:',nfixed
+  endif
      
 !----------------------------------------------------------------------
 ! Pre-computation of the unique beta factors
@@ -270,13 +299,22 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   allocate(betafac(nbetaB,nbetaK))
   betafac=0.0d0
 
-  call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
-
+  if (schur) then
+     call get_all_factors_schur(nfixed,nvar_betaB,nbetaB,nbetaK,&
+          betaB,betaK,betafac)
+  else
+     call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
+  endif
+     
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------
-  call get_overlaps(npairs,ipairs,Sij)
-
+  if (schur) then
+     call get_overlaps_schur(npairs,ipairs,Sij)
+  else
+     call get_overlaps(npairs,ipairs,Sij)
+  endif
+     
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------

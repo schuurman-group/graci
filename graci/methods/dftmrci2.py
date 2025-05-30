@@ -29,6 +29,7 @@ class Dftmrci2(cimethod.Cimethod):
         super().__init__()
 
         # user defined quanties
+        self.order           = 2
         self.truncate        = True
         self.truncate_thresh = 0.9
         self.regularizer     = 'isa'
@@ -42,15 +43,19 @@ class Dftmrci2(cimethod.Cimethod):
         self.autoras         = False
         self.icvs            = []
         self.refiter         = 3
+        self.ref_sci         = False
         self.ref_prune       = True
         self.diabatic        = False
-        self.adt_type        = 'bdd'
+        self.adt_type        = 'qdpt'
+        self.propagate_mos   = True
+        self.norm_thresh     = 0.999
+        self.det_thresh      = 1e-6
         self.nbuffer         = []
         self.refsel          = 'dynamic'
 
         # class variables
         # MO energy cutoff: MOs above this value excluded
-        self.mo_cutoff           = 1.0
+        self.mo_cutoff           = 1.
         # allowed regularizers
         self.allowed_regularizer = ['isa', 'sigmap']
         # allowed ref conf selection algorithms
@@ -77,7 +82,7 @@ class Dftmrci2(cimethod.Cimethod):
         self.allowed_adt_type    = ['bdd', 'qdpt']
         # dictionary of bitci wfns
         self.bitciwfns           = {}
-       
+        
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
                 if hasattr(self, name):
@@ -107,11 +112,11 @@ class Dftmrci2(cimethod.Cimethod):
         return new
 
     @timing.timed
-    def run(self, scf, guess):
+    def run(self, scf, guess, mo_ints=None):
         """ compute the DFT/MRCI(2) eigenpairs for all irreps """
 
         # set the scf object
-        scf_energy = self.set_scf(scf, ci_guess=guess)
+        scf_energy = self.set_scf(scf, ci_guess=guess, mo_ints=mo_ints)
         if scf_energy is None:
             return None
 
@@ -130,6 +135,11 @@ class Dftmrci2(cimethod.Cimethod):
         # not been given
         if self.regfac is None:
             self.regfac = self.default_regfac[self.regularizer]
+
+        # Make sure that ref space pruning is not turned on
+        # if SCI ref space diagonalisation is to be used
+        if self.ref_sci:
+            self.ref_prune = False
             
         # write the output log file header for this run
         if self.verbose:
@@ -222,11 +232,13 @@ class Dftmrci2(cimethod.Cimethod):
             # DFT/MRCI(2) calculation
             if self.diabatic:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units, A_units \
+                    q_units, dsp_units, A_units, \
+                    avii_units, avii_files \
                     = gvvpt2.diag_heff_follow(self, guess)
             else:
                 mrci_ci_units, mrci_ci_files, mrci_ener_sym, \
-                    q_units, dsp_units = gvvpt2.diag_heff(self)
+                    q_units, dsp_units, avii_units, avii_files \
+                    = gvvpt2.diag_heff(self)
 
             # set the wfn unit numbers, file names, energies,
             # Q-space info, and damped strong perturber unit numbers
@@ -237,7 +249,9 @@ class Dftmrci2(cimethod.Cimethod):
             self.dspunits     = dsp_units
             if self.diabatic:
                 self.Aunits   = A_units
-                
+            self.mrci_wfn.set_aviiunits(avii_units)
+            self.mrci_wfn.set_aviiname(avii_files)
+            
             # generate the energies sorted by value, and their
             # corresponding states
             self.order_energies()
@@ -269,15 +283,19 @@ class Dftmrci2(cimethod.Cimethod):
             elif self.adt_type == 'qdpt':                
                 # QDPT diabatisation
                 diabpots, ciunits, cinames, \
-                    confunits, confnames, nconfs = \
-                        gvvpt2_diab.diabpot(guess, self)
-                
+                    confunits, confnames, nconfs, \
+                    avii_units, avii_files = \
+                    gvvpt2_diab.diabpot(guess, self)
+
                 self.diabpot = diabpots
                 self.mrci_wfn.set_ciunits(ciunits, rep='diabatic')
                 self.mrci_wfn.set_ciname(cinames, rep='diabatic')
                 self.mrci_wfn.set_confunits(confunits, rep='diabatic')
                 self.mrci_wfn.set_confname(confnames, rep='diabatic')
                 self.mrci_wfn.set_nconf(nconfs, rep='diabatic')
+                self.mrci_wfn.set_aviiunits(avii_units, rep='diabatic')
+                self.mrci_wfn.set_aviiname(avii_files, rep='diabatic')
+                
                 mrci_wf.extract_wf(self, rep='diabatic')
 
             # temporary: delete the previous geometry wave functions
@@ -375,7 +393,7 @@ class Dftmrci2(cimethod.Cimethod):
         dmat_sym['adiabatic'] = mrci_1rdm.rdm(self)
         if do_diabatic:
             dmat_sym['diabatic'] = mrci_1rdm.rdm(self, rep='diabatic')        
-        
+
         # store them in adiabatic energy order
         n_tot = self.n_states()
         indx  = self.irreps_nonzero()[0]

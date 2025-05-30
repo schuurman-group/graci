@@ -13,6 +13,12 @@ module tdm
   
   ! Spin-coupling coefficients
   real(dp), allocatable, private :: scc(:)
+
+  ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
+  real(dp), allocatable, private :: averageiiB(:),averageiiK(:)
+
+  ! Modified (damped) spin-coupling coefficients
+  logical, private               :: modified
   
 contains
 
@@ -23,7 +29,7 @@ contains
 !            Note that the 1-TDMS have the 'Canonical' MO indexing
 !######################################################################
   subroutine tdm_mrci(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,&
-       vecK,npairs,rhoij,Bmap,Kmap)
+       vecK,npairs,rhoij,Bmap,Kmap,aviiscrB,aviiscrK)
 
     use constants
     use bitglobal
@@ -35,33 +41,47 @@ contains
     implicit none
 
     ! MRCI configuration derived types
-    type(mrcfg), intent(in) :: cfgB,cfgK
+    type(mrcfg), intent(in)           :: cfgB,cfgK
 
     ! Dimensions
-    integer(is), intent(in) :: csfdimB,csfdimK,nvecB,nvecK,npairs
+    integer(is), intent(in)           :: csfdimB,csfdimK,nvecB,&
+                                         nvecK,npairs
 
     ! Eigenvectors
-    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
-    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+    real(dp), intent(in)              :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)              :: vecK(csfdimK,nvecK)
 
     ! 1-TDMs
-    real(dp), intent(out)   :: rhoij(nmo,nmo,npairs)
+    real(dp), intent(out)             :: rhoij(nmo,nmo,npairs)
 
     ! Bra-ket pair to eigenvector mapping arrays
-    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+    integer(is), intent(in)           :: Bmap(npairs),Kmap(npairs)
+
+    ! Spin-coupling averaged on-diagonal Hamiltonian matrix
+    ! element scratch file numbers
+    integer(is), intent(in), optional :: aviiscrB,aviiscrK
 
     ! Everything else
-    integer(is)             :: arrdim
+    integer(is)                       :: arrdim
     
     ! Timing variables
-    real(dp)                :: tcpu_start,tcpu_end,twall_start,&
-                               twall_end
+    real(dp)                          :: tcpu_start,tcpu_end,&
+                                         twall_start,twall_end
     
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
     call get_times(twall_start,tcpu_start)
 
+!----------------------------------------------------------------------
+! Are we using modified (damped) spin-coupling coefficients?
+!----------------------------------------------------------------------
+    if (present(aviiscrB) .and. present(aviiscrK)) then
+       modified=.true.
+    else
+       modified=.false.
+    endif
+    
 !----------------------------------------------------------------------
 ! Allocate and initialise arrays
 !----------------------------------------------------------------------
@@ -70,6 +90,27 @@ contains
     arrdim=maxval(ncsfs(0:nomax))**2
     allocate(scc(arrdim))
     scc=0.0d0
+
+    if (modified) then
+       allocate(averageiiB(cfgB%confdim))
+       allocate(averageiiK(cfgK%confdim))
+       averageiiB=0.0d0
+       averageiiK=0.0d0
+    endif
+    
+!----------------------------------------------------------------------
+! Read in the spin-coupling averaged on-diagonal Hamiltonian matrix
+! elements
+!----------------------------------------------------------------------
+    if (modified) then
+       
+       ! Bra
+       call read_averageii(aviiscrB,cfgB%confdim,averageiiB)
+       
+       ! Ket
+       call read_averageii(aviiscrK,cfgK%confdim,averageiiK)
+
+    endif
     
 !----------------------------------------------------------------------
 ! (1) Ref - Ref contributions to the 1-TDMs
@@ -77,6 +118,7 @@ contains
     call tdm_0h_0h(cfgB,cfgK,csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,&
          npairs,rhoij,Bmap,Kmap)
 
+    
 !----------------------------------------------------------------------
 ! (2) Ref - 1H contributions to the 1-TDMs
 !----------------------------------------------------------------------
@@ -108,10 +150,17 @@ contains
          npairs,rhoij,Bmap,Kmap)
 
 !----------------------------------------------------------------------
+! Check on traces of the 1-TDMs
+!----------------------------------------------------------------------
+    call check_trace(npairs,rhoij,Bmap,Kmap)
+    
+!----------------------------------------------------------------------
 ! Deallocate arrays
 !----------------------------------------------------------------------
     deallocate(scc)
-
+    if (allocated(averageiiB)) deallocate(averageiiB)
+    if (allocated(averageiiK)) deallocate(averageiiK)
+    
 !----------------------------------------------------------------------
 ! Stop timing and print report
 !----------------------------------------------------------------------
@@ -171,9 +220,10 @@ contains
     integer(is)             :: i,a,ipair,Bindx,Kindx
     integer(is)             :: ikcsf,ibcsf
     integer(is)             :: counter
+    integer(is)             :: nomega
     real(dp)                :: kcoe,bcoe
-    real(dp)                :: prod
-
+    real(dp)                :: prod,damping
+        
 !----------------------------------------------------------------------
 ! Contributions from bra and ket reference space CSFs
 !----------------------------------------------------------------------
@@ -205,6 +255,15 @@ contains
           nexci=exc_degree_conf(cfgK%conf0h(:,:,ikconf),&
                cfgB%conf0h(:,:,ibconf),n_int_I)
 
+          ! Same bra and ket configurations: compute the contribution
+          ! to the on-diagonal 1-TDM elements
+          if (nexci == 0) then
+             call tdm_diag(cfgK%sop0h(:,:,ikconf),n_int_I,knsp,npairs,&
+                  rhoij,Bmap,Kmap,csfdimB,csfdimK,nvecB,nvecK,vecB,&
+                  vecK,cfgB%csfs0h(ibconf),cfgK%csfs0h(ikconf),cfgB%m2c)
+             cycle
+          endif
+          
           ! Cycle if the excitation degree is not equal to 1
           if (nexci /= 1) cycle
 
@@ -229,6 +288,13 @@ contains
           i=cfgB%m2c(hlist(1))
           a=cfgB%m2c(plist(1))
 
+          ! Damping function value
+          if (modified) then
+             damping=damping_function(ibconf,ikconf)
+          else
+             damping=1.0d0
+          endif
+             
           ! Loop over 1-TDMs
           do ipair=1,npairs
 
@@ -249,7 +315,7 @@ contains
                    counter=counter+1
                    
                    ! Contribution to the 1-TDM
-                   prod=kcoe*bcoe*scc(counter)
+                   prod=kcoe*bcoe*scc(counter)*damping
                    rhoij(a,i,ipair)=rhoij(a,i,ipair)+prod
                    
                 enddo
@@ -1024,7 +1090,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 2I - bra 1I contributions
-                if (nac <= 3 &
+                if (cfgB%n1I > 0 .and. nac <= 3 &
                      .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1038,7 +1104,7 @@ contains
                 endif
 
                 ! Ket 2I - bra 1E contributions
-                if (nac <= 1 &
+                if (cfgB%n1E > 0 .and. nac <= 1 &
                      .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1054,7 +1120,7 @@ contains
              enddo
 
           endif
-
+          
           !
           ! Ket: 2E
           ! Bra: 1I and 1E
@@ -1092,7 +1158,7 @@ contains
                 endif
 
                 ! Ket 2E - bra 1E contributions
-                if (cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
+                if (cfgB%n1E > 0 .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1E,cfgK%n2E,&       ! no. bra and ket confs
@@ -1140,7 +1206,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 1I1E - bra 1I contributions
-                if (cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
+                if (cfgB%n1I > 0 .and. cfgB%off1I(bn) /= cfgB%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1I,cfgK%n1I1E,&       ! no. bra and ket confs
@@ -1153,7 +1219,7 @@ contains
                 endif
 
                 ! Ket 1I1E - bra 1E contributions
-                if (cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
+                if (cfgB%n1E > 0 .and. cfgB%off1E(bn) /= cfgB%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgB%n1E,cfgK%n1I1E,&       ! no. bra and ket confs
@@ -1235,7 +1301,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 2I - bra 1I contributions
-                if (nac <= 3 &
+                if (cfgK%n1I > 0 .and. nac <= 3 &
                      .and. cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1249,7 +1315,7 @@ contains
                 endif
 
                 ! Ket 2I - bra 1E contributions
-                if (nac <= 1 &
+                if (cfgK%n1E > 0 .and. nac <= 1 &
                      .and. cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
@@ -1303,7 +1369,7 @@ contains
                 endif
 
                 ! Ket 2E - bra 1E contributions
-                if (cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
+                if (cfgK%n1E > 0 .and. cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgK%n1E,cfgB%n2E,&       ! no. bra and ket confs
@@ -1351,7 +1417,7 @@ contains
                 call nobefore(ksop_full,nbefore)
 
                 ! Ket 1I1E - bra 1I contributions
-                if (cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
+                if (cfgK%n1I > 0 .and. cfgK%off1I(bn) /= cfgK%off1I(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgK%n1I,cfgB%n1I1E,&       ! no. bra and ket confs
@@ -1364,7 +1430,7 @@ contains
                 endif
 
                 ! Ket 1I1E - bra 1E contributions
-                if (cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
+                if (cfgK%n1E > 0 .and. cfgK%off1E(bn) /= cfgK%off1E(bn+1)) then
                    call tdm_batch(&
                         bn,ikconf,kconf_full,ksop_full,knopen,knsp,nbefore,&
                         cfgK%n1E,cfgB%n1I1E,&       ! no. bra and ket confs
@@ -1815,7 +1881,98 @@ contains
     return
     
   end subroutine tdm_2h_2h
+
+!######################################################################
+! tdm_diag: computes to the on-diagonal elements of the 1-TDMs of a
+!           single configuration common to both the bra and ket
+!           wave functions
+!######################################################################
+  subroutine tdm_diag(sop,ldsop,nsp,npairs,rhoij,Bmap,Kmap,csfdimB,&
+       csfdimK,nvecB,nvecK,vecB,vecK,offsetB,offsetK,m2c)
+
+    use constants
+    use bitglobal
+    use mrciutils
     
+    implicit none
+
+    ! SOP
+    integer(is), intent(in) :: ldsop
+    integer(ib), intent(in) :: sop(ldsop,2)
+
+    ! Number of spin-coupling coefficients
+    integer(is), intent(in) :: nsp
+
+    ! 1-TDMs
+    integer(is), intent(in) :: npairs
+    real(dp), intent(inout) :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+
+    ! Eigenvectors
+    integer(is), intent(in) :: csfdimB,csfdimK
+    integer(is), intent(in) :: nvecB,nvecK
+    real(dp), intent(in)    :: vecB(csfdimB,nvecB)
+    real(dp), intent(in)    :: vecK(csfdimK,nvecK)
+
+    ! Starting points of the bra and ket coefficients
+    integer(is), intent(in) :: offsetB,offsetK
+    
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+    
+    ! MO classes
+    integer(is)             :: socc(nmo),docc(nmo)
+    integer(is)             :: nsocc,ndocc
+
+    ! Everything else
+    integer(is)             :: ipair,i,imo,isp
+    integer(is)             :: Bindx,Kindx
+    real(dp)                :: prod
+    
+!----------------------------------------------------------------------
+! Get the lists of singly-occupied and doubly-occupied MOs
+!----------------------------------------------------------------------
+    call sop_socc_list(sop,ldsop,socc,nmo,nsocc)
+    call sop_docc_list(sop,ldsop,docc,nmo,ndocc)
+
+!----------------------------------------------------------------------
+! Contributions to the 1-TDMs
+!----------------------------------------------------------------------
+    ! Loop over 1-TDms
+    do ipair=1,npairs
+
+       ! Bra and ket eigenvector indices
+       Bindx=Bmap(ipair)
+       Kindx=Kmap(ipair)
+
+       ! Loop over CSFs
+       do isp=1,nsp
+
+          ! Product of the bra and ket coefficients
+          prod=vecB(offsetB+isp-1,Bindx)*vecK(offsetK+isp-1,Kindx)
+          
+          ! Loop over singly-occupied MOs
+          do i=1,nsocc
+             imo=m2c(socc(i))
+             rhoij(imo,imo,ipair)=rhoij(imo,imo,ipair)+prod
+          enddo
+
+          ! Loop over doubly-occupied MOs
+          do i=1,ndocc
+             imo=m2c(docc(i))
+             rhoij(imo,imo,ipair)=rhoij(imo,imo,ipair)+2.0d0*prod
+          enddo
+                    
+       enddo
+       
+    enddo
+       
+    return
+    
+  end subroutine tdm_diag
+  
 !######################################################################
 ! tdm_batch: Computes all the contributions to the 1-TDMs from a
 !            ket conf and a single class (1I, 2I, etc.) of confs
@@ -1889,6 +2046,8 @@ contains
     integer(is)             :: counter
     real(dp)                :: bcoe,kcoe,prod
 
+    real(dp) :: damping
+    
     ! Loop over the bra confs generated by the hole conf
     do ibconf=boffset(bn),boffset(bn+1)-1
 
@@ -1899,7 +2058,16 @@ contains
        ! Compute the excitation degree between the two
        ! configurations
        nexci=exc_degree_conf(kconf,bconf,n_int)
-       
+
+       ! Same bra and ket configurations: compute the contribution
+       ! to the on-diagonal 1-TDM elements
+       if (nexci == 0) then
+          call tdm_diag(ksop,n_int,knsp,npairs,rhoij,Bmap,Kmap,csfdimB,&
+               csfdimK,nvecB,nvecK,vecB,vecK,bcsfs(ibconf),&
+               kcsfs(ikconf),m2c)
+          cycle
+       endif
+          
        ! Cycle if the excitation degree is not equal to 1
        if (nexci /= 1) cycle
 
@@ -1922,6 +2090,13 @@ contains
        i=m2c(hlist(1))
        a=m2c(plist(1))
 
+       ! Damping function value
+       if (modified) then
+          damping=damping_function(ibconf,ikconf)
+       else
+          damping=1.0d0
+       endif
+          
        ! Loop over 1-TDMs
        do ipair=1,npairs
 
@@ -1946,7 +2121,7 @@ contains
                 counter=counter+1
                 
                 ! Contribution to the 1-TDM
-                prod=kcoe*bcoe*scc(counter)
+                prod=kcoe*bcoe*scc(counter)*damping
                 if (transpose) then
                    rhoij(i,a,ipair)=rhoij(i,a,ipair)+prod
                 else
@@ -2030,6 +2205,77 @@ contains
     
   end function spincp_coeff
   
+!######################################################################
+
+  function damping_function(ibconf,ikconf) result(func)
+
+    use constants
+    
+    implicit none
+
+    real(dp)                :: func
+    integer(is), intent(in) :: ibconf,ikconf
+
+    real(dp)                :: av1,av2
+    real(dp)                :: DEp3
+
+    av1=averageiiK(ikconf)
+
+    av2=averageiiB(ibconf)
+
+    DEp3=abs(av1-av2)**8.0d0
+
+    func=0.80*exp(-4.611269d0*DEp3)
+        
+    return
+    
+  end function damping_function
+
+!######################################################################
+! check_trace: check to make sure that the 1-TDMs are traceless
+!######################################################################
+  subroutine check_trace(npairs,rhoij,Bmap,Kmap)
+
+    use constants
+    use bitglobal
+        
+    implicit none
+
+    ! 1-TDMs
+    integer(is), intent(in) :: npairs
+    real(dp), intent(in)    :: rhoij(nmo,nmo,npairs)
+
+    ! Bra-ket pair to eigenvector mapping arrays
+    integer(is), intent(in) :: Bmap(npairs),Kmap(npairs)
+    
+    ! Everything else
+    integer(is) :: ipair,i
+    real(dp)    :: trace
+    real(dp)    :: thresh=1e-6_dp
+    
+    ! Loop over 1-TDMs
+    do ipair=1,npairs
+
+       ! Compute the trace of the 1-TDM
+       trace=0.0d0
+       do i=1,nmo
+          trace=trace+rhoij(i,i,ipair)
+       enddo
+
+       ! Print a warning if the trace is above threshold
+       if (abs(trace) > thresh) then
+          write(6,'(/,x,a,x,i0,x,a,x,i0)') &
+               'Warning: incorrect value of Tr(rhoij) for bra and ket '&
+               //'states',Bmap(ipair),'and',Kmap(ipair)
+          write(6,'(/,x,a,ES10.4)') '|Tr(rhoij)| = ',abs(trace)
+       endif
+
+    enddo
+    
+    return
+    
+  end subroutine check_trace
+    
 !######################################################################
   
 end module tdm

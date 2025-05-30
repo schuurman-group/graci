@@ -3,6 +3,7 @@ Class object to hold information germane to bitci
 wavefunctions
 """
 import copy as copy
+import sys as sys
 
 class Bitciwfn:
     """Class Bitciwfn holds configuration and file name
@@ -25,6 +26,12 @@ class Bitciwfn:
         # List of bitci Q-space energy correction scratch file numbers
         # (one per irrep)
         self.eq_units      = None
+        # List of bitci spin-coupling averaged Hii file numbers
+        # (one per irrep) for various representations
+        self.avii_units    = {'adiabatic' : None, 'diabatic' : None}
+        # List of bitci spin-coupling averaged Hii file names
+        # (one per irrep) for various representations
+        self.avii_name     = {'adiabatic' : None, 'diabatic' : None}
         # class label
         self.label         = 'default'
 
@@ -70,6 +77,18 @@ class Bitciwfn:
         self.ci_name[rep] = ciname
         return
 
+    #
+    def set_aviiunits(self, aviiunits, rep='adiabatic'):
+        """Sets the bitci spin-coupling averaged Hii scratch file units"""
+        self.avii_units[rep] = aviiunits
+        return
+
+    #
+    def set_aviiname(self, aviiname, rep='adiabatic'):
+        """Sets the bitci spin-coupling averaged Hii scratch file names"""
+        self.avii_name[rep] = aviiname
+        return
+    
     #
     def set_equnits(self, equnits):
         """Adds the list of bitci Q-space energy correction scratch

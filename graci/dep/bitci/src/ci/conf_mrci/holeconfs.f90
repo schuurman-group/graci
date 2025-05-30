@@ -12,13 +12,17 @@ contains
 !                      configurations from a given set of reference
 !                      space configurations
 !######################################################################
-  subroutine generate_hole_confs(cfgM,nroots)
+  subroutine generate_hole_confs(order,cfgM,nroots)
     
     use constants
     use bitglobal
     use conftype
 
     implicit none
+
+    ! Excitation level: order = 1 <-> single excitations
+    !                         = 2 <-> single and double excitations
+    integer(is), intent(in)    :: order
     
     ! MRCI configuration derived types for all irreps
     type(mrcfg), intent(inout) :: cfgM(0:nirrep-1)
@@ -62,9 +66,15 @@ contains
 ! 2-hole configurations
 !----------------------------------------------------------------------
     ! First pass: determine the no. 2-hole configurations
-    modus=0
-    call builder_2hole(modus,cfgM(istart))
-    
+    if (order == 1) then
+       ! Single excitations only; do nothing
+       cfgM(istart)%n2h=0
+    else
+       ! Single and double excitations
+       modus=0
+       call builder_2hole(modus,cfgM(istart))
+    endif
+       
     ! Allocate and initialise arrays
     allocate(cfgM(istart)%conf2h(cfgM(istart)%n_int_I,2,cfgM(istart)%n2h))
     allocate(cfgM(istart)%off2h(cfgM(istart)%nR+1))
@@ -74,9 +84,11 @@ contains
     cfgM(istart)%a2h=0
 
     ! Second pass: fill in the 2-hole configuration and offset arrays
-    modus=1
-    call builder_2hole(modus,cfgM(istart))
-
+    if (order > 1) then
+       modus=1
+       call builder_2hole(modus,cfgM(istart))
+    endif
+       
 !----------------------------------------------------------------------
 ! Fill in the MRCI configuration derived types for the remaining irreps
 !----------------------------------------------------------------------

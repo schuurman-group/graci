@@ -135,6 +135,7 @@ def autoras(ci_method):
     # DFT/CIS Hamiltonian index - anchored to the
     # DFT XC functional for now
     hamiltonians = {'b3lyp'            : 1,
+                    'bhandh'           : 2,
                     'bhandhlyp'        : 2,
                     'hyb_gga_xc_qtp17' : 3,
                     'qtp17'            : 3}
@@ -240,6 +241,9 @@ def autoras(ci_method):
             print('\n Setting nelec3 = 2', flush=True) 
         ci_method.nelec3 = 2
 
+    # Make sure that RAS2 is empty
+    ci_method.ras2 = np.array([])
+    
     return
 
 @timing.timed

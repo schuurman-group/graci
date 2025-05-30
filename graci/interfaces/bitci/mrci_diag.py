@@ -31,15 +31,17 @@ def diag(ci_method):
     ref_ciunits = np.array(ci_method.ref_wfn.ci_units['adiabatic'],
                            dtype=int)
 
-    # Initialise the list to hold the eigenvector scratch file
-    # numbers
-    ciunit  = 0
-    ciunits = [0 for i in range(nirr)]
-
+    # Initialise the list to hold the eigenvector and spin-coupling
+    # averaged Hii scratch file numbers
+    ciunit    = 0
+    ciunits   = [0 for i in range(nirr)]
+    aviiunit  = 0
+    aviiunits = [0 for i in range(nirr)]
+    
     # Q-space energy corrections (only needed if pruning is being
     # used)
     equnits = np.array(ci_method.mrci_wfn.eq_units, dtype=int)
-
+    
     # Loop over irreps
     for irrep in ci_method.irreps_nonzero():
 
@@ -48,14 +50,17 @@ def diag(ci_method):
 
         # Block size for the current irrep
         nblock = blocksize[irrep]
+        
+        args = (irrep, nroots, ci_confunits, ciunit, aviiunit,
+                ialg, tol, niter,  nblock, deflate, iguess,
+                ref_ciunits)
+        ciunit, aviiunit = libs.lib_func('diag_mrci', args)
 
-        args = (irrep, nroots, ci_confunits, ciunit, ialg, tol, niter, 
-                nblock, deflate, iguess, ref_ciunits)
-        ciunit = libs.lib_func('diag_mrci', args)
-
-        # Bitci eigenvector scratch number
-        ciunits[irrep] = ciunit
-
+        # Bitci eigenvector and spin-coupling averaged Hii
+        # scratch numbers
+        ciunits[irrep]   = ciunit
+        aviiunits[irrep] = aviiunit
+        
     # Retrieve the MRCI energies
     maxroots = max(ci_method.n_states_sym())
     ener     = np.zeros((nirr, maxroots), dtype=float)
@@ -76,6 +81,14 @@ def diag(ci_method):
         name = libs.lib_func('retrieve_filename', args)
         ciname[irrep] = name
 
+    # Retrieve the spin-coupling averaged on-diagonal Hamiltonian
+    # matrix element scratch file names
+    aviiname = ['' for i in range(nirr)]
+    for irrep in ci_method.irreps_nonzero():
+        args = (aviiunits[irrep], name)
+        name = libs.lib_func('retrieve_filename', args)
+        aviiname[irrep] = name
+        
     # Apply the Q-space energy corrections
     if ci_method.prune and ci_method.prune_qcorr:
         for irrep in ci_method.irreps_nonzero():
@@ -102,6 +115,7 @@ def diag(ci_method):
         output.print_dftmrci_states_header(ci_method.prune)
 
     ciunits = np.array(ciunits, dtype=int)
+    aviiunits = np.array(aviiunits, dtype=int)
     nstates = ci_method.n_states_sym()
     nextra  = np.array(ci_method.nextra['prune'], dtype=int)
     if ci_method.prune and ci_method.prune_qcorr:
@@ -112,7 +126,7 @@ def diag(ci_method):
         args = (ci_confunits, ciunits, nstates)
         libs.lib_func('print_mrci_states', args)
 
-    return ciunits, ciname, ener
+    return ciunits, ciname, ener, aviiunits, aviiname
 
 @timing.timed
 def diag_vars(ci_method):

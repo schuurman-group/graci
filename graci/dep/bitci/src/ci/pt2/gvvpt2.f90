@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
-     vec0scr,Qscr,dspscr) bind(c,name="gvvpt2")
+     vec0scr,Qscr,dspscr,aviiscr) bind(c,name="gvvpt2")
 #else
 subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
-       vec0scr,Qscr,dspscr)
+       vec0scr,Qscr,dspscr,aviiscr)
 #endif
 
   use constants
@@ -53,6 +53,10 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 
   ! Damped strong perturber scratch file number
   integer(is), intent(out) :: dspscr
+
+  ! Spin-coupling-averaged on-diagonal Hamiltonian matrix elements
+  ! scratch file number
+  integer(is), intent(out) :: aviiscr
   
   ! MRCI configuration derived type
   type(mrcfg)              :: cfg
@@ -84,7 +88,7 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
   
   ! I/O variables
   integer(is)              :: iscratch
-  character(len=250)       :: vecfile,Qfile
+  character(len=250)       :: vecfile,Qfile,aviifile
   character(len=2)         :: amult,airrep
   
   ! Everything else
@@ -206,6 +210,31 @@ subroutine gvvpt2(irrep,nroots,nextra,ireg,regfac,confscr,vecscr,&
 !----------------------------------------------------------------------
   call hmat_diagonal(hdiag,cfg%csfdim,averageii,cfg%confdim,cfg)
 
+!----------------------------------------------------------------------
+! Save the spin-coupling-averaged on-diagonal Hamiltonian matrix
+! elements to disk
+!----------------------------------------------------------------------
+  ! Register the scratch file
+  write(amult,'(i0)') imult
+  write(airrep,'(i0)') irrep
+  call scratch_name('avhii'//'.mult'//trim(amult)//&
+       '.sym'//trim(airrep),aviifile)
+  call register_scratch_file(aviiscr,aviifile)
+
+  ! Open the scratch file
+  iscratch=scrunit(aviiscr)
+  open(iscratch,file=scrname(aviiscr),form='unformatted', &
+       status='unknown')
+
+  ! Number of configurations
+  write(iscratch) cfg%confdim
+
+  ! Averaged matrix elements
+  write(iscratch) averageii
+  
+  ! Close the scratch file
+  close(iscratch)
+  
 !----------------------------------------------------------------------
 ! Compute the unscaled A-vectors <Psi_I^(0)|H|Omega>
 !----------------------------------------------------------------------

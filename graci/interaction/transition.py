@@ -42,6 +42,9 @@ class Transition(interaction.Interaction):
         self.final_states     = None
         # label of section to get final states 
         self.final_label      = None
+        # optional modification/damping of the spin-coupling
+        # coefficients
+        self.modified         = False
         
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
@@ -299,6 +302,7 @@ class Transition(interaction.Interaction):
         tdm_list = mrci_1tdm.tdm(self.get_ci_obj('bra', b_lbl), 
                                  self.get_ci_obj('ket', k_lbl), 
                                  ci_trans_sym,
+                                 self.modified,
                                  self.representation)
 
         # make the tdm list

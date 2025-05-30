@@ -271,6 +271,7 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
   use iomod
   use exactmod
   use dfmod
+  use iso_c_binding, only: C_CHAR
 
 #ifdef CBINDING
   character(kind=C_CHAR), intent(in) :: integral_src(*)

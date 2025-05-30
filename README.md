@@ -21,10 +21,8 @@ Note that both are now freely available through the Intel OneAPI suite
 
 (2) export FC=**fname** (**fname** \in {ifort, gfortran})
 
-(3) ./install_all -DHDF5_INC_DIR=**include_path** -DHDF5_LIB_DIR=**lib_path**
+(3) ./install_all
 
-where **include_path** and **lib_path** are the paths to the HDF5 include and lib directories
- 
 ## Environment variables
 A small number of environment variables need to be
 set/appended before graci can be executed.

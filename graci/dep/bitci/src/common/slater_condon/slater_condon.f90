@@ -355,7 +355,7 @@ contains
     if (hlist(1,1) /= 0) then
 
        !
-       ! Lowet-index alpha annihilator
+       ! Lowest-index alpha annihilator
        !
        ia=hlist(1,1)
        ! Block and orbital indices corresponding to the annihilator
@@ -454,7 +454,7 @@ contains
     if (hlist(1,2) /= 0) then
 
        !
-       ! Lowet-index beta annihilator
+       ! Lowest-index beta annihilator
        !
        ia=hlist(1,2)
        ! Block and orbital indices corresponding to the annihilator

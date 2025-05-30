@@ -11,10 +11,11 @@
 !######################################################################
 #ifdef CBINDING
 subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     wfscrB,wfscrK,norm_thresh,n_basis,dysorb) bind(c,name='detdyson')
+     wfscrB,wfscrK,norm_thresh,det_thresh,n_basis,dysorb) &
+     bind(c,name='detdyson')
 #else
 subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
-     wfscrB,wfscrK,norm_thresh,n_basis,dysorb)
+     wfscrB,wfscrK,norm_thresh,det_thresh,n_basis,dysorb)
 #endif
 
   use constants
@@ -36,6 +37,9 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
   ! Norm-based wave function truncation threshold
   real(dp), intent(in)    :: norm_thresh
 
+  ! Determinant screening threshold
+  real(dp), intent(in)    :: det_thresh
+  
   ! Dyson orbitals
   integer(is), intent(in) :: n_basis
   real(dp), intent(out)   :: dysorb(n_basis,npairs)
@@ -62,8 +66,8 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
      write(6,'(/,52a)') ('-',i=1,52)
      write(6,'(3(x,a))') &
           'Dyson orbital calculation for the',&
-          trim(irreplbl(irrepB,ipg)),' &',trim(irreplbl(irrepK,ipg)),&
-          'subspaces'
+          trim(irreplbl(irrepB,ipgB)),' &',&
+          trim(irreplbl(irrepK,ipgK)),'subspaces'
      write(6,'(52a)') ('-',i=1,52)
   endif
 
@@ -177,8 +181,8 @@ subroutine detdyson(irrepB,irrepK,nrootsB,nrootsK,npairs,iroots,&
 ! Call to liboverlap
 !----------------------------------------------------------------------
   call dyson(irrepB,irrepK,nmoB,nmoK,n_intB,n_intK,ndetB,ndetK,nvecB,&
-       nvecK,detB,detK,vecB,vecK,mosymB,mosymK,smo,norm_thresh,npairs,&
-       n_basis,dysorb,ipairs,verbose)
+       nvecK,detB,detK,vecB,vecK,mosymB,mosymK,smo,norm_thresh,&
+       det_thresh,npairs,n_basis,dysorb,ipairs,verbose)
   
 !----------------------------------------------------------------------
 ! Flush stdout
