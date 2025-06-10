@@ -1,0 +1,47 @@
+$molecule section
+O 0.0000000000 0.0000000000 -0.1239093560
+H 0.0000000000 1.4299372840 0.9832657570
+H 0.0000000000 -1.4299372840 0.9832657570
+  label = water
+  basis = [o aug-cc-pcvtz h aug-cc-pvtz]
+  units = Bohr
+  use_sym = True
+$end
+
+$pscf section
+  xc = pbe0
+  ex_proj = 0.60
+  charge = 0
+  mult = 1
+  label = singlet
+  mol_label = water
+$end
+
+$dftmrci section
+  charge = 0
+  mult = 1
+  hamiltonian = qe8
+  label = valence
+  scf_label = singlet
+  autoras = True
+  nstates = [2 1 1 1]
+$end
+
+$dftmrci section
+  charge = 0
+  mult = 1
+  hamiltonian = cvs-qe8
+  label = core_o
+  scf_label = singlet
+  autoras = True
+  icvs = [1]
+  nstates = [2 1 1 1]
+$end
+
+$transition section
+  label = core_excitations
+  init_label = valence
+  final_label = core_o
+  init_states = [1]
+ final_states = [1:5]
+$end
