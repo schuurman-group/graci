@@ -8,9 +8,10 @@ import graci.io.chkpt as chkpt
 import graci.io.parse as parse
 import graci.utils.constants as constants
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 kwords = {}
-colors = {'blue'  : 'b', 'red' : 'r', 'green': 'g', 'black': 'k', 
+colors = {'blue'  : 'b', 'red' : 'r', 'green': 'g', 'black': 'k',
           'magenta':'m', 'cyan': 'c', 'yellow': 'y'}
 
 
@@ -20,7 +21,7 @@ def main():
     set_defaults()
     kwords = extract_keywords(arg_list[0])
 
-    args = []    
+    args = []
     if len(arg_list) > 1:
         args = arg_list[1:]
 
@@ -49,6 +50,8 @@ def set_defaults():
     kwords['ext_conv']    = [False]
     kwords['invertx']     = False
     kwords['inverty']     = False
+    kwords['name']        = 'plot'
+    kwords['format']      = ['png']
 
 #
 def extract_keywords(fname):
@@ -91,14 +94,14 @@ def extract_keywords(fname):
 
     for key,value in kwords.items():
         print('kwords['+str(key)+'] = '+str(value), flush=True)
- 
+
     return
 
 #
 def extract_trans(fnames):
 
     t_ener  = {}
-    t_xc   = {}    
+    t_xc   = {}
     t_color = {}
     t_shft  = {}
 
@@ -111,7 +114,7 @@ def extract_trans(fnames):
             sec_ind = kwords['sections'].index(section)
 
             if section in objs:
-                 obj = chkpt.read(section, file_name=fname, 
+                 obj = chkpt.read(section, file_name=fname,
                                build_subobj=True, make_mol=False)
 
                  # get the list of ket states
@@ -137,10 +140,16 @@ def extract_trans(fnames):
                                  xc.append(obj.oscstr['f2iso_v'][indx])
                              elif type(obj).__name__ == 'Dyson':
                                  xc.append(obj.dyson_norms[indx])
+                 ## Assign colours
+                 if kwords['color'][sec_ind] not in colors:
+                     t_color[kwords['labels'][sec_ind]]= more_colors[kwords['color'][sec_ind]]
+                 else:
+                     t_color[kwords['labels'][sec_ind]]= colors[kwords['color'][sec_ind]]
 
+                 ## Assign labels
                  t_ener[kwords['labels'][sec_ind]] = np.asarray(eners, dtype=float)
-                 t_xc[kwords['labels'][sec_ind]]   = np.asarray(xc, dtype=float) 
-                 t_color[kwords['labels'][sec_ind]]= colors[kwords['color'][sec_ind]]            
+                 t_xc[kwords['labels'][sec_ind]]   = np.asarray(xc, dtype=float)
+                 t_color[kwords['labels'][sec_ind]]= colors[kwords['color'][sec_ind]]
                  t_shft[kwords['labels'][sec_ind]] = kwords['yshift'][i]
 
     return t_ener, t_xc, t_color, t_shft
@@ -155,11 +164,11 @@ def lorentz(x, x0, gamma):
 def gaussian(x, x0, sigma):
     dx = x - x0
     return (1. / (sigma*np.sqrt(2.*np.pi))) * np.exp(-0.5*dx**2 / sigma**2)
-    
+
 #
 def generate_conv(x, y, domain, fwhm, conv_func):
 
-    npts = 200 
+    npts = 200
     xval = np.linspace(domain[0], domain[1], npts)
     yval = np.zeros(npts, dtype=float)
 
@@ -180,37 +189,41 @@ def generate_conv(x, y, domain, fwhm, conv_func):
 
 
 
-# 
+#
 def generate_plot(t_ener, t_osc, t_color, t_shft):
 
 
     fht = max([0] + [val for key,val in t_shft.items()] + \
               2*kwords['ext_yshft']) + 4
-    plt.figure(figsize=(6,fht)) 
- 
+    plt.figure(figsize=(6,fht))
+
     # convlution domain should not extend past xcutoff
     domain = kwords['range']
 
     lgds = []
-    xconv = {} 
+    xconv = {}
     yconv = {}
     for lbl, xval in t_ener.items():
-        
         xconv[lbl], yconv[lbl] = generate_conv(xval, t_osc[lbl], domain,
                           kwords['fwhm'], conv_func=kwords['convolution'])
 
     nrm_fac = kwords['nrm'] / max([np.amax(y) for y in yconv.values()])
-   
-    for lbl in yconv.keys(): 
+
+    for lbl in yconv.keys():
         yconv[lbl] *= nrm_fac
         t_osc[lbl] *= nrm_fac
         xval        = t_ener[lbl]
 
-        plt.stem(xval, t_osc[lbl]+t_shft[lbl], use_line_collection=True, 
-                       bottom = t_shft[lbl], linefmt = '-'+t_color[lbl], 
+        #plt.stem(xval, t_osc[lbl]+t_shft[lbl], #use_line_collection=True,
+        #               bottom = t_shft[lbl], linefmt = '-'+t_color[lbl],
+        #               markerfmt = " ", basefmt = " ")
+        #plt.plot(xconv[lbl], yconv[lbl]+t_shft[lbl], color=t_color[lbl])
+        ml, sl, bl = plt.stem(xval, t_osc[lbl]+t_shft[lbl],
+                       bottom = t_shft[lbl], linefmt = '-',
                        markerfmt = " ", basefmt = " ")
-        plt.plot(xconv[lbl], yconv[lbl]+t_shft[lbl], color=t_color[lbl])  
-        lgds.append(lbl)
+        plt.setp(sl, 'color', t_color[lbl])
+        plt.plot(xconv[lbl], yconv[lbl]+t_shft[lbl], color=t_color[lbl])
+        lgds.append(lbl.replace('_', ' '))
 
     for iext in range(len(kwords['external'])):
         with open(kwords['external'][iext], 'r') as f:
@@ -243,18 +256,24 @@ def generate_plot(t_ener, t_osc, t_color, t_shft):
             yconv *= nrm_fac
             y     *= nrm_fac
 
-            plt.stem(x, y + shft, use_line_collection=True,
-                                  bottom = shft, 
-                                  linefmt = '-'+clr,
-                                  markerfmt = " ", basefmt = " ")
+            #plt.stem(x, y + shft, #use_line_collection=True,
+            #                      bottom = shft,
+            #                      linefmt = '-'+clr,
+            #                      markerfmt = " ", basefmt = " ")
+            #plt.plot(xconv, yconv+shft, color=clr)
+            ml, sl, bl = plt.stem(x, y + shft,
+                       bottom = shft, linefmt = '-',
+                       markerfmt = " ", basefmt = " ")
+            plt.setp(sl, 'color', clr)
             plt.plot(xconv, yconv+shft, color=clr)
+            lgds.append(lbl.replace('_', ' '))
         else:
             y = y * kwords['nrm'] / np.amax(y)
-            plt.plot(x, y, color=clr) 
-        lgds.append(lbl)            
+            plt.plot(x, y, color=clr)
+            lgds.append(lbl.replace('_', ' '))
 
     plt.yticks(color='w')
-    plt.xlim(kwords['range']) 
+    plt.xlim(kwords['range'])
     plt.xlabel(kwords['xlabel'])
     plt.ylabel(kwords['ylabel'])
     plt.legend(lgds)
@@ -262,9 +281,14 @@ def generate_plot(t_ener, t_osc, t_color, t_shft):
         plt.gca().invert_xaxis()
     if kwords['inverty']:
         plt.gca().invert_yaxis()
-
-    plt.savefig('plot.png')
-
+    ## Save as (acceptable) file formats.
+    valid_formats = ['png','jpg','jpeg','svg','pdf']
+    for f in kwords['format']:
+        fname = f"{kwords['name']}." + "{}"
+        if f in valid_formats:
+            plt.savefig(fname.format(f), bbox_inches = 'tight')
+        else:
+            raise ValueError(f"Unrecognized file format: '{f}'")
     return
 
 if __name__ == '__main__':
