@@ -78,7 +78,7 @@ class Cimethod:
         """set the scf object for the dftmrci class object"""
 
         # if scf is not valid, return None
-        if scf is None or scf.__class__.__name__ != 'Scf':
+        if scf is None or scf.__class__.__name__ not in ['Scf', 'PScf']:
             print('Invalid SCF object: '+str(scf))
             return None
 

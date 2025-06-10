@@ -11,6 +11,7 @@ import graci.io.output as output
 import graci.utils.basis as basis
 import graci.utils.rydano as rydano
 import graci.core.molecule as molecule
+import graci.core.pscf as pscf
 import graci.core.scf as scf
 import graci.tools.parameterize as parameterize
 import graci.methods.dftmrci as dftmrci
@@ -500,7 +501,7 @@ def replicate_sections(run_list):
         misc_objs.remove(g_obj)
 
     scf_objs    = [obj for obj in run_list
-                     if type(obj).__name__ in ['Scf','PScf']]
+                     if type(obj).__name__ in params.scf_objs]
     ci_objs     = [obj for obj in run_list
                      if type(obj).__name__ in params.ci_objs]
     postci_objs = [obj for obj in run_list
@@ -623,7 +624,7 @@ def replicate_sections(run_list):
     # if we have any diabatisation runs, then check
     # and, if necessary, disable the propagation of MOs
     new_scf_objs = [obj for obj in new_run_list
-                    if type(obj).__name__ in ['Scf', 'PScf']]
+                    if type(obj).__name__ in params.scf_objs]
     new_ci_objs  = [obj for obj in new_run_list
                     if type(obj).__name__ in params.ci_objs]
     for ci_obj in new_ci_objs:

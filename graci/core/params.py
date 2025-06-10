@@ -234,6 +234,7 @@ parameterize_kword = {'label'          : str,
 # these are the valid computation classes. This is somewhat
 # inartful.
 base_objs    = ['Molecule', 'Rydano', 'Scf', 'PScf', 'Parameterize']
+scf_objs     = ['Scf', 'PScf']
 ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap', 'Dyson']

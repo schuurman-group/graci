@@ -116,7 +116,7 @@ class Ao2mo:
             type_str = 'exact'
 
         libs.lib_func('bitci_int_initialize',
-                ['pyscf', type_str, self.precision_2e, 
+                ['pyscf', type_str, self.precision_2e,
                            self.moint_1e, self.moint_2e_eri])
 
         return
@@ -145,10 +145,10 @@ class Ao2mo:
     def write_integrals(self, int_tensor, precision, file_name):
         """
         write integrals to a Fortran binary file with name
-        file_name 
+        file_name
         """
         f = sp_io.FortranFile(file_name, 'w')
- 
+
         # we will keep records to <= 2GB in order to maintain compatability
         # with FortranFile, as it does not support subrecords for standard
         # compilers
@@ -166,9 +166,9 @@ class Ao2mo:
         rend = int_tensor.shape[0]
 
         # for single precision we want to ensure we do not inadvertently
-        # copy data. So: we create a float32 view, then step through 
-        # every other column index since the data now occupies half the 
-        # space. This would be ::4 if we implement half precision. NOTE: 
+        # copy data. So: we create a float32 view, then step through
+        # every other column index since the data now occupies half the
+        # space. This would be ::4 if we implement half precision. NOTE:
         # the transpose view must be create AFTER float32 view, else
         # scipy/numpy squawks about Fortran ordering
         if precision == 'single':
@@ -179,7 +179,7 @@ class Ao2mo:
                 cend = min((j+1)*cprec, int_tensor.shape[1])
                 f.write_record(print_tensor[j*cprec:cend, 0:rend])
 
-        # double precision straightforward: note that taking transpose 
+        # double precision straightforward: note that taking transpose
         # just creates a new view and no data is copied.
         else:
             out_tensor = int_tensor.T
@@ -205,7 +205,7 @@ class Ao2mo:
 
         if precision == 'single':
             nfp *= 2
-           
+
         nelem = np.prod(tensor_dims)
         nrec  = int(np.ceil(nelem / nfp))
         cpr   = int(np.ceil(tensor_dims[1] / nrec))

@@ -18,6 +18,7 @@ import graci.pdft as pdft
 from pyscf import gto, scf, symm, df ## Density fitting?
 from pyscf.tools import molden
 from pyscf.scf import stability
+from pyscf.dft import nwchem_prune
 
 class PScf:
     """Class constructor for SCF object"""
@@ -304,7 +305,7 @@ class PScf:
             mf.grids.level = self.grid_level
 
             # Must use nwchem_prune, sg1_prune up to Z=19
-            mf.grids.prune = dft.nwchem_prune
+            mf.grids.prune = nwchem_prune
 
         # convergence threshold
         mf.conv_tol = self.conv_tol

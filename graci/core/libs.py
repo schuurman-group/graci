@@ -224,7 +224,7 @@ def lib_load(name):
         # load the appropriate library
         rel_path = '/graci/dep/lib/lib'+str(name)+'.{}'
         path_str = os.environ['GRACI'] + rel_path
-        lib_path = path_str.format('so' if sys.platform != 'darwin' 
+        lib_path = path_str.format('so' if sys.platform != 'darwin'
                                                       else 'dylib')
 
         if not os.path.isfile(lib_path):
@@ -255,17 +255,17 @@ def lib_func(name, args):
         arg_list   = overlap_registry[name]
         arg_intent = overlap_intent[name]
     else:
-        sys.exit('function: '+str(name)+' not found.') 
+        sys.exit('function: '+str(name)+' not found.')
 
     arg_ctype = []
     arg_ptr   = []
     for i in range(len(args)):
-        
+
         # if argument is a string, pad to a length of 255 characters
         if isinstance(args[i], str):
             arg = args[i].ljust(255)
         elif isinstance(args[i], list):
-            arg = [iarg.ljust(255) if isinstance(iarg, str) 
+            arg = [iarg.ljust(255) if isinstance(iarg, str)
                                 else iarg for iarg in args[i]]
         else:
             arg = args[i]
@@ -299,12 +299,12 @@ def lib_func(name, args):
             getattr(lib_objs['overlap'], name)(*arg_ptr)
         else:
             getattr(lib_objs['overlap'], name)()
-            
+
     args_out = ()
     for i in range(len(args)):
         if arg_intent[i] == 'out':
             if isinstance(args[i], list):
-                args_out += (np.ndarray((len(args[i]),), 
+                args_out += (np.ndarray((len(args[i]),),
                           buffer=arg_ctype[i], dtype=arg_list[i]),)
             elif isinstance(args[i], np.ndarray):
                 args_out += (np.ndarray((args[i].size,),
@@ -313,7 +313,7 @@ def lib_func(name, args):
                 args_out += (bytes.decode(arg_ctype[i].value),)
             else:
                 args_out += (arg_ctype[i].value,)
-    
+
     if len(args_out) == 1:
         return args_out[0]
     else:
@@ -321,7 +321,7 @@ def lib_func(name, args):
 
 #
 def lib_exists(name):
-    """check if the library name 'name' exists in 
+    """check if the library name 'name' exists in
        lib_objs dictionary"""
     global lib_objs
 

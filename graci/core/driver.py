@@ -37,7 +37,7 @@ class Driver:
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
                 mol_objs.append(obj)
-            elif type(obj).__name__ in ['Scf','PScf']:
+            elif type(obj).__name__ in params.scf_objs:
                 scf_objs.append(obj)
             elif type(obj).__name__ in params.ci_objs:
                 ci_objs.append(obj)
