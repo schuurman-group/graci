@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
 kwords = {}
+more_colors = mcolors.CSS4_COLORS
 colors = {'blue'  : 'b', 'red' : 'r', 'green': 'g', 'black': 'k',
           'magenta':'m', 'cyan': 'c', 'yellow': 'y'}
-
 
 def main():
 
@@ -48,6 +48,7 @@ def set_defaults():
     kwords['ext_xshft']   = [0]
     kwords['ext_yshft']   = [0]
     kwords['ext_conv']    = [False]
+    kwords['ext_scatter'] = []
     kwords['invertx']     = False
     kwords['inverty']     = False
     kwords['name']        = 'plot'
@@ -214,10 +215,6 @@ def generate_plot(t_ener, t_osc, t_color, t_shft):
         t_osc[lbl] *= nrm_fac
         xval        = t_ener[lbl]
 
-        #plt.stem(xval, t_osc[lbl]+t_shft[lbl], #use_line_collection=True,
-        #               bottom = t_shft[lbl], linefmt = '-'+t_color[lbl],
-        #               markerfmt = " ", basefmt = " ")
-        #plt.plot(xconv[lbl], yconv[lbl]+t_shft[lbl], color=t_color[lbl])
         ml, sl, bl = plt.stem(xval, t_osc[lbl]+t_shft[lbl],
                        bottom = t_shft[lbl], linefmt = '-',
                        markerfmt = " ", basefmt = " ")
@@ -256,17 +253,16 @@ def generate_plot(t_ener, t_osc, t_color, t_shft):
             yconv *= nrm_fac
             y     *= nrm_fac
 
-            #plt.stem(x, y + shft, #use_line_collection=True,
-            #                      bottom = shft,
-            #                      linefmt = '-'+clr,
-            #                      markerfmt = " ", basefmt = " ")
-            #plt.plot(xconv, yconv+shft, color=clr)
             ml, sl, bl = plt.stem(x, y + shft,
                        bottom = shft, linefmt = '-',
                        markerfmt = " ", basefmt = " ")
             plt.setp(sl, 'color', clr)
             plt.plot(xconv, yconv+shft, color=clr)
             lgds.append(lbl.replace('_', ' '))
+        ## Only activate feature if list of bools not empty.
+        #elif (len(kwords['ext_scatter'] > 0) and (kwords['ext_scatter'][iext]):
+        #    y = y * kwords['nrm'] / np.amax(y)
+        #    plt.scatter(x, y, color=clr)
         else:
             y = y * kwords['nrm'] / np.amax(y)
             plt.plot(x, y, color=clr)
