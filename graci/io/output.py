@@ -52,7 +52,7 @@ def print_header(run_list):
              " Authors: Simon Neville and Michael Schuurman        \n"+
              "                                                     \n"+
              " -----------------------------------------------------\n")
-    
+
     inp_key =" Input Parameters \n"
     calc_types = [type(calc_obj).__name__ for calc_obj in run_list]
 
@@ -66,14 +66,14 @@ def print_header(run_list):
             calc_name = type(calc_obj).__name__
             outfile.write('\n $'+calc_name+' section\n ------------\n')
 
-            # if geometry object, we need to pull out the 
+            # if geometry object, we need to pull out the
             # geometry
             if calc_name == 'geometry':
                 gm  = calc_obj.geom()
                 atm = calc_obj.atoms()
 
                 for iatm in range(len(atm)):
-                    cstr = '   '.join(['{:12.8f}'.format(gm[iatm,j]) 
+                    cstr = '   '.join(['{:12.8f}'.format(gm[iatm,j])
                                for j in range(3)])
                     ostr = ' ' + str(atm[iatm]) + cstr
                     outfile.write(ostr+'\n')
@@ -99,7 +99,6 @@ def print_header(run_list):
                            str(calc_obj.comp_sym)+'\n')
                     outfile.write('\n')
                     outfile.flush()
-        
     return
 
 def print_rydano_header(rydano):
@@ -119,7 +118,7 @@ def print_rydano_header(rydano):
         outfile.write('\n\n '+str('*'*LLEN))
         outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
         outfile.write(  '\n '+str(pstr))
-        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')                                   
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
         outfile.write(  '\n '+str('*'*LLEN))
 
         ostr = '\n\n -- Automatic Construction of an ANO basis for ' + \
@@ -135,14 +134,14 @@ def print_rydano_header(rydano):
         outfile.write(ostr)
         outfile.flush()
 
-    return  
+    return
 
 def print_rydano_summary(exps, occ, nos, con_str):
     """print the result of the Rydberg ANO basis construction
 
     Args:
         prims:    the KBJ primitives used in the expansion
-        occ:      the 'occupations' of the NOs 
+        occ:      the 'occupations' of the NOs
         nos:      the contracted ANOs
         contract: the requested contraction to be added to basis
 
@@ -158,36 +157,38 @@ def print_rydano_summary(exps, occ, nos, con_str):
         for l in range(len(exps)):
             ostr += '\n  l = '+str(l)+' | '+ \
                     ''.join(['{:10.6f}'.format(exps[l][i]) \
-                      for i in range(len(exps[l]))])        
+                      for i in range(len(exps[l]))])
 
         ostr += '\n\n Contractions\n ------------'
         for l in range(len(nos)):
             ncon = len(occ[l])
             ostr += '\n\n angular momentum l='+str(l)+'\n'
-            ostr += ' occ:'+' '.join(['{:10.4f}'.format(occ[l][i]) 
+            ostr += ' occ:'+' '.join(['{:10.4f}'.format(occ[l][i])
                                                for i in range(ncon)])
             ostr += '\n '+'-'*(13*ncon+5)+'\n'
             for n in range(nos[l].shape[0]):
                 ostr += '\n     '
-                ostr += ' '.join(['{:10.4f}'.format(nos[l][n,i]) 
+                ostr += ' '.join(['{:10.4f}'.format(nos[l][n,i])
                                                  for i in range(ncon)])
-          
         ostr += '\n\n Contractions to be applied: '+str(con_str)
 
         outfile.write(ostr)
         outfile.flush()
 
     return
- 
+
 #
 def print_scf_header(scf):
-    """print the SCF header"""
+    """print the PSCF/SCF header"""
     global file_names
 
     LLEN = 76
 
+    ttl = {'Scf':'SCF Computation with PySCF, ', 'PScf' : 'PSCF Computation Interfaced to PySCF, '}
+    scf_type = type(scf).__name__
+
     with output_file(file_names['out_file'], 'a+') as outfile:
-        title = 'SCF Computation with PySCF, label = '+str(scf.label)
+        title = ttl[scf_type] + 'label = '+str(scf.label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
         pstr = str('*'.ljust(lpad)+title)
         pstr = pstr.ljust(LLEN-1)+'*'
@@ -195,16 +196,14 @@ def print_scf_header(scf):
         outfile.write('\n\n '+str('*'*LLEN))
         outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
         outfile.write(  '\n '+str(pstr))
-        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')                                   
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
         outfile.write(  '\n '+str('*'*LLEN))
 
         if scf.restart:
             outfile.write('\n\n **** RESTART ACTIVATED ****\n\n')
             outfile.write(' Extracting SCF result from checkpoint file:'
                           + str(file_names['chkpt_file'])+'\n\n')
-        
         outfile.flush()
-      
     return
 
 #
@@ -244,7 +243,7 @@ def print_dftmrci_header(label):
     global file_names
 
     LLEN = 76
-    
+
     with output_file(file_names['out_file'], 'a+') as outfile:
         title = 'DFT/MRCI computation, label = '+str(label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
@@ -254,7 +253,7 @@ def print_dftmrci_header(label):
         outfile.write('\n\n '+str('*'*LLEN))
         outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
         outfile.write(  '\n '+str(pstr))
-        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')                                   
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
         outfile.write(  '\n '+str('*'*LLEN))
         outfile.flush()
 
@@ -305,7 +304,7 @@ def print_refdiag_summary(ci_method):
         outfile.write('\n -------------------------')
 
         fmat = '\n {:<3d} {:3} {:10.6f} {:10.6f}'
-        
+
         for i in ci_method.irreps_nonzero():
             outfile.write('\n')
             for n in range(ci_method.n_states_sym(i)):
@@ -316,7 +315,7 @@ def print_refdiag_summary(ci_method):
                 outfile.flush()
 
         outfile.write('\n')
-                
+
     return
 
 #
@@ -347,7 +346,7 @@ def print_dftmrci_states_header(prune):
     title = 'DFT/MRCI Eigenstates'
     if prune:
         title = 'p-'+title
-    
+
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n '+title+'\n')
         outfile.write(' -------------------------------')
@@ -362,7 +361,7 @@ def print_dftmrci2_states_header():
         outfile.write('\n DFT/MRCI(2) Eigenstates\n')
         outfile.write(' -------------------------------')
         outfile.flush()
-        
+
 #
 def print_cleanup():
     """shutdown the timers and print timing information"""
@@ -373,7 +372,7 @@ def print_cleanup():
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write(ostr)
         outfile.flush()
-        
+
     return
 
 #
@@ -430,7 +429,7 @@ def print_moments(states, irr, momts):
             mu     = np.linalg.norm(mu_vec)*constants.au2debye
 
             ostr = '\n {:8s} {:10.6f} {:10.6f} {:10.6f}    {:10.6f}'
-            outfile.write(ostr.format(st_str.rjust(8), mu_vec[0], 
+            outfile.write(ostr.format(st_str.rjust(8), mu_vec[0],
                                       mu_vec[1], mu_vec[2], mu))
 
         ostr =      '\n\n Quadrupole Moments'
@@ -439,10 +438,10 @@ def print_moments(states, irr, momts):
         ostr =  '\n\n All quadrupole tensor elements are given in a.u.'
         ostr += '\n Qij is traceless: Qij = 3rirj - r^2 * delta[i,j]'
         outfile.write(ostr)
-        ostr = '\n\n {:8s} {:9s} {:9s} {:9s} {:9s} {:9s} {:9s} {:9s}' 
-        outfile.write(ostr.format('state'.rjust(8), 'xx  '.rjust(9), 
-                                  'xy  '.rjust(9),  'xz  '.rjust(9), 
-                                  'yy  '.rjust(9),  'yz  '.rjust(9), 
+        ostr = '\n\n {:8s} {:9s} {:9s} {:9s} {:9s} {:9s} {:9s} {:9s}'
+        outfile.write(ostr.format('state'.rjust(8), 'xx  '.rjust(9),
+                                  'xy  '.rjust(9),  'xz  '.rjust(9),
+                                  'yy  '.rjust(9),  'yz  '.rjust(9),
                                   'zz  '.rjust(9),  'r^2 '.rjust(9)))
 
         for ist in range(len(states)):
@@ -451,14 +450,14 @@ def print_moments(states, irr, momts):
             q2     = momts.second_moment(states[ist])
 
             ostr = '\n {:8s} {:9.4f} {:9.4f} {:9.4f} {:9.4f} {:9.4f} {:9.4f} {:9.4f}'
-            outfile.write(ostr.format(st_str.rjust(8), q_tens[0,0], 
+            outfile.write(ostr.format(st_str.rjust(8), q_tens[0,0],
                                       q_tens[0,1], q_tens[0,2],
                                       q_tens[1,1], q_tens[1,2],
                                       q_tens[2,2], q2))
 
     outfile.write('\n')
     outfile.flush()
-            
+
     return
 
 #
@@ -483,13 +482,13 @@ def print_transition_header(label):
     return
 
 #
-def print_transition_table(init_st, init_sym, final_st, final_sym, 
+def print_transition_table(init_st, init_sym, final_st, final_sym,
                            exc_ener, f0l, f2l, f0v, f2v, f0xyz, mu,
-                           promo, rep): 
+                           promo, rep):
     """print out the summary files for the transition moments"""
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        # print a table of oscillator strengths and transition 
+        # print a table of oscillator strengths and transition
         # dipole vectors
 
         fstr = '\n\n Transitions, initial state = {:3d}({:>3})'
@@ -499,7 +498,7 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
 
         header  = '\n\n  Initial     Final    Exc Ener                  '
         header += '             Transition Dipole      '
-        
+
         if len(promo) == len(final_st):
             header+= '    Promotion Numbers\n'
 
@@ -512,20 +511,20 @@ def print_transition_table(init_st, init_sym, final_st, final_sym,
 
         fstr   = '\n {:3d}({:>3}) -> {:3d}({:>3}) {:7.2f}'+ \
             ' '+3*'{:9.4f}'+'  '+3*'{:9.4f}'+' {:8.4f}   {:8.4f}'
-                
+
         outfile.write(header)
         outfile.write('\n '+undr_str)
         outfile.write('\n')
-        
+
         for i in range(len(final_st)):
             outfile.write(fstr.format(
                 init_st,
                 init_sym,
                 final_st[i],
                 final_sym[i],
-                exc_ener[i]*constants.au2ev, 
-                f0l[i], 
-                f0v[i], 
+                exc_ener[i]*constants.au2ev,
+                f0l[i],
+                f0v[i],
                 f2v[i],
                 *mu[i][:],
                 *promo[i]))
@@ -978,16 +977,16 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
 
         n = 0
         for mol,st in target.items():
-            n += len(target[mol].keys())        
+            n += len(target[mol].keys())
 
         err  = np.zeros((2, n), dtype=float)
         n    = 0
         for molecule, states in target.items():
             for trans, ener in target[molecule].items():
                 init, final  = trans.strip().split()
-                exc_i = (init_ener[molecule][final] - 
+                exc_i = (init_ener[molecule][final] -
                                init_ener[molecule][init]) * au_ev
-                exc_f = (final_ener[molecule][final] - 
+                exc_f = (final_ener[molecule][final] -
                                final_ener[molecule][init]) * au_ev
                 err_i = exc_i - ener
                 err_f = exc_f - ener
@@ -995,18 +994,18 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
                 (err[0,n], err[1,n]) = (err_i, err_f)
 
                 n       += 1
-                outfile.write(fstr.format(molecule, init, final, ener, 
+                outfile.write(fstr.format(molecule, init, final, ener,
                             exc_i, exc_f, err_f, abs(err_f)-abs(err_i)))
 
-        mae   = [ np.sum(np.absolute(err[i,:])) / n 
+        mae   = [ np.sum(np.absolute(err[i,:])) / n
                                                       for i in range(2)]
-        rmsd  = [ np.sqrt(np.dot(err[i,:], err[i,:]) / n) 
-                                                      for i in range(2)] 
+        rmsd  = [ np.sqrt(np.dot(err[i,:], err[i,:]) / n)
+                                                      for i in range(2)]
         maxe  = [ err[i, np.argmax( np.absolute( err[i,:]))]
                                                       for i in range(2)]
         mean  = [ np.sum(err[i,:]) / n for i in range(2)]
-        stdev = [ np.sqrt( np.dot( err[i,:] - mean[i], 
-                                   err[i,:] - mean[i] ) / n) 
+        stdev = [ np.sqrt( np.dot( err[i,:] - mean[i],
+                                   err[i,:] - mean[i] ) / n)
                                                       for i in range(2)]
 
         outfile.write('\n'+'-'*(86))
@@ -1035,7 +1034,7 @@ def print_param_analysis(p_vals, target, eners):
         estr = '\n {:<52s} {:10.5f}'
 
         outfile.write(tstr.format('Molecule', 'istate', 'fstate',
-                                  'Reference', 'Computed', 
+                                  'Reference', 'Computed',
                                   '\u0394[Energy]'))
 
         au_ev = constants.au2ev
@@ -1100,12 +1099,12 @@ def print_diabpot(diabpot, nroots, nirr, irrlbl):
     # table header
     print('\n'+delim, flush=True)
     print('  Diabatic potential matrix elements', flush=True)
-    
+
     # loop over irreps
     for irr in range(nirr):
         if nroots[irr] == 0:
             continue
-        
+
         # sub-table header
         print(delim, flush=True)
         print('  '+irrlbl[irr]+' block', flush=True)
@@ -1116,7 +1115,7 @@ def print_diabpot(diabpot, nroots, nirr, irrlbl):
             for j in range(i,nroots[irr]):
                 print(fstr.format(i+1, j+1, diabpot[irr][i,j]),
                       flush=True)
-                
+
     # table footer
     print(delim, flush=True)
 
@@ -1135,7 +1134,6 @@ def print_coords(crds, asym):
                           crds[i,1],
                           crds[i,2]),
               flush=True)
-    
     return
 
 def print_hamiltonian(hamiltonian):
@@ -1162,7 +1160,7 @@ def print_hamiltonian(hamiltonian):
         info += '\n\n Reference: ' + hamiltonians.references[hamiltonian]
     except:
         pass
-    
+
     print(info, flush=True)
 
     return

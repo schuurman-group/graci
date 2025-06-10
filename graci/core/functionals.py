@@ -3,6 +3,8 @@ XC functional aliases
 """
 
 aliases = {
-    'bhlyp' : 'bhandhlyp',
-    'qtp17' : 'hyb_gga_xc_qtp17'
+    'bhlyp' : 'HYB_GGA_XC_BHANDHLYP',
+    'qtp17' : 'HYB_GGA_XC_QTP17',
+    'tpss0' : 'HYB_MGGA_XC_TPSS0',
+    'pbe0'  : 'HYB_GGA_XC_PBEH',
 }

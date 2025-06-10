@@ -2,7 +2,7 @@
 
 import sys
 import re as re
-import numpy as np 
+import numpy as np
 import h5py as h5py
 import graci.utils.constants as constants
 import graci.core.params as params
@@ -34,22 +34,22 @@ def parse_input():
 
     # check for invalid sections
     check_sections(input_file)
-        
+
     run_list = []
     for obj_name in params.valid_objs:
 
         # parse all section keywords
-        run_list.extend(parse_section(obj_name, 
+        run_list.extend(parse_section(obj_name,
                                       input_file))
 
     # check for multiple-geometry molecule sections
     # and create all required replicate class objects
     # if any are found
     run_list = replicate_sections(run_list)
-    
+
     # check the input
     check_input(run_list)
- 
+
     return run_list
 
 #
@@ -91,15 +91,14 @@ def parse_section(class_name, input_file):
 
                 if '$end' in input_file[iline] or iline == nlines-1:
                     # if we hit end of section, or end of file,
-                    # add object to return list and continue parsing 
+                    # add object to return list and continue parsing
                     # the input
 
                     # if this is molecule section and we're exiting,
                     # set the cart/atm arrays to the cart/atom lists.
-                    # Molecule will check it when run() is called. 
+                    # Molecule will check it when run() is called.
                     if class_name == 'Molecule':
                         sec_obj.set_geometry(atom, cart)
-                            
 
                     section_objs.extend([sec_obj])
                     break
@@ -120,14 +119,14 @@ def parse_section(class_name, input_file):
                     else:
                         sys.exit('Invalid keyword found in a $' \
                                  +mod_name+' section'': '+kword)
-                        
+
                 elif class_name == 'Molecule' and \
                         len(input_file[iline].strip()) > 0:
                     # try to interpret as a cartesian atom definition
 
                     line = input_file[iline].split()
 
-                    # if line is length 4 and comprised of one string 
+                    # if line is length 4 and comprised of one string
                     # followed by 3 numbers, we'll take it for now and
                     # check it later
                     if len(line) == 4:
@@ -135,7 +134,7 @@ def parse_section(class_name, input_file):
                         if crds.dtype==int or crds.dtype==float:
                             cart.append(crds.tolist())
                             atom.append(line[0])
-                        
+
                 # iterate section loop
                 iline += 1
 
@@ -373,7 +372,7 @@ def check_input(run_list):
             # by 1 to internal ordering
             for i in range(len(obj.couple_states)):
                 obj.couple_states[i] -= 1
-                 
+
         # init/final_states and i/fstate_array need to be lists, also:
         # internal state ordering is 0->n-1, vs. 1->n for input
         if type(obj).__name__ == 'Transition' \
@@ -386,7 +385,7 @@ def check_input(run_list):
                     obj.final_states = np.array([obj.final_states])
             # shift statesby 1 to internal/C ordering
             obj.init_states  -= 1
-            obj.final_states -= 1            
+            obj.final_states -= 1
 
         if type(obj).__name__ == 'Overlap':
             if obj.bra_states is not None:
@@ -457,7 +456,7 @@ def convert_array(arg_list):
         if set(arg).issubset(set(['TRUE','true','True',
                                             'FALSE','false','False'])):
             try:
-                arr = np.array([argi.capitalize() 
+                arr = np.array([argi.capitalize()
                                          for argi in arg]).astype(bool)
                 new_list.append(arr)
                 continue
@@ -473,7 +472,7 @@ def convert_array(arg_list):
         return new_list[0]
     else:
         return new_list
-    
+
 #
 def replicate_sections(run_list):
     """
@@ -488,7 +487,7 @@ def replicate_sections(run_list):
                      if type(obj).__name__ == 'Molecule']
     if True not in set([obj.multi_geom for obj in mol_objs]):
         return run_list
-    
+
     # initialise the new list of class objects to run
     new_run_list = []
 
@@ -497,11 +496,11 @@ def replicate_sections(run_list):
     misc_objs   = params.valid_objs
     for g_obj in params.ci_objs + params.postci_objs + params.si_objs:
         misc_objs.remove(g_obj)
-    for g_obj in ['Molecule','Scf','Parameterize']:
+    for g_obj in ['Molecule','Scf', 'PScf','Parameterize']:
         misc_objs.remove(g_obj)
 
     scf_objs    = [obj for obj in run_list
-                     if type(obj).__name__ == 'Scf']
+                     if type(obj).__name__ in ['Scf','PScf']]
     ci_objs     = [obj for obj in run_list
                      if type(obj).__name__ in params.ci_objs]
     postci_objs = [obj for obj in run_list
@@ -542,7 +541,7 @@ def replicate_sections(run_list):
 
         if mol.multi_geom:
             # Create replicate objects for all geometries
-            
+
             # read the complete set of Cartestian coordinates
             # from the xyz file
             coords = parse_all_geoms(mol)
@@ -557,7 +556,7 @@ def replicate_sections(run_list):
                 new_mol.label = mol.label+str(i+1)
                 new_mol.crds  = 1. * coords[i]
                 new_run_list.append(new_mol)
-                
+
                 # scf object(s)
                 for scf in scf_list:
                     new_scf           = scf.copy()
@@ -566,7 +565,7 @@ def replicate_sections(run_list):
                     if i > 0 and False:
                         new_scf.guess_label = scf.label+str(i)
                     new_run_list.append(new_scf)
-                    
+
                 # ci object(s)
                 for ci in ci_list:
                     new_ci           = ci.copy()
@@ -590,7 +589,7 @@ def replicate_sections(run_list):
                     new_postci.couple_groups = [lbl+str(i+1)
                                                 for lbl in postci.couple_groups]
                     new_run_list.append(new_postci)
-                    
+
                 # si object(s)
                 for si in si_list:
                     new_si             = si.copy()
@@ -600,7 +599,7 @@ def replicate_sections(run_list):
                     if new_si.representation == 'diabatic' and i == 0:
                         new_si.representation = 'adiabatic'
                     new_run_list.append(new_si)
-                    
+
         else:
             # add the single-geometry objects to the list
             new_run_list.append(mol)
@@ -619,12 +618,12 @@ def replicate_sections(run_list):
 
     # might want to re-think this a bit...
     for hparam in hparam_objs:
-        new_run_list.append(hparam)                
+        new_run_list.append(hparam)
 
     # if we have any diabatisation runs, then check
     # and, if necessary, disable the propagation of MOs
     new_scf_objs = [obj for obj in new_run_list
-                    if type(obj).__name__ == 'Scf']
+                    if type(obj).__name__ in ['Scf', 'PScf']]
     new_ci_objs  = [obj for obj in new_run_list
                     if type(obj).__name__ in params.ci_objs]
     for ci_obj in new_ci_objs:
@@ -635,7 +634,7 @@ def replicate_sections(run_list):
                 scf_obj.guess_label = None
         except:
             pass
-    
+
     return new_run_list
 
 #
@@ -647,14 +646,14 @@ def parse_all_geoms(mol):
     # parse the xyz file
     with open(mol.xyz_file, 'r') as xyzfile:
         xyz = xyzfile.readlines()
-        
+
     # remove the leading no. atom and blank lines
     xyz_clean = [string.split() for string in xyz
                 if string.split() != []
                  and len(string.split()) != 1]
     n_atm  = len(mol.crds)
     n_geom = int(len(xyz_clean) / n_atm)
-    
+
     # get the array of nuclear geometries
     coords = np.array([float(xx)
                        for x in xyz_clean

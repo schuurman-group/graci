@@ -18,12 +18,12 @@ def main():
     # read command line options
     read_cmdline()
 
-    # parse input, construct list of objects and 
+    # parse input, construct list of objects and
     # put them in obj_array
     obj_array = parse.parse_input()
-  
+
     # build and run computation
-    graci_driver = driver.Driver()    
+    graci_driver = driver.Driver()
     graci_driver.run(obj_array)
 
     # cleanup
@@ -45,7 +45,7 @@ def read_cmdline():
     if '-o' in sys.argv:
         out_file = sys.argv[sys.argv.index('-o')+1].strip()
     else:
-        out_file   = None 
+        out_file   = None
         #out_file  = job_stub+'.out'
 
     if '-nproc' in sys.argv:
@@ -59,7 +59,6 @@ def read_cmdline():
     return
 
 if __name__ == '__main__':
-    
     # run the main routine
     main()
 

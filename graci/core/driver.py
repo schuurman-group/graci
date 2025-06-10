@@ -37,7 +37,7 @@ class Driver:
             # identify the geometries in the run_list
             if type(obj).__name__ == 'Molecule':
                 mol_objs.append(obj)
-            elif type(obj).__name__ == 'Scf':
+            elif type(obj).__name__ in ['Scf','PScf']:
                 scf_objs.append(obj)
             elif type(obj).__name__ in params.ci_objs:
                 ci_objs.append(obj)
@@ -47,8 +47,8 @@ class Driver:
                 si_objs.append(obj)
             elif type(obj).__name__ == 'Parameterize':
                 param_objs.append(obj)
-        
-        # Sanity check that sections of the same type have 
+
+        # Sanity check that sections of the same type have
         # distinct label identifiers
         #-----------------------------------------------------
         self.check_labels(mol_objs)
@@ -56,7 +56,7 @@ class Driver:
         self.check_labels(ci_objs)
         self.check_labels(postci_objs)
         self.check_labels(si_objs)
-        
+
         # Load required libraries
         #-----------------------------------------------------
         # for now, assume postscf will require the bitci and
@@ -64,12 +64,12 @@ class Driver:
         if len(ci_objs) or len(param_objs) > 0:
             libs.lib_load('bitci')
             libs.lib_load('overlap')
-            
+
         if len(si_objs) or len(postci_objs) or len(param_objs) > 0:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')
 
-        # Generate PySCF objects 
+        # Generate PySCF objects
         # ----------------------------------------------------
         # generate the pyscf GTO Mole objects
         for mol_obj in mol_objs:
@@ -88,7 +88,7 @@ class Driver:
             if mol_obj.add_rydberg is not None:
                 mol_obj = self.modify_basis(calc_array, mol_obj)
 
-        # SCF Sections 
+        # SCF Sections
         # -----------------------------------------------------
         # match scf objects to molecule objects
         for scf_obj in scf_objs:
@@ -100,14 +100,15 @@ class Driver:
                 # this should be changed: we should only set
                 # scf_obj to the object read from the chkpt file
                 # after we've confirmed they're the same..
-                scf_load = chkpt.read('Scf.' + scf_obj.label, 
+                name = type(scf_obj).__name__ #'Scf' or 'PScf'
+                scf_load = chkpt.read(name + '.' + scf_obj.label,
                                       build_subobj = True,
                                       make_mol = True)
-                
+
                 if scf_load is None:
-                    sys.exit('Cannot restart Scf, section = Scf.' + 
-                              str(scf_obj.label) + 
-                             ' not found in chkpt file = ' + 
+                    sys.exit(f'Cannot restart Scf, section = {name}.' +
+                              str(scf_obj.label) +
+                             ' not found in chkpt file = ' +
                               str(output.file_names['chkpt_file']))
 
                 # evidence that this is imperfect:
@@ -121,13 +122,13 @@ class Driver:
                 # (required in case this scf object is going to be
                 # used as the guess for another)
                 scf_objs[scf_objs.index(scf_obj)] = scf_load.copy()
-                
+
             # else assign molecule object and call run() routine
             else:
 
                 # grab the corresponding molecule section
                 mol_obj = self.match_sections(scf_obj.mol_label,'label',
-                                              mol_objs, match_all=False) 
+                                              mol_objs, match_all=False)
 
                 # if we can't match a mol object, exit
                 if mol_obj is None:
@@ -137,8 +138,8 @@ class Driver:
                     sys.exit(1)
 
                 # guess SCF object
-                scf_guess = self.match_sections(scf_obj.guess_label, 
-                                                'label', scf_objs, 
+                scf_guess = self.match_sections(scf_obj.guess_label,
+                                                'label', scf_objs,
                                                  match_all=False)
 
                 # run the SCF calculation
@@ -147,18 +148,18 @@ class Driver:
                     ostr = scf_obj.label+': SCF did not converge'
                     output.print_message(ostr)
                     sys.exit(1)
-                
+
                 # write scf object to checkpoint file
                 if save_to_chkpt:
                     chkpt.write(scf_obj)
 
-            # CI Sections 
+            # CI Sections
             #-----------------------------------------------------
             # run all the post-scf routines that map to the current
             # scf object.
             # if there is a single scf object, ignore labels
-            ci_calcs = self.match_sections(scf_obj.label, 
-                                          'scf_label', ci_objs, 
+            ci_calcs = self.match_sections(scf_obj.label,
+                                          'scf_label', ci_objs,
                                            match_all=True)
             eri_mo   = ao2mo.Ao2mo()
             for ci_calc in ci_calcs:
@@ -177,17 +178,17 @@ class Driver:
                 #ci_calc.update_eri(eri_mo = eri_mo)
 
                 # guess CI object
-                ci_guess = self.match_sections(ci_calc.guess_label, 
-                                               'label', ci_objs, 
+                ci_guess = self.match_sections(ci_calc.guess_label,
+                                               'label', ci_objs,
                                                 match_all=False)
-               
+
                 ci_calc.run(scf_obj, ci_guess, mo_ints = eri_mo)
                 chkpt.write(ci_calc)
 
-        # All SCF + CI objects are created and run() called before 
+        # All SCF + CI objects are created and run() called before
         # PostCI and subsequently SI objects are run()
 
-        # PostCI Sections 
+        # PostCI Sections
         # -- these can take ci_objects as arguments
         # ----------------------------------------------------
         for postci_obj in postci_objs:
@@ -202,8 +203,8 @@ class Driver:
         #    ...but expect exactly two arguments: a bra object and
         #    a ket object
         #------------------------------------------------------------
-        for si_obj in si_objs:            
-            [bra, ket] = self.get_postscf_objs(si_obj, 
+        for si_obj in si_objs:
+            [bra, ket] = self.get_postscf_objs(si_obj,
                                                ci_objs + postci_objs)
             si_obj.run(bra, ket)
             if save_to_chkpt:
@@ -216,7 +217,7 @@ class Driver:
             param_obj.run()
 
         return
- 
+
     #
     def match_sections(self, label, sec_lbl, sec_lst, match_all=False):
         """Match the sections in sec_lst that have the variable 
@@ -251,7 +252,7 @@ class Driver:
                     str(label)+': '+str([sec.label for sec in secs]))
             sys.exit(1)
 
-        # if we still don't have any matches, return None 
+        # if we still don't have any matches, return None
         if len(secs) == 0:
             secs = [None]
 
@@ -260,7 +261,7 @@ class Driver:
         else:
             return secs[0]
 
-    # 
+    #
     def check_labels(self, obj_lst):
         """Check that each label in object list is unique
 
@@ -272,7 +273,7 @@ class Driver:
         """
 
         if len(obj_lst) == 0:
-            return 
+            return
 
         lbls = [obj.label for obj in obj_lst]
         uniq = list(set(lbls))

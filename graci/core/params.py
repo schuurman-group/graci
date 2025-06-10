@@ -48,6 +48,29 @@ scf_kword      = {'xc'             : str,
                   'guess_label'    : str,
                   'label'          : str}
 
+# PDFT section input keywords and data types
+pscf_kword      = {'xc'             : str,
+                  'ex_proj'        : float,
+                  'ext_basis'      : str,
+                  'restart'        : bool,
+                  'print_orbitals' : bool,
+                  'verbose'        : bool,
+                  'charge'         : int,
+                  'mult'           : int,
+                  'max_iter'       : int,
+                  'init_guess'     : str,
+                  'diag_method'    : str,
+                  'diis_start'     : int,
+                  'diis_space'     : int,
+                  'lvl_shift'      : float,
+                  'grid_level'     : int,
+                  'damp_fac'       : float,
+                  'chk_stable'     : bool,
+                  'conv_tol'       : float,
+                  'mol_label'      : str,
+                  'guess_label'    : str,
+                  'label'          : str}
+
 # MRCI section input keywords and data types
 dftmrci_kword  = {'mult'           : int,
                   'charge'         : int,
@@ -210,7 +233,7 @@ parameterize_kword = {'label'          : str,
 
 # these are the valid computation classes. This is somewhat
 # inartful.
-base_objs    = ['Molecule', 'Rydano', 'Scf', 'Parameterize']
+base_objs    = ['Molecule', 'Rydano', 'Scf', 'PScf', 'Parameterize']
 ci_objs      = ['Dftmrci', 'Dftmrci2']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap', 'Dyson']
@@ -227,6 +250,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Rydano'       : rydano_kword,
           'Parameterize' : parameterize_kword,
           'Scf'          : scf_kword,
+          'PScf'         : pscf_kword,
           'Dftmrci'      : dftmrci_kword,
           'Dftmrci2'     : dftmrci2_kword,
           'Spinorbit'    : spinorbit_kword,

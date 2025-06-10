@@ -9,8 +9,10 @@ import h5py as h5py
 import numpy as np
 import struct as struct
 import json as json
+import graci.pdft as pdft
 import graci.core.params as params
 import graci.core.molecule as molecule
+import graci.core.pscf as pscf
 import graci.core.scf as scf
 import graci.core.bitciwfn as bitciwfn
 import graci.tools.parameterize as parameterize
