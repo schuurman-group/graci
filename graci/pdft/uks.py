@@ -21,6 +21,7 @@ Non-relativistic Unrestricted Projected Kohn-Sham
 '''
 
 import numpy
+from functools import reduce
 from pyscf import lib
 from pyscf.lib import logger
 from pyscf.scf import uhf
@@ -33,6 +34,9 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     '''
     if mol is None: mol = ks.mol
     if dm is None: dm = ks.make_rdm1()
+    ext_basis = ks.ext_basis
+    #t0 = (time.clock(), time.time())
+
     if not isinstance(dm, numpy.ndarray):
         dm = numpy.asarray(dm)
     if dm.ndim == 2:  # RHF DM
@@ -42,12 +46,11 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     # Projection
     if ks._SQQS is None:
         ks._build_proj() ## sets ks.SQQS object
-    SQ = ks._SQQS[0];QS = ks._SQQS[1]
+    SQ = ks._SQQS[0]; QS = ks._SQQS[1]
     pdm = numpy.zeros(dm.shape)
     for i in range(dm.shape[0]):
-      pdm[i] = numpy.einsum('ik,kj->ij',QS,numpy.einsum('ik,kj->ij',dm[i],SQ))
-
-    #t0 = (time.clock(), time.time())
+      #pdm[i] = numpy.einsum('ik,kj->ij', QS, numpy.einsum('ik,kj->ij',dm[i],SQ))
+      pdm[i] = reduce(numpy.dot, (QS,dm[i],SQ))
 
     if ks.grids.coords is None:
         ks.grids.build(with_non0tab=True)
@@ -69,11 +72,21 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
         n, exc, vxc = (0,0), 0, 0
     else:
         max_memory = ks.max_memory - lib.current_memory()[0]
+        ## Regular XC contributions.
+        ##        i.e., vxc excludes fraction of EEX.
         n, exc, vxc = ni.nr_uks(mol, ks.grids, ks.xc, dm, max_memory=max_memory)
 
-        if(abs(ks.phyb)>1e-10): # projected semilocal XC
-          np, excp, vxcp0 = ni.nr_uks(mol, ks.grids, ks.xc, pdm, max_memory=max_memory)
-          #print('N, NP, EXC, EXCP',n,np,exc,excp)
+        if(abs(ks.phyb)>1e-10):
+          pxc = ks.xc
+
+          #### Identify XC functional components
+          if ks.xcstr is not None:
+              px, pc = ks.xcstr
+          else:
+              px = pxc
+
+          ## Projected VXC in Projected RDM1.
+          np, excp, vxcp0 = ni.nr_uks(mol, ks.grids, px, pdm, max_memory=max_memory)
           vxcp= numpy.zeros(vxc.shape)
           for i in range(vxc.shape[0]):
             vxcp[i] = numpy.einsum('ik,kj->ij',SQ,numpy.einsum('ik,kj->ij',vxcp0[i],QS))
@@ -100,7 +113,7 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
       vxxp0 = ks.get_k(mol,pdm,hermi)
       for i in range(vxc.shape[0]):
         #vxxp0 = numpy.zeros(ks.SQ.shape)
-        vxxp  = numpy.einsum('ik,kj->ij',SQ,numpy.einsum('ik,kj->ij',vxxp0[i],QS))
+        vxxp  = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vxxp0[i], QS))
         exxp  = numpy.einsum('ij,ji', pdm[i], vxxp0[i]).real * .5
 
         ## Version 1
@@ -152,9 +165,8 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
                   vklrp0 *= (alpha - hyb)
                   #vkp0 += vklrp0
                   vkp0 = vklrp0
-                  vk[i] -= ks.phyb*numpy.einsum('ik,kj->ij',SQ,numpy.einsum('ik,kj->ij',vkp0,QS))
-
-
+                  vkp = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vkp0, QS))
+                  vk[i] -= ks.phyb * vkp
         vxc += vj - vk
 
         if ground_state:
@@ -226,9 +238,9 @@ def energy_elec(ks, dm=None, h1e=None, vhf=None):
 class UKS(rks.KohnShamPDFT, uhf.UHF):
     '''Unrestricted Kohn-Sham
     See pyscf/dft/rks.py RKS class for document of the attributes'''
-    def __init__(self, mol, xc='LDA,VWN',paos=None,phyb=0, rew=None, allc=0, ext_basis = '3-21G'):
+    def __init__(self, mol,  xc='LDA,VWN', phyb=0, paos=None, ext_basis='3-21G', use_ext_basis = True):
         uhf.UHF.__init__(self, mol)
-        rks.KohnShamPDFT.__init__(self, xc,paos,phyb,rew,allc,ext_basis)
+        rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
 
     def dump_flags(self, verbose=None):
         uhf.UHF.dump_flags(self, verbose)

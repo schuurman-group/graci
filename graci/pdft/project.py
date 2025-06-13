@@ -75,7 +75,8 @@ def _assign_core_aos_by_label(obj):
         atm_id = int(tpl[0])
         atm_Z = mol.atom_charge(atm_id)
         core_ao_defn = {'row1':('1s'), 'row2':('1s','2s','2p'), 'row3':('1s','2s','2p','3s','3p')}
-        if atm_Z > 2:
+        #if atm_Z > 2:
+        if atm_Z > 0:
             if ao_type in core_ao_defn['row1']:
                 core_ao_dict[atm_id] = [elemnt, atm_Z, ao_type]
                 core_aos.append(iao)

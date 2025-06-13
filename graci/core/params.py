@@ -67,6 +67,7 @@ pscf_kword      = {'xc'             : str,
                   'damp_fac'       : float,
                   'chk_stable'     : bool,
                   'conv_tol'       : float,
+                  'x2c'            : bool,
                   'mol_label'      : str,
                   'guess_label'    : str,
                   'label'          : str}

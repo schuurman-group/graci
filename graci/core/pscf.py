@@ -42,7 +42,7 @@ class PScf:
         self.mult           = 0
         self.charge         = 0
         self.grid_level     = 2
-#        self.x2c            = False
+        self.x2c            = False
         self.conv_tol       = 1e-8
 #        self.cosmo          = False
 #        self.solvent        = None
@@ -279,6 +279,11 @@ class PScf:
         else:
             method_str = 'RO'+method_str
 
+        if self.x2c:
+            rel_str = '.x2c()'
+        else:
+            rel_str = ''
+
         if self.mol.use_df:
             df_str = '.density_fit(auxbasis = self.mol.ri_basis)'
         else:
@@ -290,7 +295,7 @@ class PScf:
             diag_str = ''
 
         func_str = class_str+'.'+method_str \
-                 +'(pymol)' + diag_str + df_str
+                 +'(pymol)' + rel_str + diag_str + df_str
 
         # instantiate the scf/dft class object
         mf = eval(func_str)

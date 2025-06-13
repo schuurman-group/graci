@@ -202,7 +202,6 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
                 vkp = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vkp0, QS))
                 vk -= ks.phyb * vkp
         vxc += vj - (vk * .5)
-        #print("added vj - hyb * vk to vxc.\n")
 
         if ground_state:
             exc -= numpy.einsum('ij,ji', dm, vk).real * .5 * .5
