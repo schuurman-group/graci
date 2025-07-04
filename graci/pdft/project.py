@@ -9,6 +9,15 @@ from pyscf import lib
 import pylibxc as libxc
 from scipy import linalg
 
+def convert_to_spin_basis(S):
+    #ex: S_ao = mol.intor('int1e_ovlp')  # Shape: (N, N)
+    # Identity in spin space (2x2)
+    I_spin = np.eye(2)
+
+    # Kronecker product to build spin-orbital basis
+    S_spin = np.kron(I_spin, S)  # Shape: (2N, 2N)
+    return S_spin
+
 def assign_core_aos(obj):
     '''
     Function to define the subset of core atomic orbitals.
@@ -166,7 +175,7 @@ def build_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
     '''
     ## Call up variables.
     M = mydft.mol
-    S = mydft.get_ovlp()
+    S = M.intor_symmetric('int1e_ovlp') #mydft.get_ovlp()
     SM = linalg.inv(S)
     N = M.nao           # total number of aos
 

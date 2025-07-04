@@ -7,4 +7,5 @@ aliases = {
     'qtp17' : 'HYB_GGA_XC_QTP17',
     'tpss0' : 'HYB_MGGA_XC_TPSS0',
     'pbe0'  : 'HYB_GGA_XC_PBEH',
+    'cam_b3lyp': 'HYB_GGA_XC_CAM_B3LYP'
 }

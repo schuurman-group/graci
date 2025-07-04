@@ -19,7 +19,7 @@ class Cimethod:
         # user defined quanties
         self.charge         = 0
         self.mult           = None
-        self.nstates        = None 
+        self.nstates        = None
         self.print_orbitals = False
         self.save_wf        = False
         self.wf_thresh      = 1.
@@ -36,8 +36,8 @@ class Cimethod:
         # total number of electrons
         self.nel            = 0
         # SCF object
-        self.scf            = None 
-        # reference occupation 
+        self.scf            = None
+        # reference occupation
         self.ref_occ        = None
         # Energies, by adiabatic state
         self.energies       = None
@@ -63,7 +63,7 @@ class Cimethod:
         self.adt            = None
         # Diabatic potential matrices (one per irrep)
         self.diabpot        = None
-        # mos 
+        # mos
         self.mos            = None
         # number of MOs in CSF expansions
         self.nmo            = None
@@ -106,12 +106,12 @@ class Cimethod:
             nopen = self.mult - 1
             nclsd = int(0.5 * (self.nel - nopen))
             if 2*nclsd + nopen != self.nel:
-                sys.exit('Inconsistent charge='+str(self.charge)+ 
+                sys.exit('Inconsistent charge='+str(self.charge)+
                                       ' / multp='+str(self.mult))
             self.ref_occ = np.zeros(self.nmo, dtype=float)
             self.ref_occ[:nclsd]            = 2.
             self.ref_occ[nclsd:nclsd+nopen] = 1.
-        
+
         return self.scf.energy
 
     #
@@ -130,7 +130,7 @@ class Cimethod:
         defaults = {'hf'               : 'abinitio',
                     'hyb_gga_xc_qtp17' : 'qe8',
                     'bhandhlyp'        : 'r2017'}
-        
+
         if self.hamiltonian is None:
             try:
                 self.hamiltonian = defaults[self.scf.xc.lower()]
@@ -138,10 +138,10 @@ class Cimethod:
                 sys.exit('\n\n Error: could not determine a default'
                          + ' Hamiltonian for XC functional '
                          + self.scf.xc)
-        
+
         return
-        
-    # 
+
+    #
     def n_irrep(self):
         """return the number of irreps"""
         return len(self.nstates)
@@ -151,7 +151,7 @@ class Cimethod:
         """returns the indices of the irreps with a
         non-zero no. of roots"""
         return np.where(self.nstates > 0)[0]
-        
+
     #
     def n_states(self):
         """total number of states"""
@@ -161,7 +161,7 @@ class Cimethod:
     #
     def n_states_sym(self, irrep=None):
         """number of states to compute"""
- 
+
         if irrep is None:
             return self.nstates
 
@@ -223,7 +223,7 @@ class Cimethod:
             print("rdm_sym called but density does not exist")
             return self.dmats[rep]
 
-    # 
+    #
     def natorbs(self, istate, basis='ao', rep='adiabatic'):
         """return natural orbitals and occupations for state 'istate' """
 
@@ -303,7 +303,7 @@ class Cimethod:
 
         return
 
-    # 
+    #
     def print_nos(self, rep='adiabatic'):
         """Calls routines in orbitals module to print natural orbitals
            to file. Default file format is molden
@@ -408,15 +408,15 @@ class Cimethod:
 
         self.energies   = np.zeros((n_tot), dtype=float)
         self.sym_sorted = []
-        # mrci_ener_sym is an irrep x maxroots array, with trailing values 
-        # of 'zero'. 
-        ener_vals = np.pad(self.energies_sym, ((0,0),(0,1)), 
-                           'constant', 
+        # mrci_ener_sym is an irrep x maxroots array, with trailing values
+        # of 'zero'.
+        ener_vals = np.pad(self.energies_sym, ((0,0),(0,1)),
+                           'constant',
                            constant_values=((0,0),(0,0)))
-       
+
         n_srt = 0
         while n_srt < n_tot:
-            eners = np.array([ener_vals[irr, istate[irr]] 
+            eners = np.array([ener_vals[irr, istate[irr]]
                               for irr in range(nirr)])
             iirr  = np.argsort(eners)[0]
 

@@ -35,7 +35,8 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     if mol is None: mol = ks.mol
     if dm is None: dm = ks.make_rdm1()
     ext_basis = ks.ext_basis
-    #t0 = (time.clock(), time.time())
+
+    #t0 = (logger.process_clock(), logger.perf_counter())
 
     if not isinstance(dm, numpy.ndarray):
         dm = numpy.asarray(dm)
