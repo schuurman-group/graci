@@ -23,8 +23,8 @@ Non-relativistic Unrestricted Kohn-Sham
 from pyscf import lib
 from pyscf.lib import logger
 from pyscf.scf import uhf_symm
-from graci.pdft import uks
-from graci.pdft import rks
+from graci.xdft import uks
+from graci.xdft import rks
 
 
 class SymAdaptedUKS(rks.KohnShamPDFT, uhf_symm.UHF):

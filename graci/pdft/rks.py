@@ -35,7 +35,7 @@ from pyscf.dft import gen_grid
 from pyscf.dft import numint
 from pyscf.dft import libxc as lxc
 #from pdft import numint
-from graci.pdft import project
+from graci.xdft import project
 from pyscf import __config__
 ## NOTE: currently, paos not initialized (saved as attribute).
 ## paos (i.e., caos) called within function to build operator; implicit.
@@ -424,7 +424,8 @@ class KohnShamPDFT(object):
         else:
             self.ext_basis = None
         ## Create projectors, mf.SQQS
-        self._build_proj()
+        #self._build_proj()
+        self._SQQS = None
         self.nlc = ''
         self.grids = gen_grid.Grids(self.mol)
         self.grids.level = getattr(__config__, 'dft_rks_RKS_grids_level',

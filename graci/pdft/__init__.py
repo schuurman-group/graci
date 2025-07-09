@@ -37,15 +37,13 @@ try:
 except (ImportError, OSError):
     pass
 #from pyscf.dft import xc
-from graci.pdft import rks
-from graci.pdft import roks
-from graci.pdft import uks
-from pyscf.dft import gks
-#from graci.pdft import gks
-from graci.pdft import rks_symm
-from graci.pdft import uks_symm
-from pyscf.dft import gks_symm
-#from graci.pdft import gks_symm
+from graci.xdft import rks
+from graci.xdft import roks
+from graci.xdft import uks
+from graci.xdft import gks
+from graci.xdft import rks_symm
+from graci.xdft import uks_symm
+from graci.xdft import gks_symm
 from pyscf.dft import dks
 from pyscf.dft import gen_grid as grid
 from pyscf.dft import radi
@@ -99,16 +97,12 @@ def UKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis
         return uks_symm.UKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
 UKS.__doc__ = uks.UKS.__doc__
 
-#def GKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
-#    if not mol.symmetry or mol.groupname == 'C1':
-#        return gks.GKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
-#    else:
-#        return gks_symm.GKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
-def GKS(mol, xc='LDA,VWN'):
+def GKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
     if not mol.symmetry or mol.groupname == 'C1':
-        return gks.GKS(mol, xc)
+        return gks.GKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
     else:
-        return gks_symm.GKS(mol, xc)
+        return gks_symm.GKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
+
 GKS.__doc__ = gks.GKS.__doc__
 
 def DKS(mol, xc='LDA,VWN'):

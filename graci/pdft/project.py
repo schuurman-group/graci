@@ -4,38 +4,126 @@ Core-Projected DFT Helper Functions
 '''
 
 import numpy as np
-from pyscf import gto
-from pyscf import lib
+from pyscf import gto, lib, x2c
 import pylibxc as libxc
 from scipy import linalg
+from functools import reduce
 
-def convert_to_spin_basis(S):
-    #ex: S_ao = mol.intor('int1e_ovlp')  # Shape: (N, N)
-    # Identity in spin space (2x2)
-    I_spin = np.eye(2)
+def get_block_ovlp(obj, mol=None): ## as defined in ghf.py
+    '''
+    Get the spinor overlap integrals in block
+    format.
 
-    # Kronecker product to build spin-orbital basis
-    S_spin = np.kron(I_spin, S)  # Shape: (2N, 2N)
-    return S_spin
+    By default, the following command to retrieve
+    the overlap matrix in the spinor AO basis is
+    returned in interleaved format.
 
-def assign_core_aos(obj):
+    >>> gto.intor_symmetric('int1e_ovlp_spinor')
+
+    Thus, block formatting must be done manually.
+
+    interleaved: 0α, 0β, 1α, 1β, ..., N-1α, N-1β
+    blocked:     0α, 1α, ..., N-1α, 0β, 1β, ..., N-1β
+    ________________________________________________
+    '''
+    if mol is None: mol = self.mol
+    #    s = hf.get_ovlp(mol)
+    s = gto.intor_symmetric('int1e_ovlp')
+    return linalg.block_diag(s, s)
+
+def blocked_to_interleaved_spin(S_blocked):
+    '''
+    Integrals in an object of a base GHF class are
+    retrieved in block format.
+
+    def get_ovlp(self, mol=None):
+        [...]
+        s = gto.intor_symmetric('int1e_ovlp')
+        return linalg.block_diag(s, s)
+
+    Convert to interleaved format for general
+    compatibility with PySCF.
+
+    interleaved: 0α, 0β, 1α, 1β, ..., N-1α, N-1β
+    blocked:     0α, 1α, ..., N-1α, 0β, 1β, ..., N-1β
+    '''
+    n = S_blocked.shape[0] // 2
+    idx = np.empty(2*n, dtype=int)
+    idx[0::2] = np.arange(n)         # alpha indices
+    idx[1::2] = np.arange(n, 2*n)    # beta indices
+    return S_blocked[np.ix_(idx, idx)]
+
+def interleaved_to_blocked_spin(S_inter):
+    '''
+    Integral retrieved as:
+
+    >>> gto.intor_symmetric('int1e_ovlp_spinor')
+
+    ..are in interleaved format. Convert to blocked
+    format for compatibility with the x2c module.
+
+    interleaved: 0α, 0β, 1α, 1β, ..., N-1α, N-1β
+    blocked:     0α, 1α, ..., N-1α, 0β, 1β, ..., N-1β
+    '''
+    n = S_inter.shape[0] // 2 # n = mol.nao
+    idx = np.empty(2*n, dtype=int)
+    idx[0:n] =np.arange(0, 2*n, 2)   # alpha indices
+    idx[n::] =np.arange(1, 2*n+1, 2) # beta indices
+    return S_inter[np.ix_(idx, idx)]
+
+def interleaved_to_blocked_lbl(lbl):
+    '''
+    AO labels in a spin-orbital basis retrieved as:
+
+    >>> mol.spinor_labels(fmt=True)
+
+    The AO indices are in returned in an interleaved
+    format. Convert to blocked format for compatibility
+    with the x2c module.
+
+    interleaved: 0α, 0β, 1α, 1β, ..., N-1α, N-1β
+    blocked:     0α, 1α, ..., N-1α, 0β, 1β, ..., N-1β
+    '''
+    n = len(lbl) // 2 # n = mol.nao
+    ml = np.array(lbl) #np.ndarray of shape (2*n,)
+    idx = np.empty(2*n, dtype=int)
+    idx[0:n] =np.arange(0, 2*n, 2)   # alpha indices
+    idx[n::] =np.arange(1, 2*n+1, 2) # beta indices
+    blocked_lbl = ml[np.ix_(idx,)]
+    return blocked_lbl.tolist()
+
+def assign_core_aos(obj, mol = None):
     '''
     Function to define the subset of core atomic orbitals.
 
-    args:    gto.mole.Mole object
+    args:    SCF object
+             gto.mole.Mole object
 
     returns: list of int
 
     '''
-    if type(obj) is gto.mole.Mole:
-        core_aos, core_dict = _assign_core_aos_by_label(obj)
-        return core_aos
-    else:
-        raise TypeError
+    ## Check if mol is defined.
+    if mol is None:
+        mol = obj.mol
 
-def _assign_core_aos_by_label(obj):
+    ## Scan for spinor AO basis.
+    if ("with_x2c" in obj.__dict__):
+        mx = obj.__dict__["with_x2c"]
+        if type(mx) is x2c.x2c.SpinOrbitalX2CHelper:
+            # Spinor AO basis (N = 2*nao)
+            core_aos, core_dict = _assign_core_aos_by_label(mol, spinor=True)
+        elif type(mx) is x2c.sfx2c1e.SpinFreeX2CHelper:
+            # Regular AO basis (N = nao)
+            core_aos, core_dict = _assign_core_aos_by_label(mol, spinor=False)
+    else:
+        core_aos, core_dict = _assign_core_aos_by_label(mol, spinor=False)
+
+    return core_aos
+
+def _assign_core_aos_by_label(obj, spinor = False):
     '''
     Function to define the subset of core atomic orbitals.
+    Labels retrieved by mol.ao_labels(), mol.sph_labels, OR mol.spinor_labels()
 
     Core orbitals are crudely defined as:
     '1s' for second-row elements (Li through Ne)
@@ -69,23 +157,37 @@ def _assign_core_aos_by_label(obj):
         except:
             raise TypeError
 
-    labs = mol.ao_labels() #returns list of str
-    uflabs = mol.ao_labels(fmt=False) #returns list of tuple
+    if spinor:
+        labs = mol.spinor_labels()
+        uflabs = mol.spinor_labels(fmt=False)
+        labs = interleaved_to_blocked_lbl(labs)
+        uflabs = interleaved_to_blocked_lbl(uflabs)
+    else:
+        labs = mol.ao_labels() #returns list of str
+        uflabs = mol.ao_labels(fmt=False) #returns list of tuple
+
     core_aos = []
     core_ao_dict = dict()
+    ## For mol.ao_labels(fmt=bool)
+    #     unformatted: [(atom-id, symbol-str, nl-str, str-of-AO-notation)], ex:(0, 'F', '1s', ''), (1, 'F', '3d', 'x2-y2'), etc.
+    #     formatted:   ['0 F 1s    ', '1 H 1s    ']
+    ## For mol.spinor_labels(fmt=bool)
+    #     unformatted: [(0, 'Li', '1s1/2', '-1/2'), ...]
+    #     formatted: ['0 Li 1s1/2,-1/2 ', ...]
 
-    # unformatted: [(atom-id, symbol-str, nl-str, str-of-AO-notation)], ex:(0, 'F', '1s', ''), (1, 'F', '3d', 'x2-y2'), etc.
-    # formatted:   ['0 F 1s    ', '1 H 1s    ']
-    for iao in range(mol.nao):
+    ## Number of (Spin) AOs
+    nao = len(labs)
+    for iao in range(nao):
         lbl = labs[iao]
         tpl = uflabs[iao]
         elemnt = tpl[1]
-        ao_type = tpl[2]
+        ao_lbl = tpl[2]       # For spinor, '1s1/2', etc.
+        ao_type = ao_lbl[0:2] # For spinor, '1s1/2', etc.
         atm_id = int(tpl[0])
         atm_Z = mol.atom_charge(atm_id)
         core_ao_defn = {'row1':('1s'), 'row2':('1s','2s','2p'), 'row3':('1s','2s','2p','3s','3p')}
         #if atm_Z > 2:
-        if atm_Z > 0:
+        if atm_Z > 0 and atm_Z < 11:
             if ao_type in core_ao_defn['row1']:
                 core_ao_dict[atm_id] = [elemnt, atm_Z, ao_type]
                 core_aos.append(iao)
@@ -100,6 +202,7 @@ def _assign_core_aos_by_label(obj):
         elif atm_Z > 36:
             raise ValueError("Program does not currently support 5th row elements (Z>36).")
     core_aos = [*set(core_aos)] # Remove duplicates
+
     return core_aos, core_ao_dict
 
 def build_orthogonalizer(S, default=True):
@@ -143,7 +246,7 @@ def build_proj_in_basis(mydft):
     #s = m.intor_symmetric('int1e_ovlp')
 
     ## List of Indices of Core AOs
-    caos = assign_core_aos(m)
+    caos = assign_core_aos(mydft, mol = m)
 
     # Build overlap matrix for core aos only
     NC = len(caos)
@@ -189,7 +292,7 @@ def build_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
     Sx = gto.intor_cross('int1e_ovlp',M, m)  # cross-overlap matrix
 
     ## List of Indices of Core AOs
-    caos = assign_core_aos(m)
+    caos = assign_core_aos(mydft, mol = m)
 
     # build overlap matrix -- core aos only
     NC = len(caos)
@@ -222,6 +325,77 @@ def build_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
 
     return SQQS
 
+def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
+    '''
+    Build projector in an external basis (spin orbitals)
+
+    Args:
+    mydft                         [dft.ROKS object]
+    ext_basis  (default:sto3g)    str
+
+
+    Returns:
+    [QS,SQ]    Core-Projector     [np.array]
+    '''
+    ## Assert X2C1E
+    assert ('1E' in mydft.with_x2c().approx.upper())
+
+    ## Call up variables.
+    M = mydft.mol
+    #    S = M.intor_symmetric('int1e_ovlp_spinor')
+    S_ = M.intor_symmetric('int1e_ovlp')
+    S = linalg.block_diag(S_, S_)
+
+    SM = np.linalg.pinv(S)
+    N = M.nao         # total number of aos
+
+    ## Minimal basis
+    m =  M.copy()
+    m.basis = ext_basis
+    m.build()
+
+    ## Get integral overlaps
+    #    s = m.intor_symmetric('int1e_ovlp_spinor')
+    #    Sx = gto.intor_cross('int1e_ovlp_spinor', M, m)
+    s_ = m.intor_symmetric('int1e_ovlp')       # 1e-integral ( | )
+    Sx_ = gto.intor_cross('int1e_ovlp', M, m)  # cross-overlap matrix
+    s = linalg.block_diag(s_, s_)
+    Sx = linalg.block_diag(Sx_, Sx_)
+
+    ## List of Indices of Core AOs
+    caos = assign_core_aos(mydft, mol = m)
+
+    # build overlap matrix -- core aos only
+    NC = len(caos)
+    if(NC>0): ## if number of core aos > 0
+        SC = np.zeros((NC,NC), dtype='complex128')
+        SXC = np.zeros((N*2,NC), dtype='complex128')
+        # iterate over core aos (of ext basis)
+        for ic in range(NC):
+            SXC[:,ic] = Sx[:, caos[ic]]
+            for jc in range(NC):
+                SC[ic,jc] = s[caos[ic], caos[jc]]
+
+    ## Assume that the ith orthogonalized core AO equals the ith core AO
+    # decompose S into s, U, where s = Ut * S * U
+    SCm = np.linalg.pinv(SC)
+
+    # Core AO projection operators in current basis set
+    Q = np.einsum('ia,ab,bc,dc,dj->ij',SM,SXC,SCm,SXC,SM)
+
+    # SM: inverse of ovlap (internal basis)
+    # SXC: cross-ovlap, core-aos only (external/internal basis)
+    # SCm: orthogonalized ovlap, core-aos only (external basis)
+
+    ## Define the operators
+    QS = np.einsum('ik,kj->ij', Q, S)
+    SQ = np.einsum('ik,kj->ij', S, Q)
+
+    ## Consolidate into single (2,N,N) dim array
+    SQQS = np.array((SQ,QS))
+
+    return SQQS
+
 def old_build_proj_in_basis(mydft):
     '''
     Build projector in the same basis.
@@ -236,16 +410,17 @@ def old_build_proj_in_basis(mydft):
     m = mydft.mol
     S = mydft.get_ovlp()
     SM = linalg.inv(S)
-    N = m.nao           # total number of aos
+    N = m.nao          # total number of aos
 
     ## Get integral overlaps
     #s = m.intor_symmetric('int1e_ovlp')
 
     ## List of Indices of Core AOs
-    caos = assign_core_aos(m)
+    caos = assign_core_aos(mydft, mol = m)
 
     # Build overlap matrix for core aos only
     NC = len(caos)
+
     if(NC>0): ## if number of core aos > 0
         SC = np.zeros((NC,NC))
         SXC = np.zeros((N,NC))
@@ -254,6 +429,7 @@ def old_build_proj_in_basis(mydft):
             SXC[:,ic] = S[:, caos[ic]]
             for jc in range(NC):
                 SC[ic,jc] = S[caos[ic], caos[jc]]
+
     ## Assume that the ith orthogonalized core AO equals the ith core AO
     # decompose S into s, U, where s = Ut * S * U
     # X = build_orthogonalizer(SC)
