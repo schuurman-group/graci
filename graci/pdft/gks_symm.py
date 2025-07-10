@@ -32,11 +32,15 @@ from pyscf.dft.numint2c import NumInt2C
 
 class GKS(rks.KohnShamPDFT, ghf_symm.GHF):
     ''' Restricted Kohn-Sham '''
+
+     _keys = {'with_spin'}
+
     def __init__(self, mol, xc='LDA,VWN',phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
         ghf_symm.GHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
         self._numint = NumInt2C()
-        self.__dict__['with_spin'] = True
+        ## Add flag for spin-orbtial AO basis.
+        self.__dict__.update({'with_spin': True})
 
     def dump_flags(self, verbose=None):
         ghf_symm.GHF.dump_flags(self, verbose)

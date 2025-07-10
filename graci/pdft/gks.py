@@ -226,11 +226,14 @@ class GKS(rks.KohnShamPDFT, ghf.GHF):
     get_veff = get_veff
     energy_elec = energy_elec
 
+    _keys = {'with_spin'}
+
     def __init__(self, mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
         ghf.GHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
         self._numint = NumInt2C()
-        self.__dict__['with_spin'] = True
+        ## Add flag for spin-orbtial AO basis.
+        self.__dict__.update({'with_spin': True})
 
     def dump_flags(self, verbose=None):
         ghf.GHF.dump_flags(self, verbose)
@@ -249,8 +252,8 @@ class GKS(rks.KohnShamPDFT, ghf.GHF):
         if self.use_ext_basis:
             SQQS = project.build_spin_proj_in_ext_basis(self, ext_basis=self.ext_basis)
         else:
-            #SQQS = project.build_proj_in_basis(self)
-            raise NotImplementedError()
+            #SQQS = project.build_spin_proj_in_basis(self)
+            raise NotImplementedError("Cannot build projector in basis for GKS.")
         self._SQQS = SQQS
         return
 
