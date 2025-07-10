@@ -115,6 +115,10 @@ def assign_core_aos(obj, mol = None):
         elif type(mx) is x2c.sfx2c1e.SpinFreeX2CHelper:
             # Regular AO basis (N = nao)
             core_aos, core_dict = _assign_core_aos_by_label(mol, spinor=False)
+    ## Or if doing SOC (without X2C)
+    elif ("with_spin" in obj.__dict__):
+        ## No conversion to block format.
+        core_aos, core_dict = _assign_core_aos_by_label(mol, spinor=True)
     else:
         core_aos, core_dict = _assign_core_aos_by_label(mol, spinor=False)
 
@@ -337,16 +341,22 @@ def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
     Returns:
     [QS,SQ]    Core-Projector     [np.array]
     '''
+    interleave = None
+    ## Scan for spinor AO basis.
+    if ("with_x2c" in mydft.__dict__):
+        # Conversion to block format.
+        interleave = False
+    ## If doing SOC (without X2C)
+    if ("with_spin" in mydft.__dict__):
+        ## Conversion to block format.
+        interleave = False
+
     ## Assert X2C1E
-    assert ('1E' in mydft.with_x2c().approx.upper())
+    #assert ('1E' in mydft.with_x2c().approx.upper())
+    #assert ('with_spin' in mydft.__dict__) or ('with_x2c' in mydft.__dict__)
 
     ## Call up variables.
     M = mydft.mol
-    #    S = M.intor_symmetric('int1e_ovlp_spinor')
-    S_ = M.intor_symmetric('int1e_ovlp')
-    S = linalg.block_diag(S_, S_)
-
-    SM = np.linalg.pinv(S)
     N = M.nao         # total number of aos
 
     ## Minimal basis
@@ -354,13 +364,22 @@ def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
     m.basis = ext_basis
     m.build()
 
-    ## Get integral overlaps
-    #    s = m.intor_symmetric('int1e_ovlp_spinor')
-    #    Sx = gto.intor_cross('int1e_ovlp_spinor', M, m)
-    s_ = m.intor_symmetric('int1e_ovlp')       # 1e-integral ( | )
-    Sx_ = gto.intor_cross('int1e_ovlp', M, m)  # cross-overlap matrix
-    s = linalg.block_diag(s_, s_)
-    Sx = linalg.block_diag(Sx_, Sx_)
+    ## Get integral overlaps ##
+    ## Spinor (interleaved)
+    if interleave:
+        S = M.intor_symmetric('int1e_ovlp_spinor')
+        SM = np.linalg.pinv(S)
+        s = m.intor_symmetric('int1e_ovlp_spinor')
+        Sx = gto.intor_cross('int1e_ovlp_spinor', M, m)
+    ## X2C & SOC
+    elif not interleave:
+        S_ = M.intor_symmetric('int1e_ovlp')
+        S = linalg.block_diag(S_, S_)
+        SM = np.linalg.pinv(S)
+        s_ = m.intor_symmetric('int1e_ovlp')
+        Sx_ = gto.intor_cross('int1e_ovlp', M, m)
+        s = linalg.block_diag(s_, s_)
+        Sx = linalg.block_diag(Sx_, Sx_)
 
     ## List of Indices of Core AOs
     caos = assign_core_aos(mydft, mol = m)

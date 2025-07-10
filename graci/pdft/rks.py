@@ -35,7 +35,7 @@ from pyscf.dft import gen_grid
 from pyscf.dft import numint
 from pyscf.dft import libxc as lxc
 #from pdft import numint
-from graci.xdft import project
+from graci.pdft import project
 from pyscf import __config__
 ## NOTE: currently, paos not initialized (saved as attribute).
 ## paos (i.e., caos) called within function to build operator; implicit.

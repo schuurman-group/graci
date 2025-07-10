@@ -37,13 +37,13 @@ try:
 except (ImportError, OSError):
     pass
 #from pyscf.dft import xc
-from graci.xdft import rks
-from graci.xdft import roks
-from graci.xdft import uks
-from graci.xdft import gks
-from graci.xdft import rks_symm
-from graci.xdft import uks_symm
-from graci.xdft import gks_symm
+from graci.pdft import rks
+from graci.pdft import roks
+from graci.pdft import uks
+from graci.pdft import gks
+from graci.pdft import rks_symm
+from graci.pdft import uks_symm
+from graci.pdft import gks_symm
 from pyscf.dft import dks
 from pyscf.dft import gen_grid as grid
 from pyscf.dft import radi

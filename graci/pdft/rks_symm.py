@@ -22,8 +22,8 @@ Non-relativistic Restricted Kohn-Sham
 
 from pyscf import lib
 from pyscf.scf import hf_symm
-from graci.xdft import rks
-from graci.xdft import uks
+from graci.pdft import rks
+from graci.pdft import uks
 
 
 class SymAdaptedRKS(rks.KohnShamPDFT, hf_symm.SymAdaptedRHF):

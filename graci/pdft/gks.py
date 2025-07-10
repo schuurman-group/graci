@@ -28,9 +28,9 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf.scf import ghf
 #from pyscf.dft import rks
-from graci.xdft import rks
-from graci.xdft import project
-from graci.xdft.rks import prune_small_rho_grids_
+from graci.pdft import rks
+from graci.pdft import project
+from graci.pdft.rks import prune_small_rho_grids_
 from pyscf.dft.numint2c import NumInt2C
 
 
@@ -230,6 +230,7 @@ class GKS(rks.KohnShamPDFT, ghf.GHF):
         ghf.GHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
         self._numint = NumInt2C()
+        self.__dict__['with_spin'] = True
 
     def dump_flags(self, verbose=None):
         ghf.GHF.dump_flags(self, verbose)

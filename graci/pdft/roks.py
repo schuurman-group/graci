@@ -23,9 +23,9 @@ Non-relativistic Restricted Open-shell Projected Kohn-Sham
 import numpy
 from pyscf import lib
 from pyscf.scf import rohf
-from graci.xdft import uks
-from graci.xdft.uks import energy_elec
-from graci.xdft import rks
+from graci.pdft import uks
+from graci.pdft.uks import energy_elec
+from graci.pdft import rks
 
 @lib.with_doc(uks.get_veff.__doc__)
 def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):

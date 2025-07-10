@@ -25,8 +25,8 @@ from pyscf.lib import logger
 from pyscf.scf import ghf_symm
 #from pyscf.dft import gks
 #from pyscf.dft import rks
-from graci.xdft import gks
-from graci.xdft import rks
+from graci.pdft import gks
+from graci.pdft import rks
 from pyscf.dft.numint2c import NumInt2C
 
 
@@ -36,6 +36,7 @@ class GKS(rks.KohnShamPDFT, ghf_symm.GHF):
         ghf_symm.GHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
         self._numint = NumInt2C()
+        self.__dict__['with_spin'] = True
 
     def dump_flags(self, verbose=None):
         ghf_symm.GHF.dump_flags(self, verbose)

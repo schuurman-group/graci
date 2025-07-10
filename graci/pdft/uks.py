@@ -25,8 +25,8 @@ from functools import reduce
 from pyscf import lib
 from pyscf.lib import logger
 from pyscf.scf import uhf
-from graci.xdft import rks
-from graci.xdft import project
+from graci.pdft import rks
+from graci.pdft import project
 
 def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     '''Coulomb + XC functional for UKS.  See pyscf/dft/rks.py
