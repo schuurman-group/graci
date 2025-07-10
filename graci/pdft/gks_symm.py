@@ -33,7 +33,7 @@ from pyscf.dft.numint2c import NumInt2C
 class GKS(rks.KohnShamPDFT, ghf_symm.GHF):
     ''' Restricted Kohn-Sham '''
 
-     _keys = {'with_spin'}
+    _keys = {'with_spin'}
 
     def __init__(self, mol, xc='LDA,VWN',phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
         ghf_symm.GHF.__init__(self, mol)
