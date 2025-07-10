@@ -52,6 +52,18 @@ class GKS(rks.KohnShamPDFT, ghf_symm.GHF):
             logger.info(self, 'mcfun collinear_samples = %s', self._numint.collinear_samples)
         return self
 
+    def _build_proj(self):
+        '''
+        Function to build projector.
+        '''
+        if self.use_ext_basis:
+            SQQS = project.build_spin_proj_in_ext_basis(self, ext_basis=self.ext_basis)
+        else:
+            #SQQS = project.build_spin_proj_in_basis(self)
+            raise NotImplementedError("Cannot build projector in basis for GKS_SYMM.")
+        self._SQQS = SQQS
+        return
+
     get_veff = gks.get_veff
     energy_elec = rks.energy_elec
 
