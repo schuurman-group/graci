@@ -463,16 +463,16 @@ contains
        ! elements
        call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf,&
             offset,nP,iP,nQ,iQ,averageii,averageiiP)
-              
+
        ! Allocate the P space eigenvector array
        if (allocated(vecP)) deallocate(vecP)
        allocate(vecP(csfdimP,nroots))
-       
+
        ! Diagonalise the P space Hamiltonian
        call diag_pspace(nconf,nP,csfdim,csfdimP,nroots,iP,offset,&
             offsetP,averageii,hiiP,conf,sop,n_int_I,m2c,irrep,&
             vecP,EP,vecscr)
-
+       
        ! Compute the ENPT2 wave function and energy corrections
        call pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
             hiiQ,Avec,E2,n_int_I,nconf,conf,sop,nP,nQ,iP,iQ,offset,&
@@ -932,10 +932,10 @@ contains
 
        ! Squared norm
        sumsq=0.0d0
-       
+
        ! Loop over P space CSFs
        do icsfP=1,csfdimP
-
+          
           ! Update the squared norm
           sumsq=sumsq+vecP(indxP(icsfP),i)**2
 
@@ -960,7 +960,7 @@ contains
        enddo
 
     enddo
-
+    
 !----------------------------------------------------------------------
 ! Trimmed number of P and Q space configurations
 !----------------------------------------------------------------------
@@ -1478,13 +1478,13 @@ contains
 
           ! E^(0) - H_ii
           ediff=EP(iroot)-hiiQ(icsf)
-
+          
           ! Energy correction
           E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/ediff
-
+                    
           ! A-vector element
           Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/ediff
-
+                    
        enddo
 
     enddo
