@@ -262,6 +262,10 @@ class Dftmrci2(cimethod.Cimethod):
             self.ref_wfn.set_nconf(n_ref_conf)
             self.ref_wfn.set_confunits(ref_conf_units)
 
+            # After the first iteration, turn off SCI ref
+            # space diagonalisation
+            self.ref_sci = False
+            
             # break if the reference space is converged
             if min_norm > 0.9025 and self.niter > 0:
                 if self.verbose:

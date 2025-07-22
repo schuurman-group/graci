@@ -730,11 +730,6 @@ contains
 
     allocate(indx(csfdim))
     indx=0
-    
-!----------------------------------------------------------------------
-! Sort the on-diagonal Hamiltonian matrix elements
-!----------------------------------------------------------------------
-    call dsortindxa1('A',csfdim,hii,indx)
 
 !----------------------------------------------------------------------  
 ! Determine the configurations from which each CSF is generated
@@ -751,32 +746,14 @@ contains
        enddo
        
     enddo
-
-!----------------------------------------------------------------------  
-! Determine the configurations corresponding to the nlow lowest
-! energy CSFs
-!----------------------------------------------------------------------
-    ! Initialisation
-    isurvive=0
-
-    ! For now we shall hardwire the number of initially selected CSFs
-    nlow=1000
-    if (nlow > csfdim) then
-       nlow=csfdim
-    endif
     
-    ! Loop over the lowest energy CSFs
-    do i=1,nlow
+!----------------------------------------------------------------------
+! Generate the initial P space
+!----------------------------------------------------------------------
+    call init_pspace_low(nconf,csfdim,isurvive,hii,confmap)
 
-       ! i'th lowest energy CSF
-       icsf=indx(i)
-
-       ! Flag the configuration that generates this CSF for
-       ! survival
-       iconf=confmap(icsf)
-       isurvive(iconf)=1
-       
-    enddo
+    !call init_pspace_low_all_classes(nconf,csfdim,isurvive,hii,&
+    !     confmap,n_int_I,conf)
 
 !----------------------------------------------------------------------
 ! Number of P and Q space configurations
@@ -822,7 +799,7 @@ contains
 
     offsetP(nP+1)=totalP
     offsetQ(nQ+1)=totalQ
-
+        
 !----------------------------------------------------------------------    
 ! Fill in the P space on-diagonal matrix element array
 !----------------------------------------------------------------------
@@ -846,7 +823,7 @@ contains
        enddo
               
     enddo
-
+    
 !----------------------------------------------------------------------
 ! Number of P and Q space CSFs
 !----------------------------------------------------------------------
@@ -1009,7 +986,171 @@ contains
     return
 
   end subroutine partition_confs_new
+
+!######################################################################
+
+  subroutine init_pspace_low(nconf,csfdim,isurvive,hii,confmap)
+
+    use constants
+    use utils
+
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in)  :: nconf,csfdim
+
+    ! Surviving configurations
+    integer(is), intent(out) :: isurvive(nconf)
+
+    ! On-diagonal Hamiltonian matrix elements
+    real(dp), intent(in)     :: hii(csfdim)
+
+    ! CSF-to-conf mapping
+    integer(is), intent(in) :: confmap(csfdim)
     
+    ! Sorting array
+    integer(is), allocatable :: indx(:)
+    
+    ! Everything else
+    integer(is)              :: i,icsf,iconf
+    integer(is)              :: nlow
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(indx(csfdim))
+    indx=0
+    
+!----------------------------------------------------------------------
+! Sort the on-diagonal Hamiltonian matrix elements
+!----------------------------------------------------------------------
+    call dsortindxa1('A',csfdim,hii,indx)
+
+!----------------------------------------------------------------------  
+! Determine the configurations corresponding to the nlow lowest
+! energy CSFs
+!----------------------------------------------------------------------
+    ! Initialisation
+    isurvive=0
+
+    ! For now we shall hardwire the number of initially selected CSFs
+    nlow=1000
+    if (nlow > csfdim) then
+       nlow=csfdim
+    endif
+    
+    ! Loop over the lowest energy CSFs
+    do i=1,nlow
+    
+       ! i'th lowest energy CSF
+       icsf=indx(i)
+
+       ! Flag the configuration that generates this CSF for
+       ! survival
+       iconf=confmap(icsf)
+       isurvive(iconf)=1
+       
+    enddo
+    
+    return
+    
+  end subroutine init_pspace_low
+
+!######################################################################
+
+  subroutine init_pspace_low_all_classes(nconf,csfdim,isurvive,hii,&
+       confmap,n_int_I,conf)
+
+    use constants
+    use bitglobal
+    use mrciutils
+    use utils
+        
+    implicit none
+
+    ! Dimensions
+    integer(is), intent(in)  :: nconf,csfdim
+
+    ! Surviving configurations
+    integer(is), intent(out) :: isurvive(nconf)
+
+    ! On-diagonal Hamiltonian matrix elements
+    real(dp), intent(in)     :: hii(csfdim)
+
+    ! CSF-to-conf mapping
+    integer(is), intent(in) :: confmap(csfdim)
+
+    ! Configurations
+    integer(is), intent(in)  :: n_int_I
+    integer(ib), intent(in)  :: conf(n_int_I,2,nconf)
+    
+    ! Sorting array
+    integer(is), allocatable :: indx(:)
+    
+    ! Everything else
+    integer(is)              :: i,icsf,iconf
+    integer(is)              :: nlow,nexci,counter,exci_level
+    
+!----------------------------------------------------------------------
+! Allocate arrays
+!----------------------------------------------------------------------
+    allocate(indx(csfdim))
+    indx=0
+    
+!----------------------------------------------------------------------
+! Sort the on-diagonal Hamiltonian matrix elements
+!----------------------------------------------------------------------
+    call dsortindxa1('A',csfdim,hii,indx)
+
+!----------------------------------------------------------------------  
+! Determine the configurations corresponding to the nlow lowest
+! energy CSFs
+!----------------------------------------------------------------------
+    ! Initialisation
+    isurvive=0
+
+    ! For now we shall hardwire the number of initially selected CSFs
+    nlow=100
+    if (nlow > csfdim) then
+       nlow=csfdim
+    endif
+
+    ! Loop over excitation classes
+    do exci_level=1,nexmax
+       counter=0
+              
+       ! Loop over the CSFs
+       do i=1,csfdim
+          
+          ! i'th lowest energy CSF
+          icsf=indx(i)
+          
+          ! Configuration index
+          iconf=confmap(icsf)
+          
+          ! Excitation degree relative to the base configuration
+          nexci=exc_degree_conf(conf(:,:,iconf),conf0(1:n_int_I,:),n_int_I)
+          if (nexci /= exci_level) cycle
+
+          ! Increment the configuration counter for this excitation class
+          counter = counter+1
+          
+          ! Flag the configuration that generates this CSF for
+          ! survival
+          isurvive(iconf)=1
+
+          ! Exit if we have enough configurations for this excitation
+          ! class
+          if (counter == nlow) exit
+          
+       enddo
+
+    enddo
+
+    return
+    
+  end subroutine init_pspace_low_all_classes
+       
 !######################################################################
 
   subroutine partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,&
