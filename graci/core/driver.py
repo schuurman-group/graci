@@ -120,8 +120,9 @@ class Driver:
                 # with the 'filled in' object
                 # (required in case this scf object is going to be
                 # used as the guess for another)
-                scf_objs[scf_objs.index(scf_obj)] = scf_load.copy()
-                
+                #scf_objs[scf_objs.index(scf_obj)] = scf_load.copy()
+                scf_obj = scf_load.copy()
+
             # else assign molecule object and call run() routine
             else:
 
