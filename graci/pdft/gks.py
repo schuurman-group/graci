@@ -75,144 +75,151 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     ground_state = isinstance(dm, numpy.ndarray) and dm.ndim == 2
 
     # Build the AO projection operators and projected 1pdm
-    if ks._SQQS is None:
-        ks._build_proj() ## sets ks.SQQS object
-    SQ = ks._SQQS[0]; QS = ks._SQQS[1]
+    if ks.SQQS is None:
+        ks.build_proj() ## sets ks.SQQS object
+    SQ = ks.SQQS[0]; QS = ks.SQQS[1]
+    D = len(ks.phyb)
 
-    pdm = reduce(numpy.dot, (QS,dm,SQ)).real
+    pdm = []
+    for i in range(0, D):
+      pdm_i = reduce(numpy.dot, (QS[i],dm,SQ[i])).real
+      pdm.append(pdm_i)
 
     if ks.grids.coords is None:
-        ks.grids.build(with_non0tab=True)
-        if ks.small_rho_cutoff > 1e-20 and ground_state:
-            # Filter grids the first time setup grids
-            ks.grids = prune_small_rho_grids_(ks, mol, dm, ks.grids)
-    #    #t0 = logger.timer(ks, 'setting up grids', *t0)
+      ks.grids.build(with_non0tab=True)
+      if ks.small_rho_cutoff > 1e-20 and ground_state:
+        # Filter grids the first time setup grids
+        ks.grids = prune_small_rho_grids_(ks, mol, dm, ks.grids)
+      #t0 = logger.timer(ks, 'setting up grids', *t0)
 
     if ks.nlc != '':
-        if ks.nlcgrids.coords is None:
-            ks.nlcgrids.build(with_non0tab=True)
-            if ks.small_rho_cutoff > 1e-20 and ground_state:
-                # Filter grids the first time setup grids
-                ks.nlcgrids = prune_small_rho_grids_(ks, mol, dm, ks.nlcgrids)
-            #t0 = logger.timer(ks, 'setting up nlc grids', *t0)
+      if ks.nlcgrids.coords is None:
+        ks.nlcgrids.build(with_non0tab=True)
+        if ks.small_rho_cutoff > 1e-20 and ground_state:
+          # Filter grids the first time setup grids
+          ks.nlcgrids = prune_small_rho_grids_(ks, mol, dm, ks.nlcgrids)
+        #t0 = logger.timer(ks, 'setting up nlc grids', *t0)
 
     ni = ks._numint
     # Enable Range-Separated Hybrids
     omega, alpha, hyb = ni.rsh_and_hybrid_coeff(ks.xc, spin=mol.spin)
 
     if hermi == 2:  # because rho = 0
-        n, exc, vxc = 0, 0, 0
+      n, exc, vxc = 0, 0, 0
     else:
-        ## Regular XC contributions.
-        ##        i.e., vxc excludes fraction of EEX.
-        max_memory = ks.max_memory - lib.current_memory()[0]
-        n, exc, vxc = ni.get_vxc(mol, ks.grids, ks.xc, dm,
-                                 hermi=hermi, max_memory=max_memory)
-        #print("VXC:",vxc.dtype)
-        if vxc.dtype is not numpy.complex128:
-            vxc = vxc.astype(numpy.complex128)
-        logger.debug(ks, 'nelec by numeric integration = %s', n)
+      ## Regular XC contributions.
+      ##        i.e., vxc excludes fraction of EEX.
+      max_memory = ks.max_memory - lib.current_memory()[0]
+      n, exc, vxc = ni.get_vxc(mol, ks.grids, ks.xc, dm,
+                               hermi=hermi, max_memory=max_memory)
+      #print("VXC:",vxc.dtype)
+      if vxc.dtype is not numpy.complex128:
+        vxc = vxc.astype(numpy.complex128)
+      logger.debug(ks, 'nelec by numeric integration = %s', n)
 
-        if(abs(ks.phyb)>1e-10):
-          pxc = ks.xc
+      if (D > 1) or (abs(ks.phyb[0])>1e-10):
+        pxc = ks.xc
 
-          #### Identify XC functional components
-          if ks.xcstr is not None:
-              px, pc = ks.xcstr
-          else:
-              px = pxc
+        #### Identify XC functional components
+        if ks.xcstr is not None:
+          px, pc = ks.xcstr
+        else:
+          px = pxc
 
-          ## Projected VXC in Projected RDM1.
-          np, excp, vxcp0 = ni.get_vxc(mol, ks.grids, px, pdm,
+        ## Projected VXC in Projected RDM1.
+        for i in range(0, D):
+          np, excp, vxcp0 = ni.get_vxc(mol, ks.grids, px, pdm[i],
                                        hermi=hermi, max_memory=max_memory)
-          vxcp = numpy.einsum('ik,kj->ij',SQ,numpy.einsum('ik,kj->ij',vxcp0,QS))
+          vxcp = numpy.einsum('ik,kj->ij',SQ[i],numpy.einsum('ik,kj->ij',vxcp0,QS[i]))
 
           #print("VXCP:",vxcp.dtype)
           ## Version 2
-          #vxc -= ks.phyb*vxcp.real/(1 - hyb)
-          #exc -= ks.phyb*excp.real/(1 - hyb)
-          vxc -= ks.phyb*vxcp/(1 - hyb)
-          exc -= ks.phyb*excp/(1 - hyb)
+          #vxc -= ks.phyb[i]*vxcp.real/(1 - hyb)
+          #exc -= ks.phyb[i]*excp.real/(1 - hyb)
+          vxc -= ks.phyb[i]*vxcp/(1 - hyb)
+          exc -= ks.phyb[i]*excp/(1 - hyb)
 
         #if ks.do_nlc():
         if ks.nlc != '':
-            if ni.libxc.is_nlc(ks.xc):
-                xc = ks.xc
-            else:
-                assert ni.libxc.is_nlc(ks.nlc)
-                xc = ks.nlc
-            n, enlc, vnlc = ni.nr_nlc_vxc(mol, ks.nlcgrids, xc, dm,
-                                          hermi=hermi, max_memory=max_memory)
-            exc += enlc
-            vxc += vnlc
-            logger.debug(ks, 'nelec with nlc grids = %s', n)
+          if ni.libxc.is_nlc(ks.xc):
+            xc = ks.xc
+          else:
+            assert ni.libxc.is_nlc(ks.nlc)
+            xc = ks.nlc
+          n, enlc, vnlc = ni.nr_nlc_vxc(mol, ks.nlcgrids, xc, dm,
+                                        hermi=hermi, max_memory=max_memory)
+          exc += enlc
+          vxc += vnlc
+          logger.debug(ks, 'nelec with nlc grids = %s', n)
         t0 = logger.timer(ks, 'vxc', *t0)
 
     # Add EEX from the projected density matrix
-    if(abs(ks.phyb)>1e-10):
-      vxxp0 = ks.get_k(mol,pdm,hermi)
-      vxxp  = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vxxp0, QS))
-      exxp  = numpy.einsum('ij,ji', pdm, vxxp0).real * .5
-      #print("VXXP:",vxxp.dtype)
-      ## Version 2
-      #vxc -= (ks.phyb) * vxxp.real
-      #exc -= (ks.phyb) * exxp.real
-      vxc -= (ks.phyb) * vxxp
-      exc -= (ks.phyb) * exxp
+    if (D > 1) or (abs(ks.phyb[0])>1e-10):
+      for i in range(0, D):
+        vxxp0 = ks.get_k(mol,pdm[i],hermi)
+        vxxp  = numpy.einsum('ik,kj->ij', SQ[i], numpy.einsum('ik,kj->ij', vxxp0, QS[i]))
+        exxp  = numpy.einsum('ij,ji', pdm[i], vxxp0).real * .5
+        #print("VXXP:",vxxp.dtype)
+        ## Version 2
+        #vxc -= (ks.phyb[i]) * vxxp.real
+        #exc -= (ks.phyb[i]) * exxp.real
+        vxc -= (ks.phyb[i]) * vxxp
+        exc -= (ks.phyb[i]) * exxp
 
     if not ni.libxc.is_hybrid_xc(ks.xc):
-        vk = None
-        if (ks._eri is None and ks.direct_scf and
-            getattr(vhf_last, 'vj', None) is not None):
-            ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
-            vj = ks.get_j(mol, ddm, hermi)
-            vj += vhf_last.vj
-        else:
-            vj = ks.get_j(mol, dm, hermi)
-        vxc += vj
+      vk = None
+      if (ks._eri is None and ks.direct_scf and
+        getattr(vhf_last, 'vj', None) is not None):
+        ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
+        vj = ks.get_j(mol, ddm, hermi)
+        vj += vhf_last.vj
+      else:
+        vj = ks.get_j(mol, dm, hermi)
+      vxc += vj
     else:
-        #omega, alpha, hyb = ni.rsh_and_hybrid_coeff(ks.xc, spin=mol.spin)
-        if (ks._eri is None and ks.direct_scf and
-            getattr(vhf_last, 'vk', None) is not None):
-            ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
-            vj, vk = ks.get_jk(mol, ddm, hermi)
-            vk *= hyb
-            if omega != 0:
-                vklr = ks.get_k(mol, ddm, hermi, omega=omega)
-                vklr *= (alpha - hyb)
-                vk += vklr
-            vj += vhf_last.vj
-            vk += vhf_last.vk
-        else:
-            vj, vk = ks.get_jk(mol, dm, hermi)
-            vk *= hyb
-            if omega != 0:
-                vklr = ks.get_k(mol, dm, hermi, omega=omega)
-                vklr *= (alpha - hyb)
-                vk += vklr
+      #omega, alpha, hyb = ni.rsh_and_hybrid_coeff(ks.xc, spin=mol.spin)
+      if (ks._eri is None and ks.direct_scf and
+        getattr(vhf_last, 'vk', None) is not None):
+        ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
+        vj, vk = ks.get_jk(mol, ddm, hermi)
+        vk *= hyb
+        if omega != 0:
+          vklr = ks.get_k(mol, ddm, hermi, omega=omega)
+          vklr *= (alpha - hyb)
+          vk += vklr
+        vj += vhf_last.vj
+        vk += vhf_last.vk
+      else:
+        vj, vk = ks.get_jk(mol, dm, hermi)
+        vk *= hyb
+        if omega != 0:
+          vklr = ks.get_k(mol, dm, hermi, omega=omega)
+          vklr *= (alpha - hyb)
+          vk += vklr
 
-        ## If Hybrid
-        if(abs(ks.phyb)>1e-10):
-            #vkp0 = ks.get_k(mol, pdm, hermi)
-            #vkp0 *= hyb
-            if abs(omega) > 1e-10:
-                vklrp0 = ks.get_k(mol, pdm, hermi, omega=omega)
-                vklrp0 *= (alpha - hyb)
-                #vkp0 += vklrp0
-                vkp0 = vklrp0
-                vkp = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vkp0, QS))
-                vk -= ks.phyb * vkp
+      ## If Hybrid
+      if (D > 1) or (abs(ks.phyb[0])>1e-10):
+        #vkp0 = ks.get_k(mol, pdm, hermi)
+        #vkp0 *= hyb
+        if abs(omega) > 1e-10:
+          for i in range(0, D):
+            vklrp0 = ks.get_k(mol, pdm[i], hermi, omega=omega)
+            vklrp0 *= (alpha - hyb)
+            #vkp0 += vklrp0
+            vkp0 = vklrp0
+            vkp = numpy.einsum('ik,kj->ij', SQ[i], numpy.einsum('ik,kj->ij', vkp0, QS[i]))
+            vk -= ks.phyb[i] * vkp
 
-        #vxc += (vj - vk).real
-        vxc += vj - vk
+      #vxc += (vj - vk).real
+      vxc += vj - vk
 
-        if ground_state:
-            exc -= numpy.einsum('ij,ji', dm, vk).real * .5
+      if ground_state:
+        exc -= numpy.einsum('ij,ji', dm, vk).real * .5
 
     if ground_state:
-        ecoul = numpy.einsum('ij,ji', dm, vj).real * .5
+      ecoul = numpy.einsum('ij,ji', dm, vj).real * .5
     else:
-        ecoul = None
+      ecoul = None
 
     vxc = lib.tag_array(vxc, ecoul=ecoul, exc=exc, vj=vj, vk=vk)
     return vxc
@@ -250,11 +257,61 @@ class GKS(rks.KohnShamPDFT, ghf.GHF):
         Function to build projector.
         '''
         if self.use_ext_basis:
-            SQQS = project.build_spin_proj_in_ext_basis(self, ext_basis=self.ext_basis)
+            sqqs = project.build_spin_proj_in_ext_basis(self, ext_basis=self.ext_basis)
         else:
             #SQQS = project.build_spin_proj_in_basis(self)
             raise NotImplementedError("Cannot build projector in basis for GKS.")
-        self._SQQS = SQQS
+        SQ = [];QS = []
+        SQ.append(sqqs[0])
+        QS.append(sqqs[0])
+        SQQS = [SQ, QS]
+        self.SQQS = SQQS
+        return
+
+    def _build_proj_by_edge(self):
+        '''
+        Function to build spin projector by edge (in external basis).
+        '''
+        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.);
+                      however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
+        if not self.use_ext_basis:
+            self.use_ext_basis = True
+            warnings.warn("Internal basis not supported for this method (project by edge) nor for this class (GKS). Overriding to external basis.")
+
+        ## Iterate over atoms.
+        M = self.mol.natm
+        #elements = set()
+        charges = set()
+        for I in range(0, M):
+            #elements.add( self.mol.atom_symbol(I) ) ##i.e., 'H'
+            charges.add( int(self.mol.atom_charge(I)) )   ##i.e.,  Z = 1
+        ## Iterate over Z (assess which edges to include..)
+        edges = set()
+        for Z in charges:
+            if (Z > 2) and (Z < 11): # K-shell is not 'core' for H, He
+                edges.add('K')
+            elif (Z > 10) and (Z < 19):
+                edges.add('K')
+                edges.add('L')
+            elif (Z > 18) and (Z < 37):
+                edges.add('K')
+                edges.add('L')
+                edges.add('M')
+            elif (Z > 36):
+                edges.add('K')
+                edges.add('L')
+                edges.add('M')
+                warnings.warn(f"Program does not currently support the assignment of core orbitals beyond the M-edge for 5th row elements: element {gto.elements.ATOMIC_NAMES[Z]} (Z={Z}).")
+        ## BUILD PROJ FOR EACH EDGE
+        SQ = []
+        QS = []
+        for X in edges:
+            core_aos = project.assign_core_aos_by_edge(self, mol = self.mol, edge = X)
+            sqqs = project.build_spin_proj_in_ext_basis(self, ext_basis=self.ext_basis, caos = core_aos)
+            SQ.append(sqqs[0])
+            QS.append(sqqs[0])
+        SQQS = [SQ, QS]
+        self.SQQS = SQQS
         return
 
     @property
