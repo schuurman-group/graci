@@ -45,13 +45,18 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     ground_state = (dm.ndim == 3 and dm.shape[0] == 2)
 
     # Projection
-    if ks._SQQS is None:
-        ks._build_proj() ## sets ks.SQQS object
-    SQ = ks._SQQS[0]; QS = ks._SQQS[1]
-    pdm = numpy.zeros(dm.shape)
-    for i in range(dm.shape[0]):
-      #pdm[i] = numpy.einsum('ik,kj->ij', QS, numpy.einsum('ik,kj->ij',dm[i],SQ))
-      pdm[i] = reduce(numpy.dot, (QS,dm[i],SQ))
+    if ks.SQQS is None:
+        ks.build_proj() ## sets ks.SQQS object
+    SQ = ks.SQQS[0]; QS = ks.SQQS[1]
+    D = len(ks.phyb) ## number of projector operators.
+
+    pdm = []
+    for i in range(0, D):
+      pdm_i = numpy.zeros(dm.shape)
+      for j in range(dm.shape[0]):
+        #pdm[i] = numpy.einsum('ik,kj->ij', QS, numpy.einsum('ik,kj->ij',dm[i],SQ))
+        pdm_i[j] = reduce(numpy.dot, (QS[i],dm[j],SQ[i]))
+      pdm.append(pdm_i)
 
     if ks.grids.coords is None:
         ks.grids.build(with_non0tab=True)
@@ -77,7 +82,7 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
         ##        i.e., vxc excludes fraction of EEX.
         n, exc, vxc = ni.nr_uks(mol, ks.grids, ks.xc, dm, max_memory=max_memory)
 
-        if(abs(ks.phyb)>1e-10):
+        if (D > 1) or (abs(ks.phyb[0])>1e-10): ## More than one projector, or phyb>0.
           pxc = ks.xc
 
           #### Identify XC functional components
@@ -87,96 +92,100 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
               px = pxc
 
           ## Projected VXC in Projected RDM1.
-          np, excp, vxcp0 = ni.nr_uks(mol, ks.grids, px, pdm, max_memory=max_memory)
-          vxcp= numpy.zeros(vxc.shape)
-          for i in range(vxc.shape[0]):
-            vxcp[i] = numpy.einsum('ik,kj->ij',SQ,numpy.einsum('ik,kj->ij',vxcp0[i],QS))
+          for i in range(0, D):
+            np, excp, vxcp0 = ni.nr_uks(mol, ks.grids, px, pdm[i], max_memory=max_memory)
+            vxcp= numpy.zeros(vxc.shape)
+            for j in range(vxc.shape[0]):
+              vxcp[j] = numpy.einsum('ik,kj->ij',SQ[i],numpy.einsum('ik,kj->ij',vxcp0[j],QS[i]))
 
-          ## Version 1
-          #vxc -= ks.phyb*vxcp
-          #exc -= ks.phyb*excp
+            ## Version 1
+            #vxc -= ks.phyb*vxcp
+            #exc -= ks.phyb*excp
 
-          ## Version 2
-          vxc -= ks.phyb*vxcp/(1 - hyb)
-          exc -= ks.phyb*excp/(1 - hyb)
+            ## Version 2
+            vxc -= ks.phyb[i]*vxcp/(1 - hyb)
+            exc -= ks.phyb[i]*excp/(1 - hyb)
 
         if ks.nlc != '':
-            assert('VV10' in ks.nlc.upper())
-            _, enlc, vnlc = ni.nr_rks(mol, ks.nlcgrids, ks.xc+'__'+ks.nlc, dm[0]+dm[1],
+          assert('VV10' in ks.nlc.upper())
+          _, enlc, vnlc = ni.nr_rks(mol, ks.nlcgrids, ks.xc+'__'+ks.nlc, dm[0]+dm[1],
                                       max_memory=max_memory)
-            exc += enlc
-            vxc += vnlc
+          exc += enlc
+          vxc += vnlc
         logger.debug(ks, 'nelec by numeric integration = %s', n)
         #t0 = logger.timer(ks, 'vxc', *t0)
 
     # Add EEX from the projected density matrix.
-    if(abs(ks.phyb)>1e-10):
-      vxxp0 = ks.get_k(mol,pdm,hermi)
-      for i in range(vxc.shape[0]):
-        #vxxp0 = numpy.zeros(ks.SQ.shape)
-        vxxp  = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vxxp0[i], QS))
-        exxp  = numpy.einsum('ij,ji', pdm[i], vxxp0[i]).real * .5
+    if (D > 1) or (abs(ks.phyb[0])>1e-10):
+      for i in range(0, D):
+        vxxp0 = ks.get_k(mol,pdm[i],hermi)
+        for j in range(vxc.shape[0]):
+          #vxxp0 = numpy.zeros(ks.SQ.shape)
+          vxxp  = numpy.einsum('ik,kj->ij', SQ[i], numpy.einsum('ik,kj->ij', vxxp0[j], QS[i]))
+          exxp  = numpy.einsum('ij,ji', pdm[i][j], vxxp0[j]).real * .5
 
-        ## Version 1
-        #vxc[i] -= (ks.phyb) * (1 - hyb) * vxxp
-        #exc -= (ks.phyb) * (1 - hyb) * exxp
+          ## Version 1
+          #vxc[j] -= (ks.phyb[i]) * (1 - hyb) * vxxp
+          #exc -= (ks.phyb[i]) * (1 - hyb) * exxp
 
-        ## Version 2
-        vxc[i] -= (ks.phyb) * vxxp
-        exc -= (ks.phyb) * exxp
+          ## Version 2
+          vxc[j] -= (ks.phyb[i]) * vxxp
+          exc -= (ks.phyb[i]) * exxp
 
     if abs(hyb) < 1e-10 and abs(alpha) < 1e-10:
-        vk = None
-        if (ks._eri is None and ks.direct_scf and
-            getattr(vhf_last, 'vj', None) is not None):
-            ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
-            vj = ks.get_j(mol, ddm[0]+ddm[1], hermi)
-            vj += vhf_last.vj
-        else:
-            vj = ks.get_j(mol, dm[0]+dm[1], hermi)
-        vxc += vj
+      vk = None
+      if (ks._eri is None and ks.direct_scf and
+        getattr(vhf_last, 'vj', None) is not None):
+        ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
+        vj = ks.get_j(mol, ddm[0]+ddm[1], hermi)
+        vj += vhf_last.vj
+      else:
+        vj = ks.get_j(mol, dm[0]+dm[1], hermi)
+      vxc += vj
     else:
-        if (ks._eri is None and ks.direct_scf and
-            getattr(vhf_last, 'vk', None) is not None):
-            ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
-            vj, vk = ks.get_jk(mol, ddm, hermi)
-            vk *= hyb
-            if abs(omega) > 1e-10:
-                vklr = ks.get_k(mol, ddm, hermi, omega)
-                vklr *= (alpha - hyb)
-                vk += vklr
-            vj = vj[0] + vj[1] + vhf_last.vj
-            vk += vhf_last.vk
-        else:
-            vj, vk = ks.get_jk(mol, dm, hermi)
-            vj = vj[0] + vj[1]
-            vk *= hyb
-            if abs(omega) > 1e-10:
-                vklr = ks.get_k(mol, dm, hermi, omega)
-                vklr *= (alpha - hyb)
-                vk += vklr
+      if (ks._eri is None and ks.direct_scf and
+        getattr(vhf_last, 'vk', None) is not None):
+        ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
+        vj, vk = ks.get_jk(mol, ddm, hermi)
+        vk *= hyb
+        if abs(omega) > 1e-10:
+          vklr = ks.get_k(mol, ddm, hermi, omega)
+          vklr *= (alpha - hyb)
+          vk += vklr
+        vj = vj[0] + vj[1] + vhf_last.vj
+        vk += vhf_last.vk
+      else:
+        vj, vk = ks.get_jk(mol, dm, hermi)
+        vj = vj[0] + vj[1]
+        vk *= hyb
+        if abs(omega) > 1e-10:
+          vklr = ks.get_k(mol, dm, hermi, omega)
+          vklr *= (alpha - hyb)
+          vk += vklr
 
-        # If Hybrid:
-        if(abs(ks.phyb)>1e-10):
-            for i in range(vxc.shape[0]):
-              #vkp0 = ks.get_k(mol, pdm[i], hermi)
-              #vkp0 *= hyb
-              if abs(omega) > 1e-10:
-                  vklrp0 = ks.get_k(mol, pdm[i], hermi, omega)
-                  vklrp0 *= (alpha - hyb)
-                  #vkp0 += vklrp0
-                  vkp0 = vklrp0
-                  vkp = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vkp0, QS))
-                  vk[i] -= ks.phyb * vkp
-        vxc += vj - vk
+      # If Hybrid (Range-Sep.)
+      if (D > 0) or (abs(ks.phyb[0])>1e-10):
+        for i in range(0, D):
+          for j in range(vxc.shape[0]):
+            #vkp0 = ks.get_k(mol, pdm[i][j], hermi)
+            #vkp0 *= hyb
+            if abs(omega) > 1e-10:
+              vklrp0 = ks.get_k(mol, pdm[i][j], hermi, omega)
+              vklrp0 *= (alpha - hyb)
+              #vkp0 += vklrp0
+              vkp0 = vklrp0
+              vkp = numpy.einsum('ik,kj->ij', SQ[i], numpy.einsum('ik,kj->ij', vkp0, QS[i]))
+              vk[j] -= ks.phyb[i] * vkp
+      vxc += vj - vk
 
-        if ground_state:
-            exc -=(numpy.einsum('ij,ji', dm[0], vk[0]).real +
-                   numpy.einsum('ij,ji', dm[1], vk[1]).real) * .5
+      if ground_state:
+        exc -=(numpy.einsum('ij,ji', dm[0], vk[0]).real +
+               numpy.einsum('ij,ji', dm[1], vk[1]).real) * .5
+
     if ground_state:
-        ecoul = numpy.einsum('ij,ji', dm[0]+dm[1], vj).real * .5
+      ecoul = numpy.einsum('ij,ji', dm[0]+dm[1], vj).real * .5
     else:
-        ecoul = None
+      ecoul = None
 
     vxc = lib.tag_array(vxc, ecoul=ecoul, exc=exc, vj=vj, vk=vk)
     return vxc

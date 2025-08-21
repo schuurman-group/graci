@@ -209,6 +209,115 @@ def _assign_core_aos_by_label(obj, spinor = False):
 
     return core_aos, core_ao_dict
 
+def assign_core_aos_by_edge(obj, mol = None, edge = 'K'):
+    '''
+    Function to define the subset of core atomic orbitals.
+
+    args:    SCF object
+             gto.mole.Mole object
+             str
+
+    returns: list of int
+
+    '''
+    ## Check if mol is defined.
+    if mol is None:
+        mol = obj.mol
+
+    ## Scan for spinor AO basis.
+    if ("with_x2c" in obj.__dict__):
+        mx = obj.__dict__["with_x2c"]
+        if type(mx) is x2c.x2c.SpinOrbitalX2CHelper:
+            # Spinor AO basis (N = 2*nao)
+            core_aos, core_dict = _assign_core_aos_by_edge(mol, lvl = edge, spinor=True)
+        elif type(mx) is x2c.sfx2c1e.SpinFreeX2CHelper:
+            # Regular AO basis (N = nao)
+            core_aos, core_dict = _assign_core_aos_by_edge(mol, lvl = edge, spinor=False)
+    ## Or if doing SOC (without X2C)
+    elif ("with_spin" in obj.__dict__):
+        ## No conversion to block format.
+        core_aos, core_dict = _assign_core_aos_by_edge(mol, lvl = edge, spinor=True)
+    else:
+        core_aos, core_dict = _assign_core_aos_by_edge(mol, lvl = edge, spinor=False)
+
+    return core_aos
+
+def _assign_core_aos_by_edge(obj, lvl = None, spinor = False):
+    '''
+    Function to define the subset of core atomic orbitals by edge-type (e.g.,
+    K-edge, L-edge, M-edge). The K-edges of H (Z=1) and He(Z=2) are presently
+    excluded from the definition of 'core'.
+
+    Labels retrieved by mol.ao_labels(), mol.sph_labels, OR mol.spinor_labels()
+
+    Core orbital definitions:
+     K  -   '1s'
+     L  -   '2s', '2p'
+     M  -   '3s', '3p'
+
+    Also builds a dictionary object with entries:
+
+    atom-id: [symbol-str, atom_charge, nl-str]
+    int: [str, int, str]
+
+    ex: 0: ['F', 9, '1s']
+
+    __________________________________________
+    args:
+    obj     - gto.mole.Mole object
+    lvl     - str
+    spinor  - bool
+
+    returns:
+    list of int, dict
+
+    '''
+    core_ao_defn = {'K':('1s'), 'L':('2s','2p'), 'M':('3s','3p')}
+    if lvl is None:
+        edge = 'K'
+    else:
+        edge = lvl
+        assert (edge in core_ao_defn.keys())
+    criteria = core_ao_defn[edge]
+
+    if type(obj) is gto.mole.Mole:
+        mol = obj.copy()
+    else:
+        try:
+            mol = (obj.mol).copy()
+        except:
+            raise TypeError
+
+    if spinor:
+        labs = mol.spinor_labels()
+        uflabs = mol.spinor_labels(fmt=False)
+        labs = interleaved_to_blocked_lbl(labs)
+        uflabs = interleaved_to_blocked_lbl(uflabs)
+    else:
+        labs = mol.ao_labels() #returns list of str
+        uflabs = mol.ao_labels(fmt=False) #returns list of tuple
+
+    core_aos = []
+    core_ao_dict = dict()
+
+    ## Number of (Spin) AOs
+    nao = len(labs)
+    for iao in range(nao):
+        lbl = labs[iao]
+        tpl = uflabs[iao]
+        elemnt = tpl[1]
+        ao_lbl = tpl[2]       # For spinor, '1s1/2', etc.
+        ao_type = ao_lbl[0:2] # For spinor, '1s1/2', etc.
+        atm_id = int(tpl[0])
+        atm_Z = mol.atom_charge(atm_id)
+        ## cycle thru AOs:
+        if (ao_type in criteria) and (atm_Z > 2):
+            core_ao_dict[atm_id] = [elemnt, atm_Z, ao_type]
+            core_aos.append(iao)
+
+    core_aos = [*set(core_aos)] # Remove duplicates
+    return core_aos, core_ao_dict
+
 def build_orthogonalizer(S, default=True):
     '''
     Function to build orthogonalizer.
@@ -268,7 +377,7 @@ def build_proj_in_basis(mydft):
     SQQS = np.array((SQ,QS))
     return SQQS
 
-def build_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
+def build_proj_in_ext_basis(mydft, ext_basis = '3-21G', caos = None):
     '''
     Build projector in an external basis.
 
@@ -296,7 +405,8 @@ def build_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
     Sx = gto.intor_cross('int1e_ovlp',M, m)  # cross-overlap matrix
 
     ## List of Indices of Core AOs
-    caos = assign_core_aos(mydft, mol = m)
+    if caos is None:
+        caos = assign_core_aos(mydft, mol = m)
 
     # build overlap matrix -- core aos only
     NC = len(caos)
@@ -329,7 +439,7 @@ def build_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
 
     return SQQS
 
-def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
+def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G', caos = None):
     '''
     Build projector in an external basis (spin orbitals)
 
@@ -382,7 +492,8 @@ def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
         Sx = linalg.block_diag(Sx_, Sx_)
 
     ## List of Indices of Core AOs
-    caos = assign_core_aos(mydft, mol = m)
+    if caos is None:
+        caos = assign_core_aos(mydft, mol = m)
 
     # build overlap matrix -- core aos only
     NC = len(caos)
@@ -415,7 +526,7 @@ def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G'):
 
     return SQQS
 
-def old_build_proj_in_basis(mydft):
+def old_build_proj_in_basis(mydft, caos = None):
     '''
     Build projector in the same basis.
 
@@ -435,7 +546,8 @@ def old_build_proj_in_basis(mydft):
     #s = m.intor_symmetric('int1e_ovlp')
 
     ## List of Indices of Core AOs
-    caos = assign_core_aos(mydft, mol = m)
+    if caos is None:
+        caos = assign_core_aos(mydft, mol = m)
 
     # Build overlap matrix for core aos only
     NC = len(caos)

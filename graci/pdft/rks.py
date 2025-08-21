@@ -27,7 +27,7 @@ from functools import reduce
 from scipy import linalg
 from pyscf import lib
 from pyscf.lib import logger
-from pyscf import scf
+from pyscf import gto, scf
 from pyscf.scf import hf
 from pyscf.scf import _vhf
 from pyscf.scf import jk
@@ -85,12 +85,16 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     # 1. Evaluate an XC contribution from DM
     # 2. Subtract off the corresponding contribution from pdm
     # 3. Add EEX from PDM.
-    if ks._SQQS is None:
-        ks._build_proj() ## sets ks.SQQS object
-    SQ = ks._SQQS[0]; QS = ks._SQQS[1]
+    if ks.SQQS is None:
+        ks.build_proj() ## sets ks.SQQS object
+    SQ = ks.SQQS[0]; QS = ks.SQQS[1]
+    D = len(ks.phyb) ## number of projector operators.
 
     #pdm = numpy.einsum('ik,kj->ij',ks.QS,numpy.einsum('ik,kj->ij',dm,ks.SQ))
-    pdm = reduce(numpy.dot, (QS,dm,SQ))
+    pdm = []
+    for i in range(0, D):
+      pdm_i = reduce(numpy.dot, (QS[i],dm,SQ[i]))
+      pdm.append(pdm_i)
 
     if ks.grids.coords is None:
         ks.grids.build(with_non0tab=True)
@@ -117,91 +121,95 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
         ## Regular XC contributions.
         ##        i.e., vxc excludes fraction of EEX.
         n, exc, vxc = ni.nr_rks(mol, ks.grids, ks.xc, dm, max_memory=max_memory)
-        if(abs(ks.phyb)>1e-10):
+        if (D!=1) or (abs(ks.phyb[0])>1e-10): #if more than one projection defined OR phyb>0.
           pxc = ks.xc
 
           #### Identify XC functional components
           if ks.xcstr is not None:
-              px, pc = ks.xcstr
+            px, pc = ks.xcstr
           else:
-              px = pxc
+            px = pxc
 
           ## Projected VXC in Projected RDM1.
-          np, excp, vxcp0 = ni.nr_rks(mol, ks.grids, px, pdm, max_memory=max_memory)
-          vxcp = numpy.einsum('ik,kj->ij',SQ,numpy.einsum('ik,kj->ij',vxcp0,QS))
+          for i in range(0, D):
+            np, excp, vxcp0 = ni.nr_rks(mol, ks.grids, px, pdm[i], max_memory=max_memory)
+            vxcp = numpy.einsum('ik,kj->ij',SQ[i],numpy.einsum('ik,kj->ij',vxcp0,QS[i]))
 
-          ## Version 1
-          #vxc -= ks.phyb*vxcp
-          #exc -= ks.phyb*excp
-          ## Version 2
-          vxc -= ks.phyb*vxcp/(1 - hyb)
-          exc -= ks.phyb*excp/(1 - hyb)
+            ## Version 1
+            #vxc -= ks.phyb*vxcp
+            #exc -= ks.phyb*excp
+            ## Version 2
+            vxc -= ks.phyb[i]*vxcp/(1 - hyb)
+            exc -= ks.phyb[i]*excp/(1 - hyb)
 
         if ks.nlc != '':
-            assert('VV10' in ks.nlc.upper())
-            _, enlc, vnlc = ni.nr_rks(mol, ks.nlcgrids, ks.xc+'__'+ks.nlc, dm,
+          assert('VV10' in ks.nlc.upper())
+          _, enlc, vnlc = ni.nr_rks(mol, ks.nlcgrids, ks.xc+'__'+ks.nlc, dm,
                                       max_memory=max_memory)
-            exc += enlc
-            vxc += vnlc
+          exc += enlc
+          vxc += vnlc
         logger.debug(ks, 'nelec by numeric integration = %s', n)
         #t0 = logger.timer(ks, 'vxc', *t0)
 
     # Add EEX from the projected density matrix
-    if(abs(ks.phyb)>1e-10):
-      vxxp0 = ks.get_k(mol,pdm,hermi)
-      vxxp  = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vxxp0, QS))
-      exxp  = numpy.einsum('ij,ji', pdm, vxxp0).real * .5
+    if (D!=1) or (abs(ks.phyb[0])>1e-10):
+      for i in range(0, D):
+        vxxp0 = ks.get_k(mol,pdm[i],hermi)
+        vxxp  = numpy.einsum('ik,kj->ij', SQ[i], numpy.einsum('ik,kj->ij', vxxp0, QS[i]))
+        exxp  = numpy.einsum('ij,ji', pdm[i], vxxp0).real * .5
 
-      ## Version 1
-      #vxc -= (ks.phyb) * (1 - hyb) * vxxp * .5
-      #exc -= (ks.phyb) * (1 - hyb) * exxp * .5
+        ## Version 1
+        #vxc -= (ks.phyb) * (1 - hyb) * vxxp * .5
+        #exc -= (ks.phyb) * (1 - hyb) * exxp * .5
 
-      ## Version 2
-      vxc -= (ks.phyb) * vxxp * .5
-      exc -= (ks.phyb) * exxp * .5
+        ## Version 2
+        vxc -= (ks.phyb[i]) * vxxp * .5
+        exc -= (ks.phyb[i]) * exxp * .5
 
     if abs(hyb) < 1e-10 and abs(alpha) < 1e-10:
-        vk = None
-        if (ks._eri is None and ks.direct_scf and
-            getattr(vhf_last, 'vj', None) is not None):
-            ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
-            vj = ks.get_j(mol, ddm, hermi)
-            vj += vhf_last.vj
-        else:
-            vj = ks.get_j(mol, dm, hermi)
-        vxc += vj
+      vk = None
+      if (ks._eri is None and ks.direct_scf and
+        getattr(vhf_last, 'vj', None) is not None):
+        ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
+        vj = ks.get_j(mol, ddm, hermi)
+        vj += vhf_last.vj
+      else:
+        vj = ks.get_j(mol, dm, hermi)
+      vxc += vj
     else:
-        if (ks._eri is None and ks.direct_scf and
-            getattr(vhf_last, 'vk', None) is not None):
-            ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
-            vj, vk = ks.get_jk(mol, ddm, hermi)
-            vk *= hyb
-            if abs(omega) > 1e-10:  # For range separated Coulomb operator
-                vklr = ks.get_k(mol, ddm, hermi, omega=omega)
-                vklr *= (alpha - hyb)
-                vk += vklr
-            vj += vhf_last.vj
-            vk += vhf_last.vk
-        else:
-            vj, vk = ks.get_jk(mol, dm, hermi)
-            vk *= hyb
-            #print("retrieved (vj - hyb * vk)")
-            if abs(omega) > 1e-10:
-                vklr = ks.get_k(mol, dm, hermi, omega=omega)
-                vklr *= (alpha - hyb)
-                vk += vklr
+      if (ks._eri is None and ks.direct_scf and
+        getattr(vhf_last, 'vk', None) is not None):
+        ddm = numpy.asarray(dm) - numpy.asarray(dm_last)
+        vj, vk = ks.get_jk(mol, ddm, hermi)
+        vk *= hyb
+        if abs(omega) > 1e-10:  # For range separated Coulomb operator
+          vklr = ks.get_k(mol, ddm, hermi, omega=omega)
+          vklr *= (alpha - hyb)
+          vk += vklr
+        vj += vhf_last.vj
+        vk += vhf_last.vk
+      else:
+        vj, vk = ks.get_jk(mol, dm, hermi)
+        vk *= hyb
+        #print("retrieved (vj - hyb * vk)")
+        if abs(omega) > 1e-10:
+          vklr = ks.get_k(mol, dm, hermi, omega=omega)
+          vklr *= (alpha - hyb)
+          vk += vklr
 
-        ## If Hybrid
-        if(abs(ks.phyb)>1e-10):
-            #vkp0 = ks.get_k(mol, pdm, hermi)
-            #vkp0 *= hyb
-            if abs(omega) > 1e-10:
-                vklrp0 = ks.get_k(mol, pdm, hermi, omega=omega)
-                vklrp0 *= (alpha - hyb)
-                #vkp0 += vklrp0
-                vkp0 = vklrp0
-                vkp = numpy.einsum('ik,kj->ij', SQ, numpy.einsum('ik,kj->ij', vkp0, QS))
-                vk -= ks.phyb * vkp
+      ## If Hybrid (Range-Sep.)
+      if (D!=0) or (abs(ks.phyb[0])>1e-10):
+        #vkp0 = ks.get_k(mol, pdm, hermi)
+        #vkp0 *= hyb
+        if abs(omega) > 1e-10:
+          for i in range(0, D):
+            vklrp0 = ks.get_k(mol, pdm[i], hermi, omega=omega)
+            vklrp0 *= (alpha - hyb)
+            #vkp0 += vklrp0
+            vkp0 = vklrp0
+            vkp = numpy.einsum('ik,kj->ij', SQ[i], numpy.einsum('ik,kj->ij', vkp0, QS[i]))
+            vk -= ks.phyb[i] * vkp
+
         vxc += vj - (vk * .5)
 
         if ground_state:
@@ -348,7 +356,7 @@ def define_xc_(ks, description, xctype='LDA', hyb=0, rsh=(0,0,0)):
     return ks
 
 
-def _pdft_common_init_(mf, xc='LDA,VWN', phyb=0, paos=None, ext_basis='3-21G', use_ext_basis = True):
+def _pdft_common_init_(mf, xc='LDA,VWN', phyb=[0], paos=None, ext_basis='3-21G', use_ext_basis = True):
     raise DeprecationWarning
 
 class KohnShamPDFT(object):
@@ -413,11 +421,15 @@ class KohnShamPDFT(object):
     '''
     _keys = {'xc', 'xcstr', 'nlc', 'grids', 'disp', 'nlcgrids', 'small_rho_cutoff', 'phyb', 'paos', 'ext_basis', 'use_ext_basis',}
 
-    def __init__(self, xc='LDA,VWN', phyb=0, paos=None, ext_basis='3-21G', use_ext_basis = True):
+    def __init__(self, xc='LDA,VWN', phyb=[0], paos=None, ext_basis='3-21G', use_ext_basis = True):
         self.xc = xc
         self.xc_handler()
         self.paos = paos
-        self.phyb = phyb
+        if type(phyb) == int:
+            self.phyb = [phyb]
+        else:
+            assert (type(phyb) == list)
+            self.phyb = phyb
         self.use_ext_basis = use_ext_basis
         if use_ext_basis:
             self.ext_basis = ext_basis
@@ -425,7 +437,7 @@ class KohnShamPDFT(object):
             self.ext_basis = None
         ## Create projectors, mf.SQQS
         #self._build_proj()
-        self._SQQS = None
+        self.SQQS = None
         self.nlc = ''
         self.grids = gen_grid.Grids(self.mol)
         self.grids.level = getattr(__config__, 'dft_rks_RKS_grids_level',
@@ -474,15 +486,82 @@ class KohnShamPDFT(object):
         caos = project.assign_core_aos(self.mol)
         return caos
 
+    def build_proj(self):
+        '''
+        Function to build projector.
+        '''
+        D = len(self.phyb)
+        if (D > 1):
+            warnings.warn("Building projector by edge.")
+            self._build_proj_by_edge()
+        else:
+            self._build_proj()
+
+        ## Number of projectors should match number of edges.
+        assert( len(self.SQQS[0]) == len(self.SQQS[1]) )
+        assert( len(self.SQQS[0]) == D )
+        return
+
     def _build_proj(self):
         '''
         Function to build projector.
         '''
+        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.);
+                      however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
         if self.use_ext_basis:
-            SQQS = project.build_proj_in_ext_basis(self, ext_basis=self.ext_basis)
+            sqqs = project.build_proj_in_ext_basis(self, ext_basis=self.ext_basis)
         else:
-            SQQS = project.build_proj_in_basis(self)
-        self._SQQS = SQQS
+            sqqs = project.build_proj_in_basis(self)
+        SQ = [];QS = []
+        SQ.append(sqqs[0])
+        QS.append(sqqs[0])
+        SQQS = [SQ, QS]
+        self.SQQS = SQQS
+        return
+
+    def _build_proj_by_edge(self):
+        '''
+        Function to build projector by edge (default is external basis).
+        '''
+        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.);
+                      however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
+        if not self.use_ext_basis:
+            self.use_ext_basis = True
+            warnings.warn("Internal basis not supported for this method. Overriding to external basis.")
+        ## Iterate over atoms.
+        M = self.mol.natm
+        #elements = set()
+        charges = set()
+        for I in range(0, M):
+            #elements.add( self.mol.atom_symbol(I) ) ##i.e., 'H'
+            charges.add( int(self.mol.atom_charge(I)) )   ##i.e.,  Z = 1
+        ## Iterate over Z (assess which edges to include..)
+        edges = set()
+        for Z in charges:
+            if (Z > 2) and (Z < 11): # K-shell is not 'core' for H, He
+                edges.add('K')
+            elif (Z > 10) and (Z < 19):
+                edges.add('K')
+                edges.add('L')
+            elif (Z > 18) and (Z < 37):
+                edges.add('K')
+                edges.add('L')
+                edges.add('M')
+            elif (Z > 36):
+                edges.add('K')
+                edges.add('L')
+                edges.add('M')
+                warnings.warn(f"Program does not currently support the assignment of core orbitals beyond the M-edge for 5th row elements: element {gto.elements.ATOMIC_NAMES[Z]} (Z={Z}).")
+        ## BUILD PROJ FOR EACH EDGE
+        SQ = []
+        QS = []
+        for X in edges:
+            core_aos = project.assign_core_aos_by_edge(self, mol = self.mol, edge = X)
+            sqqs = project.build_proj_in_ext_basis(self, ext_basis=self.ext_basis, caos = core_aos)
+            SQ.append(sqqs[0])
+            QS.append(sqqs[0])
+        SQQS = [SQ, QS]
+        self.SQQS = SQQS
         return
 
     def xc_handler(self):
