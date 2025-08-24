@@ -75,8 +75,7 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     ground_state = isinstance(dm, numpy.ndarray) and dm.ndim == 2
 
     # Build the AO projection operators and projected 1pdm
-    if ks.SQQS is None:
-        ks.build_proj() ## sets ks.SQQS object
+    assert (ks.SQQS is not None) ## maybe add this to ks.build() ??
     SQ = ks.SQQS[0]; QS = ks.SQQS[1]
     D = len(ks.phyb)
 
@@ -263,7 +262,7 @@ class GKS(rks.KohnShamPDFT, ghf.GHF):
             raise NotImplementedError("Cannot build projector in basis for GKS.")
         SQ = [];QS = []
         SQ.append(sqqs[0])
-        QS.append(sqqs[0])
+        QS.append(sqqs[1])
         SQQS = [SQ, QS]
         self.SQQS = SQQS
         return
@@ -272,8 +271,7 @@ class GKS(rks.KohnShamPDFT, ghf.GHF):
         '''
         Function to build spin projector by edge (in external basis).
         '''
-        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.);
-                      however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
+        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.); however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
         if not self.use_ext_basis:
             self.use_ext_basis = True
             warnings.warn("Internal basis not supported for this method (project by edge) nor for this class (GKS). Overriding to external basis.")
@@ -309,7 +307,7 @@ class GKS(rks.KohnShamPDFT, ghf.GHF):
             core_aos = project.assign_core_aos_by_edge(self, mol = self.mol, edge = X)
             sqqs = project.build_spin_proj_in_ext_basis(self, ext_basis=self.ext_basis, caos = core_aos)
             SQ.append(sqqs[0])
-            QS.append(sqqs[0])
+            QS.append(sqqs[1])
         SQQS = [SQ, QS]
         self.SQQS = SQQS
         return

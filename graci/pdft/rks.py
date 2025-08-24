@@ -35,7 +35,7 @@ from pyscf.dft import gen_grid
 from pyscf.dft import numint
 from pyscf.dft import libxc as lxc
 #from pdft import numint
-from graci.pdft import project
+from graci.pdft import project, pscf
 from pyscf import __config__
 ## NOTE: currently, paos not initialized (saved as attribute).
 ## paos (i.e., caos) called within function to build operator; implicit.
@@ -85,8 +85,7 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     # 1. Evaluate an XC contribution from DM
     # 2. Subtract off the corresponding contribution from pdm
     # 3. Add EEX from PDM.
-    if ks.SQQS is None:
-        ks.build_proj() ## sets ks.SQQS object
+    assert (ks.SQQS is not None) ## maybe add this to ks.build() ??
     SQ = ks.SQQS[0]; QS = ks.SQQS[1]
     D = len(ks.phyb) ## number of projector operators.
 
@@ -419,13 +418,13 @@ class KohnShamPDFT(object):
     >>> mf.kernel()
     -76.415443079840458
     '''
-    _keys = {'xc', 'xcstr', 'nlc', 'grids', 'disp', 'nlcgrids', 'small_rho_cutoff', 'phyb', 'paos', 'ext_basis', 'use_ext_basis',}
+    _keys = {'xc', 'xcstr', 'nlc', 'grids', 'disp', 'nlcgrids', 'small_rho_cutoff', 'phyb', 'paos', 'ext_basis', 'use_ext_basis', 'SQQS'}
 
     def __init__(self, xc='LDA,VWN', phyb=[0], paos=None, ext_basis='3-21G', use_ext_basis = True):
         self.xc = xc
         self.xc_handler()
         self.paos = paos
-        if type(phyb) == int:
+        if type(phyb) == float:
             self.phyb = [phyb]
         else:
             assert (type(phyb) == list)
@@ -483,38 +482,46 @@ class KohnShamPDFT(object):
         '''
         Function to assign core AOs.
         '''
-        caos = project.assign_core_aos(self.mol)
+        caos = project.assign_core_aos(self, mol = self.mol)
         return caos
 
-    def build_proj(self):
+    def build_proj(self, **kwargs):
         '''
-        Function to build projector.
+        Function to build projector, SQQS = SQ,QS.
+
+        If self.use_ext_basis == True, then SQ,QS are built in external AO basis.
+        Otherwise, SQ,QS are built in the internal MO basis.
+
+        However, if projecting onto multiple edges, this class currently overrides
+        to external basis.
+
         '''
         D = len(self.phyb)
         if (D > 1):
-            warnings.warn("Building projector by edge.")
+            warnings.warn("Building projector by edge (default to external AO basis).")
             self._build_proj_by_edge()
         else:
-            self._build_proj()
+            self._build_proj(**kwargs)
 
         ## Number of projectors should match number of edges.
+        #  (this really belongs inside of a 'sanity_check', but anyway..)
         assert( len(self.SQQS[0]) == len(self.SQQS[1]) )
         assert( len(self.SQQS[0]) == D )
         return
 
-    def _build_proj(self):
+    def _build_proj(self, **kwargs):
         '''
-        Function to build projector.
+        Private function to build projector.
         '''
-        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.);
-                      however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
+        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.); however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
         if self.use_ext_basis:
             sqqs = project.build_proj_in_ext_basis(self, ext_basis=self.ext_basis)
         else:
-            sqqs = project.build_proj_in_basis(self)
+            #sqqs = project.build_proj_in_basis(self)
+            sqqs = project.build_mo_proj(self, **kwargs) ## insert mo_coeff (cmos) if defined.
         SQ = [];QS = []
         SQ.append(sqqs[0])
-        QS.append(sqqs[0])
+        QS.append(sqqs[1])
         SQQS = [SQ, QS]
         self.SQQS = SQQS
         return
@@ -527,7 +534,7 @@ class KohnShamPDFT(object):
                       however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
         if not self.use_ext_basis:
             self.use_ext_basis = True
-            warnings.warn("Internal basis not supported for this method. Overriding to external basis.")
+            warnings.warn("Internal (MO) basis not supported for this method. Overriding to external basis.")
         ## Iterate over atoms.
         M = self.mol.natm
         #elements = set()
@@ -559,7 +566,7 @@ class KohnShamPDFT(object):
             core_aos = project.assign_core_aos_by_edge(self, mol = self.mol, edge = X)
             sqqs = project.build_proj_in_ext_basis(self, ext_basis=self.ext_basis, caos = core_aos)
             SQ.append(sqqs[0])
-            QS.append(sqqs[0])
+            QS.append(sqqs[1])
         SQQS = [SQ, QS]
         self.SQQS = SQQS
         return
@@ -580,6 +587,52 @@ class KohnShamPDFT(object):
             warnings.warn("Unknown XC type passed to RKS object.")
             self.xcstr = None
         return
+
+    def scf(self, dm0=None, **kwargs):
+        '''SCF main driver
+
+        Kwargs:
+            dm0 : ndarray
+                If given, it will be used as the initial guess density matrix
+
+        Examples:
+
+        >>> import numpy
+        >>> from pyscf import gto, scf
+        >>> mol = gto.M(atom='H 0 0 0; F 0 0 1.1')
+        >>> mf = scf.hf.SCF(mol)
+        >>> dm_guess = numpy.eye(mol.nao_nr())
+        >>> mf.kernel(dm_guess)
+        converged SCF energy = -98.5521904482821
+        -98.552190448282104
+        '''
+        cput0 = (logger.process_clock(), logger.perf_counter())
+
+        self.dump_flags()
+        self.build(self.mol)
+
+        if dm0 is None and self.mo_coeff is not None and self.mo_occ is not None:
+            # Initial guess from existing wavefunction
+            dm0 = self.make_rdm1()
+
+        if self.max_cycle > 0 or self.mo_coeff is None:
+            self.converged, self.e_tot, \
+                    self.mo_energy, self.mo_coeff, self.mo_occ = \
+                    pscf.kernel(self, self.conv_tol, self.conv_tol_grad,
+                           dm0=dm0, callback=self.callback,
+                           conv_check=self.conv_check, **kwargs)
+        else:
+            # Avoid to update SCF orbitals in the non-SCF initialization
+            # (issue #495).  But run regular SCF for initial guess if SCF was
+            # not initialized.
+            self.e_tot = pscf.kernel(self, self.conv_tol, self.conv_tol_grad,
+                                dm0=dm0, callback=self.callback,
+                                conv_check=self.conv_check, **kwargs)[1]
+
+        logger.timer(self, 'SCF', *cput0)
+        self._finalize()
+        return self.e_tot
+    kernel = lib.alias(scf, alias_name='kernel')
 
     def to_rhf(self):
         '''Convert the input mean-field object to a RHF/ROHF object.
@@ -672,7 +725,9 @@ class KohnShamPDFT(object):
 
 
 def init_guess_by_vsap(mf, mol=None):
-    '''Form SAP guess'''
+    '''Function to form the superposition of atomic potentials (SAP) guess
+    density.
+    '''
     if mol is None: mol = mf.mol
 
     vsap = mf.get_vsap()

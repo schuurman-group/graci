@@ -4,6 +4,7 @@ Core-Projected DFT Helper Functions
 '''
 
 import numpy as np
+import pyscf
 from pyscf import gto, lib, x2c
 import pylibxc as libxc
 from scipy import linalg
@@ -528,7 +529,7 @@ def build_spin_proj_in_ext_basis(mydft, ext_basis = '3-21G', caos = None):
 
 def old_build_proj_in_basis(mydft, caos = None):
     '''
-    Build projector in the same basis.
+    Build projector in the internal basis.
 
     Args:
     mydft                         [dft.ROKS object]
@@ -568,6 +569,8 @@ def old_build_proj_in_basis(mydft, caos = None):
     SCm = linalg.inv(SC)
 
     # Core AO projection operators in current basis set
+      # SMSXC = SM @ SXC
+      # Q = np.einsum('ia,ab,jb->ij', SMSXC, SCm, SMSXC)
     Q = np.einsum('ia,ab,bc,dc,dj->ij',SM,SXC,SCm,SXC,SM)
     # SM: inverse of overlap matrix
     # SXC: cross-overlap matrix of dim [N X NC]
@@ -576,6 +579,94 @@ def old_build_proj_in_basis(mydft, caos = None):
     ## Define the operators
     QS = np.einsum('ik,kj->ij', Q, S)
     SQ = np.einsum('ik,kj->ij', S, Q)
+    ## Consolidate into single (2,N,N) dim array
+    SQQS = np.array((SQ,QS))
+    return SQQS
+
+def build_mo_proj(mydft, mo_coeff = None, cmos = None):
+    '''
+    Build projector from orthonormal MOs.
+    Projects onto all K-edges in molecule.
+
+    The init_guess is simply VSAP by default.
+
+    ************************************************
+    NOTE: I'm feeling lazy, so only defining K-edges
+          Z > 2) as 'core MO' right now..
+    ************************************************
+
+    Args:
+    mydft                         [dft.ROKS object]
+
+    Returns:
+    [QS,SQ]    Core-Projector     [np.array]
+    '''
+    ## Assign local variables
+    m = mydft.mol
+    N = m.nao
+    S = mydft.get_ovlp()
+    M = m.natm
+
+    ## List of Indices of Core AOs
+    if cmos is None:
+        #cmos = assign_core_mos(mydft, mol = m)
+        n_edge = M
+        for j in range(M):
+            Z = m.atom_charge(j)
+            if Z < 3:
+                n_edge -= 1
+        cmos = np.arange(0, n_edge, 1)
+
+    ## Get MOs.
+    if (mo_coeff is None) and (mydft.mo_coeff is None):
+        ## Init Guess by VSAP
+        vsap = mydft.get_vsap()
+        t = m.intor_symmetric('int1e_kin')
+        s = mydft.get_ovlp(m)
+        hsap = t + vsap
+        # Form guess orbitals
+        mo_energy, C = mydft.eig(hsap, s)
+        # and guess density
+        mo_occ = mydft.get_occ(mo_energy, C)
+
+        ## Init Guess by Hcore
+        #s = mydft.get_ovlp(m)
+        #F0 = mydft.get_hcore()
+        #mo_energy, C = mydft.eig(F0, s)
+        #mo_occ = mydft.get_occ(mo_energy, C)
+
+        ## Init guess by Huckel
+        #mo_energy, C = pyscf.scf.hf._init_guess_huckel_orbitals(m, updated_rule = False)
+        #mo_occ = mydft.get_occ(mo_energy, C)
+
+        # set attributes.
+        #mydft.mo_energy = mo_energy
+        #mydft.mo_coeff = C
+        #mydft.mo_energy = mo_energy
+
+    elif (mo_coeff is None) and (mydft.mo_coeff is not None):
+        C = mydft.mo_coeff
+    else:
+        C = mo_coeff
+
+    ## Slice core orbitals
+    corbs = C[:, cmos]
+
+    (nao,NC) = corbs.shape
+    assert (nao == N)
+
+    Q = np.zeros((N,N))
+    ## Separate the "orthogonal" CMOs
+    for i in range(NC):
+        v = corbs[:,i].reshape((N,1)) # (N,)->(N,1)
+        Q += v @ v.T # (N,1) x (1,N) == outer product.
+
+    ## Group the "orthogonal" CMOs together.
+    #Q += corbs @ corbs.T # (N,NC) x (NC,N) == outer product.
+
+    QS=np.einsum('ik,kj->ij',Q,S)
+    SQ=np.einsum('ik,kj->ij',S,Q)
+
     ## Consolidate into single (2,N,N) dim array
     SQQS = np.array((SQ,QS))
     return SQQS

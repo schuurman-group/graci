@@ -45,8 +45,7 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
     ground_state = (dm.ndim == 3 and dm.shape[0] == 2)
 
     # Projection
-    if ks.SQQS is None:
-        ks.build_proj() ## sets ks.SQQS object
+    assert (ks.SQQS is not None) ## maybe add this to ks.build() ??
     SQ = ks.SQQS[0]; QS = ks.SQQS[1]
     D = len(ks.phyb) ## number of projector operators.
 
