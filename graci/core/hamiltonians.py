@@ -13,8 +13,9 @@ aliases = {
     'heil17_short'    : 'r2017_short',
     'heil18_standard' : 'r2018',
     'heil18_short'    : 'r2018_short',
-    'test_exp'        : 'qe8'
-}
+    'test_exp'        : 'qe8',
+    'test_cvs'        : 'cvs-test'
+    }
 
 # references
 references = {
@@ -31,7 +32,8 @@ references = {
     'qe8'           : 'Unpublished',
     'qe8_short'     : 'Unpublished',
     'cvs-qe8'       : 'Unpublished',
-    'cvs-qe8_short' : 'Unpublished'
+    'cvs-qe8_short' : 'Unpublished',
+    'cvs-test'      : 'Unpublished'
     }
 
 # pretty names for printing
@@ -50,7 +52,8 @@ pretty = {
     'qe8'           : 'QE8,' + desel + ' = 1.0',
     'qe8_short'     : 'QE8,' + desel + ' = 0.8',
     'cvs-qe8'       : 'CVS-QE8,' + desel + ' = 1.0',
-    'cvs-qe8_short' : 'CVS-QE8,' + desel + ' = 0.8'
+    'cvs-qe8_short' : 'CVS-QE8,' + desel + ' = 0.8',
+    'cvs-test'      : 'CVS-TEST,'+ desel + ' = 1.0'
 }
 
 # Intended use XC functionals
@@ -68,5 +71,6 @@ xc_intended = {
     'qe8'           : 'QTP17',
     'qe8_short'     : 'QTP17',
     'cvs-qe8'       : 'QTP17',
-    'cvs-qe8_short' : 'QTP17'
+    'cvs-qe8_short' : 'QTP17',
+    'cvs-test'      : 'BHLYP'
 }
