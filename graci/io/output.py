@@ -831,7 +831,7 @@ def print_dyson_table(init_st, init_sym, final_st, final_sym,
     return
     
 #
-def print_param_header(p_ref, exc_ref, ci_objs):
+def print_param_header(options, exc_ref, ci_objs):
     """
     print header for reparameterization run
     """
@@ -862,15 +862,12 @@ def print_param_header(p_ref, exc_ref, ci_objs):
 
         outfile.write('\n Initial Parameter Values\n')
         outfile.write(  ' --------------------------------------\n\n')
-        for key,value in p_ref.items():
-            if value is not None:
-                if isinstance(value,str):
-                    outfile.write(' {:12s}'.format(key) + ' ' + 
-                                   value + '\n')
-                else:
-                    pstr = ''.join(['{:10.6f}']*len(value))
-                    outfile.write(' {:12s}'.format(key) + ' ' + 
-                                   pstr.format(*value) + '\n')
+        for ham in options.keys():
+            pstr = ''.join(['{:10.6f}']*len(options[ham]['params']))
+            ostr = ' {:15s}: '.format(ham)
+            ostr += pstr.format(*options[ham]['params'])
+            outfile.write(ostr+'\n')
+
         outfile.write('\n\n')
         outfile.flush()
 
@@ -936,7 +933,7 @@ def print_param_scan_iter(hval, step, err):
     return
 
 #
-def print_param_results(p_final, res, target, init_ener, final_ener):
+def print_param_results(options, res, target, init_ener, final_ener):
     """
     print result of a parameterization run
     """
@@ -953,15 +950,11 @@ def print_param_results(p_final, res, target, init_ener, final_ener):
 
         outfile.write('\n\n Final Parameter Values')
         outfile.write('\n -----------------------------------------\n')
-        for key,value in p_final.items():
-            if value is not None:
-                if isinstance(value, str):
-                    outfile.write(' {:12s}'.format(key) + ' ' +
-                                              value + '\n')
-                else:
-                    pstr = ''.join(['{:10.6f}']*len(value))
-                    outfile.write(' {:12s}'.format(key) + ' ' +
-                                pstr.format(*value) + '\n')
+        for ham in options.keys():
+            pstr = ''.join(['{:10.6f}']*len(options[ham]['params']))
+            ostr = ' {:15s}: '.format(ham)
+            ostr += pstr.format(*options[ham]['params'])
+            outfile.write(ostr+'\n')
 
         outfile.write('\n\n Reference Data')
         outfile.write('\n -----------------------------------------')
