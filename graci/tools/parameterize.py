@@ -51,13 +51,6 @@ class Parameterize:
         # bounds for ham parameters
         self.bounds          = [] 
 
-        # number of worker proceses for parallel runs
-        self.max_workers     = 1
-
-        # scan run options
-        self.ngrid           = None
-        self.scan_var        = []
-
         # ----------------------------------------------------------
         # this is the internal dictionary parameterize uses to keep
         # track of optimization options
@@ -65,9 +58,16 @@ class Parameterize:
         # bounds put into format the optimizer will accept
         self.opt_bnds      = None
         # initial parameters -- saved for finall comparison
-        self.p_0           = None 
+        self.p_0           = None
         # list of parameters to optimize
         self.p_n           = None
+
+        # scan run options
+        self.ngrid           = None
+        self.scan_var        = []
+
+        # number of worker proceses for parallel runs
+        self.max_workers     = 1
 
         self.n_opt         = 0
         self.n_ref         = 0
@@ -201,50 +201,47 @@ class Parameterize:
         return n_opt, opt_options, opt_bnds 
 
     #
-    def scan(self, p_vals, scan_var, ngrid, args):
+    def scan(self, p_init, scan_var, ngrid, args):
         """
         scan the parameter values 
         """
 
-        keys   = ['xc', 'init', 'final']
         bounds = []
-        label  = []
-        p0     = []
-        n_scan  = 0
+        labels = []
+        p_scan = []
+        n_scan = 0
 
         # start by freezing all coordiantes
-        for key in keys:
-            if self.params[key] is not None and len(self.params[key])>0:
-                self.freeze[key] = list(range(len(self.params[key])))
+        for ham in self.hamiltonians:
+            self.opt_options[ham]['freeze'] = \
+                    list(range(len(self.opt_options[ham]['params'])))
 
         # loop over strings in scan_var
         for p_str in self.scan_var:
-            p_val = int(p_str[-1])
- 
-            i = 0
-            while i<3 and keys[i] not in p_str:
-                i += 1
+            p_index = int(p_str[-1])
+            ham     = p_str[:-1]
+      
+            if ham not in self.opt_options.keys():
+                msg = 'Hamiltonian: '+str(ham)+' not recognized.'
+                self.hard_exit(msg)
 
-            if i==3:
-                continue
-
-            #self.opt[keys[i]] = True
-            #self.freeze[keys[i]].remove(p_val)
-            #label.append(keys[i]) 
-            #bounds.append(self.bounds[keys[i]][p_val])
-            #p0.append(self.params[keys[i]][p_val])
+            self.opt_options[ham]['freeze'].pop(p_index)
+            labels.append(ham)
+            bounds.append(self.opt_options[ham]['bounds'][p_index])
+            p_scan.append(self.opt_options[ham]['params'][p_index])
             n_scan += 1
 
         delta = [(bounds[i][1] - bounds[i][0]) / (ngrid[i]-1)
                   if ngrid[i] > 1 else 0. for i in range(n_scan)]
 
-        output.print_param_scan_head(label, p0, bounds, ngrid)
-        
+        output.print_param_scan_head(labels, p_scan, bounds, ngrid)
+       
+        hscan    = np.zeros(n_scan, dtype=float)
         step     = [0] * n_scan
         step[-1] = -1
         done = False
         while not done:
-
+            
             param = n_scan - 1
             while step[param] == (ngrid[param]-1):
                 step[param] = 0
@@ -257,8 +254,8 @@ class Parameterize:
                 break
 
             step[param] += 1
-            hscan = [bounds[i][0] + step[i]*delta[i] 
-                                          for i in range(n_scan)]
+            for i in range(n_scan):
+                hscan[i] = bounds[i][0] + step[i]*delta[i]
 
             err = self.err_func(hscan, *args) 
             output.print_param_scan_iter(hscan, step, err)

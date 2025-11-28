@@ -926,7 +926,7 @@ def print_param_scan_iter(hval, step, err):
         fmt += ' step= ' + ''.join([' {:4d}']*len(hval))
         fmt += ' err= {:>15.8f}'
 
-        args = hval+step+[err]
+        args = hval.tolist() + step + [err]
         outfile.write(fmt.format(*args)) 
         outfile.flush()
 
