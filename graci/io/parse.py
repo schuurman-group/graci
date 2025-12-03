@@ -253,24 +253,6 @@ def parse_value(valstr, val_type):
 
     vec_str = final_list_container[0]
 
-    #while '[' in val_list:
-    #    start = val_list.index('[')+1
-        # try to close this brace, else just take to the end
-    #    try:
-    #        end = val_list.index(']')
-    #    except:
-    #        sys.exit('missing a closing brace: '+str(valstr))
-        # append the entries between the braces a new vector 
-    #    vec_str.append(list(val_list[start:end]))
-    #    if end == len(val_list)-1:
-    #        break
-    #    val_list = val_list[end+1:]
-
-    # if just a single element of this 2D list, convert to vector
-    #print('vec_str='+str(vec_str))
-    #if len(vec_str)==1:
-    #    return convert_array(vec_str[0])
-    #else:
     return convert_array(vec_str)
     
 #
@@ -444,6 +426,9 @@ def convert_value(val):
 def convert_array(arg_list):
     """Converts a list of strings to an array of ints, floats or strings."""
 
+    bool_dict = {'True': True,   'true': True,   'TRUE': True,
+                 'False': False, 'false': False, 'FALSE': False}
+
     # if this is a nested list, iterate over elements, else, convert to
     # nested lis
     if type(arg_list[0]) != list:
@@ -471,10 +456,10 @@ def convert_array(arg_list):
             pass
 
         # try to parse as booleans
-        if set(arg).issubset(set(['TRUE','true','True',
-                                            'FALSE','false','False'])):
+        if set(arg).issubset(set(bool_dict.keys())):
+
             try:
-                arr = np.array([argi.capitalize() 
+                arr = np.array([bool_dict[argi] 
                                          for argi in arg]).astype(bool)
                 new_list.append(arr)
                 continue
