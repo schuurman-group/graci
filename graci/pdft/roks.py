@@ -23,9 +23,9 @@ Non-relativistic Restricted Open-shell Projected Kohn-Sham
 import numpy
 from pyscf import lib
 from pyscf.scf import rohf
+from graci.pdft import rks
 from graci.pdft import uks
 from graci.pdft.uks import energy_elec
-from graci.pdft import rks
 
 @lib.with_doc(uks.get_veff.__doc__)
 def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
@@ -41,7 +41,7 @@ def get_veff(ks, mol=None, dm=None, dm_last=0, vhf_last=0, hermi=1):
 class ROKS(rks.KohnShamPDFT, rohf.ROHF):
     '''Restricted open-shell Kohn-Sham
     See pyscf/dft/rks.py RKS class for the usage of the attributes'''
-    def __init__(self, mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+    def __init__(self, mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
         rohf.ROHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
 

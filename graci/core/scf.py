@@ -375,13 +375,13 @@ class Scf:
             mf.diis_start_cycle = self.diis_start
 
         # if this is an atom: preserve spherical symmetry
-        #if self.mult != 1: 
-        #    mf = scf.addons.frac_occ(mf)
-        mf.direct_scf = self.direct_scf 
+        if self.mult != 1:
+            mf = scf.addons.frac_occ(mf)
+        mf.direct_scf = self.direct_scf
 
         # run the scf computation
         self.energy = mf.kernel(dm0=dm)
-       
+
         # if not converged, kill things
         if not mf.converged:
             return None

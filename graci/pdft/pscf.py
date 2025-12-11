@@ -8,7 +8,7 @@ from pyscf import lib
 from pyscf.lib import logger
 from pyscf.scf import diis
 from pyscf.scf import chkfile
-from pdft import project
+from graci.pdft import project
 from pyscf import __config__
 
 TIGHT_GRAD_CONV_TOL = getattr(__config__, 'scf_hf_kernel_tight_grad_conv_tol', True)

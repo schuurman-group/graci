@@ -247,7 +247,7 @@ def energy_elec(ks, dm=None, h1e=None, vhf=None):
 class UKS(rks.KohnShamPDFT, uhf.UHF):
     '''Unrestricted Kohn-Sham
     See pyscf/dft/rks.py RKS class for document of the attributes'''
-    def __init__(self, mol,  xc='LDA,VWN', phyb=0, paos=None, ext_basis='3-21G', use_ext_basis = True):
+    def __init__(self, mol,  xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis='3-21G', use_ext_basis = True):
         uhf.UHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
 

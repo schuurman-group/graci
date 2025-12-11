@@ -28,7 +28,7 @@ from graci.pdft import uks
 
 class SymAdaptedRKS(rks.KohnShamPDFT, hf_symm.SymAdaptedRHF):
     ''' Restricted Kohn-Sham '''
-    def __init__(self, mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+    def __init__(self, mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
         hf_symm.RHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
 
@@ -54,7 +54,7 @@ RKS = SymAdaptedRKS
 
 class SymAdaptedROKS(rks.KohnShamPDFT, hf_symm.SymAdaptedROHF):
     ''' Restricted Kohn-Sham '''
-    def __init__(self, mol=None, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+    def __init__(self, mol=None, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
         hf_symm.ROHF.__init__(self, mol)
         rks.KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
 

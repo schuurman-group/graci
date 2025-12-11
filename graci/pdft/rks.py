@@ -355,7 +355,7 @@ def define_xc_(ks, description, xctype='LDA', hyb=0, rsh=(0,0,0)):
     return ks
 
 
-def _pdft_common_init_(mf, xc='LDA,VWN', phyb=[0], paos=None, ext_basis='3-21G', use_ext_basis = True):
+def _pdft_common_init_(mf, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis='3-21G', use_ext_basis = True):
     raise DeprecationWarning
 
 class KohnShamPDFT(object):
@@ -420,23 +420,21 @@ class KohnShamPDFT(object):
     '''
     _keys = {'xc', 'xcstr', 'nlc', 'grids', 'disp', 'nlcgrids', 'small_rho_cutoff', 'phyb', 'paos', 'ext_basis', 'use_ext_basis', 'SQQS'}
 
-    def __init__(self, xc='LDA,VWN', phyb=[0], paos=None, ext_basis='3-21G', use_ext_basis = True):
+    def __init__(self, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis='3-21G', use_ext_basis = True):
         self.xc = xc
         self.xc_handler()
+        ## Projector
         self.paos = paos
-        if type(phyb) == float:
-            self.phyb = [phyb]
-        else:
-            assert (type(phyb) == list)
-            self.phyb = phyb
+        self.phyb = phyb
         self.use_ext_basis = use_ext_basis
-        if use_ext_basis:
-            self.ext_basis = ext_basis
-        else:
-            self.ext_basis = None
-        ## Create projectors, mf.SQQS
+        self.ext_basis = ext_basis
+        self._set_projector_params()
+
+        ## Projector built as needed (dbl check)
         #self._build_proj()
         self.SQQS = None
+
+        ## Other
         self.nlc = ''
         self.grids = gen_grid.Grids(self.mol)
         self.grids.level = getattr(__config__, 'dft_rks_RKS_grids_level',
@@ -477,6 +475,53 @@ class KohnShamPDFT(object):
 
     define_xc_ = define_xc_
 
+    def _set_projector_params(self):
+        '''
+        Set parameters related to projector (insert sanity checks here)
+        and override redundant/improper inputs.
+
+        This is called by check_sanity, so that if parameters are reset outside of self.__init
+        the relevant variables are corrected. [Trying to fix a big I encountered before, related
+        to compatibility with GRaCI..]
+
+        Currently:
+        a) paos is actually redunandant, should remove soon (AOs assigned by a function)
+        b) converts phyb to a list if not already a list (project onto multiple edges)
+        c) reset ext_basis to None if not using (otherwise, default basis is 3-21G)
+        '''
+        # 1. self.paos = paos
+        # 2. self.phyb = phyb
+        #   print("TYPE(PHYB)=",type(phyb))
+        #   print("phyb=",phyb)
+        phyb = self.phyb
+        if type(phyb) == float:
+            self.phyb = [phyb]
+        else:
+            assert (type(phyb) == list)
+            self.phyb = phyb
+        # 3. self.use_ext_basis = ...
+        if self.use_ext_basis and (self.ext_basis is None):
+            warnings.warn(
+                f'Attribute use_external_basis toggled, but no basis set was specified.'
+                 'Setting to default: 3-21G.')
+            self.ext_basis = '3-21G'
+        elif (not self.use_ext_basis) and (self.ext_basis is not None):
+            warnings.warn(
+                f'Removing external basis set: {self.ext_basis}.')
+            self.ext_basis = None
+        return
+
+    def check_sanity(self):
+        self._set_projector_params()
+        ## Default check_sanity for dft.KohnShamDFT (below)
+        out = super().check_sanity()
+        #if self.do_nlc() and self.do_disp() and self._numint.libxc.is_nlc(self.xc):
+        #    import warnings
+        #    warnings.warn(
+        #        f'nlc-type xc {self.xc} and disp {self.disp} may lead to'
+        #        'double counting in NLC.')
+        return out
+
     #assign_core_aos = project._assign_core_aos_by_label
     def get_core_aos(self):
         '''
@@ -496,6 +541,8 @@ class KohnShamPDFT(object):
         to external basis.
 
         '''
+        ##print(type(self.phyb))
+        ##print("Running pdft.rks.RKS.build_proj...")
         D = len(self.phyb)
         if (D > 1):
             warnings.warn("Building projector by edge (default to external AO basis).")
@@ -749,7 +796,7 @@ hf.KohnShamDFT = KohnShamPDFT
 class RKS(KohnShamPDFT, hf.RHF):
     __doc__ = '''Restricted Kohn-Sham\n''' + hf.SCF.__doc__ + KohnShamPDFT.__doc__
 
-    def __init__(self, mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+    def __init__(self, mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
         hf.RHF.__init__(self, mol)
         KohnShamPDFT.__init__(self, xc, phyb, paos, ext_basis, use_ext_basis)
 

@@ -25,7 +25,8 @@ class PScf:
     def __init__(self):
         # user defined input paramaters
         self.xc             = 'hf'
-        self.ex_proj        = 0
+        self.ex_proj        = [0.0]
+        self.use_ext_basis  = False
         self.ext_basis      = '3-21G'
         self.print_orbitals = False
         self.label          = 'default'
@@ -294,16 +295,22 @@ class PScf:
         else:
             diag_str = ''
 
+        # needed to add these to func_str to avoid bug in pdft module; this is now redundant.
         func_str = class_str+'.'+method_str \
-                 +'(pymol)' + rel_str + diag_str + df_str
+                 +"(pymol, xc = '{}', phyb={})".format(self.xc, self.ex_proj) + rel_str + diag_str + df_str
 
         # instantiate the scf/dft class object
+        ##print("peex (before eval(func_str) ):",self.ex_proj)
+        ##print(func_str)
         mf = eval(func_str)
 
         if self.xc != 'hf':
             # set the XC functional
-            mf.xc = self.xc
-            mf.phyb = self.ex_proj
+            #mf.xc = self.xc
+            #mf.phyb = self.ex_proj
+            ##print("Setting PEEX:", mf.phyb)
+            # AO vs. MO projector:
+            mf.use_ext_basis = self.use_ext_basis # default is False
             mf.ext_basis = self.ext_basis
 
             # set the quadrature grids
@@ -311,7 +318,6 @@ class PScf:
 
             # Must use nwchem_prune, sg1_prune up to Z=19
             mf.grids.prune = nwchem_prune
-
         # convergence threshold
         mf.conv_tol = self.conv_tol
 

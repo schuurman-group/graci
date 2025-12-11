@@ -10,7 +10,7 @@ $end
 
 $pscf section
   xc = pbe0
-  ex_proj = 0.60
+  ex_proj = [0.60]
   charge = 0
   mult = 1
   label = singlet

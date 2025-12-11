@@ -55,7 +55,7 @@ from pyscf.dft.radi import BRAGG_RADII, COVALENT_RADII, \
         treutler_atomic_radii_adjust, becke_atomic_radii_adjust
 
 
-def KS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+def KS(mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
     if mol.spin == 0:
         return RKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
     else:
@@ -65,7 +65,7 @@ A wrap function to create DFT object (RKS or UKS).\n
 ''' + rks.RKS.__doc__
 DFT = KS
 
-def RKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+def RKS(mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
     if mol.nelectron == 1:
         return uks.UKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
     elif not mol.symmetry or mol.groupname == 'C1':
@@ -80,7 +80,7 @@ def RKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis
             return rks_symm.RKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
 RKS.__doc__ = rks.RKS.__doc__
 
-def ROKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+def ROKS(mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
     if mol.nelectron == 1:
         return uks.UKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
     elif not mol.symmetry or mol.groupname == 'C1':
@@ -90,14 +90,14 @@ def ROKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basi
 ROKS.__doc__ = roks.ROKS.__doc__
 
 #def UKS(mol, xc='LDA,VWN'):
-def UKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+def UKS(mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
     if not mol.symmetry or mol.groupname == 'C1':
         return uks.UKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
     else:
         return uks_symm.UKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
 UKS.__doc__ = uks.UKS.__doc__
 
-def GKS(mol, xc='LDA,VWN', phyb=0, paos=None, ext_basis = '3-21G', use_ext_basis=True):
+def GKS(mol, xc='LDA,VWN', phyb=[0.0], paos=None, ext_basis = '3-21G', use_ext_basis=True):
     if not mol.symmetry or mol.groupname == 'C1':
         return gks.GKS(mol, xc, phyb, paos, ext_basis, use_ext_basis)
     else:
