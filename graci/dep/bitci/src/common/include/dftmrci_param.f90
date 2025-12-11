@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=13
+  integer(is), parameter :: nham=14
   
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -26,7 +26,8 @@ module hparam
         'r2022               ', &
         'qe8                 ', &
         'qe8_short           ', &
-        'cvs-qe8             ']
+        'cvs-qe8             ', &
+        'cvs-test'            ]
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -169,6 +170,15 @@ module hparam
        0.560644d0, &  ! pJ_cv
        0.252259d0]    ! pF_cv
   
+  real(dp), parameter, dimension(6) :: cvs_test= &
+       [0.425623d0, & ! pJ_vv
+       0.252259d0, &  ! pF
+       0.499646d0, &  ! p1
+       0.214962d0, &  ! p2
+       8.0d0, &       ! n
+       0.560644d0]    ! pJ_cv
+
+
 contains
 
 !######################################################################
@@ -313,6 +323,14 @@ contains
        nhpar=7
        allocate(hpar(nhpar))
        hpar=cvs_qe8
+       desel=1.0d0
+
+    case(14)
+       ! CVS-TEST
+       ldftmrci=.true.
+       nhpar=6
+       allocate(hpar(nhpar))
+       hpar=cvs_test
        desel=1.0d0
 
     case default

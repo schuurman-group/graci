@@ -257,12 +257,15 @@ class Spinorbit(interaction.Interaction):
         Sets up the one-electron SOC matrices h^(k), k=-1,0,+1
         """
 
+        ci = np.cdouble(0.+1.j)
+
         # PySCF Mole obeject
         pymol = self.mol.pymol()
         # No. AOs
         nao   = pymol.nao_nr()
         # No. MOs
         nmo   = self.mos.shape[1]
+        print('nmo='+str(nmo))
 
         # get the MF density matrix
         rho_ao = self.build_rho()
@@ -270,7 +273,8 @@ class Spinorbit(interaction.Interaction):
         # Initialise arrays
         h1_ao  = np.zeros((3, nao, nao), dtype=float)
         h2_ao  = np.zeros((3, nao, nao), dtype=float)
-        h12_mo = np.zeros((3, nao, nao), dtype=float)
+        h12_ao = np.zeros((3, nao, nao), dtype=np.cdouble)
+        h12_mo = np.zeros((3, nmo, nmo), dtype=np.cdouble)
 
         # One-electron contributions
         for iatm in range(pymol.natm):
@@ -278,40 +282,50 @@ class Spinorbit(interaction.Interaction):
             xyz = pymol.atom_coord(iatm)
             pymol.set_rinv_orig(xyz)
             h1_ao += Z * pymol.intor('int1e_prinvxp', comp=3)
-        h1_ao *= 0.5 * constants.fine_str**2
+            #h1_ao += Z * pymol.intor('int1e_so', comp=3)
+        #h1_ao *= 0.5 * constants.fine_str**2
 
         # Mean-field two-electron contributions
         if self.mf2e == 'full':
             # need to add a minus sign to generate h^SOO operator
-            h2e_ao  = -pymol.intor("int2e_p1vxp1", comp=3, aosym="s1")
+            #h2e_ao  = pymol.intor("int2e_sso", comp=3, aosym="s1")
+            #h2o_ao += pymol.intor("int2e_soo", comp=3, aosym="s1")
+            h2e_ao  = pymol.intor("int2e_p1vxp1", comp=3, aosym="s1")
             # note: PySCF holds integrals assuming chemists notation:
             # (i(1)j(1)|k(2)l(2))
             # Reference X uses: (Jprqs - Jprsq - Jrpqs)
-            h2e_ao *= 0.5 * constants.fine_str**2
-            h2_ao   = (      np.einsum("ipqrs,rs->ipq", h2e_ao, rho_ao) 
-                        -1.5*np.einsum("ipsrq,rs->ipq", h2e_ao, rho_ao)
-                        -1.5*np.einsum("irqps,rs->ipq", h2e_ao, rho_ao)) 
-        elif self.mf2e == 'atomic':
-            h2_ao = self.build_mf_atomic(pymol, rho_ao)
+            #h2e_ao *= 0.5 * constants.fine_str**2
+            #h2_ao  = 1.0*np.einsum("ipqrs,rs->ipq", h2e_ao, rho_ao) 
+            #h2_ao -= 1.5*np.einsum("ipsrq,rs->ipq", h2e_ao, rho_ao)
+            #h2_ao -= 1.5*np.einsum("irqps,rs->ipq", h2e_ao, rho_ao)
+            h2_ao  = 1.0*np.einsum("ipqrs,rs->ipq", h2e_ao, rho_ao) 
+            h2_ao -= 1.5*np.einsum("iprsq,rs->ipq", h2e_ao, rho_ao)
+            h2_ao -= 1.5*np.einsum("isqpr,rs->ipq", h2e_ao, rho_ao)
 
+        elif self.mf2e == 'atomic':
+            h2_ao  = self.build_mf_atomic(pymol, rho_ao)
+            
         # Transform to the MO basis
         orbs   = self.mos
-        h12_mo = orbs.T @ (h1_ao + h2_ao) @ orbs
+        #h12_mo = 0.5 * constants.fine_str**2 * orbs.T @ (h1_ao - h2_ao) @ orbs
+        h12_ao = ci * 0.5 * constants.fine_str**2 * (-h1_ao + h2_ao)
+        h12_mo = orbs.T @ h12_ao @ orbs
 
         # Transform to the spherical tensor representation
-        ci = np.sqrt(-1.+0.j)
         h12_sph = np.zeros((3, nmo, nmo), dtype=np.cdouble)
 
         #  L+ = x + iy
-        ci = np.sqrt(-1.+0.j)
         # In the appendix A of J. Chem. Phys. 143, 064102 (2015), it
         # seem that these integrals need an additional factor of 1/i
         # need to look into the origin of this...
-        h12_sph[0,:,:] = (h12_mo[0,:,:] + ci * h12_mo[1,:,:])/ci
+        #h12_sph[0,:,:] = (h12_mo[0,:,:] + ci * h12_mo[1,:,:])/ci
+        h12_sph[0,:,:] = h12_mo[0,:,:] + ci * h12_mo[1,:,:]
         #  z = z 
-        h12_sph[1,:,:] = h12_mo[2,:,:]/ci
+        #h12_sph[1,:,:] = h12_mo[2,:,:]/ci
+        h12_sph[1,:,:] = h12_mo[2,:,:]
         #  L- = x - iy
-        h12_sph[2,:,:] = (h12_mo[0,:,:] - ci * h12_mo[1,:,:])/ci
+        #h12_sph[2,:,:] = (h12_mo[0,:,:] - ci * h12_mo[1,:,:])/ci
+        h12_sph[2,:,:] = h12_mo[0,:,:] - ci * h12_mo[1,:,:]
 
         return h12_sph
 
@@ -427,18 +441,17 @@ class Spinorbit(interaction.Interaction):
             shls_slice = [shells[0], shells[-1]+1] * 4
 
             # fetch the integrals for this atomic centre
-            ints = pymol.intor("cint2e_p1vxp1_sph", shls_slice=shls_slice,
-                             comp=3, aosym="s1")
-            ints *= -0.5 * constants.fine_str**2
+            ints =  pymol.intor("cint2e_p1vxp1_sph", shls_slice=shls_slice,
+                                comp=3, aosym="s1")
 
             # density matrix for this block of AOs
             ji, jf = pymol.nao_nr_range(shells[0], shells[-1]+1)
             rho = rho_ao[ji:jf, ji:jf]
 
             # contraction with the density matrix
-            h = (np.einsum("ijklm,lm->ijk", ints, rho)
-                         - 1.5 * (np.einsum("ijklm, kl->ijm", ints, rho)
-                         + np.einsum("ijklm,mj->ilk", ints, rho)))
+            h  = 1.0*np.einsum("ipqrs, rs->ipq", ints, rho)
+            h -= 1.5*np.einsum("iprsq, rs->ipq", ints, rho)
+            h -= 1.5*np.einsum("isqpr, rs->ipq", ints, rho)
 
             # mapping back up to the full set of AOs
             p = -1

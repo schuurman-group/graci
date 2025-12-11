@@ -63,7 +63,7 @@ contains
        call hii_dftmrci_heil(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(13)
+    case(13,14)
        ! CVS-QE8 parameterisation
        call hii_dftmrci_cvsqe8(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
@@ -124,7 +124,7 @@ contains
        ! R2022 parameterisation
        damp=damping_r2022(bav,kav)
        
-    case(11:13)
+    case(11:14)
        ! QE8 parameterisations
        damp=damping_qe8(bav,kav)    
        
@@ -188,10 +188,12 @@ contains
        ! Grimme's parameterisation: do nothing
        return
 
-    case(4:9,11:12)
+    case(4:9,11:12,14)
        ! Lyskov's parameterisation
        ! Note that this is also used for Heil's Hamiltonian
        ! and the QE8 Hamiltonian
+       ! ihamiltonian == 14 is cvs-test and uses same exchange damping
+       !                    for valence-valence and core-valence
        nij=nsp*(nsp-1)/2
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
@@ -1268,7 +1270,11 @@ contains
     pFvv=hpar(2)
 
     ! Core-valence interactions
-    if (nhpar == 6) then
+    ! ihamiltonian == 14 is for cvs-test -- eventually should be standardized
+    if (ihamiltonian == 14) then
+       pJcv=hpar(6)
+       pFcv=hpar(2)
+    else if (nhpar == 6) then
        pJcv=hpar(5)
        pFcv=hpar(6)
     else if (nhpar == 7) then

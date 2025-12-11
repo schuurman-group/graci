@@ -161,7 +161,7 @@ def correct_type(value, keyword_type):
                     val_list.extend(val.flatten().tolist())
                 else:
                     val_list.extend(val)
-
+       
         if all([isinstance(elem, keyword_type) for elem in val_list]):
             correct = True
     else:
@@ -236,26 +236,24 @@ def parse_value(valstr, val_type):
     #  1. kword = [X Y Z] [X Y Z]
     #  2. kword = [X, Y, Z], [X, Y, Z]
     
-    vec_str = []
     # scan for opening brace
-    while '[' in val_list:
-        start = val_list.index('[')+1
-        # try to close this brace, else just take to the end
-        try:
-            end = val_list.index(']')
-        except:
-            sys.exit('missing a closing brace: '+str(valstr))
-        # append the entries between the braces a new vector 
-        vec_str.append(list(val_list[start:end]))
-        if end == len(val_list)-1:
-            break
-        val_list = val_list[end+1:]
+    final_list_container = []
+    stack = [final_list_container]
 
-    # if just a single element of this 2D list, convert to vector
-    if len(vec_str)==1:
-        return convert_array(vec_str[0])
-    else:
-        return convert_array(vec_str)
+    for ch in val_list: 
+        curr_list = stack[-1] 
+        if ch == "[":
+            new_list = []
+            curr_list.append(new_list)
+            stack.append(new_list)
+        elif ch == "]":
+            stack.pop()
+        else: 
+            curr_list.append(ch)
+
+    vec_str = final_list_container[0]
+
+    return convert_array(vec_str)
     
 #
 def check_sections(input_file):
@@ -404,6 +402,7 @@ def check_input(run_list):
 #
 def convert_value(val):
     """Converts a string value to NoneType, bool, int, float or string."""
+
     if val.lower() == 'none':
         return None
     elif val.lower() == 'true':
@@ -426,6 +425,9 @@ def convert_value(val):
 #
 def convert_array(arg_list):
     """Converts a list of strings to an array of ints, floats or strings."""
+
+    bool_dict = {'True': True,   'true': True,   'TRUE': True,
+                 'False': False, 'false': False, 'FALSE': False}
 
     # if this is a nested list, iterate over elements, else, convert to
     # nested lis
@@ -454,10 +456,10 @@ def convert_array(arg_list):
             pass
 
         # try to parse as booleans
-        if set(arg).issubset(set(['TRUE','true','True',
-                                            'FALSE','false','False'])):
+        if set(arg).issubset(set(bool_dict.keys())):
+
             try:
-                arr = np.array([argi.capitalize()
+                arr = np.array([bool_dict[argi]
                                          for argi in arg]).astype(bool)
                 new_list.append(arr)
                 continue

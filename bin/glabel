@@ -15,7 +15,7 @@ def main():
     """
 
     # read command line options
-    (chkpt_file, show, obj_name, attr_name, value) = read_cmdline()
+    (chkpt_file, show, obj_name, anames, values) = read_cmdline()
 
     # open the checkpoint file
     chkpt_handle = h5py.File(chkpt_file, 'r+', libver='latest')
@@ -24,16 +24,22 @@ def main():
         print(str(obj_name) + ' not found in ' + str(chkpt_file))
   
     if show:
-        print_contents(chkpt_handle, obj_name, attr_name)
+        print_contents(chkpt_handle, obj_name, anames)
 
     else:
-        # construct a dictionary from key value pairs
-        attr = json.loads(value)
-        if type(attr).__name__ != 'dict':
-            print(' label written as type: '+str(type(attr).__name__))     
 
-        # write attribute
-        chkpt.write_attribute(chkpt_handle, obj_name, attr_name, attr)
+        for i in range(len(values)):
+            # construct a dictionary from key value pairs
+            # if a native string, loads throws an exception
+            try:
+                attr = json.loads(str(values[i]))
+            except:
+                attr = values[i]
+            if type(attr).__name__ != 'dict':
+                print(' label written as type: '+str(type(attr).__name__))     
+
+             # write attribute
+            chkpt.write_attribute(chkpt_handle, obj_name, anames[i], attr)
 
         # close
         chkpt_handle.close()
@@ -41,17 +47,12 @@ def main():
     return
 
 #
-def print_contents(fhandle, obj_name=None, attr_name=None):
+def print_contents(fhandle, obj_name=None, anames=[]):
     """
     print the top level objs in chkpt_handle and the corresponding label
     """
     obj_lst = chkpt.contents(file_handle = fhandle, 
                                 grp_name = obj_name)
-
-    if attr_name is not None:
-        aname = str(attr_name)
-    else:
-        aname = 'label'
 
     if obj_name is None:
         prefix = '/'
@@ -59,10 +60,24 @@ def print_contents(fhandle, obj_name=None, attr_name=None):
         prefix = '/' + obj_name + '/'
 
     for obj in obj_lst:
-        attr = chkpt.read_attribute(fhandle, prefix+obj, aname)
-        if attr is None:
-            attr = '--'
-        print('Section: {:>50} {:>15}: {:>40}'.format(obj, aname, str(attr)))
+        ostr = 'Section: {:>50}'.format(obj)
+       
+        if len(anames) == 0:
+            aname = 'label'
+            attr = chkpt.read_attribute(fhandle, prefix+obj, aname)
+            if attr is None:
+                attr = '---'
+            ostr += '{:>15}: {:>40}'.format(aname, str(attr))
+
+        else:
+            for i in range(len(anames)):
+                aname = str(anames[i])
+                attr = chkpt.read_attribute(fhandle, prefix+obj, aname)
+                if attr is None:
+                    attr = '--'
+                ostr += '{:>15}: {:>40} '.format(aname, str(attr))
+
+        print(ostr)
 
     return
 
@@ -82,33 +97,30 @@ def read_cmdline():
 
     show      = False
     obj_name  = None
-    attr_name = None
-    value     = None
-    for arg in arg_list[1:]:
+    attrs     = []
+    values    = []
 
-        if arg == '-list':
-            show      = True
-              
-        elif arg == '-section':
-            obj_name  = get_next_arg(arg)
+    iarg = 1
+    while iarg < len(arg_list):
 
-        elif arg == '-name':
-            attr_name = get_next_arg(arg)
+        if arg_list[iarg] == '-list':
+            show = True
 
-        elif arg == '-value':
-            value     = get_next_arg(arg)
+        elif arg_list[iarg] == '-section':
+            iarg += 1
+            obj_name = arg_list[iarg]
 
-    return (chk_file, show, obj_name, attr_name, value)
+        elif arg_list[iarg] == '-name':
+            iarg += 1
+            attrs.append(arg_list[iarg])
 
-#
-def get_next_arg(arg):
-    """get the next argument in the comment line that follows
-       argument 'arg'"""
+        elif arg_list[iarg] == '-value':
+            iarg += 1
+            values.append(arg_list[iarg])
 
-    if len(sys.argv) > sys.argv.index(arg)+1:
-        return sys.argv[sys.argv.index(arg)+1].strip()
-    else:
-        return None
+        iarg += 1
+
+    return (chk_file, show, obj_name, attrs, values)
 
 #
 def get_next_arg(arg):

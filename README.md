@@ -1,15 +1,25 @@
 # graci
 General Reference Configuration Interaction package
 
+# Python dependencies
+GRaCI has a fair few Python dependencies. These may most easily be
+handled by using the provided graci.yml Anaconda environment
+file. Running
+
+conda env create -f graci.yml
+
+will create an Anaconda environment named 'graci' in which GRaCI may be run
+
+Note, however, that this environment does not include the PySCF
+dependency, which must be installed separately
+
 # Build and use
 In the following, $TOPDIR will refer to the path to the top graci directory
 
-## Dependencies
+## Other dependencies
 CMake v3.2 or higher
 
 PySCF
-
-HDF5 build **including the Fortran libraries**
 
 ## Recomendations
 Compile using Intel ifort and MKL for optimal performance

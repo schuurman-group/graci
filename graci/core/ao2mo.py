@@ -26,7 +26,7 @@ class Ao2mo:
     """Class constructor for ao2mo object"""
 
     def __init__(self):
-        self.precision_2e = None
+        self.precision_2e = 'single' 
         self.moint_2e_eri = None
         self.moint_1e     = None
         self.nmo          = None
