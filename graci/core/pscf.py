@@ -295,9 +295,10 @@ class PScf:
         else:
             diag_str = ''
 
-        # needed to add these to func_str to avoid bug in pdft module; this is now redundant.
+        # needed to add phyb to func_str to avoid bug in pdft module; this is now redundant.
+        # must convert np.ndarray to list here ( [0.5,0.5] prints as -> [0.5 0.5] )
         func_str = class_str+'.'+method_str \
-                 +"(pymol, xc = '{}', phyb={})".format(self.xc, self.ex_proj) + rel_str + diag_str + df_str
+                 +"(pymol, xc = '{}', phyb={})".format(self.xc, self.ex_proj.tolist()) + rel_str + diag_str + df_str
 
         # instantiate the scf/dft class object
         ##print("peex (before eval(func_str) ):",self.ex_proj)

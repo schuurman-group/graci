@@ -144,10 +144,10 @@ Keyword argument "init_dm" is replaced by "dm0"''')
     for cycle in range(ks.max_cycle):
         dm_last = dm
         last_hf_e = e_tot
-
         fock = ks.get_fock(h1e, s1e, vhf, dm, cycle, ks_diis, fock_last=fock_last)
         mo_energy, mo_coeff = ks.eig(fock, s1e)
-        ks.build_proj(mo_coeff=mo_coeff) ## (**kwargs) mo_coeff ignored if use_ext_basis
+        if not ks.use_ext_basis: #i.e., don't rebuild if using AO-Proj.
+            ks.build_proj(mo_coeff=mo_coeff, mo_energy=mo_energy) ## (**kwargs) mo_coeff ignored if use_ext_basis
         mo_occ = ks.get_occ(mo_energy, mo_coeff)
         dm = ks.make_rdm1(mo_coeff, mo_occ)
         vhf = ks.get_veff(mol, dm, dm_last, vhf)
@@ -186,7 +186,8 @@ Keyword argument "init_dm" is replaced by "dm0"''')
         # An extra diagonalization, to remove level shift
         #fock = ks.get_fock(h1e, s1e, vhf, dm)  # = h1e + vhf
         mo_energy, mo_coeff = ks.eig(fock, s1e)
-        ks.build_proj(mo_coeff=mo_coeff) ## (**kwargs) mo_coeff ignored if use_ext_basis
+        if not ks.use_ext_basis: #i.e., don't rebuild if using AO-Proj.
+            ks.build_proj(mo_coeff=mo_coeff, mo_energy=mo_energy) ## (**kwargs) mo_coeff ignored if use_ext_basis
         mo_occ = ks.get_occ(mo_energy, mo_coeff)
         dm, dm_last = ks.make_rdm1(mo_coeff, mo_occ), dm
         vhf = ks.get_veff(mol, dm, dm_last, vhf)

@@ -491,11 +491,11 @@ class KohnShamPDFT(object):
         '''
         # 1. self.paos = paos
         # 2. self.phyb = phyb
-        #   print("TYPE(PHYB)=",type(phyb))
-        #   print("phyb=",phyb)
         phyb = self.phyb
         if type(phyb) == float:
             self.phyb = [phyb]
+        elif type(phyb) == numpy.ndarray:
+            self.phyb = phyb.tolist()
         else:
             assert (type(phyb) == list)
             self.phyb = phyb

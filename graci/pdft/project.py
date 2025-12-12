@@ -583,7 +583,7 @@ def old_build_proj_in_basis(mydft, caos = None):
     SQQS = np.array((SQ,QS))
     return SQQS
 
-def build_mo_proj(mydft, mo_coeff = None, cmos = None):
+def build_mo_proj(mydft, mo_coeff = None, mo_energy = None, cmos = None):
     '''
     Build projector from orthonormal MOs.
     Projects onto all K-edges in molecule.
@@ -645,9 +645,16 @@ def build_mo_proj(mydft, mo_coeff = None, cmos = None):
         #mydft.mo_energy = mo_energy
 
     elif (mo_coeff is None) and (mydft.mo_coeff is not None):
+    #assume mo_energy and mo_coeff always assigned together...
         C = mydft.mo_coeff
+        mo_energy = mydft.mo_energy
     else:
         C = mo_coeff
+
+    ## IDXs not always sorted. Do that here:
+    idx = np.argsort(mo_energy)
+    mo_energy = mo_energy[idx]
+    C = C[:, idx]
 
     ## Slice core orbitals
     corbs = C[:, cmos]
