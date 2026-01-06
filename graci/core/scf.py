@@ -375,8 +375,8 @@ class Scf:
             mf.diis_start_cycle = self.diis_start
 
         # if this is an atom: preserve spherical symmetry
-        if self.mult != 1:
-            mf = scf.addons.frac_occ(mf)
+        #if self.mult != 1:
+        #    mf = scf.addons.frac_occ(mf)
         mf.direct_scf = self.direct_scf
 
         # run the scf computation
