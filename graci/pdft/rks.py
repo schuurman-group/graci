@@ -560,7 +560,8 @@ class KohnShamPDFT(object):
         '''
         Private function to build projector.
         '''
-        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.); however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
+        if self.verbose > 4:
+            warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.); however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
         if self.use_ext_basis:
             sqqs = project.build_proj_in_ext_basis(self, ext_basis=self.ext_basis)
         else:
@@ -577,8 +578,9 @@ class KohnShamPDFT(object):
         '''
         Function to build projector by edge (default is external basis).
         '''
-        warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.);
-                      however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
+        if self.verbose > 4:
+            warnings.warn('''The projector builder is currently implemented for atoms. It cannot currently discriminate by element-type (O1s, N1s, etc.);
+                          however, it does discriminate by edge type (K-edge, L-edge, etc.).''')
         if not self.use_ext_basis:
             self.use_ext_basis = True
             warnings.warn("Internal (MO) basis not supported for this method. Overriding to external basis.")
@@ -622,7 +624,7 @@ class KohnShamPDFT(object):
         '''
         Function to handle XC functional.
         '''
-        if (self.xc in lxc.XC_KEYS):
+        if (self.xc.upper() in lxc.XC_KEYS):
             ex, exch, corr = project._xc_handler(self.xc, include=False)
             xstr = project.format_xc(exch)
             cstr = project.format_xc(corr)
