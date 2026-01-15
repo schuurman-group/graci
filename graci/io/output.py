@@ -861,11 +861,17 @@ def print_param_header(options, exc_ref, ci_objs):
 
         outfile.write('\n Initial Parameter Values\n')
         outfile.write(  ' --------------------------------------\n\n')
-        for ham in options.keys():
-            pstr = ''.join(['{:10.6f}']*len(options[ham]['params']))
-            ostr = ' {:15s}: '.format(ham)
-            ostr += pstr.format(*options[ham]['params'])
-            outfile.write(ostr+'\n')
+        for ham in list(options.keys()):
+            if ham != 'scf':
+                pstr = ''.join(['{:10.6f}']*len(options[ham]['params']))
+                ostr = ' {:15s}: '.format(ham)
+                ostr += pstr.format(*options[ham]['params'])
+                outfile.write(ostr+'\n')
+            else:
+                pstr = ''.join(['{:10.6f}']*len(options['scf']['val']))
+                ostr = ' {:15s}: '.format('scf')
+                ostr += pstr.format(*options['scf']['val'])
+                outfile.write(ostr+'\n')
 
         outfile.write('\n\n')
         outfile.flush()
@@ -949,11 +955,17 @@ def print_param_results(options, res, target, init_ener, final_ener):
 
         outfile.write('\n\n Final Parameter Values')
         outfile.write('\n -----------------------------------------\n')
-        for ham in options.keys():
-            pstr = ''.join(['{:10.6f}']*len(options[ham]['params']))
-            ostr = ' {:15s}: '.format(ham)
-            ostr += pstr.format(*options[ham]['params'])
-            outfile.write(ostr+'\n')
+        for ham in list(options.keys()):
+            if ham != 'scf':
+                pstr = ''.join(['{:10.6f}']*len(options[ham]['params']))
+                ostr = ' {:15s}: '.format(ham)
+                ostr += pstr.format(*options[ham]['params'])
+                outfile.write(ostr+'\n')
+            else:
+                pstr = ''.join(['{:10.6f}']*len(options['scf']['val']))
+                ostr = ' {:15s}: '.format('scf')
+                ostr += pstr.format(*options['scf']['val'])
+                outfile.write(ostr+'\n')
 
         outfile.write('\n\n Reference Data')
         outfile.write('\n -----------------------------------------')
@@ -1065,8 +1077,6 @@ def print_param_analysis(p_vals, target, eners):
         outfile.flush()
 
     return
-
-
 
 #
 def print_bdd_header():

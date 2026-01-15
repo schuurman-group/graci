@@ -51,6 +51,14 @@ class Parameterize:
         # bounds for ham parameters
         self.bounds          = [] 
 
+        # scf optimize variables 
+        # name of scf variable
+        scf_opt_var          = None
+        # initial value of this paraemter
+        scf_opt_val          = None
+        # bounds on the optimization
+        scf_opt_bounds       = None
+
         # ----------------------------------------------------------
         # this is the internal dictionary parameterize uses to keep
         # track of optimization options
@@ -177,6 +185,18 @@ class Parameterize:
                 n_opt += len(opt_options[ham]['params']) - \
                          len(opt_options[ham]['freeze'])
 
+        # if we're also optimizing parameters related to the scf
+        if self.scf_opt_var is not None:
+            opt_options['scf'] = {}
+            opt_options['scf']['var']    = []
+            opt_options['scf']['val']    = []
+            opt_options['scf']['bounds'] = []
+            for i in range(len(self.scf_opt_var)):
+                opt_options['scf']['var'].append(self.scf_opt_var[i])
+                opt_options['scf']['val'].append(self.scf_opt_val[i])
+                opt_options['scf']['bounds'].append(self.scf_opt_bounds[i])
+                n_opt += 1
+
         # Set the optimization bounds
         # ---------------------------------------------------------
         opt_bnds = np.zeros( (n_opt, 2), dtype=float)
@@ -193,6 +213,12 @@ class Parameterize:
             opt_bnds[n_set:n_set + len(bnd), :] = np.array(bnd, 
                                                     dtype=float)
             n_set += len(bnd)
+
+        # if scf parameter is given, it's assumed it will be optimized
+        if 'scf' in opt_options.keys():
+            for bnd in opt_options['scf']['bounds']:
+                opt_bnds[n_set,:] = np.array(bnd, dtype=float)
+                n_set += 1
 
         # Make sure CI method is lower case
         # ----------------------------------------------------------
@@ -407,12 +433,20 @@ class Parameterize:
                 #...either by re-running it b/c it's the first time
                 # function is called, or, b/c we're optimizing the
                 # functional
-                if gen_orbs:
+                if gen_orbs or 'scf' in self.opt_options.keys():
                     scf_obj = chkpt.read(scf_name[ci_name],
                                          file_handle=wfn_chkpt)
                     scf_obj.verbose = self.verbose
                     scf_obj.load()
                     scf_obj.xc = self.xc
+
+                    # update the scf variables with the values in 
+                    # opt options
+                    for i in range(len(self.opt_options['scf']['var'])):
+                        var = self.opt_options['scf']['var'][i]
+                        val = self.opt_options['scf']['val'][i]
+                        setattr(scf_obj, var, val)
+
                     scf_obj.run(scf_obj.mol, None)
                     scf_objs[ci_name] = scf_obj
 
@@ -758,6 +792,7 @@ class Parameterize:
 
         n = 0
 
+        # update hamiltonian parameters
         for index in range(len(self.hamiltonians)):
             ham = self.hamiltonians[index]
 
@@ -774,6 +809,12 @@ class Parameterize:
                 if i not in self.opt_options[ham]['freeze']:
                     self.opt_options[ham]['params'][i] = params[m]
                     m += 1
+
+        # update scf parameters, if they exist
+        if 'scf' in self.opt_options.keys():
+            for i in range(len(self.opt_options['scf']['val'])):
+                self.opt_options['scf']['val'][i] = p_opt[n]
+                n += 1
 
         return 
 
@@ -799,6 +840,11 @@ class Parameterize:
                            dtype=float)
             p_opt[n:n+params.shape[0]] = params
             n += params.shape[0]
+
+        if 'scf' in self.opt_options.keys():
+            for i in range(len(self.opt_options['scf']['val'])):
+                p_opt[n] = self.opt_options['scf']['val'][i]
+                n += 1
 
         return p_opt
 
