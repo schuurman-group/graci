@@ -35,7 +35,7 @@ class Parameterize:
         self.verbose         = False
         self.opt_algorithm   = 'nelder-mead'
         self.opt_target      = 'rmsd'
-        self.conv            = 0.01 
+        self.conv            = 0.05
         self.max_iter        = 1000
         self.method          = 'dftmrci'
         self.xc              = 'qtp17'
