@@ -125,6 +125,7 @@ class Spinorbit(interaction.Interaction):
                 ptype = 'full'
                 if b_lbl == k_lbl:
                     ptype = 'lower'
+
                 ci_pairs     = self.ci_pair_list('spinorbit', b_lbl,
                                                  'spinorbit', k_lbl,
                                                   pairs=ptype)
@@ -230,9 +231,9 @@ class Spinorbit(interaction.Interaction):
                 S_j = 0.5 * (soc_objs[j].mult - 1.)
 
                 # Delta S = -1, 0 or +1 must hold
-                if S_i - S_j not in [-1., 0., 1.]:
-                    sys.exit('\n ERROR: S_bra, S_ket spin combo ' \
-                          ' not currently supported in spinorbit')
+                #if S_i - S_j not in [-1., 0., 1.]:
+                #    sys.exit('\n ERROR: S_bra, S_ket spin combo ' \
+                #          ' not currently supported in spinorbit')
 
         # check on the MF 2e integral scheme
         if self.mf2e not in self.allowed_mf2e:

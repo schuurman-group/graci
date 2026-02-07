@@ -47,7 +47,7 @@ class Driver:
                 si_objs.append(obj)
             elif type(obj).__name__ == 'Parameterize':
                 param_objs.append(obj)
-        
+       
         # Sanity check that sections of the same type have 
         # distinct label identifiers
         #-----------------------------------------------------
@@ -162,6 +162,7 @@ class Driver:
                                           'scf_label', ci_objs, 
                                            match_all=True)
             eri_mo   = ao2mo.Ao2mo()
+            
             for ci_calc in ci_calcs:
 
                 if ci_calc is None:
