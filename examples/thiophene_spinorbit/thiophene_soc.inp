@@ -18,13 +18,13 @@
  xc     = bhlyp
  $end
 
- $dftmrci section
+ $dftmrci2 section
  label   = singlet
  mult    = 1
  nstates = [4 3 3 3]
  $end
 
- $dftmrci section
+ $dftmrci2 section
  label   = triplet
  mult    = 3
  nstates = [4 3 3 3]

@@ -267,7 +267,7 @@ def extract_diabpot(chkpt_file, extract_list):
 
     if extract_list['-diabpot'] is None:
         return
-
+    
     # requested Dftmrci2 object label(s)
     string = extract_list['-diabpot']
 
@@ -282,7 +282,7 @@ def extract_diabpot(chkpt_file, extract_list):
         labels = [stem+str(k) for k in range(i,j+1)]
     else:
         labels = [string]
-    
+
     # get the object name(s)
     chkpt_objs = chkpt.contents(file_name=chkpt_file)
     valid_objs = diab_objs['-diabpot']
@@ -294,7 +294,7 @@ def extract_diabpot(chkpt_file, extract_list):
                               and name.endswith('.'+labels[i])][0])
         except:
             pass
-            
+
     # get the Dftmrci2 object(s)
     chkpt_objs = [chkpt.read(obj_names[i], file_name = chkpt_file)
                   for i in range(len(obj_names))]

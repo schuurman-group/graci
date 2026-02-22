@@ -64,7 +64,7 @@ contains
     integer(is)                :: irrep,istart,iend,iconf,n
     integer(is)                :: nconf_tot,nconf_tot_old
     integer(ib), allocatable   :: conf1(:,:,:),sop1(:,:,:)
-
+    
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -304,8 +304,8 @@ contains
 
     ! Temporary hard-wiring of the P space weight convergence
     ! threshold
-    !real(dp), parameter        :: WP_thrsh=0.99_dp
-    real(dp), parameter        :: WP_thrsh=0.975_dp
+    !real(dp), parameter        :: WP_thrsh=0.975_dp
+    real(dp), parameter        :: WP_thrsh=0.995_dp
     
     ! Work arrays
     integer(is)                :: harr2dim
@@ -321,6 +321,7 @@ contains
     real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
                                   twall_end
 
+    
 !----------------------------------------------------------------------
 ! Start timing
 !----------------------------------------------------------------------
@@ -511,6 +512,7 @@ contains
     if (verbose) &
          call report_times(twall_end-twall_start,tcpu_end-tcpu_start,&
          'sci_diag')
+    
     
     return
   
@@ -895,7 +897,7 @@ contains
     indxP=0
 
     ! Target squared norm for each state
-    targ=0.99d0
+    targ=0.999d0
 
     ! Initialisation
     isurvive=0
@@ -1506,6 +1508,13 @@ contains
     integer(is)             :: iroot,counter
     real(dp)                :: ediff,norm
 
+    
+    ! TEST
+    real(dp), parameter :: shift=0.005_dp
+    real(dp)            :: dj
+    ! TEST
+    
+    
 !----------------------------------------------------------------------
 ! Initialise the A-vectors to the P-space eigenvectors
 !----------------------------------------------------------------------
@@ -1585,7 +1594,7 @@ contains
              do ikcsf=offsetP(iket),offsetP(iket+1)-1
 
                 ! Cycle if the ket CSF coefficient is tiny
-                if (abs(vecP(ikcsf,iroot)) < epshij) cycle
+                !if (abs(vecP(ikcsf,iroot)) < epshij) cycle
                 
                 ! Loop over the bra (Q space) CSFs
                 do ibcsf=offsetQ(ibra),offsetQ(ibra+1)-1
@@ -1619,13 +1628,26 @@ contains
 
           ! E^(0) - H_ii
           ediff=EP(iroot)-hiiQ(icsf)
+
+
+          ! TEST
+          dj=shift/ediff
+          ! TEST
+
+                    
+          !! Energy correction
+          !E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/ediff
+          !          
+          !! A-vector element
+          !Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/ediff
+
+
+          ! TEST
+          E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/(ediff+dj)
+          Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/(ediff+dj)
+          ! TEST
           
-          ! Energy correction
-          E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/ediff
-                    
-          ! A-vector element
-          Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/ediff
-                    
+          
        enddo
 
     enddo
@@ -1691,7 +1713,7 @@ contains
     real(dp)                   :: fwork(csfdim)
     
     ! Configuration selection threshold (hard-wired for now)
-    real(dp), parameter        :: normsq_thrsh=0.99_dp
+    real(dp), parameter        :: normsq_thrsh=0.999_dp
     
     ! Selected CSFs and confs
     integer(is), allocatable   :: isel_csf(:),isel_conf(:)
