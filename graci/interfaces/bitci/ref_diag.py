@@ -19,6 +19,11 @@ def diag(ci_method):
 
     if ci_method.ref_sci:
         ciunits, ener = diag_sci(ci_method)
+        
+        # TEST
+        ciunits, ener = diag_full(ci_method)
+        # TEST
+        
     else:
         ciunits, ener = diag_full(ci_method)
 
