@@ -40,7 +40,8 @@ class Rydano():
         run an SCF calculation on the corresponding doublet
         """
 
-        # make a copy of the molecule object we are
+        # make a copy of the molecule object we will use
+        # to run the cation calculation
         ion_mol = mol.copy()
 
         # build the PySCF molecule object 
@@ -61,14 +62,10 @@ class Rydano():
         l     = [ind for ind,val in enumerate(n_con) if val>0]
         l_max = max(l)
 
-        # label for the ghost atom
-        g_lbl = 'X'
-
         # add the atom to the ion_mol object. ANOs not specified, 
         # so primitives are added uncontracted. Determine which
         # primitives to include based on the original basis 
         # function -- not the dz(p) used to compute virtuals
-
         if self.origin is None:
             ryd_origin = np.asarray(ion_mol.nuc_charge_center())
         else:
@@ -78,8 +75,9 @@ class Rydano():
         # add a ghost atom, else, append basis set of atom at
         # origin
         exps = self.determine_exponents(mol, l, self.nprimitive)
-        bas_str = self.make_ano_basis(g_lbl, l, exps)
-        self.add_ano_atom(ion_mol, g_lbl, ryd_origin, bas_str)
+        nao_per_l, bas_str, bas_lst = self.make_ano_basis('X', l, exps)
+        # label for the ghost atom
+        xind = self.add_ano_basis(ion_mol, ryd_origin, bas_str, bas_lst)
 
         # print header information to the log
         if self.verbose:
@@ -111,8 +109,8 @@ class Rydano():
         # form the l-projected NOs
         S_ao = ion_mol.pymol().intor('int1e_ovlp')
         rocc, rnos = \
-              self.make_nos(g_lbl, S_ao, ion_scf.orbs, occ, 
-                                                     a_lbl, l_i, l_lbl)
+              self.make_nos(xind, a_ind, nao_per_l, S_ao, ion_scf.orbs, 
+                            occ, l_i, l_lbl, cart=mol.ao_cart)
 
         # set the phase
         for li in range(len(rnos)):
@@ -125,12 +123,14 @@ class Rydano():
            self.occs.append(rocc[li][  :n_con[li]])      
        
         # add the Rydberg basis
-        bas_str = self.make_ano_basis(g_lbl, l, exps, ano=self.anos)
-        self.add_ano_atom(mol, g_lbl, ryd_origin, bas_str)
+        nao_per_l, bas_str, bas_lst = self.make_ano_basis(
+                                                ion_mol.asym[xind], l, 
+                                                exps, ano=self.anos)
+
+        self.add_ano_basis(mol, ryd_origin, bas_str, bas_lst)
         # standard RI basis not consistent with rydberg orbitals,
         # use even-tempered
         mol.ri_basis = None
-
 
         # print basis string to file if requested
         if self.print_ano:
@@ -213,7 +213,7 @@ class Rydano():
         for li in range(len(l)):
             for i in range(len(exp_srt[li])):
                 if cf_srt[li][i] > 0.1 or i==len(exp_srt[li]):
-                    most_dif[li] = 0.5*exp_srt[li][i]
+                    most_dif[li] = 0.9*exp_srt[li][i]
                     break
 
         # find where to start diffuse exponents for each value of
@@ -230,13 +230,12 @@ class Rydano():
         return exps
 
     #
-    def add_ano_atom(self, mol, sym, crds, basis_str):
+    def add_ano_basis(self, mol, crds, basis_str, basis_lst):
         """Add an atom to a molecule object, including the basis
            set
          
         Args:
             mol:  molecule object to amend [Molecule]
-            sym:  atomic symbol [str]
             crds: cartesian coordinates of the atom
             l:    angular momentum values to include in basis
             exps: the exponents on the primitive functions.
@@ -247,20 +246,63 @@ class Rydano():
             None
         """
 
-        # add atomic symbol and cartesian coordinaes
-        iatm = molecule.atom_name.index(sym)
-        mol.asym.append(sym)
-        mol.crds   = np.append(mol.crds, [crds], axis=0)
-        mol.masses = np.append(mol.masses, molecule.atom_mass[iatm])
+        # numerical issues arise if we try to place a dummy atom
+        # on top of an existing atom. Check minimum distance, and
+        # if less than threshold, displace a bit.
+        dvec = [np.linalg.norm(crd - crds) for crd in mol.crds]
+        xind = None
 
-        # construct basis object of uncontracted primitives
-        mol.basis[sym]    = basis_str
+        # if there is an existing atom at the origin, append
+        # basis set to existing atom
+        if min(dvec) <= 1.e-3:
+            ia = np.argmin(np.array(dvec))
+            self.append_ano_basis(mol, ia, basis_lst)
+            xind = ia
 
-        #RI basis definition limited to even-tempered for time being
+        else:
+            # add a ghost atom
+            sym = 'X'
+
+            # add atomic symbol and cartesian coordinaes
+            iatm = molecule.atom_name.index(sym)
+            mol.asym.append(sym)
+
+            mol.crds   = np.append(mol.crds, [crds], axis=0)
+            mol.masses = np.append(mol.masses, molecule.atom_mass[iatm])
+            # construct basis object of uncontracted primitives
+            mol.basis[sym]    = basis_str
+            #RI basis definition limited to even-tempered for time being
+            if mol.use_df and mol.ri_basis is not None:
+                mol.ri_basis[sym] = None
+            xind = mol.asym.index(sym)
+
+        return xind
+
+    #
+    def append_ano_basis(self, mol, iatm, bas_lst):
+        """
+        append basis specified by bas_str to iatm
+        """
+
+        # get the atomic symbol of the atomic center
+        isym = mol.asym[iatm]
+
+        # if there's more than one, we'll need to create a special
+        # label to distinguish the basis from the other atoms
+        nsym = mol.asym.count(isym)
+        basis_set = gto.basis.load(mol.basis[isym], isym)
+        for ano_set in bas_lst:
+            l = ano_set[0]
+            ind = [bset[0] for bset in basis_set].index(l)
+            basis_set.insert(ind, ano_set)
+            ind += 1
+
+        if nsym > 1:
+            mol.asym[iatm] += ' 1'
+        mol.basis[mol.asym[iatm]] = basis_set
+
         if mol.use_df and mol.ri_basis is not None:
-            mol.ri_basis[sym] = None
-
-        return 
+            mol.ri_basis[mol.asym[iatm]] = None
 
     #
     def make_ano_basis(self, sym, l, exps, ano=None):
@@ -274,9 +316,15 @@ class Rydano():
         ostr = '#BASIS set generated by rydano\n'
         astr = '{:<6s}{:1s}\n'
 
+        # determine the number of basis functions per ang. mom. 
+        # shell
+        nao_per_l = [0]*(max(l)+1)
+        for li in l:
+            nao_per_l[li] = len(exps[li])
+
         # if ANOs is None, or, they don't match the number of
         # primitives, use uncontracted functions
-        if ano is None:
+        if ano == None:
             rano = [np.identity(len(exps[li]), dtype=float)
                                              for li in range(len(l))]
         else:
@@ -288,19 +336,37 @@ class Rydano():
                               str(len(exps[li])))
                     sys.exit(1)
 
+        olst = []
+        # loop over angular momentum shells to build uncontracted
+        # basis and NWChem file format
         for li in range(len(l)):
             nprim = rano[li].shape[0]
             ncon = rano[li].shape[1]
             pstr = '{:>15.7f}'+''.join(['{:14.7f}']*ncon)+'\n'
 
-            ostr += astr.format(sym, l_lbl[l[li]])
-            for ni in range(nprim):
-               args = []
-               args.append(exps[li][ni])
-               args.extend(rano[li][ni,:])
-               ostr += pstr.format(*args)        
+            # if ANOs are supplied, we're adding contracted
+            # basis functions, else, if ano is 'None', we're 
+            # adding uncontracted functions. This should be
+            # cleaned up
+            if ano != None:
+                for ic in range(ncon):
+                    bf = [l[li]]
+                    for ip in range(nprim):
+                        bf.append([exps[li][ip], rano[li][ip, ic]])
+                    olst.append(bf)
 
-        return ostr
+            ostr += astr.format(sym, l_lbl[l[li]])
+            for ip in range(nprim):
+               args = []
+               args.append(exps[li][ip])
+               args.extend(rano[li][ip,:])
+               ostr += pstr.format(*args)
+               # if we're adding uncontracted functions,
+               # number of ANO == nprim
+               if ano == None:
+                   olst.append([l[li], [exps[li][ip], 1.]])
+
+        return nao_per_l, ostr, olst
 
     #
     def parse_ao_basis(self, mol):
@@ -375,13 +441,36 @@ class Rydano():
         return occ
 
     #
-    def make_nos(self, g_lbl, Smat, orbs, occ, a_lbl, l_i, l_lbl):
+    def make_nos(self, xind, aind, nao_per_l, Smat, orbs, occ, l_i, l_lbl, cart=False):
         """
         form the rydberg density
         """
+
+        # determine number of AOs per angular momentum shell
+        n_per_shell = [[1, 3, 5, 7, 9, 11], [1, 3, 6, 10, 15, 21]]
+        if cart:
+            sh_ind = 1
+        else:
+            sh_ind = 0
+
+        # tabulate the number of AOs per angular momentum shell
+        prim_cnt  = [0]*len(nao_per_l)
+        n_prim_ao = [nao_per_l[i] * n_per_shell[sh_ind][i] 
+                                  for i in range(len(nao_per_l))]
+
+        x_ao = []
+        # identify AOs in the uncontracted basis
+        for ai in range(len(aind)):
+            if aind[ai] == xind:
+                lval = l_i[ai]
+                # this requires rydberg AOs are first in the atom
+                # specification
+                if prim_cnt[lval] < n_prim_ao[lval]:
+                    x_ao.append(ai)
+                    prim_cnt[lval] += 1
+
         # first extract basis properties from our selected
         # center (for now assume ghost atoms '')        
-        x_ao   = [ind for ind,val in enumerate(a_lbl) if val==g_lbl]
         x_mo   = [ind for ind,val in enumerate(occ) if val > 0.] 
         x_l    = [val for ind,val in enumerate(l_i) if ind in x_ao]
         x_lbl  = [val for ind,val in enumerate(l_lbl) if ind in x_ao]

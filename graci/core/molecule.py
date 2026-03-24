@@ -133,11 +133,11 @@ class Molecule:
                        for i in range(len(atms))])
         
         # set the atom masses
-        atm_strip = [atm.strip() for atm in atms]
-        if any([atm not in atom_name for atm in atm_strip]):
-            sys.exit('atom in '+str(atm_strip)+" not recognized...")
+        atm_strip = [atm[:2].strip() for atm in atms]
+        #if any([atm not in atom_name for atm in atm_strip]) and check:
+        #    sys.exit('atom in '+str(atm_strip)+" not recognized...")
         self.asym  = atm_strip
-        self.masses = np.array([atom_mass[atom_name.index(atm_strip[i])]
+        self.masses = np.array([atom_mass[atom_name.index(atm_strip[i][:2])]
                           for i in range(len(self.asym))], dtype=float)
 
         # make the basis set objects from the string alias basis names
@@ -230,10 +230,20 @@ class Molecule:
 
         # now go through and make the basis object
         for atom, bname in self.basis.items():
-            alias = bname.lower().replace('-','').replace('_','')
 
-            # highest priority is the user-specified local directory 
-            if alias in basis.local_basis_sets(local_dir=True, 
+            # if bname is string, try to format it before
+            # passing through if/else ladder
+            try:
+                alias = bname.lower().replace('-','').replace('_','')
+            except:
+                alias = 'X' 
+
+            # if basis set is passed as a list, set it and move on
+            if isinstance(bname, list):
+                self.basis_obj[atom] = bname
+
+            # next highest priority is the user-specified local directory 
+            elif alias in basis.local_basis_sets(local_dir=True, 
                                                return_alias=True):
                 self.basis_obj[atom] = basis.load_basis(atom, alias,
                                                         local_dir=True)
