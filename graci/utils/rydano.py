@@ -441,7 +441,8 @@ class Rydano():
         return occ
 
     #
-    def make_nos(self, xind, aind, nao_per_l, Smat, orbs, occ, l_i, l_lbl, cart=False):
+    def make_nos(self, xind, aind, nao_per_l, Smat, orbs, occ, 
+                                                l_i, l_lbl, cart=False):
         """
         form the rydberg density
         """
@@ -463,6 +464,10 @@ class Rydano():
         for ai in range(len(aind)):
             if aind[ai] == xind:
                 lval = l_i[ai]
+
+                if lval >= len(prim_cnt):
+                    continue
+
                 # this requires rydberg AOs are first in the atom
                 # specification
                 if prim_cnt[lval] < n_prim_ao[lval]:
