@@ -10,8 +10,8 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=14
-  
+  integer(is), parameter :: nham=16
+
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
        ['abinitio            ', &
@@ -27,7 +27,9 @@ module hparam
         'qe8                 ', &
         'qe8_short           ', &
         'cvs-qe8             ', &
-        'cvs-test'            ]
+        'cvs-test            ', &
+        'r2026               ', &
+        'cvs-r2026           ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -177,6 +179,36 @@ module hparam
        0.214962d0, &  ! p2
        8.0d0, &       ! n
        0.560644d0]    ! pJ_cv
+
+!----------------------------------------------------------------------
+! 2026 DFT/MRCI Hamiltonian
+! Heil diagonal form with separate he/hhee exchange scaling;
+! off-diagonal prefactor p1 = 1 - 2*pJ + pF_hhee (derived).
+! *** Preliminary parameters: these need to be re-fitted ***
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(5) :: r2026= &
+       [0.425623d0, & ! pJ
+       0.252259d0, &  ! pF_he
+       0.252259d0, &  ! pF_hhee
+       4.611269d0, &  ! p2
+       8.0d0]         ! n
+
+!----------------------------------------------------------------------
+! CVS-2026 DFT/MRCI Hamiltonian
+! As r2026 but with separate core-valence Coulomb (pJ_cv) and
+! exchange (pF_cv) scaling.
+! *** Preliminary parameters: these need to be re-fitted ***
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(7) :: cvs_r2026= &
+       [0.425623d0, & ! pJ_vv
+       0.252259d0, &  ! pF_he_vv
+       0.252259d0, &  ! pF_hhee_vv
+       4.611269d0, &  ! p2
+       8.0d0, &       ! n
+       0.425623d0, &  ! pJ_cv
+       0.252259d0]    ! pF_cv
 
 
 contains
@@ -331,6 +363,22 @@ contains
        nhpar=6
        allocate(hpar(nhpar))
        hpar=cvs_test
+       desel=1.0d0
+
+    case(15)
+       ! R2026
+       ldftmrci=.true.
+       nhpar=5
+       allocate(hpar(nhpar))
+       hpar=r2026
+       desel=1.0d0
+
+    case(16)
+       ! CVS-R2026
+       ldftmrci=.true.
+       nhpar=7
+       allocate(hpar(nhpar))
+       hpar=cvs_r2026
        desel=1.0d0
 
     case default
