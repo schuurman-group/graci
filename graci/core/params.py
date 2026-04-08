@@ -20,6 +20,7 @@ rydano_kword =       {'xc'         : str,
                       'verbose'    : bool,
                       'nprimitive' : int,
                       'print_ano'  : bool,
+                      'max_overlap': float,
                       'label'      : str}
 
 #----------------------------------------------
