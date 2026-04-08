@@ -10,6 +10,7 @@ import graci.core.molecule as molecule
 import graci.core.scf as scf
 import graci.io.output as output
 import graci.utils.basis as basis
+import graci.utils.constants as constants
 
 ang_lbls = ['s','p','d','f','g','h','i']
 
@@ -20,15 +21,16 @@ class Rydano():
 
     def __init__(self):
         # user variables
-        self.xc         = 'qtp17'
-        self.mult       = 2
-        self.charge     = 1
-        self.origin     = None 
-        self.label      = 'default'
-        self.verbose    = True 
-        self.contract   = '1s1p1d'
-        self.nprimitive = 8
-        self.print_ano  = False
+        self.xc          = 'qtp17'
+        self.mult        = 2
+        self.charge      = 1
+        self.origin      = None
+        self.label       = 'default'
+        self.verbose     = True
+        self.contract    = '1s1p1d'
+        self.nprimitive  = 8
+        self.print_ano   = False
+        self.max_overlap = 1. / np.sqrt(2.)
 
         # class variables
         self.anos       = []
@@ -74,7 +76,7 @@ class Rydano():
         # if the rydberg basis origin is distinct from any atoms,
         # add a ghost atom, else, append basis set of atom at
         # origin
-        exps = self.determine_exponents(mol, l, self.nprimitive)
+        exps = self.determine_exponents(mol, l, self.nprimitive, ryd_origin)
         nao_per_l, bas_str, bas_lst = self.make_ano_basis('X', l, exps)
         # label for the ghost atom
         xind = self.add_ano_basis(ion_mol, ryd_origin, bas_str, bas_lst)
@@ -161,71 +163,108 @@ class Rydano():
 
         return (1./( 4*n**2 )) * (1./( a[l]*n + b[l] )**2)
     
-    def determine_exponents(self, mol, l, nprim):
-        """Determine the appropriate KBJ primitives to include for a
-           given AO basis set
+    def _contracted_overlap(self, alpha, l, shell, atom_pos_bohr,
+                            origin_bohr):
+        """Overlap between a normalised KBJ primitive (exponent alpha,
+        angular momentum l, at the Rydberg origin) and a normalised
+        contracted valence shell of the same l at atom_pos_bohr, computed
+        via PySCF's integral engine.
 
-           Args:
-            mol:   molecule object to amend [Molecule]
-            l:     angular momentum values to include in basis
-            nprim: number of primitives to include
- 
-           Return:
-            exps:  a list of exponents for each value of l
+        Args:
+            alpha:         KBJ primitive exponent (bohr^-2)
+            l:             angular momentum
+            shell:         PySCF shell entry [l, [exp, coef], ...]
+            atom_pos_bohr: atomic centre position (bohr, numpy array)
+            origin_bohr:   Rydberg basis origin (bohr, numpy array)
+
+        Returns:
+            max_overlap: maximum absolute element of the overlap matrix
+        """
+        # KBJ primitive at the Rydberg origin (unit contraction coefficient;
+        # PySCF normalises it internally)
+        mol_kbj = gto.Mole()
+        mol_kbj.atom  = [('H', tuple(origin_bohr))]
+        mol_kbj.basis = {'H': [[l, [alpha, 1.0]]]}
+        mol_kbj.unit  = 'Bohr'
+        mol_kbj.verbose = 0
+        mol_kbj.build()
+
+        # contracted valence shell at the atomic centre
+        mol_val = gto.Mole()
+        mol_val.atom  = [('H', tuple(atom_pos_bohr))]
+        mol_val.basis = {'H': [shell]}
+        mol_val.unit  = 'Bohr'
+        mol_val.verbose = 0
+        mol_val.build()
+
+        ovlp = gto.mole.intor_cross('int1e_ovlp_sph', mol_kbj, mol_val)
+        return np.max(np.abs(ovlp))
+
+    def determine_exponents(self, mol, l, nprim, ryd_origin):
+        """Determine the appropriate KBJ primitives to include for a
+        given AO basis set using overlap-based criterion.
+
+        For each angular momentum l, walks the KBJ series (from the
+        most compact end) and finds the first entry whose maximum
+        overlap with any same-l contracted valence shell is below
+        self.max_overlap. The series of nprim primitives starts there.
+
+        Args:
+            mol:        molecule object [Molecule]
+            l:          list of angular momentum values to include
+            nprim:      number of primitives to include per l
+            ryd_origin: Rydberg basis origin in Angstrom (numpy array)
+
+        Return:
+            exps: list of exponent lists, one per l value
         """
 
-        # scan the basis set and find the most diffuse 
-        # function (max_diffuse).  Start the ANO set with first exponent 
-        # <= 0.5*max_diffuse. 
-        exps   = [[] for _ in range(len(l))]
-        cf_max = [[] for _ in range(len(l))]
-        for atm,bas in mol.basis_obj.items():
-            for icon in range(len(bas)):
-               lval = bas[icon][0]
-               if lval in l:
-                   li = l.index(lval)
-                   exps[li].extend([bas[icon][i][0] 
-                           for i in range(1,len(bas[icon]))])
-                   cfs = [[abs(cf) for cf in bas[icon][i][1:]]
-                           for i in range(1,len(bas[icon]))]
-                   cf_max[li].extend([max(cfs[i]) 
-                           for i in range(len(cfs))])
+        # ryd_origin is in Angstrom; convert to bohr for overlap integrals
+        origin_bohr = ryd_origin * constants.ang2bohr
 
-        # if requested l value is not in the nascent basis, use exponents 
-        # and coefs from next lowest value of l -- just need something
-        # reasonable
+        # atom positions in bohr from PySCF (atom_coords returns bohr)
+        atom_coords_bohr = mol.pymol().atom_coords()
+
+        # collect contracted shells per l value from the valence basis,
+        # together with the atomic centre position in bohr
+        shells_per_l = [[] for _ in range(len(l))]
+        for iatm, atm in enumerate(mol.asym):
+            if atm not in mol.basis_obj:
+                continue
+            pos = atom_coords_bohr[iatm]
+            for shell in mol.basis_obj[atm]:
+                lval = shell[0]
+                if lval in l:
+                    li = l.index(lval)
+                    shells_per_l[li].append((shell, pos))
+
+        # if a requested l is absent from the valence basis, borrow
+        # shells from the next lower l that is present, relabelling
+        # the angular momentum so the overlap is computed correctly
         for li in range(len(l)):
-            if len(exps[li]) == 0 and li>0: 
-                exps[li]   = exps[li-1]
-                cf_max[li] = cf_max[li-1]
+            if len(shells_per_l[li]) == 0 and li > 0:
+                relabelled = [([l[li]] + shell[1:], pos)
+                              for shell, pos in shells_per_l[li - 1]]
+                shells_per_l[li] = relabelled
 
-        # sort exponents and coefs in order of increasing exponent 
-        srt_indx = [np.argsort(np.array(exps[li],dtype=float)) 
-                           for li in range(len(l))]
-        exp_srt = [[exps[li][srt_indx[li][i]] 
-                           for i in range(len(exps[li]))] 
-                           for li in range(len(l))]
-        cf_srt  = [[cf_max[li][srt_indx[li][i]] 
-                           for i in range(len(exps[li]))] 
-                           for li in range(len(l))]
-
-        most_dif = [0]*len(l)
+        # walk the KBJ series and find the starting index where the
+        # maximum overlap with any same-l valence shell drops below
+        # max_overlap
+        kbj_i = [0] * len(l)
         for li in range(len(l)):
-            for i in range(len(exp_srt[li])):
-                if cf_srt[li][i] > 0.1 or i==len(exp_srt[li]):
-                    most_dif[li] = 0.9*exp_srt[li][i]
+            while True:
+                alpha = self.kbj_exp(l[li], kbj_i[li])
+                max_ovlp = max(
+                    (self._contracted_overlap(alpha, l[li], shell, pos,
+                                             origin_bohr)
+                     for shell, pos in shells_per_l[li]),
+                    default=0.)
+                if max_ovlp <= self.max_overlap:
                     break
+                kbj_i[li] += 1
 
-        # find where to start diffuse exponents for each value of
-        # l in the AO basis
-        kbj_i = [0]*len(l)
-        for i in range(len(l)):
-            while self.kbj_exp(l[i], kbj_i[i]) > most_dif[i]:
-                kbj_i[i] += 1
-
-        # get the list of primitive exponents for eac value of l
-        exps = [[self.kbj_exp( l[i], kbj_i[i]+j) for j in range(nprim)]
-                                                 for i in range(len(l))] 
+        exps = [[self.kbj_exp(l[i], kbj_i[i] + j) for j in range(nprim)]
+                for i in range(len(l))]
 
         return exps
 
