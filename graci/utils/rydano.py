@@ -30,7 +30,7 @@ class Rydano():
         self.contract    = '1s1p1d'
         self.nprimitive  = 8
         self.print_ano   = False
-        self.max_overlap = 1. / np.sqrt(2.)
+        self.max_overlap = [1. / np.sqrt(2.)]
 
         # class variables
         self.anos       = []
@@ -187,6 +187,7 @@ class Rydano():
         mol_kbj.basis = {'H': [[l, [alpha, 1.0]]]}
         mol_kbj.unit  = 'Bohr'
         mol_kbj.verbose = 0
+        mol_kbj.spin = 1
         mol_kbj.build()
 
         # contracted valence shell at the atomic centre
@@ -195,6 +196,7 @@ class Rydano():
         mol_val.basis = {'H': [shell]}
         mol_val.unit  = 'Bohr'
         mol_val.verbose = 0
+        mol_val.spin = 1.
         mol_val.build()
 
         ovlp = gto.mole.intor_cross('int1e_ovlp_sph', mol_kbj, mol_val)
@@ -251,6 +253,10 @@ class Rydano():
         # maximum overlap with any same-l valence shell drops below
         # max_overlap
         kbj_i = [0] * len(l)
+        max_ovr = [self.max_overlap[l] if l < len(self.max_overlap) 
+                                     else self.max_overlap[-1] 
+                                     for l in range(len(l))]
+
         for li in range(len(l)):
             while True:
                 alpha = self.kbj_exp(l[li], kbj_i[li])
@@ -259,7 +265,7 @@ class Rydano():
                                              origin_bohr)
                      for shell, pos in shells_per_l[li]),
                     default=0.)
-                if max_ovlp <= self.max_overlap:
+                if max_ovlp <= max_ovr[li]:
                     break
                 kbj_i[li] += 1
 
