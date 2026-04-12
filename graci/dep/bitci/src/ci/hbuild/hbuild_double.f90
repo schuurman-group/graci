@@ -355,13 +355,13 @@ contains
 !----------------------------------------------------------------------
     ! Loop over ket configurations
     do kconf=1,nconf-1
-       
+
        ! Number of open shells in the ket configuration
        knopen=sop_nopen(sop(:,:,kconf),n_int_in)
 
        ! Number of ket CSFs
        knsp=ncsfs(knopen)
-     
+
        ! Ket configuration and SOP in the full MO space
        kconf_full=0_ib
        ksop_full=0_ib
@@ -406,7 +406,7 @@ contains
                hlist,plist,m2c,socc,nsocc,nbefore,Dw,ndiff,&
                offset,offset,nconf+1,nconf+1,averageii(bconf),&
                averageii(kconf))
-        
+
           ! Save the above threshold matrix elements
           count=0
           do kcsf=offset(kconf),offset(kconf+1)-1

@@ -25,6 +25,18 @@ def generate(ci_method):
     # number of mos
     nmo = ci_method.nmo
 
+    # Truncate RAS orbital indices to nmo (e.g. if mo_cutoff excludes
+    # some orbitals that were listed in the RAS spaces)
+    for ras_name in ('ras1', 'ras2', 'ras3'):
+        ras_arr = getattr(ci_method, ras_name)
+        dropped = ras_arr[ras_arr > nmo]
+        if dropped.size > 0:
+            print(f'\n WARNING: {ras_name.upper()} orbital indices'
+                  f' {list(dropped)} exceed nmo={nmo} (mo_cutoff may'
+                  f' be too small). Truncating {ras_name.upper()} to'
+                  f' include only orbitals <= nmo.', flush=True)
+            setattr(ci_method, ras_name, ras_arr[ras_arr <= nmo])
+
     # orbital occupations
     occ = ci_method.ref_occ
 

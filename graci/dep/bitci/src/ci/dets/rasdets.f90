@@ -211,7 +211,34 @@ subroutine check_ras_input(iras1,iras2,iras3,nras1,mras1,nras2,mras2,&
      call error_control
   endif
 
-!----------------------------------------------------------------------  
+!----------------------------------------------------------------------
+! Exit if any RAS orbital index exceeds nmo (the number of MOs in the
+! calculation). This can happen if the mo_cutoff truncates the MO space
+! below the highest requested RAS orbital index.
+!----------------------------------------------------------------------
+  do i1=1,mras1
+     if (iras1(i1) > nmo) then
+        errmsg='Error in check_ras_input: RAS1 orbital index exceeds'&
+             //' the number of MOs (mo_cutoff may be too small)'
+        call error_control
+     endif
+  enddo
+  do i1=1,mras2
+     if (iras2(i1) > nmo) then
+        errmsg='Error in check_ras_input: RAS2 orbital index exceeds'&
+             //' the number of MOs (mo_cutoff may be too small)'
+        call error_control
+     endif
+  enddo
+  do i1=1,mras3
+     if (iras3(i1) > nmo) then
+        errmsg='Error in check_ras_input: RAS3 orbital index exceeds'&
+             //' the number of MOs (mo_cutoff may be too small)'
+        call error_control
+     endif
+  enddo
+
+!----------------------------------------------------------------------
 ! Exit if the number of orbitals in any of the RAS spaces is greater
 ! than n_bits, as this would overflow the bit strings used to hold the
 ! RAS permutations
