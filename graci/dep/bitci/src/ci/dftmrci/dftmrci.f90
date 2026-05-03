@@ -213,10 +213,9 @@ contains
        return
 
     case(15)
-       ! 2026 parameterisation: scale by (1 - pF_he_vv), hpar(2)=pF_he_vv
-       nij=nsp*(nsp-1)/2
-       hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
-       return
+       ! 2026 parameterisation: distinguish he-type vs hhee-type pairs
+       call hij_same_dftmrci_2026(hij,nsp,Dw,ndiff,sop,socc,nsocc,&
+            nbefore,m2c)
 
     case(16)
        ! CVS-2026 parameterisation
@@ -636,7 +635,164 @@ contains
     return
     
   end subroutine hij_same_dftmrci_r2022
-  
+
+!######################################################################
+! hij_same_dftmrci_2026: applies the R2026 DFT/MRCI corrections to
+!                        a batch of off-diagonal Hamiltonian matrix
+!                        elements with the same spatial part but
+!                        different spin couplings.
+!
+!                        he-type pairs  (Dwi*Dwj <= 0): scale by pF_he   = hpar(2)
+!                        hhee-type pairs (Dwi*Dwj > 0): scale by pF_hhee = hpar(3)
+!######################################################################
+  subroutine hij_same_dftmrci_2026(hij,nsp,Dw,ndiff,sop,socc,nsocc,&
+       nbefore,m2c)
+
+    use constants
+    use bitglobal
+    use pattern_indices
+    use hparam
+
+    implicit none
+
+    ! Hamiltonian matrix elements
+    integer(is), intent(in) :: nsp
+    real(dp), intent(inout) :: hij(:)
+
+    ! Difference configuration information
+    integer(is), intent(in) :: ndiff
+    integer(is), intent(in) :: Dw(nmo,2)
+
+    ! SOP
+    integer(ib), intent(in) :: sop(n_int,2)
+
+    ! Singly-occupied MOs
+    integer(is), intent(in) :: socc(nmo)
+    integer(is), intent(in) :: nsocc
+
+    ! Numbers of open shells preceding each MO
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+
+    ! Everything else
+    integer(is)             :: insp,nopen
+    integer(is)             :: i,i1,j,j1,ic,ja
+    integer(is)             :: bomega,komega
+    integer(is)             :: pattern,kstart,bstart
+    integer(is)             :: count,n
+    integer(is)             :: Dwi_open(nomax)
+    integer(is)             :: Dwi,Dwj
+    real(dp)                :: Vijji,product
+    real(dp)                :: pF_he,pF_hhee,px
+
+!----------------------------------------------------------------------
+! Parameter values: hpar(2)=pF_he, hpar(3)=pF_hhee
+!----------------------------------------------------------------------
+    pF_he  =hpar(2)
+    pF_hhee=hpar(3)
+
+!----------------------------------------------------------------------
+! Numbers of 'intermediate' CSFs entering into the contractions of the
+! fibers of the spin-coupling coefficient tensor
+!----------------------------------------------------------------------
+    nopen=nsocc
+
+    if (nopen > 1) then
+       insp=ncsfs(nopen-2)
+    else
+       insp=0
+    endif
+
+!----------------------------------------------------------------------
+! Determine the Delta w_i values for the open shells
+!----------------------------------------------------------------------
+    Dwi_open=0
+
+    ! Loop over created/annihilated MOs
+    do i=1,ndiff
+       i1=Dw(i,1)
+
+       ! Loop over open shells
+       do j=1,nsocc
+          j1=socc(j)
+
+          ! Does the created/annihilated MO match an open shell index?
+          if (i1 == j1) Dwi_open(j)=Dw(i,2)
+
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Case 2b spin-coupling coefficients
+!----------------------------------------------------------------------
+! Note that all other <w omega' | E_i^j E_j^i | w omega> terms are zero
+!----------------------------------------------------------------------
+    ! Loop over singly-occupied MOs (creation operator)
+    do i=1,nsocc-1
+
+       ! Cycle if Delta w_i = 0
+       Dwi=Dwi_open(i)
+
+       ! Creation operator index
+       ic=socc(i)
+
+       ! DFT/HF MO index
+       i1=m2c(ic)
+
+       ! Loop over singly-occupied MOs (annihilation operator)
+       do j=i+1,nsocc
+
+          ! Cycle if Delta w_j = 0
+          Dwj=Dwi_open(j)
+
+          ! Annihilation operator index
+          ja=socc(j)
+
+          ! DFT/HF MO index
+          j1=m2c(ja)
+
+          ! Get the spin coupling coefficient pattern indices
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen)
+
+          ! V_ijji
+          Vijji=Vx(i1,j1)
+
+          ! Exchange scaling parameter: he-type vs hhee-type
+          if (Dwi*Dwj <= 0) then
+             px=pF_he
+          else
+             px=pF_hhee
+          endif
+
+          ! Contributions to hij
+          count=0
+          kstart=pattern
+          do komega=1,nsp
+             bstart=pattern
+             do bomega=1,nsp
+                if (bomega > komega) then
+                   count=count+1
+                   product=dot_product(&
+                        spincp(bstart:bstart+insp-1),&
+                        spincp(kstart:kstart+insp-1))
+                   hij(count)=hij(count)-px*Vijji*product
+                endif
+                bstart=bstart+insp
+             enddo
+             kstart=kstart+insp
+          enddo
+
+       enddo
+
+    enddo
+
+    return
+
+  end subroutine hij_same_dftmrci_2026
+
 !######################################################################
 ! hii_dftmrci_grimme: applies Grimme's DFT/MRCI correction to a batch
 !                     of on-diagonal Hamiltonian matrix elements
@@ -1488,7 +1644,7 @@ contains
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
 
-          Vijji=Vx(i1,j1)
+          Vijji=symvx(i1,j1)
           contrib=contrib+0.5d0*pF_he*Vijji*Dwi*Dwj
 
        enddo
@@ -1521,7 +1677,7 @@ contains
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen)
 
-          Vijji=Vx(i1,j1)
+          Vijji=symvx(i1,j1)
 
           start=pattern
           do omega=1,nsp
@@ -1557,7 +1713,7 @@ contains
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
 
-          Vijji=Vx(i1,j1)
+          Vijji=symvx(i1,j1)
           contrib=contrib+0.5d0*pF_hhee*abs(Dwj)*Vijji
 
        enddo
@@ -1584,7 +1740,7 @@ contains
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
 
-          Vijji=Vx(i1,j1)
+          Vijji=symvx(i1,j1)
           contrib=contrib+0.5d0*pF_hhee*abs(Dwj)*Vijji
 
        enddo
@@ -2904,6 +3060,51 @@ contains
     return
 
   end function damping_2026
+
+!######################################################################
+! symvx: Exchange integral V_pqqp averaged over degenerate partners
+!        of p and/or q (via degen_orbs). Enforces D∞h rotational
+!        symmetry by returning the rotationally-averaged exchange:
+!          - one partner: average over that partner
+!          - both partners (not each other): average over p's partner
+!            → gives K_avg = 0.5*(K_par + K_perp), equal for Au and B1u
+!              components of Δu states
+!          - partners of each other (e.g. πu_x/πu_y): bare Vx
+!          - no partners: bare Vx
+!######################################################################
+  function symvx(p, q) result(val)
+
+    use constants
+    use bitglobal
+
+    implicit none
+
+    integer(is), intent(in) :: p, q
+    real(dp)                :: val
+    integer(is)             :: ip, jq
+
+    ip = degen_orbs(p)
+    jq = degen_orbs(q)
+
+    if (ip == 0 .and. jq == 0) then
+       val = Vx(p, q)
+    else if (ip == q) then
+       ! p and q are degenerate partners of each other: skip averaging
+       val = Vx(p, q)
+    else if (ip /= 0 .and. jq == 0) then
+       val = 0.5d0 * (Vx(p, q) + Vx(ip, q))
+    else if (ip == 0 .and. jq /= 0) then
+       val = 0.5d0 * (Vx(p, q) + Vx(p, jq))
+    else
+       ! Both p and q have degenerate partners (not each other).
+       ! Average over p's partner: gives K_avg = 0.5*(K_par+K_perp)
+       ! for both Au and B1u components of Δu states → exact degeneracy.
+       val = 0.5d0 * (Vx(p, q) + Vx(ip, q))
+    end if
+
+    return
+
+  end function symvx
 
 !######################################################################
 

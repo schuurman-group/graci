@@ -5,10 +5,10 @@
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,icvs1,ham1,label1,verbose1) bind(c,name="bitci_initialise")
+     escf1,icvs1,degen_orbs1,ham1,label1,verbose1) bind(c,name="bitci_initialise")
 #else
 subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
-     escf1,icvs1,ham1,label1,verbose1)
+     escf1,icvs1,degen_orbs1,ham1,label1,verbose1)
 #endif
 
   use constants
@@ -30,6 +30,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   real(dp), intent(in)               :: moen1(nmo1)
   real(dp), intent(in)               :: escf1
   integer(is), intent(in)            :: icvs1(nmo1)
+  integer(is), intent(in)            :: degen_orbs1(nmo1)
   logical, intent(in)                :: verbose1
   real(dp)                           :: s,smax
   
@@ -148,6 +149,12 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
   else
      lcvs=.false.
   endif
+
+!----------------------------------------------------------------------
+! Set the degenerate orbital partner indices
+!----------------------------------------------------------------------
+  allocate(degen_orbs(nmo))
+  degen_orbs=degen_orbs1
 
 !----------------------------------------------------------------------
 ! Initialise the symmetry arrays

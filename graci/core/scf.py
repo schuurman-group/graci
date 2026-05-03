@@ -18,6 +18,7 @@ from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 from pyscf.scf import stability
 
+
 class Scf:
     """Class constructor for SCF object"""
     def __init__(self):
@@ -56,6 +57,7 @@ class Scf:
         self.orb_ener     = None
         self.orb_irrep    = []
         self.orb_sym      = []
+        self.degen_group  = None
         self.nmo          = 0
         self.nao          = 0
         self.naux         = 0
@@ -163,6 +165,9 @@ class Scf:
             self.orb_irrep = ['a'] * len(self.orbs)
             self.orb_sym   = [0] * len(self.orbs)
 
+        # identify degenerate orbital groups for DFT/MRCI exchange averaging
+        self.find_degen_groups(pymol)
+
         # construct density matrix
         occmos = self.orbs[:,self.orb_occ>0]
         self.rdm_ao = occmos @ np.diag(self.orb_occ[self.orb_occ>0]) @ occmos.T 
@@ -189,6 +194,9 @@ class Scf:
 
         # construct the molecule object
         pymol = self.mol.pymol()
+
+        # identify degenerate orbital groups for DFT/MRCI exchange averaging
+        self.find_degen_groups(pymol)
 
         # seit the verbosity of the output
         if self.verbose:
@@ -486,6 +494,93 @@ class Scf:
         """
         return 'Chkfile.Scf.'+str(label)
         
+    #
+    def find_degen_groups(self, pymol):
+        """Assign degenerate MO group IDs using symmetry correlation tables.
+
+        Queries graci.utils.symmetry for the full point group (topgroup). If
+        topgroup is a supported non-Abelian group, identifies orbitals that are
+        degenerate in the full symmetry but split in the Abelian computational
+        subgroup.
+
+        For Dooh and Coov, uses PySCF's full D∞h/C∞v orbital labels (e.g.,
+        'E1gx', 'E1gy') stored in orb_irrep, which unambiguously identify each
+        component of a 2D irrep. For other supported groups, falls back to
+        Abelian subgroup irrep pairs from the correlation table combined with
+        energy matching.
+
+        Within each degenerate pair, orbitals are matched by energy (tolerance
+        1e-4 Eh) and must have the same SCF occupation (tolerance 0.1).
+        Group ID > 0 identifies a degenerate group; 0 means singleton.
+        """
+        import graci.utils.symmetry as symmetry
+
+        nmo = self.nmo
+        self.degen_group = np.zeros(nmo, dtype=int)
+
+        if not getattr(pymol, 'symmetry', False):
+            return
+
+        topgroup  = getattr(pymol, 'topgroup', pymol.groupname).lower()
+        groupname = pymol.groupname.lower()
+
+        etol     = 1.0e-4
+        occtol   = 0.1
+        group_id = 0
+
+        def _match_pairs(list_a, list_b):
+            nonlocal group_id
+            used_b = set()
+            for i_a in list_a:
+                E_a   = self.orb_ener[i_a]
+                occ_a = self.orb_occ[i_a]
+                best_b  = None
+                best_dE = etol
+                for i_b in list_b:
+                    if i_b in used_b:
+                        continue
+                    dE = abs(self.orb_ener[i_b] - E_a)
+                    if dE < best_dE and abs(self.orb_occ[i_b] - occ_a) < occtol:
+                        best_dE = dE
+                        best_b  = i_b
+                if best_b is not None:
+                    used_b.add(best_b)
+                    group_id += 1
+                    self.degen_group[i_a] = group_id
+                    self.degen_group[best_b] = group_id
+
+        # For Dooh/Coov: use PySCF full-group labels directly (e.g. 'E1gx'/'E1gy').
+        # Each label unambiguously identifies the full-group irrep and component,
+        # so no energy matching across different irrep types is needed.
+        label_pairs = symmetry.get_pyscf_degen_label_pairs(topgroup)
+        if label_pairs:
+            for label_a, label_b in label_pairs:
+                list_a = sorted([k for k in range(nmo)
+                                 if self.orb_irrep[k] == label_a],
+                                key=lambda k: self.orb_ener[k])
+                list_b = sorted([k for k in range(nmo)
+                                 if self.orb_irrep[k] == label_b],
+                                key=lambda k: self.orb_ener[k])
+                _match_pairs(list_a, list_b)
+            if group_id > 0:
+                return
+            # orb_irrep contains Abelian subgroup labels (e.g. D2h when sym_grp=d2h
+            # is specified); fall through to energy-based matching below.
+
+        # For other supported non-Abelian groups, or when full-group labels were
+        # not found in orb_irrep: use correlation table subgroup irrep pairs +
+        # energy matching in the Abelian subgroup.
+        degen_pairs = symmetry.get_degen_pairs(topgroup, groupname)
+        for pair in degen_pairs:
+            irr_a, irr_b = sorted(pair)
+            list_a = sorted([k for k in range(nmo)
+                             if self.orb_irrep[k].lower() == irr_a],
+                            key=lambda k: self.orb_ener[k])
+            list_b = sorted([k for k in range(nmo)
+                             if self.orb_irrep[k].lower() == irr_b],
+                            key=lambda k: self.orb_ener[k])
+            _match_pairs(list_a, list_b)
+
     #
     def mo_overlaps(self, other):
         """

@@ -13,6 +13,7 @@ libraries      = ['bitci','bitsi','bitwf','overlap']
 bitci_registry = {
     'bitci_initialise'        : ['int32','int32','int32','int64',
                                  'double','int32','double','int32',
+                                 'int32',
                                  'string','string','logical'],
     'bitci_finalise'          : [],
     'bitci_int_initialize'    : ['string', 'string', 'string', 'string', 

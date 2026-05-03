@@ -100,7 +100,13 @@ module bitglobal
   !
   integer(is), allocatable :: icvs(:)
   logical                  :: lcvs
-  
+
+  !
+  ! Degenerate orbital partner indices (1-indexed canonical MO of the
+  ! degenerate partner; 0 if none).
+  !
+  integer(is), allocatable :: degen_orbs(:)
+
   !
   ! Symmetry
   !
