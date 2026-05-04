@@ -1655,6 +1655,7 @@ contains
        do j=i+1,nsocc
           ja=socc(j)
           j1=m2c(ja)
+          if (degen_orbs(i1) == j1) cycle
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen)
           Vijji=symvx(i1,j1)
@@ -1896,6 +1897,8 @@ contains
 
           ja=socc(j)
           j1=m2c(ja)
+
+          if (degen_orbs(i1) == j1) cycle
 
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen)
@@ -2580,6 +2583,8 @@ contains
 
           ja=socc(j)
           j1=m2c(ja)
+
+          if (degen_orbs(i1) == j1) cycle
 
           if (icvs(i1) == 1 .or. icvs(j1) == 1) then
              pF=pFcv
