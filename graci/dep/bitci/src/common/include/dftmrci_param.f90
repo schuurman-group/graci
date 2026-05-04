@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=16
+  integer(is), parameter :: nham=17
 
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -29,7 +29,8 @@ module hparam
         'cvs-qe8             ', &
         'cvs-test            ', &
         'r2026               ', &
-        'cvs-r2026           ']
+        'cvs-r2026           ', &
+        'qe8_sym             ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -379,6 +380,14 @@ contains
        nhpar=7
        allocate(hpar(nhpar))
        hpar=cvs_r2026
+       desel=1.0d0
+
+    case(17)
+       ! QE8 with symmetry-averaged exchange (qe8_sym)
+       ldftmrci=.true.
+       nhpar=5
+       allocate(hpar(nhpar))
+       hpar=qe8
        desel=1.0d0
 
     case default
