@@ -170,7 +170,7 @@ class Dftmrci2(cimethod.Cimethod):
             # user-specified values
             self.nextra = {'pt2' : np.ndarray.tolist(self.nbuffer),
                            'max' : np.ndarray.tolist(self.nbuffer)}
-        
+
         # generate the initial reference space configurations
         if guess is not None:
             n_ref_conf, ref_conf_units, ref_conf_files = \

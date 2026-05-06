@@ -135,8 +135,8 @@ class Scf:
         # run the SCF calculation
         scf_pyscf = self.run_pyscf(pymol, guess)
         if scf_pyscf is None:
-            return None       
- 
+            return None
+
         # extract orbitals, occupations and energies
         self.orbs      = scf_pyscf.mo_coeff
         

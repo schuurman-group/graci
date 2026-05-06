@@ -88,6 +88,11 @@ contains
        call hii_dftmrci_heil_sym(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
+    case(18)
+       ! RC DFT/MRCI: range-corrected exchange
+       call hii_dftmrci_rc(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
+            nsocc,nbefore)
+
     case default
        errmsg='Your Hamiltonian choice has not been implemented yet'
        call error_control
@@ -142,6 +147,10 @@ contains
     case(11:14,17)
        ! QE8 parameterisations
        damp=damping_qe8(bav,kav)
+
+    case(18)
+       ! RC DFT/MRCI parameterisation
+       damp=damping_rc(bav,kav)
 
     case(15:16)
        ! 2026 and CVS-2026 parameterisations
@@ -213,6 +222,12 @@ contains
        ! the QE8 Hamiltonian, and qe8_sym.
        ! ihamiltonian == 14 is cvs-test and uses same exchange damping
        !                    for valence-valence and core-valence
+       nij=nsp*(nsp-1)/2
+       hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
+       return
+
+    case(18)
+       ! RC DFT/MRCI: same-config off-diagonal uses (1-pF_SR)
        nij=nsp*(nsp-1)/2
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
@@ -1718,6 +1733,218 @@ contains
   end subroutine hii_dftmrci_heil_sym
 
 !######################################################################
+! hii_dftmrci_rc: RC DFT/MRCI diagonal corrections.
+!                 Based on hii_dftmrci_heil_sym with range-separated
+!                 exchange: EC1-EC4 use
+!                   pF_SR * symvx(i,j) + (pF_LR - pF_SR) * v_lr(i,j)
+!                 EC2 constraint (skip degenerate pairs) is applied.
+!######################################################################
+  subroutine hii_dftmrci_rc(harr,nsp,Dw,ndiff,nopen,m2c,sop,&
+       socc,nsocc,nbefore)
+
+    use constants
+    use bitglobal
+    use pattern_indices
+    use hparam
+
+    implicit none
+
+    ! Array of on-diagonal Hamiltonian matrix elements
+    integer(is), intent(in) :: nsp
+    real(dp), intent(inout) :: harr(nsp)
+
+    ! Difference configuration information
+    integer(is), intent(in) :: ndiff
+    integer(is), intent(in) :: Dw(nmo,2)
+
+    ! Number of open shells
+    integer(is), intent(in) :: nopen
+
+    ! MO index mapping array
+    integer(is), intent(in) :: m2c(nmo)
+
+    ! SOP characterising the spatial occupation
+    integer(ib), intent(in) :: sop(n_int,2)
+
+    ! Indices of the singly-occupied MOs
+    integer(is), intent(in) :: nsocc
+    integer(is), intent(in) :: socc(nmo)
+
+    ! Numbers of open shells preceding each MO
+    integer(is), intent(in) :: nbefore(nmo)
+
+    ! Everything else
+    integer(is)             :: i,j,i1,j1,Dwi,Dwj,ipos,insp
+    integer(is)             :: ic,ja,omega,pattern,start
+    real(dp)                :: Viijj,Vijji_eff,Viiii
+    real(dp)                :: contrib(nsp)
+    real(dp)                :: product
+    real(dp)                :: pJ,pFSR,pFLR,dFLR
+
+!----------------------------------------------------------------------
+! Diagonal shift: 1/4 Sum_i V_iiii, i singly occupied in the base
+! configuration
+!----------------------------------------------------------------------
+    do i=1,nmo
+       if (iopen0(i) == 1) harr=harr+0.25d0*Vc(i,i)
+    enddo
+
+!----------------------------------------------------------------------
+! Return if we are at the base configuration
+!----------------------------------------------------------------------
+    if (ndiff == 0) return
+
+!----------------------------------------------------------------------
+! Parameter values
+! hpar(1)=pJ, hpar(2)=pF_SR, hpar(3)=pF_LR, hpar(4)=p1, hpar(5)=p2, hpar(6)=n
+!----------------------------------------------------------------------
+    pJ   = hpar(1)
+    pFSR = hpar(2)
+    pFLR = hpar(3)
+    dFLR = pFLR - pFSR   ! increment applied to LR exchange
+
+!----------------------------------------------------------------------
+! Sum_i F_ii^KS - F_ii^HF Delta w_i
+!----------------------------------------------------------------------
+    do i=1,ndiff
+       i1=m2c(Dw(i,1))
+       Dwi=Dw(i,2)
+       harr=harr+(moen(i1)-Fii(i1))*Dwi
+    enddo
+
+!----------------------------------------------------------------------
+! Find the start of the positive Delta w_i values
+!----------------------------------------------------------------------
+    do i=1,ndiff
+       if (Dw(i,2) > 0) then
+          ipos=i
+          exit
+       endif
+    enddo
+
+!----------------------------------------------------------------------
+! Coulomb correction 1
+!----------------------------------------------------------------------
+    contrib=0.0d0
+
+    do i=1,ndiff
+       i1=m2c(Dw(i,1))
+       Dwi=Dw(i,2)
+       do j=i,ndiff
+          j1=m2c(Dw(j,1))
+          Dwj=Dw(j,2)
+          if (i == j .and. abs(Dwi) == 2) then
+             Viijj=Vc(i1,i1)
+             contrib=contrib-pJ*Viijj
+          else if (i /= j) then
+             Viijj=Vc(i1,j1)
+             contrib=contrib-pJ*Viijj*Dwi*Dwj
+          endif
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Coulomb correction 2
+!----------------------------------------------------------------------
+    do i=1,ndiff
+       i1=m2c(Dw(i,1))
+       if (iopen0(i1) == 0) cycle
+       Viiii=Vc(i1,i1)
+       contrib=contrib-0.5d0*pJ*Viiii
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 1
+! -pF/2 Sum_i Sum_j V_ijji, Delta w_i < 0, Delta w_j > 0
+! V_ijji_eff = pF_SR * symvx(i,j) + dFLR * v_lr(i,j)
+!----------------------------------------------------------------------
+    do i=1,ipos-1
+       i1=m2c(Dw(i,1))
+       Dwi=Dw(i,2)
+       do j=ipos,ndiff
+          j1=m2c(Dw(j,1))
+          Dwj=Dw(j,2)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          contrib=contrib+0.5d0*Vijji_eff*Dwi*Dwj
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 2
+! -pF Sum_i Sum_j V_ijji <w omega|E_i^j E_j^i|w omega>
+! EC2 degeneracy constraint: skip pairs where i and j are degenerate
+!----------------------------------------------------------------------
+    if (nopen > 1) then
+       insp=ncsfs(nopen-2)
+    else
+       insp=0
+    endif
+
+    do i=1,nsocc-1
+       ic=socc(i)
+       i1=m2c(ic)
+       do j=i+1,nsocc
+          ja=socc(j)
+          j1=m2c(ja)
+          if (degen_orbs(i1) == j1) cycle
+          pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
+               nbefore(ja),nopen)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          start=pattern
+          do omega=1,nsp
+             product=dot_product(&
+                  spincp(start:start+insp-1),&
+                  spincp(start:start+insp-1))
+             contrib(omega)=contrib(omega)-Vijji_eff*product
+             start=start+insp
+          enddo
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 3
+! +pF/2 Sum_i Sum_j Vijji, Delta w_i > 0, Delta w_j > 0, i open in base
+!----------------------------------------------------------------------
+    do i=ipos,ndiff
+       i1=m2c(Dw(i,1))
+       Dwi=Dw(i,2)
+       if (iopen0(i1) == 0) cycle
+       do j=ipos,ndiff
+          if (i == j) cycle
+          j1=m2c(Dw(j,1))
+          Dwj=Dw(j,2)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          contrib=contrib+0.5d0*Vijji_eff*abs(Dwj)
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Exchange correction 4
+! +pF/2 Sum_i Sum_j Vijji, Delta w_i < 0, Delta w_j < 0, i open in base
+!----------------------------------------------------------------------
+    do i=1,ipos-1
+       i1=m2c(Dw(i,1))
+       Dwi=Dw(i,2)
+       if (iopen0(i1) == 0) cycle
+       do j=1,ipos-1
+          if (i == j) cycle
+          j1=m2c(Dw(j,1))
+          Dwj=Dw(j,2)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          contrib=contrib+0.5d0*Vijji_eff*abs(Dwj)
+       enddo
+    enddo
+
+!----------------------------------------------------------------------
+! Add the Coulomb and exchange corrections
+!----------------------------------------------------------------------
+    harr=harr+contrib
+
+    return
+
+  end subroutine hii_dftmrci_rc
+
+!######################################################################
 ! hii_dftmrci_2026: on-diagonal DFT/MRCI corrections for the 2026
 !                   Hamiltonian. Based on the Heil functional form but
 !                   with separate exchange scaling for hole-electron
@@ -3218,6 +3445,29 @@ contains
     return
     
   end function damping_qe8
+
+!######################################################################
+! damping_rc: RC DFT/MRCI damping. Same functional form as QE8 but
+!             p1=hpar(4), p2=hpar(5), n=hpar(6).
+!######################################################################
+  function damping_rc(av1,av2) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+
+    implicit none
+
+    real(dp)             :: func
+    real(dp), intent(in) :: av1,av2
+    real(dp)             :: DEp3
+
+    DEp3=abs(av1-av2)**hpar(6)
+    func=hpar(4)*exp(-hpar(5)*DEp3)
+
+    return
+
+  end function damping_rc
 
 !######################################################################
 ! damping_r2022: for two CSF-averaged on-diagonal matrix element

@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=17
+  integer(is), parameter :: nham=18
 
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -30,7 +30,8 @@ module hparam
         'cvs-test            ', &
         'r2026               ', &
         'cvs-r2026           ', &
-        'qe8_sym             ']
+        'qe8_sym             ', &
+        'rc_dftmrci          ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -211,6 +212,23 @@ module hparam
        0.425623d0, &  ! pJ_cv
        0.252259d0]    ! pF_cv
 
+!----------------------------------------------------------------------
+! RC DFT/MRCI Hamiltonian
+! QE8_SYM with range-separated exchange: pF_SR scales the SR part
+! K_SR = K_full - K_LR, pF_LR scales the LR part K_LR.
+! ω is not a parameter — it comes from the XC functional.
+! Degenerates to QE8_SYM when ω=0 (global hybrid, K_LR=0).
+! *** Preliminary parameters: initialized to QE8 values ***
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(6) :: rc_dftmrci_p= &
+       [0.425623d0, & ! pJ
+       0.252259d0, &  ! pF_SR
+       0.252259d0, &  ! pF_LR
+       0.692173d0, &  ! p1
+       4.611269d0, &  ! p2
+       8.0d0]         ! n
+
 
 contains
 
@@ -388,6 +406,14 @@ contains
        nhpar=5
        allocate(hpar(nhpar))
        hpar=qe8
+       desel=1.0d0
+
+    case(18)
+       ! RC DFT/MRCI: range-corrected exchange with separate SR/LR scaling
+       ldftmrci=.true.
+       nhpar=6
+       allocate(hpar(nhpar))
+       hpar=rc_dftmrci_p
        desel=1.0d0
 
     case default

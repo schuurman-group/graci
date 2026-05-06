@@ -26,9 +26,10 @@ class Ao2mo:
     """Class constructor for ao2mo object"""
 
     def __init__(self):
-        self.precision_2e = 'single' 
+        self.precision_2e = 'single'
         self.moint_2e_eri = None
         self.moint_1e     = None
+        self.moint_v_lr   = None
         self.nmo          = None
         self.emo          = None
         self.mosym        = None
@@ -81,21 +82,24 @@ class Ao2mo:
             #with h5py.File(self.moint_2e_eri, 'w') as f:
             #    f['eri_mo'] = eri_mo
 
-        self.write_integrals(eri_mo, self.precision_2e, 
+        self.write_integrals(eri_mo, self.precision_2e,
                                                  self.moint_2e_eri)
         del(eri_mo)
+
+        # Compute LR exchange integrals for RSH functionals
+        omega = self._rsh_omega(scf)
+        if abs(omega) > 1e-10:
+            self._compute_write_v_lr(scf, omega)
 
         # Construct the core Hamiltonian
         one_nuc_ao = scf.mol.pymol().intor('int1e_nuc')
         one_kin_ao = scf.mol.pymol().intor('int1e_kin')
         hcore_ao   = one_nuc_ao + one_kin_ao
 
-        # transform the core Hamiltonian to MO basis explicitly 
+        # transform the core Hamiltonian to MO basis explicitly
         # and write to file
         h1_mo = np.matmul(np.matmul(self.orbs.T, hcore_ao), self.orbs)
         self.write_integrals(h1_mo, 'double', self.moint_1e)
-        #with h5py.File(self.moint_1e, 'w') as f:
-        #    f['hcore_mo'] = h1_mo
 
         self.load_bitci(scf)
 
@@ -115,9 +119,12 @@ class Ao2mo:
         else:
             type_str = 'exact'
 
+        vlr_file = self.moint_v_lr if (self.moint_v_lr is not None
+                                       and os.path.isfile(self.moint_v_lr)) else ''
+
         libs.lib_func('bitci_int_initialize',
-                ['pyscf', type_str, self.precision_2e, 
-                           self.moint_1e, self.moint_2e_eri])
+                ['pyscf', type_str, self.precision_2e,
+                           self.moint_1e, self.moint_2e_eri, vlr_file])
 
         return
 
@@ -139,6 +146,7 @@ class Ao2mo:
         # set default file names
         self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
         self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
+        self.moint_v_lr   = 'v_lr_'+str(scf.label).strip()+'.bin'
 
         return
 
@@ -205,12 +213,59 @@ class Ao2mo:
 
         if precision == 'single':
             nfp *= 2
-           
+
         nelem = np.prod(tensor_dims)
         nrec  = int(np.ceil(nelem / nfp))
         cpr   = int(np.ceil(tensor_dims[1] / nrec))
 
         return nrec, cpr
+
+    def _rsh_omega(self, scf):
+        """Return range-separation parameter ω from the XC functional (0 for global hybrids)."""
+        from pyscf import dft
+        try:
+            ni = dft.numint.NumInt()
+            omega, _, _ = ni.rsh_and_hybrid_coeff(scf.xc)
+        except Exception:
+            omega = 0.0
+        return float(omega)
+
+    def _compute_write_v_lr(self, scf, omega):
+        """Compute K_LR(i,j) = Σ_P B_P^(ij,LR) B_P^(ij,LR) and write to file."""
+        import h5py
+
+        nmo      = self.nmo
+        mo       = self.orbs          # already truncated to nmo
+        mol      = scf.mol.pymol()
+        auxbasis = scf.mol.ri_basis
+
+        # 3-centre LR integrals using DF with erf(ω r)/r operator
+        ij_trans = np.concatenate(([mo], [mo]))
+        with mol.with_range_coulomb(omega):
+            df.outcore.general(mol, ij_trans, '_tmp_v_lr',
+                               auxbasis=auxbasis, dataname='eri_mo',
+                               verbose=0)
+
+        with h5py.File('_tmp_v_lr', 'r') as f:
+            b_lr = np.array(f['eri_mo'])   # shape (naux, n_ij), n_ij=nmo*(nmo+1)//2
+        os.remove('_tmp_v_lr')
+
+        naux = b_lr.shape[0]
+        n_ij = b_lr.shape[1]   # packed upper triangle
+
+        # Unpack to full (naux, nmo, nmo) and contract: K_LR(i,j) = Σ_P B_P^(ij)^2
+        b_full = np.zeros((naux, nmo, nmo))
+        idx = 0
+        for i in range(nmo):
+            for j in range(i + 1):
+                b_full[:, i, j] = b_lr[:, idx]
+                b_full[:, j, i] = b_lr[:, idx]
+                idx += 1
+
+        v_lr = np.einsum('Pij,Pij->ij', b_full, b_full)
+
+        self.write_integrals(v_lr, 'double', self.moint_v_lr)
+        return
 
 
 

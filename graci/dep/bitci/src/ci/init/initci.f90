@@ -267,10 +267,11 @@ end subroutine bitci_initialise
 !######################################################################
 #ifdef CBINDING
 subroutine bitci_int_initialize(integral_src, integral_method, &
-     integral_precision, hcore_file, eri_file) bind(c,name="bitci_int_initialize")
+     integral_precision, hcore_file, eri_file, vlr_file) &
+     bind(c,name="bitci_int_initialize")
 #else
 subroutine bitci_int_initialize(integral_src, integral_method, &
-     integral_precision, hcore_file, eri_file)
+     integral_precision, hcore_file, eri_file, vlr_file)
 #endif
 
   use constants
@@ -286,12 +287,14 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
   character(kind=C_CHAR), intent(in) :: integral_precision(*)
   character(kind=C_CHAR), intent(in) :: hcore_file(*)
   character(kind=C_CHAR), intent(in) :: eri_file(*)
+  character(kind=C_CHAR), intent(in) :: vlr_file(*)
 
   character(len=255)                 :: int_src
   character(len=255)                 :: int_method
   character(len=255)                 :: int_precision
   character(len=255)                 :: f_core
   character(len=255)                 :: f_eri
+  character(len=255)                 :: f_vlr
 
   integer(is)                        :: length
 #else
@@ -300,12 +303,14 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
   character(len=*), intent(in)       :: integral_precision
   character(len=*), intent(in)       :: hcore_file
   character(len=*), intent(in)       :: eri_file
+  character(len=*), intent(in)       :: vlr_file
 
   character(len=255)                 :: int_src
   character(len=255)                 :: int_method
   character(len=255)                 :: int_precision
-  character(len=255)                 :: hcore
-  character(len=255)                 :: eri
+  character(len=255)                 :: f_core
+  character(len=255)                 :: f_eri
+  character(len=255)                 :: f_vlr
 #endif
 
 !----------------------------------------------------------------------
@@ -323,12 +328,19 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
   call c2fstr(hcore_file, f_core,length)
   length=cstrlen(eri_file)
   call c2fstr(eri_file, f_eri,length)
+  length=cstrlen(vlr_file)
+  if (length > 0) then
+     call c2fstr(vlr_file, f_vlr, length)
+  else
+     f_vlr=''
+  endif
 #else
   int_src       = adjustl(trim(integral_src))
   int_method    = adjustl(trim(integral_method))
   int_precision = adjustl(trim(integral_precision))
   f_core        = adjustl(trim(hcore_file))
   f_eri         = adjustl(trim(eri_file))
+  f_vlr         = adjustl(trim(vlr_file))
 #endif
 
 !----------------------------------------------------------------------
@@ -345,7 +357,7 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
            allocate(exact_dp::bitci_ints)
          case default
            stop 'precision not recognized in bitci_init_intgrals: '&
-                 //trim(adjustl(int_precision)) 
+                 //trim(adjustl(int_precision))
      end select
 
   else if (trim(adjustl(int_method)) .eq. 'df') then
@@ -369,15 +381,19 @@ subroutine bitci_int_initialize(integral_src, integral_method, &
 
 !----------------------------------------------------------------------
 ! second: initialize integral object using the appropriate
-!         interface
+!         interface; pass vlr_file if non-empty (RSH functionals)
 !----------------------------------------------------------------------
   if (trim(adjustl(int_src)) .eq. 'pyscf') then
-     call bitci_ints%init_pyscf(f_core, f_eri)
+     if (len_trim(f_vlr) > 0) then
+        call bitci_ints%init_pyscf(f_core, f_eri, vlr_file=f_vlr)
+     else
+        call bitci_ints%init_pyscf(f_core, f_eri)
+     endif
   else
      stop 'integral interface not recognized in bitci_init_integrals: '&
           //trim(adjustl(int_src))
   endif
 
   return
-  
+
 end subroutine bitci_int_initialize
