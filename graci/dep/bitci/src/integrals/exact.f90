@@ -57,12 +57,13 @@ contains
   !
   !
   !
-  subroutine init_pyscf_exact_dp(ints, core_file, eri_file, vlr_file)
+  subroutine init_pyscf_exact_dp(ints, core_file, eri_file, vlr_file, jlr_file)
 
     class(exact_dp)                          :: ints
     character(len=255)                       :: core_file
     character(len=255)                       :: eri_file
     character(len=255), optional, intent(in) :: vlr_file
+    character(len=255), optional, intent(in) :: jlr_file
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
@@ -175,6 +176,36 @@ contains
       ints%v_lr = 0.0d0
     endif
 
+    ! load LR Coulomb integrals (RSH only)
+    !--------------------------------------------------------------
+    if (present(jlr_file)) then
+      if (len_trim(jlr_file) > 0) then
+        f_name = trim(adjustl(jlr_file))
+        inquire(file=f_name, exist=exists)
+        if (exists) then
+          call freeunit(unit)
+          open(unit, file=f_name, form='unformatted')
+          do i = 1,2
+            read(unit) dims(i)
+          enddo
+          if (allocated(ints%j_lr)) deallocate(ints%j_lr)
+          allocate(ints%j_lr(dims(1), dims(2)))
+          read(unit) nrec
+          read(unit) cpr
+          do i = 1,nrec
+            rend = min(i*cpr, dims(2))
+            read(unit) ints%j_lr(1:dims(1), 1+(i-1)*cpr:rend)
+          enddo
+          close(unit)
+        endif
+      endif
+    endif
+
+    if (.not. allocated(ints%j_lr)) then
+      allocate(ints%j_lr(ints%nmo, ints%nmo))
+      ints%j_lr = 0.0d0
+    endif
+
     return
 
   end subroutine init_pyscf_exact_dp
@@ -229,6 +260,7 @@ contains
     if(allocated(ints%h_core))  deallocate(ints%h_core)
     if(allocated(ints%bra_ket)) deallocate(ints%bra_ket)
     if(allocated(ints%v_lr))    deallocate(ints%v_lr)
+    if(allocated(ints%j_lr))    deallocate(ints%j_lr)
 
   end subroutine finalize_exact_dp
 
@@ -240,12 +272,13 @@ contains
   !
   !
   !
-  subroutine init_pyscf_exact_sp(ints, core_file, eri_file, vlr_file)
+  subroutine init_pyscf_exact_sp(ints, core_file, eri_file, vlr_file, jlr_file)
 
     class(exact_sp)                          :: ints
     character(len=255)                       :: core_file
     character(len=255)                       :: eri_file
     character(len=255), optional, intent(in) :: vlr_file
+    character(len=255), optional, intent(in) :: jlr_file
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
@@ -358,6 +391,36 @@ contains
       ints%v_lr = 0.0d0
     endif
 
+    ! load LR Coulomb integrals (RSH only)
+    !--------------------------------------------------------------
+    if (present(jlr_file)) then
+      if (len_trim(jlr_file) > 0) then
+        f_name = trim(adjustl(jlr_file))
+        inquire(file=f_name, exist=exists)
+        if (exists) then
+          call freeunit(unit)
+          open(unit, file=f_name, form='unformatted')
+          do i = 1,2
+            read(unit) dims(i)
+          enddo
+          if (allocated(ints%j_lr)) deallocate(ints%j_lr)
+          allocate(ints%j_lr(dims(1), dims(2)))
+          read(unit) nrec
+          read(unit) cpr
+          do i = 1,nrec
+            rend = min(i*cpr, dims(2))
+            read(unit) ints%j_lr(1:dims(1), 1+(i-1)*cpr:rend)
+          enddo
+          close(unit)
+        endif
+      endif
+    endif
+
+    if (.not. allocated(ints%j_lr)) then
+      allocate(ints%j_lr(ints%nmo, ints%nmo))
+      ints%j_lr = 0.0d0
+    endif
+
     return
 
   end subroutine init_pyscf_exact_sp
@@ -412,6 +475,7 @@ contains
     if(allocated(ints%h_core))  deallocate(ints%h_core)
     if(allocated(ints%bra_ket)) deallocate(ints%bra_ket)
     if(allocated(ints%v_lr))    deallocate(ints%v_lr)
+    if(allocated(ints%j_lr))    deallocate(ints%j_lr)
 
   end subroutine finalize_exact_sp
 
@@ -423,12 +487,13 @@ contains
   !
   !
   !
-  subroutine init_pyscf_exact_hp(ints, core_file, eri_file, vlr_file)
+  subroutine init_pyscf_exact_hp(ints, core_file, eri_file, vlr_file, jlr_file)
 
     class(exact_hp)                          :: ints
     character(len=255)                       :: core_file
     character(len=255)                       :: eri_file
     character(len=255), optional, intent(in) :: vlr_file
+    character(len=255), optional, intent(in) :: jlr_file
 
     character(len=255)      :: f_name
     character(len=255)      :: dset_name
@@ -541,6 +606,36 @@ contains
       ints%v_lr = 0.0d0
     endif
 
+    ! load LR Coulomb integrals (RSH only)
+    !--------------------------------------------------------------
+    if (present(jlr_file)) then
+      if (len_trim(jlr_file) > 0) then
+        f_name = trim(adjustl(jlr_file))
+        inquire(file=f_name, exist=exists)
+        if (exists) then
+          call freeunit(unit)
+          open(unit, file=f_name, form='unformatted')
+          do i = 1,2
+            read(unit) dims(i)
+          enddo
+          if (allocated(ints%j_lr)) deallocate(ints%j_lr)
+          allocate(ints%j_lr(dims(1), dims(2)))
+          read(unit) nrec
+          read(unit) cpr
+          do i = 1,nrec
+            rend = min(i*cpr, dims(2))
+            read(unit) ints%j_lr(1:dims(1), 1+(i-1)*cpr:rend)
+          enddo
+          close(unit)
+        endif
+      endif
+    endif
+
+    if (.not. allocated(ints%j_lr)) then
+      allocate(ints%j_lr(ints%nmo, ints%nmo))
+      ints%j_lr = 0.0d0
+    endif
+
     return
   end subroutine init_pyscf_exact_hp
 
@@ -594,6 +689,7 @@ contains
     if(allocated(ints%h_core))  deallocate(ints%h_core)
     if(allocated(ints%bra_ket)) deallocate(ints%bra_ket)
     if(allocated(ints%v_lr))    deallocate(ints%v_lr)
+    if(allocated(ints%j_lr))    deallocate(ints%j_lr)
 
   end subroutine finalize_exact_hp
 

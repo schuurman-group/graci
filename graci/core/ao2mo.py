@@ -30,6 +30,7 @@ class Ao2mo:
         self.moint_2e_eri = None
         self.moint_1e     = None
         self.moint_v_lr   = None
+        self.moint_j_lr   = None
         self.nmo          = None
         self.emo          = None
         self.mosym        = None
@@ -121,10 +122,12 @@ class Ao2mo:
 
         vlr_file = self.moint_v_lr if (self.moint_v_lr is not None
                                        and os.path.isfile(self.moint_v_lr)) else ''
+        jlr_file = self.moint_j_lr if (self.moint_j_lr is not None
+                                       and os.path.isfile(self.moint_j_lr)) else ''
 
         libs.lib_func('bitci_int_initialize',
                 ['pyscf', type_str, self.precision_2e,
-                           self.moint_1e, self.moint_2e_eri, vlr_file])
+                           self.moint_1e, self.moint_2e_eri, vlr_file, jlr_file])
 
         return
 
@@ -147,6 +150,7 @@ class Ao2mo:
         self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
         self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
         self.moint_v_lr   = 'v_lr_'+str(scf.label).strip()+'.bin'
+        self.moint_j_lr   = 'j_lr_'+str(scf.label).strip()+'.bin'
 
         return
 
@@ -231,7 +235,7 @@ class Ao2mo:
         return float(omega)
 
     def _compute_write_v_lr(self, scf, omega):
-        """Compute K_LR(i,j) = Σ_P B_P^(ij,LR) B_P^(ij,LR) and write to file."""
+        """Compute and write LR exchange K_LR(i,j) and LR Coulomb J_LR(i,j)."""
         import h5py
 
         nmo      = self.nmo
@@ -251,9 +255,8 @@ class Ao2mo:
         os.remove('_tmp_v_lr')
 
         naux = b_lr.shape[0]
-        n_ij = b_lr.shape[1]   # packed upper triangle
 
-        # Unpack to full (naux, nmo, nmo) and contract: K_LR(i,j) = Σ_P B_P^(ij)^2
+        # Unpack packed upper-triangle to full (naux, nmo, nmo)
         b_full = np.zeros((naux, nmo, nmo))
         idx = 0
         for i in range(nmo):
@@ -262,9 +265,14 @@ class Ao2mo:
                 b_full[:, j, i] = b_lr[:, idx]
                 idx += 1
 
+        # LR exchange: K_LR(i,j) = Σ_P B_P^(ij) B_P^(ij)
         v_lr = np.einsum('Pij,Pij->ij', b_full, b_full)
-
         self.write_integrals(v_lr, 'double', self.moint_v_lr)
+
+        # LR Coulomb: J_LR(i,j) = Σ_P B_P^(ii) B_P^(jj)
+        b_diag = b_full[:, np.arange(nmo), np.arange(nmo)]  # (naux, nmo)
+        j_lr   = np.einsum('Pi,Pj->ij', b_diag, b_diag)
+        self.write_integrals(j_lr, 'double', self.moint_j_lr)
         return
 
 

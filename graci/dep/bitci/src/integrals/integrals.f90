@@ -11,6 +11,7 @@ module integrals
      integer(is)           :: nmo           ! number of MOs
      real(dp), allocatable :: h_core(:,:)
      real(dp), allocatable :: v_lr(:,:)     ! LR exchange integrals K_LR(i,j) for RSH
+     real(dp), allocatable :: j_lr(:,:)     ! LR Coulomb integrals J_LR(i,j) for RSH
 
    contains
      procedure, public :: init_pyscf => init_pyscf_base
@@ -28,12 +29,13 @@ contains
   ! to set the interface that all other initialisation routines
   ! will use
   !
-  subroutine init_pyscf_base(ints, core_file, eri_file, vlr_file)
+  subroutine init_pyscf_base(ints, core_file, eri_file, vlr_file, jlr_file)
 
     class(eri)                               :: ints
     character(len=255)                       :: core_file
     character(len=255)                       :: eri_file
     character(len=255), optional, intent(in) :: vlr_file
+    character(len=255), optional, intent(in) :: jlr_file
 
     return
   end subroutine init_pyscf_base

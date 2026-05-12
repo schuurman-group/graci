@@ -229,7 +229,7 @@ contains
     case(18)
        ! RC DFT/MRCI: same-config off-diagonal uses (1-pF_SR)
        nij=nsp*(nsp-1)/2
-       hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
+       hij(1:nij)=(1.0d0-hpar(3))*hij(1:nij)
        return
 
     case(15)
@@ -1779,7 +1779,8 @@ contains
     real(dp)                :: Viijj,Vijji_eff,Viiii
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
-    real(dp)                :: pJ,pFSR,pFLR,dFLR
+    real(dp)                :: pJSR,pJLR,dJLR,pFSR,pFLR,dFLR
+    real(dp)                :: Viijj_eff
 
 !----------------------------------------------------------------------
 ! Diagonal shift: 1/4 Sum_i V_iiii, i singly occupied in the base
@@ -1796,11 +1797,14 @@ contains
 
 !----------------------------------------------------------------------
 ! Parameter values
-! hpar(1)=pJ, hpar(2)=pF_SR, hpar(3)=pF_LR, hpar(4)=p1, hpar(5)=p2, hpar(6)=n
+! hpar(1)=pJ_SR, hpar(2)=pJ_LR, hpar(3)=pF_SR, hpar(4)=pF_LR,
+! hpar(5)=p1,    hpar(6)=p2,     hpar(7)=n
 !----------------------------------------------------------------------
-    pJ   = hpar(1)
-    pFSR = hpar(2)
-    pFLR = hpar(3)
+    pJSR = hpar(1)
+    pJLR = hpar(2)
+    dJLR = pJLR - pJSR   ! increment applied to LR Coulomb
+    pFSR = hpar(3)
+    pFLR = hpar(4)
     dFLR = pFLR - pFSR   ! increment applied to LR exchange
 
 !----------------------------------------------------------------------
@@ -1824,6 +1828,7 @@ contains
 
 !----------------------------------------------------------------------
 ! Coulomb correction 1
+! V_iijj_eff = pJ_SR * Vc(i,j) + dJLR * j_lr(i,j)
 !----------------------------------------------------------------------
     contrib=0.0d0
 
@@ -1834,11 +1839,11 @@ contains
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
           if (i == j .and. abs(Dwi) == 2) then
-             Viijj=Vc(i1,i1)
-             contrib=contrib-pJ*Viijj
+             Viijj_eff=pJSR*Vc(i1,i1)+dJLR*bitci_ints%j_lr(i1,i1)
+             contrib=contrib-Viijj_eff
           else if (i /= j) then
-             Viijj=Vc(i1,j1)
-             contrib=contrib-pJ*Viijj*Dwi*Dwj
+             Viijj_eff=pJSR*Vc(i1,j1)+dJLR*bitci_ints%j_lr(i1,j1)
+             contrib=contrib-Viijj_eff*Dwi*Dwj
           endif
        enddo
     enddo
@@ -1849,8 +1854,8 @@ contains
     do i=1,ndiff
        i1=m2c(Dw(i,1))
        if (iopen0(i1) == 0) cycle
-       Viiii=Vc(i1,i1)
-       contrib=contrib-0.5d0*pJ*Viiii
+       Viijj_eff=pJSR*Vc(i1,i1)+dJLR*bitci_ints%j_lr(i1,i1)
+       contrib=contrib-0.5d0*Viijj_eff
     enddo
 
 !----------------------------------------------------------------------
@@ -3462,8 +3467,8 @@ contains
     real(dp), intent(in) :: av1,av2
     real(dp)             :: DEp3
 
-    DEp3=abs(av1-av2)**hpar(6)
-    func=hpar(4)*exp(-hpar(5)*DEp3)
+    DEp3=abs(av1-av2)**hpar(7)
+    func=hpar(5)*exp(-hpar(6)*DEp3)
 
     return
 
