@@ -77,6 +77,7 @@ contains
     use conftype
     use mrci_integrals
     use mrciutils
+    use omp_lib
 
     implicit none
 
@@ -102,23 +103,24 @@ contains
     ! Difference configuration information
     integer(is)             :: ndiff
     integer(is)             :: Dw(nmo,2)
-    
+
     ! Number of open shells preceding each MO
     integer(is)             :: nbefore(nmo)
 
     ! Indices of the singly-occupied ket MOs
     integer(is)             :: socc(nmo)
     integer(is)             :: nsocc
-        
+
     ! Working arrays
     integer(ib)             :: kconf_full(n_int,2)
     integer(ib)             :: ksop_full(n_int,2)
-    
+
     ! Everything else
-    integer(is)             :: ibconf1I,ibconf1E,kconf
+    integer(is)             :: kconf
     integer(is)             :: knopen,nac
-    integer(is)             :: n,bnsp,knsp
+    integer(is)             :: n,knsp
     integer(is)             :: n_int_I
+    integer(is)             :: tid
 
 !----------------------------------------------------------------------
 ! Elements of the A-vector corresponding to 1I and 1E configurations
@@ -133,7 +135,7 @@ contains
 
        ! Number of ket CSFs
        knsp=ncsfs(knopen)
-       
+
        ! Ket configuration and SOP in the full MO space
        kconf_full=0_ib
        ksop_full=0_ib
@@ -143,48 +145,46 @@ contains
        ! Package the ket configuration information
        call package_confinfo_offdiag(ksop_full,kconf_full,socc,nsocc,&
             Dw,ndiff,nbefore)
-       
-       ! Loop over 1-hole configurations
-       ibconf1I=0
-       ibconf1E=0
+
+       ! Parallel loop over 1-hole configurations: each thread handles
+       ! a disjoint subset of 1-hole confs (and therefore a disjoint
+       ! range of bra-conf indices, so the Avec writes are disjoint).
+       !$omp parallel do default(shared) &
+       !$omp& private(n,nac,tid) &
+       !$omp& schedule(dynamic)
        do n=1,cfg%n1h
+
+          tid=omp_get_thread_num()+1
 
           ! Number of creation and annihilation operators linking the
           ! reference and 1-hole configurations
           nac=n_create_annihilate(cfg%conf0h(1:n_int_I,:,kconf), &
                cfg%conf1h(1:n_int_I,:,n),n_int_I)
-          
+
           ! 1I elements
-          if (nac <= 5) then
-             if (cfg%n1I > 0) then
-                call avec_1I(n,kconf,ibconf1I,ksop_full,ndiff,Dw,&
-                     nbefore,socc,nsocc,knopen,knsp,n_int_I,cfg,&
-                     averageii,csfdim,confdim,Avec,vec0,nroots,refdim,&
-                     harr2,harr2dim,nthreads)
-             endif
-          else
-             ibconf1I=ibconf1I+cfg%off1I(n+1)-cfg%off1I(n)
+          if (nac <= 5 .and. cfg%n1I > 0) then
+             call avec_1I(n,kconf,cfg%off1I(n)-1,ksop_full,ndiff,Dw,&
+                  nbefore,socc,nsocc,knopen,knsp,n_int_I,cfg,&
+                  averageii,csfdim,confdim,Avec,vec0,nroots,refdim,&
+                  harr2(:,tid),harr2dim)
           endif
 
           ! 1E elements
-          if (nac <= 3) then
-             if (cfg%n1E > 0) then
-                call avec_1E(n,kconf,ibconf1E,n_int_I,&
-                     kconf_full,ksop_full,ndiff,Dw,nbefore,socc,nsocc,&
-                     knopen,knsp,averageii,confdim,cfg,&
-                     csfdim,Avec,vec0,nroots,refdim,&
-                     harr2,harr2dim,nthreads)
-             endif
-          else
-             ibconf1E=ibconf1E+cfg%off1E(n+1)-cfg%off1E(n)
+          if (nac <= 3 .and. cfg%n1E > 0) then
+             call avec_1E(n,kconf,cfg%off1E(n)-1,n_int_I,&
+                  kconf_full,ksop_full,ndiff,Dw,nbefore,socc,nsocc,&
+                  knopen,knsp,averageii,confdim,cfg,&
+                  csfdim,Avec,vec0,nroots,refdim,&
+                  harr2(:,tid),harr2dim)
           endif
-          
+
        enddo
-          
+       !$omp end parallel do
+
     enddo
-       
+
     return
-    
+
   end subroutine avec_1h
 
 !######################################################################
@@ -199,6 +199,7 @@ contains
     use conftype
     use mrci_integrals
     use mrciutils
+    use omp_lib
 
     implicit none
 
@@ -224,111 +225,105 @@ contains
     ! Difference configuration information
     integer(is)             :: ndiff
     integer(is)             :: Dw(nmo,2)
-    
+
     ! Number of open shells preceding each MO
     integer(is)             :: nbefore(nmo)
 
     ! Indices of the singly-occupied ket MOs
     integer(is)             :: socc(nmo)
     integer(is)             :: nsocc
-        
+
     ! Working arrays
     integer(ib)             :: kconf_full(n_int,2)
     integer(ib)             :: ksop_full(n_int,2)
-    
+
     ! Everything else
-    integer(is)             :: ibconf2I,ibconf2E,ibconf1I1E,kconf
+    integer(is)             :: kconf
     integer(is)             :: knopen,nac
-    integer(is)             :: n,bnsp,knsp
+    integer(is)             :: n,knsp
     integer(is)             :: n_int_I
+    integer(is)             :: tid
 
 !----------------------------------------------------------------------
 ! Elements of the A-vector corresponding to 2I, 2E, and 1I1E
 ! configurations
 !----------------------------------------------------------------------
     n_int_I=cfg%n_int_I
-    
+
     ! Loop over ket reference configurations
     do kconf=1,cfg%n0h
-       
+
        ! Number of open shells in the ket configuration
        knopen=sop_nopen(cfg%sop0h(:,:,kconf),n_int_I)
-    
+
        ! Number of ket CSFs
        knsp=ncsfs(knopen)
-       
+
        ! Ket configuration and SOP in the full MO space
        kconf_full=0_ib
        ksop_full=0_ib
        kconf_full(1:n_int_I,:)=cfg%conf0h(:,:,kconf)
        ksop_full(1:n_int_I,:)=cfg%sop0h(:,:,kconf)
-    
+
        ! Package the ket configuration information
        call package_confinfo_offdiag(ksop_full,kconf_full,socc,nsocc,&
             Dw,ndiff,nbefore)
-       
-       ! Loop over 2-hole configurations
-       ibconf2I=0
-       ibconf2E=0
-       ibconf1I1E=0
+
+       ! Parallel loop over 2-hole configurations: each thread handles
+       ! a disjoint subset of 2-hole confs (and therefore a disjoint
+       ! range of bra-conf indices, so the Avec writes are disjoint).
+       !$omp parallel do default(shared) &
+       !$omp& private(n,nac,tid) &
+       !$omp& schedule(dynamic)
        do n=1,cfg%n2h
-          
+
+          tid=omp_get_thread_num()+1
+
           ! Number of creation and annihilation operators linking the
           ! reference and 2-hole configurations
           nac=n_create_annihilate(cfg%conf0h(1:n_int_I,:,kconf),&
                cfg%conf2h(1:n_int_I,:,n),n_int_I)
-          
+
           ! 2I elements
-          if (nac <= 6) then
-             if (cfg%n2I > 0) then
-                call avec_2I(n,kconf,ibconf2I,n_int_I,&
-                     ksop_full,ndiff,Dw,nbefore,socc,nsocc,knopen,&
-                     knsp,averageii,confdim,cfg,csfdim,Avec,vec0,&
-                     nroots,refdim,harr2,harr2dim,nthreads)
-             endif
-          else
-             ibconf2I=ibconf2I+cfg%off2I(n+1)-cfg%off2I(n)
+          if (nac <= 6 .and. cfg%n2I > 0) then
+             call avec_2I(n,kconf,cfg%off2I(n)-1,n_int_I,&
+                  ksop_full,ndiff,Dw,nbefore,socc,nsocc,knopen,&
+                  knsp,averageii,confdim,cfg,csfdim,Avec,vec0,&
+                  nroots,refdim,harr2(:,tid),harr2dim)
           endif
 
           ! 2E elements
-          if (nac <= 2) then
-             if (cfg%n2E > 0) then
-                call avec_2E(n,kconf,ibconf2E,n_int_I,&
-                     kconf_full,ksop_full,ndiff,Dw,nbefore,socc,&
-                     nsocc,knopen,knsp,averageii,confdim,cfg,csfdim,&
-                     Avec,vec0,nroots,refdim,harr2,harr2dim,nthreads)
-             endif
-          else
-             ibconf2E=ibconf2E+cfg%off2E(n+1)-cfg%off2E(n)
+          if (nac <= 2 .and. cfg%n2E > 0) then
+             call avec_2E(n,kconf,cfg%off2E(n)-1,n_int_I,&
+                  kconf_full,ksop_full,ndiff,Dw,nbefore,socc,&
+                  nsocc,knopen,knsp,averageii,confdim,cfg,csfdim,&
+                  Avec,vec0,nroots,refdim,harr2(:,tid),harr2dim)
           endif
 
           ! 1I1E elements
-          if (nac <= 4) then
-             if (cfg%n1I1E > 0) then
-                call avec_1I1E(n,kconf,ibconf1I1E,n_int_I,&
-                     kconf_full,ksop_full,ndiff,Dw,nbefore,socc,nsocc,&
-                     knopen,knsp,averageii,confdim,cfg,csfdim,&
-                     Avec,vec0,nroots,refdim,harr2,harr2dim,nthreads)
-             endif
-          else
-             ibconf1I1E=ibconf1I1E+cfg%off1I1E(n+1)-cfg%off1I1E(n)
+          if (nac <= 4 .and. cfg%n1I1E > 0) then
+             call avec_1I1E(n,kconf,cfg%off1I1E(n)-1,n_int_I,&
+                  kconf_full,ksop_full,ndiff,Dw,nbefore,socc,nsocc,&
+                  knopen,knsp,averageii,confdim,cfg,csfdim,&
+                  Avec,vec0,nroots,refdim,harr2(:,tid),harr2dim)
           endif
-       
+
        enddo
+       !$omp end parallel do
 
     enddo
-       
+
     return
-    
+
   end subroutine avec_2h
     
 !######################################################################
 ! avec_1I: calculation of the A-vector elements corresponding to
 !          1I configurations
 !######################################################################
-  subroutine avec_1I(n,kconf,ibconf1I,ksop_full,ndiff,Dw,nbefore,&
-       socc,nsocc,knopen,knsp,n_int_I,cfg,averageii,csfdim,&
-       confdim,Avec,vec0,nroots,refdim,harr2,harr2dim,nthreads)
+  subroutine avec_1I(n,kconf,ibconf1I_start,ksop_full,ndiff,Dw,&
+       nbefore,socc,nsocc,knopen,knsp,n_int_I,cfg,averageii,csfdim,&
+       confdim,Avec,vec0,nroots,refdim,harr2,harr2dim)
 
     use constants
     use bitglobal
@@ -337,12 +332,13 @@ contains
     use hbuild_mrci
     use mrci_integrals
     use dftmrci
-    use omp_lib
 
     implicit none
 
-    ! Bra configuration counter
-    integer(is), intent(inout) :: ibconf1I
+    ! Starting value of the 1I bra-configuration counter for this
+    ! 1-hole configuration: per-iteration ibconf is then
+    ! ibconf1I_start + (ioff - cfg%off1I(n)) + 1
+    integer(is), intent(in)    :: ibconf1I_start
 
     ! Index of the 1-hole configuration
     integer(is), intent(in)    :: n
@@ -379,9 +375,10 @@ contains
     ! Reference space eigenvectors
     real(dp), intent(in)       :: vec0(refdim,nroots)
 
-    ! Pre-allocated per-thread Hij working array
-    integer(is), intent(in)    :: harr2dim,nthreads
-    real(dp), intent(inout)    :: harr2(harr2dim,nthreads)
+    ! Hij working array (caller is responsible for thread-locality
+    ! when invoked from inside an OpenMP region)
+    integer(is), intent(in)    :: harr2dim
+    real(dp), intent(inout)    :: harr2(harr2dim)
 
     ! Working arrays
     integer(ib)                :: bconf_int(n_int_I,2)
@@ -391,30 +388,17 @@ contains
 
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-    integer(is)                :: ibconf,ibconf1I_in,tid
+    integer(is)                :: ibconf
 
 !----------------------------------------------------------------------
 ! Compute the 1I A-vector elements
 !----------------------------------------------------------------------
-    ! Capture the entry value of the configuration counter so that
-    ! each parallel iteration can compute its own index from ioff
-    ibconf1I_in=ibconf1I
-
     ! Loop over 1I configurations generated by the current
     ! 1-hole configuration
-    !$omp parallel &
-    !$omp& private(ioff,ibconf,bconf_int,bsop_int,nexci,&
-    !$omp&         bnopen,bnsp,hlist,plist,tid) &
-    !$omp& shared(cfg,Avec,vec0,averageii,csfdim,refdim,confdim,&
-    !$omp&        nroots,n,kconf,ksop_full,ndiff,Dw,nbefore,socc,&
-    !$omp&        nsocc,knopen,knsp,n_int_I,ibconf1I_in,&
-    !$omp&        harr2,harr2dim,nthreads)
-    tid=omp_get_thread_num()+1
-    !$omp do schedule(dynamic)
     do ioff=cfg%off1I(n),cfg%off1I(n+1)-1
 
        ! Per-iteration 1I configuration index
-       ibconf=ibconf1I_in+(ioff-cfg%off1I(n))+1
+       ibconf=ibconf1I_start+(ioff-cfg%off1I(n))+1
 
        ! Bra 1I configuration in the internal MO space
        bconf_int=0_ib
@@ -443,7 +427,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2(:,tid),harr2dim,nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf,kconf,&
             cfg%sop1I(:,:,ibconf),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -457,14 +441,9 @@ contains
        call contract_hmat_vec0(ibconf,kconf,&
             cfg%csfs1I,cfg%csfs0h,cfg%n1I+1,cfg%n0h+1,&
             bnsp,knsp,Avec,vec0,csfdim,nroots,refdim,&
-            harr2(:,tid),harr2dim)
+            harr2,harr2dim)
 
     enddo
-    !$omp end do
-    !$omp end parallel
-
-    ! Update the configuration counter for the caller
-    ibconf1I=ibconf1I_in+(cfg%off1I(n+1)-cfg%off1I(n))
 
     return
 
@@ -474,10 +453,9 @@ contains
 ! avec_1E: calculation of the A-vector elements corresponding to
 !          1E configurations
 !######################################################################
-  subroutine avec_1E(n,kconf,ibconf1E,n_int_I,kconf_full,&
+  subroutine avec_1E(n,kconf,ibconf1E_start,n_int_I,kconf_full,&
        ksop_full,ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,averageii,&
-       confdim,cfg,csfdim,Avec,vec0,nroots,refdim,&
-       harr2,harr2dim,nthreads)
+       confdim,cfg,csfdim,Avec,vec0,nroots,refdim,harr2,harr2dim)
 
     use constants
     use bitglobal
@@ -486,12 +464,12 @@ contains
     use hbuild_mrci
     use mrci_integrals
     use dftmrci
-    use omp_lib
 
     implicit none
 
-    ! Bra configuration counter
-    integer(is), intent(inout) :: ibconf1E
+    ! Starting value of the 1E bra-configuration counter for this
+    ! 1-hole configuration
+    integer(is), intent(in)    :: ibconf1E_start
 
     ! Index of the 1-hole configuration
     integer(is), intent(in)    :: n
@@ -529,9 +507,9 @@ contains
     ! Reference space eigenvectors
     real(dp), intent(in)       :: vec0(refdim,nroots)
 
-    ! Pre-allocated per-thread Hij working array
-    integer(is), intent(in)    :: harr2dim,nthreads
-    real(dp), intent(inout)    :: harr2(harr2dim,nthreads)
+    ! Hij working array (caller is responsible for thread-locality)
+    integer(is), intent(in)    :: harr2dim
+    real(dp), intent(inout)    :: harr2(harr2dim)
 
     ! Working arrays
     integer(ib)                :: bconf_full(n_int,2)
@@ -541,30 +519,17 @@ contains
 
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-    integer(is)                :: ibconf,ibconf1E_in,tid
+    integer(is)                :: ibconf
 
 !----------------------------------------------------------------------
 ! Compute the 1E A-vector elements
 !----------------------------------------------------------------------
-    ! Capture the entry value of the configuration counter so that
-    ! each parallel iteration can compute its own index from ioff
-    ibconf1E_in=ibconf1E
-
     ! Loop over 1E configurations generated by the current
     ! 1-hole configuration
-    !$omp parallel &
-    !$omp& private(ioff,ibconf,bconf_full,bsop_full,nexci,&
-    !$omp&         bnopen,bnsp,hlist,plist,tid) &
-    !$omp& shared(cfg,Avec,vec0,averageii,csfdim,refdim,confdim,&
-    !$omp&        nroots,n,kconf,kconf_full,ksop_full,ndiff,Dw,&
-    !$omp&        nbefore,socc,nsocc,knopen,knsp,n_int_I,&
-    !$omp&        ibconf1E_in,harr2,harr2dim,nthreads)
-    tid=omp_get_thread_num()+1
-    !$omp do schedule(dynamic)
     do ioff=cfg%off1E(n),cfg%off1E(n+1)-1
 
        ! Per-iteration 1E configuration index
-       ibconf=ibconf1E_in+(ioff-cfg%off1E(n))+1
+       ibconf=ibconf1E_start+(ioff-cfg%off1E(n))+1
 
        ! Bra 1E configuration in the full MO space
        bconf_full=0_ib
@@ -593,7 +558,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2(:,tid),harr2dim,nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf,kconf,&
             cfg%sop1E(:,:,ibconf),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -605,14 +570,9 @@ contains
        call contract_hmat_vec0(ibconf,kconf,&
             cfg%csfs1E,cfg%csfs0h,cfg%n1E+1,cfg%n0h+1,&
             bnsp,knsp,Avec,vec0,csfdim,nroots,refdim,&
-            harr2(:,tid),harr2dim)
+            harr2,harr2dim)
 
     enddo
-    !$omp end do
-    !$omp end parallel
-
-    ! Update the configuration counter for the caller
-    ibconf1E=ibconf1E_in+(cfg%off1E(n+1)-cfg%off1E(n))
 
     return
 
@@ -622,9 +582,9 @@ contains
 ! avec_2I: calculation of the A-vector elements corresponding to 2I
 !          configurations
 !######################################################################
-  subroutine avec_2I(n,kconf,ibconf2I,n_int_I,ksop_full,ndiff,Dw,&
-       nbefore,socc,nsocc,knopen,knsp,averageii,confdim,cfg,&
-       csfdim,Avec,vec0,nroots,refdim,harr2,harr2dim,nthreads)
+  subroutine avec_2I(n,kconf,ibconf2I_start,n_int_I,ksop_full,ndiff,&
+       Dw,nbefore,socc,nsocc,knopen,knsp,averageii,confdim,cfg,&
+       csfdim,Avec,vec0,nroots,refdim,harr2,harr2dim)
 
     use constants
     use bitglobal
@@ -633,12 +593,12 @@ contains
     use hbuild_mrci
     use mrci_integrals
     use dftmrci
-    use omp_lib
 
     implicit none
 
-    ! Bra configuration counter
-    integer(is), intent(inout) :: ibconf2I
+    ! Starting value of the 2I bra-configuration counter for this
+    ! 2-hole configuration
+    integer(is), intent(in)    :: ibconf2I_start
 
     ! Index of the 2-hole configuration
     integer(is), intent(in)    :: n
@@ -676,9 +636,9 @@ contains
     ! Reference space eigenvectors
     real(dp), intent(in)       :: vec0(refdim,nroots)
 
-    ! Pre-allocated per-thread Hij working array
-    integer(is), intent(in)    :: harr2dim,nthreads
-    real(dp), intent(inout)    :: harr2(harr2dim,nthreads)
+    ! Hij working array (caller is responsible for thread-locality)
+    integer(is), intent(in)    :: harr2dim
+    real(dp), intent(inout)    :: harr2(harr2dim)
 
     ! Working arrays
     integer(ib)                :: bconf_int(n_int_I,2)
@@ -688,30 +648,17 @@ contains
 
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-    integer(is)                :: ibconf,ibconf2I_in,tid
+    integer(is)                :: ibconf
 
 !----------------------------------------------------------------------
 ! Compute the 2I elements
 !----------------------------------------------------------------------
-    ! Capture the entry value of the configuration counter so that
-    ! each parallel iteration can compute its own index from ioff
-    ibconf2I_in=ibconf2I
-
     ! Loop over 2I configurations generated by the current
     ! 2-hole configuration
-    !$omp parallel &
-    !$omp& private(ioff,ibconf,bconf_int,bsop_int,nexci,&
-    !$omp&         bnopen,bnsp,hlist,plist,tid) &
-    !$omp& shared(cfg,Avec,vec0,averageii,csfdim,refdim,confdim,&
-    !$omp&        nroots,n,kconf,ksop_full,ndiff,Dw,nbefore,socc,&
-    !$omp&        nsocc,knopen,knsp,n_int_I,ibconf2I_in,&
-    !$omp&        harr2,harr2dim,nthreads)
-    tid=omp_get_thread_num()+1
-    !$omp do schedule(dynamic)
     do ioff=cfg%off2I(n),cfg%off2I(n+1)-1
 
        ! Per-iteration 2I configuration index
-       ibconf=ibconf2I_in+(ioff-cfg%off2I(n))+1
+       ibconf=ibconf2I_start+(ioff-cfg%off2I(n))+1
 
        ! Bra 2I configuration in the internal MO space
        bconf_int=0_ib
@@ -739,7 +686,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2(:,tid),harr2dim,nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf,kconf,&
             cfg%sop2I(:,:,ibconf),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -753,14 +700,9 @@ contains
        call contract_hmat_vec0(ibconf,kconf,&
             cfg%csfs2I,cfg%csfs0h,cfg%n2I+1,cfg%n0h+1,&
             bnsp,knsp,Avec,vec0,csfdim,nroots,refdim,&
-            harr2(:,tid),harr2dim)
+            harr2,harr2dim)
 
     enddo
-    !$omp end do
-    !$omp end parallel
-
-    ! Update the configuration counter for the caller
-    ibconf2I=ibconf2I_in+(cfg%off2I(n+1)-cfg%off2I(n))
 
     return
 
@@ -770,9 +712,9 @@ contains
 ! avec_2E: calculation of the A-vector elements corresponding to 2E
 !          configurations
 !######################################################################
-  subroutine avec_2E(n,kconf,ibconf2E,n_int_I,kconf_full,ksop_full,&
-       ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,averageii,confdim,cfg,&
-       csfdim,Avec,vec0,nroots,refdim,harr2,harr2dim,nthreads)
+  subroutine avec_2E(n,kconf,ibconf2E_start,n_int_I,kconf_full,&
+       ksop_full,ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,averageii,&
+       confdim,cfg,csfdim,Avec,vec0,nroots,refdim,harr2,harr2dim)
 
     use constants
     use bitglobal
@@ -781,12 +723,12 @@ contains
     use hbuild_mrci
     use mrci_integrals
     use dftmrci
-    use omp_lib
 
     implicit none
 
-    ! Bra configuration counter
-    integer(is), intent(inout) :: ibconf2E
+    ! Starting value of the 2E bra-configuration counter for this
+    ! 2-hole configuration
+    integer(is), intent(in)    :: ibconf2E_start
 
     ! Index of the 2-hole configuration
     integer(is), intent(in)    :: n
@@ -825,9 +767,9 @@ contains
     ! Reference space eigenvectors
     real(dp), intent(in)       :: vec0(refdim,nroots)
 
-    ! Pre-allocated per-thread Hij working array
-    integer(is), intent(in)    :: harr2dim,nthreads
-    real(dp), intent(inout)    :: harr2(harr2dim,nthreads)
+    ! Hij working array (caller is responsible for thread-locality)
+    integer(is), intent(in)    :: harr2dim
+    real(dp), intent(inout)    :: harr2(harr2dim)
 
     ! Working arrays
     integer(ib)                :: bconf_full(n_int,2)
@@ -837,30 +779,17 @@ contains
 
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-    integer(is)                :: ibconf,ibconf2E_in,tid
+    integer(is)                :: ibconf
 
 !----------------------------------------------------------------------
 ! Compute the 2E elements
 !----------------------------------------------------------------------
-    ! Capture the entry value of the configuration counter so that
-    ! each parallel iteration can compute its own index from ioff
-    ibconf2E_in=ibconf2E
-
     ! Loop over 2E configurations generated by the current
     ! 2-hole configuration
-    !$omp parallel &
-    !$omp& private(ioff,ibconf,bconf_full,bsop_full,nexci,&
-    !$omp&         bnopen,bnsp,hlist,plist,tid) &
-    !$omp& shared(cfg,Avec,vec0,averageii,csfdim,refdim,confdim,&
-    !$omp&        nroots,n,kconf,kconf_full,ksop_full,ndiff,Dw,&
-    !$omp&        nbefore,socc,nsocc,knopen,knsp,n_int_I,&
-    !$omp&        ibconf2E_in,harr2,harr2dim,nthreads)
-    tid=omp_get_thread_num()+1
-    !$omp do schedule(dynamic)
     do ioff=cfg%off2E(n),cfg%off2E(n+1)-1
 
        ! Per-iteration 2E configuration index
-       ibconf=ibconf2E_in+(ioff-cfg%off2E(n))+1
+       ibconf=ibconf2E_start+(ioff-cfg%off2E(n))+1
 
        ! Bra 2E configuration in the full MO space
        bconf_full=0_ib
@@ -889,7 +818,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2(:,tid),harr2dim,nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf,kconf,&
             cfg%sop2E(:,:,ibconf),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -903,14 +832,9 @@ contains
        call contract_hmat_vec0(ibconf,kconf,&
             cfg%csfs2E,cfg%csfs0h,cfg%n2E+1,cfg%n0h+1,&
             bnsp,knsp,Avec,vec0,csfdim,nroots,refdim,&
-            harr2(:,tid),harr2dim)
+            harr2,harr2dim)
 
     enddo
-    !$omp end do
-    !$omp end parallel
-
-    ! Update the configuration counter for the caller
-    ibconf2E=ibconf2E_in+(cfg%off2E(n+1)-cfg%off2E(n))
 
     return
 
@@ -920,10 +844,9 @@ contains
 ! avec_1I1E: calculation of the A-vector elements corresponding to
 !            1I1E configurations
 !######################################################################
-  subroutine avec_1I1E(n,kconf,ibconf1I1E,n_int_I,kconf_full,&
+  subroutine avec_1I1E(n,kconf,ibconf1I1E_start,n_int_I,kconf_full,&
        ksop_full,ndiff,Dw,nbefore,socc,nsocc,knopen,knsp,averageii,&
-       confdim,cfg,csfdim,Avec,vec0,nroots,refdim,&
-       harr2,harr2dim,nthreads)
+       confdim,cfg,csfdim,Avec,vec0,nroots,refdim,harr2,harr2dim)
 
     use constants
     use bitglobal
@@ -932,12 +855,12 @@ contains
     use hbuild_mrci
     use mrci_integrals
     use dftmrci
-    use omp_lib
 
     implicit none
 
-    ! Bra configuration counter
-    integer(is), intent(inout) :: ibconf1I1E
+    ! Starting value of the 1I1E bra-configuration counter for this
+    ! 2-hole configuration
+    integer(is), intent(in)    :: ibconf1I1E_start
 
     ! Index of the 2-hole configuration
     integer(is), intent(in)    :: n
@@ -976,9 +899,9 @@ contains
     ! Reference space eigenvectors
     real(dp), intent(in)       :: vec0(refdim,nroots)
 
-    ! Pre-allocated per-thread Hij working array
-    integer(is), intent(in)    :: harr2dim,nthreads
-    real(dp), intent(inout)    :: harr2(harr2dim,nthreads)
+    ! Hij working array (caller is responsible for thread-locality)
+    integer(is), intent(in)    :: harr2dim
+    real(dp), intent(inout)    :: harr2(harr2dim)
 
     ! Working arrays
     integer(ib)                :: bconf_full(n_int,2)
@@ -988,30 +911,17 @@ contains
 
     ! Everything else
     integer(is)                :: ioff,nexci,bnopen,bnsp
-    integer(is)                :: ibconf,ibconf1I1E_in,tid
+    integer(is)                :: ibconf
 
 !----------------------------------------------------------------------
 ! Compute the 1I1E elements
 !----------------------------------------------------------------------
-    ! Capture the entry value of the configuration counter so that
-    ! each parallel iteration can compute its own index from ioff
-    ibconf1I1E_in=ibconf1I1E
-
     ! Loop over 1I1E configurations generated by the current
     ! 2-hole configuration
-    !$omp parallel &
-    !$omp& private(ioff,ibconf,bconf_full,bsop_full,nexci,&
-    !$omp&         bnopen,bnsp,hlist,plist,tid) &
-    !$omp& shared(cfg,Avec,vec0,averageii,csfdim,refdim,confdim,&
-    !$omp&        nroots,n,kconf,kconf_full,ksop_full,ndiff,Dw,&
-    !$omp&        nbefore,socc,nsocc,knopen,knsp,n_int_I,&
-    !$omp&        ibconf1I1E_in,harr2,harr2dim,nthreads)
-    tid=omp_get_thread_num()+1
-    !$omp do schedule(dynamic)
     do ioff=cfg%off1I1E(n),cfg%off1I1E(n+1)-1
 
        ! Per-iteration 1I1E configuration index
-       ibconf=ibconf1I1E_in+(ioff-cfg%off1I1E(n))+1
+       ibconf=ibconf1I1E_start+(ioff-cfg%off1I1E(n))+1
 
        ! Bra 1I1E configuration in the full MO space
        bconf_full=0_ib
@@ -1040,7 +950,7 @@ contains
 
        ! Compute the matrix elements between the CSFs generated
        ! by the bra and ket configurations
-       call hij_mrci(harr2(:,tid),harr2dim,nexci,&
+       call hij_mrci(harr2,harr2dim,nexci,&
             ibconf,kconf,&
             cfg%sop1I1E(:,:,ibconf),ksop_full,&
             bnsp,knsp,bnopen,knopen,hlist,plist,cfg%m2c,&
@@ -1054,14 +964,9 @@ contains
        call contract_hmat_vec0(ibconf,kconf,&
             cfg%csfs1I1E,cfg%csfs0h,cfg%n1I1E+1,cfg%n0h+1,&
             bnsp,knsp,Avec,vec0,csfdim,nroots,refdim,&
-            harr2(:,tid),harr2dim)
+            harr2,harr2dim)
 
     enddo
-    !$omp end do
-    !$omp end parallel
-
-    ! Update the configuration counter for the caller
-    ibconf1I1E=ibconf1I1E_in+(cfg%off1I1E(n+1)-cfg%off1I1E(n))
 
     return
 
