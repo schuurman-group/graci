@@ -25,6 +25,7 @@ class Rydano():
         self.mult        = 2
         self.charge      = 1
         self.origin      = None
+        self.atm_origin  = None
         self.label       = 'default'
         self.verbose     = True
         self.contract    = '1s1p1d'
@@ -68,7 +69,9 @@ class Rydano():
         # so primitives are added uncontracted. Determine which
         # primitives to include based on the original basis 
         # function -- not the dz(p) used to compute virtuals
-        if self.origin is None:
+        if self.atm_origin is not None:
+            ryd_origin = mol.crds[self.atm_origin]
+        elif self.origin is None:
             ryd_origin = np.asarray(ion_mol.nuc_charge_center())
         else:
             ryd_origin = self.origin 
