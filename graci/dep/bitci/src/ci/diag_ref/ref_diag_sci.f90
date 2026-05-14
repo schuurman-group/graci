@@ -5,6 +5,40 @@
 
 module ref_sci
 
+  use constants
+
+  implicit none
+
+  save
+
+!----------------------------------------------------------------------
+! Runtime-overridable SCI parameters. The defaults reproduce the
+! original hard-wired `parameter` values. Override at runtime via the
+! C-bound setters override_sci_reals / override_sci_ints (see end of
+! file); the registry of those names lives in graci/core/libs.py.
+!
+! Real knobs (positional, in this order, for override_sci_reals):
+!   1. sci_WP_thrsh      - convergence on per-root P-space weight
+!   2. sci_targ          - pass-2 trim squared-norm threshold
+!   3. sci_normsq_thrsh  - per-iteration P-space growth threshold
+!   4. sci_pt2_shift     - PT2 denominator |E^(0)-H_ii| floor (Eh)
+!
+! Integer knobs (positional, in this order, for override_sci_ints):
+!   1. sci_maxiter       - hard cap on SCI iterations
+!   2. sci_seed_min      - floor for the initial-P CSF/config budget
+!   3. sci_seed_per_root - linear scaling of the initial-P budget in
+!                          nroots (see init_pspace_low /
+!                          init_pspace_low_all_classes for units)
+!----------------------------------------------------------------------
+  real(dp)    :: sci_WP_thrsh     = 0.995_dp
+  real(dp)    :: sci_targ         = 0.999_dp
+  real(dp)    :: sci_normsq_thrsh = 0.999_dp
+  real(dp)    :: sci_pt2_shift    = 1.0e-3_dp
+
+  integer(is) :: sci_maxiter       = 15
+  integer(is) :: sci_seed_min      = 50
+  integer(is) :: sci_seed_per_root = 50
+
 contains
   
 !######################################################################
@@ -217,12 +251,13 @@ contains
 !######################################################################
   
   subroutine sci_diag(irrep,nroots,confscr,nconf,idead,vecscr)
-      
+
     use constants
     use bitglobal
     use hbuild_double
     use iomod
     use timing
+    use omp_lib
     
     implicit none
 
@@ -290,6 +325,14 @@ contains
     ! Eigenpairs of the projected reference space Hamiltonian
     real(dp), allocatable      :: vecP(:,:),EP(:)
 
+    ! Per-root P-space eigenvectors lifted to the full (global) CSF
+    ! basis. We keep the previous iteration's vectors so that the
+    ! root-following overlap diagnostic can detect state swaps when
+    ! quasi-degenerate roots reshuffle slot order across iterations.
+    real(dp), allocatable      :: vecP_global(:,:),vecP_prev_global(:,:)
+    real(dp), allocatable      :: root_overlap(:)
+    real(dp), parameter        :: o_min_warn=0.8_dp
+
     ! 1st-order corrected wave functions
     real(dp), allocatable      :: Avec(:,:)
 
@@ -299,17 +342,11 @@ contains
     ! P space weights
     real(dp), allocatable      :: WP(:)
     
-    ! Temporary hard-wiring of the maximum number of iterations
-    integer(is), parameter     :: maxiter=15
-
-    ! Temporary hard-wiring of the P space weight convergence
-    ! threshold
-    !real(dp), parameter        :: WP_thrsh=0.975_dp
-    real(dp), parameter        :: WP_thrsh=0.995_dp
-    
-    ! Work arrays
-    integer(is)                :: harr2dim
-    real(dp), allocatable      :: harr2(:)
+    ! Work arrays. harr2 carries one column per OpenMP thread so the
+    ! inner pt2_corrections loop over Q-configurations can update it
+    ! without synchronisation.
+    integer(is)                :: harr2dim,nthreads
+    real(dp), allocatable      :: harr2(:,:)
     integer(is), allocatable   :: iwork(:)
     real(dp), allocatable      :: fwork(:)
     
@@ -320,6 +357,13 @@ contains
     ! Timing variables
     real(dp)                   :: tcpu_start,tcpu_end,twall_start,&
                                   twall_end
+    ! Per-phase accumulators: (1) update_partitioning, (2) partition_hii,
+    ! (3) diag_pspace, (4) pt2_corrections
+    real(dp)                   :: twall_phase(4),tcpu_phase(4)
+    real(dp)                   :: tw0,tw1,tc0,tc1
+    character(len=20), parameter :: phase_name(4)=[character(len=20) :: &
+         'update_partitioning','partition_hii','diag_pspace',&
+         'pt2_corrections']
 
     
 !----------------------------------------------------------------------
@@ -331,7 +375,8 @@ contains
 ! Allocate arrays
 !----------------------------------------------------------------------
     harr2dim=maxval(ncsfs(0:nomax))**2
-    allocate(harr2(harr2dim))
+    nthreads=omp_get_max_threads()
+    allocate(harr2(harr2dim,nthreads))
     harr2=0.0d0
 
 !----------------------------------------------------------------------
@@ -406,7 +451,13 @@ contains
     allocate(EP(nroots))
     allocate(WP(nroots))
     allocate(iwork(csfdim))
-    allocate(fwork(csfdim))    
+    allocate(fwork(csfdim))
+    allocate(vecP_global(csfdim,nroots))
+    allocate(vecP_prev_global(csfdim,nroots))
+    allocate(root_overlap(nroots))
+    vecP_global=0.0d0
+    vecP_prev_global=0.0d0
+    root_overlap=0.0d0
     hii=0.0d0
     averageii=0.0d0
     E2=0.0d0
@@ -441,7 +492,7 @@ contains
     call partition_confs_new(nroots,nconf,offset,csfdim,hii,nP,iP,nQ,iQ,&
          offsetP,offsetQ,confmap,&
          averageii,hiiP,conf,sop,n_int_I,m2c,irrep)
-    
+
 !----------------------------------------------------------------------
 ! Iterative improvement of the P space
 !----------------------------------------------------------------------
@@ -451,45 +502,110 @@ contains
        write(6,'(2x,a)') 'Iteration  Nconf   min W(P)'
        write(6,'(x,29a)') ('*', i=1,29)
     endif
-       
+
+    ! Initialise per-phase timing accumulators
+    twall_phase=0.0d0
+    tcpu_phase=0.0d0
+
     ! Perform the iterations
-    do i=1,maxiter
+    do i=1,sci_maxiter
 
        ! Update the P and Q spaces
+       call get_times(tw0,tc0)
        if (i > 1) call update_partitioning(i,nconf,csfdim,csfdimP,&
             csfdimQ,nroots,Avec,confmap,nP,nQ,iP,iQ,offset,offsetP,&
             offsetQ,iwork,fwork)
-       
+       call get_times(tw1,tc1)
+       twall_phase(1)=twall_phase(1)+(tw1-tw0)
+       tcpu_phase(1)=tcpu_phase(1)+(tc1-tc0)
+
        ! Fill in the P and Q space on-diagonal Hamiltonian matrix
        ! elements
+       call get_times(tw0,tc0)
        call partition_hii(csfdim,hii,csfdimP,csfdimQ,hiiP,hiiQ,nconf,&
             offset,nP,iP,nQ,iQ,averageii,averageiiP)
+       call get_times(tw1,tc1)
+       twall_phase(2)=twall_phase(2)+(tw1-tw0)
+       tcpu_phase(2)=tcpu_phase(2)+(tc1-tc0)
 
        ! Allocate the P space eigenvector array
        if (allocated(vecP)) deallocate(vecP)
        allocate(vecP(csfdimP,nroots))
 
        ! Diagonalise the P space Hamiltonian
+       call get_times(tw0,tc0)
        call diag_pspace(nconf,nP,csfdim,csfdimP,nroots,iP,offset,&
             offsetP,averageii,hiiP,conf,sop,n_int_I,m2c,irrep,&
             vecP,EP,vecscr)
-       
+       call get_times(tw1,tc1)
+       twall_phase(3)=twall_phase(3)+(tw1-tw0)
+       tcpu_phase(3)=tcpu_phase(3)+(tc1-tc0)
+
+       ! Root-following diagnostic: lift vecP from P-local CSF
+       ! indexing to global CSF indexing, then compare against the
+       ! previous iteration's vectors via slot-wise overlap. The P
+       ! space is rebuilt by update_partitioning each iteration so the
+       ! P-local indexing is not stable, but global CSF indexing is.
+       !
+       ! Gate the warning to i > 2: the iter-1 -> iter-2 transition is
+       ! the bootstrap step (pass-2 seed is deliberately small, P then
+       ! expands several-fold), so substantial slot reordering there
+       ! is expected and not a pathology. The diagnostic is meant to
+       ! catch swaps between steady-state iterations where P is
+       ! roughly stable.
+       call lift_vecP_to_global(nP,iP,offsetP,csfdimP,offset,csfdim,&
+            nroots,vecP,vecP_global)
+       if (i > 2 .and. verbose) then
+          do iroot=1,nroots
+             root_overlap(iroot)=&
+                  abs(dot_product(vecP_global(:,iroot),&
+                                  vecP_prev_global(:,iroot)))
+          enddo
+          if (any(root_overlap < o_min_warn)) then
+             write(6,'(/,x,a,i0,a)') &
+                  'Warning: root-following overlap dropped below ',&
+                  nint(o_min_warn*100),'%:'
+             do iroot=1,nroots
+                if (root_overlap(iroot) < o_min_warn) then
+                   write(6,'(x,a,i0,a,F6.4,a)') &
+                        '  root ',iroot,': |<prev|curr>| = ',&
+                        root_overlap(iroot),&
+                        ' (likely state swap between iterations)'
+                endif
+             enddo
+          endif
+       endif
+       vecP_prev_global=vecP_global
+
        ! Compute the ENPT2 wave function and energy corrections
+       call get_times(tw0,tc0)
        call pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
             hiiQ,Avec,E2,n_int_I,nconf,conf,sop,nP,nQ,iP,iQ,offset,&
-            averageii,harr2dim,harr2,m2c,offsetP,offsetQ,WP)
-       
+            averageii,harr2dim,nthreads,harr2,m2c,offsetP,offsetQ,WP)
+       call get_times(tw1,tc1)
+       twall_phase(4)=twall_phase(4)+(tw1-tw0)
+       tcpu_phase(4)=tcpu_phase(4)+(tc1-tc0)
+
        ! Output our progress
        if (verbose) write(6,'(4x,i5,4x,i5,4x,F6.4)') i,nP,minval(WP)
-       
+
        ! Exit if we have reached convergence
-       converged=check_conv(nroots,WP,WP_thrsh)
+       converged=check_conv(nroots,WP,sci_WP_thrsh)
        if (converged) exit
-          
+
     enddo
-       
+
     ! Table footer
     if (verbose) write(6,'(x,29a)') ('*', i=1,29)
+
+    ! Per-phase timing report
+    if (verbose) then
+       write(6,'(/,x,a)') 'Per-phase SCI timings (Wall/CPU, seconds):'
+       do i=1,4
+          write(6,'(3x,a,t26,F10.3,1x,a,1x,F10.3)') &
+               trim(phase_name(i)),twall_phase(i),'/',tcpu_phase(i)
+       enddo
+    endif
 
 !----------------------------------------------------------------------
 ! Fill in the deadwood configuration array
@@ -517,6 +633,47 @@ contains
     return
   
   end subroutine sci_diag
+
+!######################################################################
+! lift_vecP_to_global: spread P-local eigenvectors into global CSF
+!   slots. CSFs not in the current P-space remain zero. The mapping
+!   uses the same conf->csf offset arithmetic as everywhere else in
+!   this module: P-local CSF (offsetP(j)..offsetP(j+1)-1) for the j-th
+!   P configuration aligns with global CSFs (offset(iP(j))..) one for
+!   one.
+!######################################################################
+  subroutine lift_vecP_to_global(nP,iP,offsetP,csfdimP,offset,csfdim,&
+       nroots,vecP,vecP_global)
+
+    use constants
+
+    implicit none
+
+    integer(is), intent(in)  :: nP,csfdimP,csfdim,nroots
+    integer(is), intent(in)  :: iP(*)
+    integer(is), intent(in)  :: offsetP(*),offset(*)
+    real(dp),    intent(in)  :: vecP(csfdimP,nroots)
+    real(dp),    intent(out) :: vecP_global(csfdim,nroots)
+
+    integer(is) :: j,gconf,nc,iroot,p_lo,g_lo,k
+
+    vecP_global=0.0d0
+
+    do j=1,nP
+       gconf=iP(j)
+       p_lo=offsetP(j)
+       g_lo=offset(gconf)
+       nc=offsetP(j+1)-offsetP(j)
+       do iroot=1,nroots
+          do k=0,nc-1
+             vecP_global(g_lo+k,iroot)=vecP(p_lo+k,iroot)
+          enddo
+       enddo
+    enddo
+
+    return
+
+  end subroutine lift_vecP_to_global
 
 !######################################################################
 
@@ -752,10 +909,10 @@ contains
 !----------------------------------------------------------------------
 ! Generate the initial P space
 !----------------------------------------------------------------------
-    call init_pspace_low(nconf,csfdim,isurvive,hii,confmap)
+    !call init_pspace_low(nroots,nconf,csfdim,isurvive,hii,confmap)
 
-    !call init_pspace_low_all_classes(nconf,csfdim,isurvive,hii,&
-    !     confmap,n_int_I,conf)
+    call init_pspace_low_all_classes(nroots,nconf,csfdim,isurvive,hii,&
+         confmap,n_int_I,conf)
 
 !----------------------------------------------------------------------
 ! Number of P and Q space configurations
@@ -870,7 +1027,7 @@ contains
 !----------------------------------------------------------------------
     call save_hij_double_selected(nP,iP,offsetP,nconf,csfdim,offset,&
          averageii,conf,sop,n_int_I,m2c,irrep,hscr,nrec,'hij_ref')
-    
+
 !----------------------------------------------------------------------
 ! Diagonalise the P space Hamiltonian
 !----------------------------------------------------------------------
@@ -897,7 +1054,7 @@ contains
     indxP=0
 
     ! Target squared norm for each state
-    targ=0.999d0
+    targ=sci_targ
 
     ! Initialisation
     isurvive=0
@@ -941,6 +1098,47 @@ contains
     enddo
     
 !----------------------------------------------------------------------
+! Pass-2 starvation diagnostic
+!
+! If any CSF whose parent configuration was NOT selected by pass 2
+! has a diagonal energy at or below the highest target eigenvalue
+! EP(nroots), it is a candidate intruder that the iterative loop will
+! struggle to capture cleanly. This usually indicates the initial seed
+! (sci_seed_min / sci_seed_per_root) was too narrow. Issue a verbose
+! warning so the user can widen the seed and rerun; the iterative
+! loop will still run but may converge slowly or to suboptimal P.
+!----------------------------------------------------------------------
+    if (verbose) then
+       block
+         real(dp)    :: min_hii_Q
+         integer(is) :: icsf,n_starve
+
+         min_hii_Q = huge(0.0_dp)
+         n_starve  = 0
+         do icsf=1,csfdim
+            if (isurvive(confmap(icsf)) == 0) then
+               if (hii(icsf) < min_hii_Q) min_hii_Q = hii(icsf)
+               if (hii(icsf) <= EP(nroots)) n_starve = n_starve+1
+            endif
+         enddo
+
+         if (n_starve > 0) then
+            write(6,'(/,x,a)') &
+                 'Warning: pass-2 starvation indicator triggered.'
+            write(6,'(x,a,i0,a)') &
+                 '  ',n_starve,' not-selected CSF(s) lie at or below '&
+                 //'the highest target eigenvalue:'
+            write(6,'(x,a,F14.6,a,F14.6,a)') &
+                 '  min unselected h_ii = ',min_hii_Q,&
+                 ' Eh ;  EP(nroots) = ',EP(nroots),' Eh'
+            write(6,'(x,a)') &
+                 '  Consider widening the initial seed via the '&
+                 //'sci_seed_* runtime knobs.'
+         endif
+       end block
+    endif
+
+!----------------------------------------------------------------------
 ! Trimmed number of P and Q space configurations
 !----------------------------------------------------------------------
     nP=sum(isurvive)
@@ -951,7 +1149,7 @@ contains
 !----------------------------------------------------------------------
     countP=0
     countQ=0
-  
+
     do i=1,nconf
        if (isurvive(i) == 1) then
           countP=countP+1
@@ -991,12 +1189,15 @@ contains
 
 !######################################################################
 
-  subroutine init_pspace_low(nconf,csfdim,isurvive,hii,confmap)
+  subroutine init_pspace_low(nroots,nconf,csfdim,isurvive,hii,confmap)
 
     use constants
     use utils
 
     implicit none
+
+    ! Number of roots being targeted (scales the initial cut)
+    integer(is), intent(in)  :: nroots
 
     ! Dimensions
     integer(is), intent(in)  :: nconf,csfdim
@@ -1009,41 +1210,58 @@ contains
 
     ! CSF-to-conf mapping
     integer(is), intent(in) :: confmap(csfdim)
-    
+
     ! Sorting array
     integer(is), allocatable :: indx(:)
-    
+
     ! Everything else
     integer(is)              :: i,icsf,iconf
     integer(is)              :: nlow
-    
+
+    ! Adaptive cut parameters. nlow scales with nroots but is bounded
+    ! from above so the seed P-space never exceeds csfdim/cap_frac
+    ! (unless the absolute floor would push it higher). nlow_min and
+    ! k_per_root come from the module-level overridable knobs;
+    ! cap_frac is local to this routine.
+    integer(is), parameter   :: cap_frac=4
+    integer(is)              :: nlow_target,nlow_cap
+
+    ! Energy window for the degeneracy-aware tail extension (Eh).
+    ! After the nlow-th lowest CSF we keep accepting CSFs whose
+    ! diagonal energy lies within eps_deg of the cut, so a
+    ! quasi-degenerate manifold is never split arbitrarily.
+    real(dp), parameter      :: eps_deg=1.0e-4_dp
+    integer(is)              :: ndeg
+    real(dp)                 :: hii_cut
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     allocate(indx(csfdim))
     indx=0
-    
+
 !----------------------------------------------------------------------
 ! Sort the on-diagonal Hamiltonian matrix elements
 !----------------------------------------------------------------------
     call dsortindxa1('A',csfdim,hii,indx)
 
-!----------------------------------------------------------------------  
+!----------------------------------------------------------------------
 ! Determine the configurations corresponding to the nlow lowest
-! energy CSFs
+! energy CSFs. nlow is sized adaptively from the number of roots so
+! that systems with many target states do not start from too narrow
+! a CSF window.
 !----------------------------------------------------------------------
     ! Initialisation
     isurvive=0
 
-    ! For now we shall hardwire the number of initially selected CSFs
-    nlow=1000
-    if (nlow > csfdim) then
-       nlow=csfdim
-    endif
-    
+    nlow_target=max(sci_seed_min,sci_seed_per_root*nroots)
+    nlow_cap=max(sci_seed_min,csfdim/cap_frac)
+    nlow=min(nlow_target,nlow_cap)
+    nlow=min(nlow,csfdim)
+
     ! Loop over the lowest energy CSFs
     do i=1,nlow
-    
+
        ! i'th lowest energy CSF
        icsf=indx(i)
 
@@ -1051,24 +1269,42 @@ contains
        ! survival
        iconf=confmap(icsf)
        isurvive(iconf)=1
-       
+
     enddo
-    
+
+    ! Degeneracy-aware tail extension: continue past nlow while the
+    ! next CSF is within eps_deg of the cut energy. Stops once we
+    ! cross a real gap. ndeg is reported for diagnostics.
+    ndeg=0
+    if (nlow < csfdim) then
+       hii_cut=hii(indx(nlow))
+       do i=nlow+1,csfdim
+          if (hii(indx(i))-hii_cut >= eps_deg) exit
+          icsf=indx(i)
+          iconf=confmap(icsf)
+          isurvive(iconf)=1
+          ndeg=ndeg+1
+       enddo
+    endif
+
     return
-    
+
   end subroutine init_pspace_low
 
 !######################################################################
 
-  subroutine init_pspace_low_all_classes(nconf,csfdim,isurvive,hii,&
-       confmap,n_int_I,conf)
+  subroutine init_pspace_low_all_classes(nroots,nconf,csfdim,isurvive,&
+       hii,confmap,n_int_I,conf)
 
     use constants
     use bitglobal
     use mrciutils
     use utils
-        
+
     implicit none
+
+    ! Number of roots being targeted (scales the per-class budget)
+    integer(is), intent(in)  :: nroots
 
     ! Dimensions
     integer(is), intent(in)  :: nconf,csfdim
@@ -1085,72 +1321,80 @@ contains
     ! Configurations
     integer(is), intent(in)  :: n_int_I
     integer(ib), intent(in)  :: conf(n_int_I,2,nconf)
-    
+
     ! Sorting array
     integer(is), allocatable :: indx(:)
-    
+
     ! Everything else
     integer(is)              :: i,icsf,iconf
     integer(is)              :: nlow,nexci,counter,exci_level
-    
+
+    ! Adaptive per-class budget. Total seeded configs <= nlow*(nexmax+1).
+    ! Defaults come from the module-level overridable knobs and are
+    ! divided across the nexmax+1 excitation classes so the total seed
+    ! has the same order of magnitude as the count-based init_pspace_low.
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     allocate(indx(csfdim))
     indx=0
-    
+
 !----------------------------------------------------------------------
 ! Sort the on-diagonal Hamiltonian matrix elements
 !----------------------------------------------------------------------
     call dsortindxa1('A',csfdim,hii,indx)
 
-!----------------------------------------------------------------------  
-! Determine the configurations corresponding to the nlow lowest
-! energy CSFs
+!----------------------------------------------------------------------
+! Determine, per excitation class relative to the base configuration,
+! the configurations corresponding to the nlow lowest-energy CSFs of
+! that class. nlow is sized so the per-class budget scales with the
+! number of target roots and is shared across all excitation classes.
 !----------------------------------------------------------------------
     ! Initialisation
     isurvive=0
 
-    ! For now we shall hardwire the number of initially selected CSFs
-    nlow=100
-    if (nlow > csfdim) then
-       nlow=csfdim
-    endif
+    nlow=max(sci_seed_min,sci_seed_per_root*nroots/(nexmax+1))
+    if (nlow > csfdim) nlow=csfdim
 
-    ! Loop over excitation classes
-    do exci_level=1,nexmax
+    ! Loop over excitation classes, including the base (exci_level=0).
+    do exci_level=0,nexmax
        counter=0
-              
+
        ! Loop over the CSFs
        do i=1,csfdim
-          
+
           ! i'th lowest energy CSF
           icsf=indx(i)
-          
+
           ! Configuration index
           iconf=confmap(icsf)
-          
+
           ! Excitation degree relative to the base configuration
           nexci=exc_degree_conf(conf(:,:,iconf),conf0(1:n_int_I,:),n_int_I)
           if (nexci /= exci_level) cycle
 
+          ! Skip if this configuration is already flagged (e.g. its
+          ! parent picked another sibling CSF), so the per-class
+          ! counter measures distinct configurations.
+          if (isurvive(iconf) == 1) cycle
+
           ! Increment the configuration counter for this excitation class
-          counter = counter+1
-          
-          ! Flag the configuration that generates this CSF for
-          ! survival
+          counter=counter+1
+
+          ! Flag the configuration that generates this CSF for survival
           isurvive(iconf)=1
 
           ! Exit if we have enough configurations for this excitation
           ! class
           if (counter == nlow) exit
-          
+
        enddo
 
     enddo
 
     return
-    
+
   end subroutine init_pspace_low_all_classes
        
 !######################################################################
@@ -1425,7 +1669,7 @@ contains
 !######################################################################
   subroutine pt2_corrections(csfdim,csfdimP,csfdimQ,nroots,vecP,EP,&
        hiiQ,Avec,E2,n_int_I,nconf,conf,sop,nP,nQ,iP,iQ,offset,&
-       averageii,harr2dim,harr2,m2c,offsetP,offsetQ,WP)
+       averageii,harr2dim,nthreads,harr2,m2c,offsetP,offsetQ,WP)
 
     use constants
     use bitglobal
@@ -1433,7 +1677,8 @@ contains
     use mrci_integrals
     use mrciutils
     use hbuild_mrci
-    
+    use omp_lib
+
     implicit none
 
     ! Dimensions
@@ -1469,9 +1714,10 @@ contains
     ! Spin-coupling averaged on-diagonal Hamiltonian matrix elements
     real(dp), intent(in)    :: averageii(nconf)
 
-    ! Work arrays
-    integer(is), intent(in) :: harr2dim
-    real(dp)                :: harr2(harr2dim)
+    ! Work arrays. harr2 is shared across threads but addressed by a
+    ! per-thread column index (tid+1) so writes never collide.
+    integer(is), intent(in) :: harr2dim,nthreads
+    real(dp)                :: harr2(harr2dim,nthreads)
 
     ! MO mapping array
     integer(is), intent(in) :: m2c(nmo)
@@ -1506,13 +1752,16 @@ contains
     integer(is)             :: knopen,knsp,bnopen,bnsp
     integer(is)             :: nexci
     integer(is)             :: iroot,counter
+    integer(is)             :: tid
     real(dp)                :: ediff,norm
 
     
-    ! TEST
-    real(dp), parameter :: shift=0.005_dp
-    real(dp)            :: dj
-    ! TEST
+    ! Floor on the magnitude of the PT2 denominator (Eh): when
+    ! |E^(0) - H_ii| falls below sci_pt2_shift it is clipped to that
+    ! value while preserving sign. Bounded regulariser for intruder
+    ! states. sci_pt2_shift comes from the module-level overridable
+    ! knobs.
+    real(dp)            :: ediff_reg
     
     
 !----------------------------------------------------------------------
@@ -1547,7 +1796,16 @@ contains
        call package_confinfo_offdiag(ksop_full,kconf_full,socc,nsocc,&
             Dw,ndiff,nbefore)
 
-       ! Loop over the bra (Q space) configurations
+       ! Parallel loop over the bra (Q space) configurations: each
+       ! thread handles a disjoint subset of `ibra` values. Avec
+       ! writes are at indices Avec(csfdimP+offsetQ(ibra)..offsetQ(ibra+1)-1, :)
+       ! which are disjoint across ibra, so no synchronisation is
+       ! needed. The harr2 working array has one column per thread.
+       !$omp parallel do default(shared) &
+       !$omp& private(ibra,bconf,nexci,bnopen,bnsp,bconf_full, &
+       !$omp&         bsop_full,hlist,plist,tid,counter,iroot, &
+       !$omp&         ikcsf,ibcsf) &
+       !$omp& schedule(dynamic)
        do ibra=1,nQ
           bconf=iQ(ibra)
 
@@ -1558,6 +1816,8 @@ contains
 
           ! Cycle if the excitation degree is greater than 2
           if (nexci > 2) cycle
+
+          tid=omp_get_thread_num()+1
 
           ! Number of open shells in the bra configuration
           bnopen=sop_nopen(sop(:,:,bconf),n_int_I)
@@ -1578,13 +1838,13 @@ contains
                n_int_I,hlist(1:nexci),plist(1:nexci),nexci)
 
           ! Compute the matrix elements between the CSFs generated
-          ! by the bra and ket configurations
-          call hij_mrci(harr2,harr2dim,nexci,bconf,kconf,&
+          ! by the bra and ket configurations (per-thread harr2 column)
+          call hij_mrci(harr2(:,tid),harr2dim,nexci,bconf,kconf,&
                bsop_full,ksop_full,bnsp,knsp,bnopen,knopen,&
                hlist,plist,m2c,socc,nsocc,nbefore,Dw,ndiff,&
                offset,offset,nconf+1,nconf+1,averageii(bconf),&
                averageii(kconf))
-          
+
           ! Loop over roots
           do iroot=1,nroots
 
@@ -1593,25 +1853,23 @@ contains
              ! Loop over the ket (P space) CSFs
              do ikcsf=offsetP(iket),offsetP(iket+1)-1
 
-                ! Cycle if the ket CSF coefficient is tiny
-                !if (abs(vecP(ikcsf,iroot)) < epshij) cycle
-                
                 ! Loop over the bra (Q space) CSFs
                 do ibcsf=offsetQ(ibra),offsetQ(ibra+1)-1
                    counter=counter+1
 
                    Avec(csfdimP+ibcsf,iroot)=&
                         Avec(csfdimP+ibcsf,iroot)&
-                        +harr2(counter)*vecP(ikcsf,iroot)
-                   
+                        +harr2(counter,tid)*vecP(ikcsf,iroot)
+
                 enddo
-                   
+
              enddo
-                
+
           enddo
-                    
+
        enddo
-       
+       !$omp end parallel do
+
     enddo
 
 !----------------------------------------------------------------------
@@ -1626,28 +1884,15 @@ contains
        ! Loop over the Q space CSFs
        do icsf=1,csfdimQ
 
-          ! E^(0) - H_ii
+          ! E^(0) - H_ii, clipped in magnitude to `shift` to bound the
+          ! denominator for near-intruder states
           ediff=EP(iroot)-hiiQ(icsf)
+          ediff_reg=sign(max(abs(ediff),sci_pt2_shift),ediff)
 
+          ! Energy correction and A-vector element
+          E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/ediff_reg
+          Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/ediff_reg
 
-          ! TEST
-          dj=shift/ediff
-          ! TEST
-
-                    
-          !! Energy correction
-          !E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/ediff
-          !          
-          !! A-vector element
-          !Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/ediff
-
-
-          ! TEST
-          E2(iroot)=E2(iroot)+Avec(csfdimP+icsf,iroot)**2/(ediff+dj)
-          Avec(csfdimP+icsf,iroot)=Avec(csfdimP+icsf,iroot)/(ediff+dj)
-          ! TEST
-          
-          
        enddo
 
     enddo
@@ -1712,9 +1957,6 @@ contains
     integer(is)                :: iwork(csfdim)
     real(dp)                   :: fwork(csfdim)
     
-    ! Configuration selection threshold (hard-wired for now)
-    real(dp), parameter        :: normsq_thrsh=0.999_dp
-    
     ! Selected CSFs and confs
     integer(is), allocatable   :: isel_csf(:),isel_conf(:)
     
@@ -1756,7 +1998,7 @@ contains
 
           ! If we have reached the squared norm threshold, then
           ! exit...
-          if (normsq > normsq_thrsh) exit
+          if (normsq > sci_normsq_thrsh) exit
 
           !...else add this to the list of dominant CSFs
           isel_csf(iwork(icsf))=1
@@ -1905,3 +2147,140 @@ contains
 !######################################################################
   
 end module ref_sci
+
+!######################################################################
+! override_sci_reals: overrides the real-valued SCI runtime knobs.
+!   Positional order matches the comment block at the top of ref_sci:
+!     par(1) = sci_WP_thrsh
+!     par(2) = sci_targ
+!     par(3) = sci_normsq_thrsh
+!     par(4) = sci_pt2_shift
+!######################################################################
+#ifdef CBINDING
+subroutine override_sci_reals(npar,par) bind(c,name="override_sci_reals")
+#else
+subroutine override_sci_reals(npar,par)
+#endif
+
+  use constants
+  use ref_sci
+  use iomod
+
+  implicit none
+
+  integer(is), intent(in) :: npar
+  real(dp), intent(in)    :: par(npar)
+
+  if (npar /= 4) then
+     errmsg='Error in override_sci_reals: expected 4 parameters'
+     call error_control
+  endif
+
+  sci_WP_thrsh     = par(1)
+  sci_targ         = par(2)
+  sci_normsq_thrsh = par(3)
+  sci_pt2_shift    = par(4)
+
+  return
+
+end subroutine override_sci_reals
+
+!######################################################################
+! get_sci_reals: returns the current real-valued SCI runtime knobs in
+!   the same positional order as override_sci_reals.
+!######################################################################
+#ifdef CBINDING
+subroutine get_sci_reals(npar,par) bind(c,name="get_sci_reals")
+#else
+subroutine get_sci_reals(npar,par)
+#endif
+
+  use constants
+  use ref_sci
+  use iomod
+
+  implicit none
+
+  integer(is), intent(in) :: npar
+  real(dp), intent(out)   :: par(npar)
+
+  if (npar /= 4) then
+     errmsg='Error in get_sci_reals: expected 4 parameters'
+     call error_control
+  endif
+
+  par(1) = sci_WP_thrsh
+  par(2) = sci_targ
+  par(3) = sci_normsq_thrsh
+  par(4) = sci_pt2_shift
+
+  return
+
+end subroutine get_sci_reals
+
+!######################################################################
+! override_sci_ints: overrides the integer-valued SCI runtime knobs.
+!   Positional order matches the comment block at the top of ref_sci:
+!     par(1) = sci_maxiter
+!     par(2) = sci_seed_min
+!     par(3) = sci_seed_per_root
+!######################################################################
+#ifdef CBINDING
+subroutine override_sci_ints(npar,par) bind(c,name="override_sci_ints")
+#else
+subroutine override_sci_ints(npar,par)
+#endif
+
+  use constants
+  use ref_sci
+  use iomod
+
+  implicit none
+
+  integer(is), intent(in) :: npar
+  integer(is), intent(in) :: par(npar)
+
+  if (npar /= 3) then
+     errmsg='Error in override_sci_ints: expected 3 parameters'
+     call error_control
+  endif
+
+  sci_maxiter       = par(1)
+  sci_seed_min      = par(2)
+  sci_seed_per_root = par(3)
+
+  return
+
+end subroutine override_sci_ints
+
+!######################################################################
+! get_sci_ints: returns the current integer-valued SCI runtime knobs
+!   in the same positional order as override_sci_ints.
+!######################################################################
+#ifdef CBINDING
+subroutine get_sci_ints(npar,par) bind(c,name="get_sci_ints")
+#else
+subroutine get_sci_ints(npar,par)
+#endif
+
+  use constants
+  use ref_sci
+  use iomod
+
+  implicit none
+
+  integer(is), intent(in) :: npar
+  integer(is), intent(out):: par(npar)
+
+  if (npar /= 3) then
+     errmsg='Error in get_sci_ints: expected 3 parameters'
+     call error_control
+  endif
+
+  par(1) = sci_maxiter
+  par(2) = sci_seed_min
+  par(3) = sci_seed_per_root
+
+  return
+
+end subroutine get_sci_ints
