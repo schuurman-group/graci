@@ -16,7 +16,7 @@ $end
 $scf section
  charge = 0
  mult   = 1
- xc     = bhlyp
+ xc     = qtp17
 $end
 
 $dftmrci2 section
