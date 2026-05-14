@@ -30,9 +30,9 @@ module ref_sci
 !                          nroots (see init_pspace_low /
 !                          init_pspace_low_all_classes for units)
 !----------------------------------------------------------------------
-  real(dp)    :: sci_WP_thrsh     = 0.995_dp
-  real(dp)    :: sci_targ         = 0.999_dp
-  real(dp)    :: sci_normsq_thrsh = 0.999_dp
+  real(dp)    :: sci_WP_thrsh     = 0.99_dp
+  real(dp)    :: sci_targ         = 0.99_dp
+  real(dp)    :: sci_normsq_thrsh = 0.99_dp
   real(dp)    :: sci_pt2_shift    = 1.0e-3_dp
 
   integer(is) :: sci_maxiter       = 15
