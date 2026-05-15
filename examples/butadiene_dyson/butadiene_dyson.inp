@@ -17,14 +17,14 @@ $scf section
  label  = neutral
  charge = 0
  mult   = 1
- xc     = bhlyp
+ xc     = qtp17
 $end
 
 $scf section
  label  = cation
  charge = 1
  mult   = 2
- xc     = bhlyp
+ xc     = qtp17
 $end
 
 $dftmrci section

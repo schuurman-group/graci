@@ -18,26 +18,30 @@ contains
     use global
     use detfuncs
     use factors
-    
+    use omp_lib
+
     implicit none
 
     ! Indices of the pairs of states for which overlaps are requested
     integer(is), intent(in)  :: npairs
     integer(is), intent(in)  :: ipairs(npairs,2)
-    
+
     ! Wave function overlaps
     real(dp), intent(out)    :: Sij(npairs)
-    
+
     ! Transposed eigenvector arrays
     real(dp), allocatable    :: vecTB(:,:),vecTK(:,:)
 
-    ! Occupied MOs
+    ! Occupied MOs (per-thread)
     integer(is)              :: noccB,noccK
-    integer(is), allocatable :: occB(:),occK(:)
+    integer(is), allocatable :: occB(:,:),occK(:,:)
 
-    ! Work arrays
-    real(dp), allocatable    :: fwork(:,:)
-    integer(is), allocatable :: iwork(:)
+    ! Work arrays (per-thread)
+    real(dp), allocatable    :: fwork(:,:,:)
+    integer(is), allocatable :: iwork(:,:)
+
+    ! Threading
+    integer(is)              :: nthreads,tid
 
     ! Everything else
     integer(is)              :: n,isB,isK,iaB,iaK,ibB,ibK,idB,idK
@@ -52,90 +56,102 @@ contains
     allocate(vecTK(nrootsK,ndetK))
     vecTK=0.0d0
 
-    ! Note here that the no. bra and ket alpha electrons are equal
-    ! in a wave function overlap calculation
-    allocate(occB(nel_alphaB), occK(nel_alphaB))
+    ! Per-thread scratch: trailing dimension indexed by thread id+1.
+    ! The no. of bra and ket alpha electrons are equal in a wave function
+    ! overlap calculation.
+    nthreads=omp_get_max_threads()
+
+    allocate(occB(nel_alphaB,nthreads), occK(nel_alphaB,nthreads))
     occB=0; occK=0
 
-    allocate(fwork(nel_alphaB,nel_alphaB))
+    allocate(fwork(nel_alphaB,nel_alphaB,nthreads))
     fwork=0.0d0
 
-    allocate(iwork(nel_alphaB))
+    allocate(iwork(nel_alphaB,nthreads))
     iwork=0
-    
+
 !----------------------------------------------------------------------
 ! Transposes of the eigenvector arrays
 !----------------------------------------------------------------------
     vecTB=transpose(vecB)
     vecTK=transpose(vecK)
-    
+
 !----------------------------------------------------------------------
 ! Compute the wave function overlaps
 !----------------------------------------------------------------------
     ! Initialisation
     Sij=0.0d0
-    
-    ! Loop over ket alpha strings
+
+    ! Parallel loop over (ket alpha, bra alpha) string pairs.
+    ! Iterations are independent; Sij is a reduction target.
+    !$omp parallel do collapse(2) default(shared) &
+    !$omp&  private(iaK,iaB,idK,idB,n,isB,isK,ibK,ibB,afac,bfac, &
+    !$omp&          noccB,noccK,tid) &
+    !$omp&  reduction(+:Sij) &
+    !$omp&  schedule(dynamic)
     do iaK=1,nalphaK
-    
-       ! Get the ket occupied MO indices
-       call mo_occ_string(n_intK,alphaK(:,iaK),nel_alphaK,noccK,occK)
-       
-       ! Loop over bra alpha strings
        do iaB=1,nalphaB
-    
+
+          tid=omp_get_thread_num()+1
+
           ! Get the ket occupied MO indices
+          call mo_occ_string(n_intK,alphaK(:,iaK),nel_alphaK,&
+               noccK,occK(:,tid))
+
+          ! Get the bra occupied MO indices
           call mo_occ_string(n_intB,alphaB(:,iaB),nel_alphaB,&
-               noccB,occB)
+               noccB,occB(:,tid))
 
           ! Compute the alpha factor for this pair of strings
           call get_one_factor(nel_alphaB,alphaB(:,iaB),alphaK(:,iaK),&
-               occB,occK,fwork,iwork,afac)
+               occB(:,tid),occK(:,tid),fwork(:,:,tid),iwork(:,tid),&
+               afac)
 
           ! Cycle if the alpha factor is below threshold
           if (abs(afac) < fthrsh) cycle
-    
+
           ! Loop over determinants in the ket block
           do idK=offsetK(iaK),offsetK(iaK+1)-1
-    
+
              ! Ket beta string index
              ibK=det2betaK(idK)
-             
+
              ! Loop over determinants in the bra block
              do idB=offsetB(iaB),offsetB(iaB+1)-1
-    
+
                 ! Bra beta string index
                 ibB=det2betaB(idB)
-                
+
                 ! Beta factor
                 bfac=betafac(ibB,ibK)
-    
+
                 ! Cycle if the beta factor is below threshold
                 if (abs(bfac) < fthrsh) cycle
-                
+
                 ! Loop over bra-ket state pairs
                 do n=1,npairs
-    
+
                    ! Bra and ket state indices
                    isB=ipairs(n,1)
                    isK=ipairs(n,2)
-    
+
                    ! Contributions to the overlap
                    Sij(n)=Sij(n) &
                         +afac*bfac*vecTB(isB,idB)*vecTK(isK,idK)
-                   
+
                 enddo
-    
+
              enddo
-                
+
           enddo
-             
+
        enddo
-    
+
     enddo
+    !$omp end parallel do
 
     return
-    
+
   end subroutine get_overlaps
 
 !######################################################################

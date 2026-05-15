@@ -35,7 +35,7 @@ endif()
 #
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   set(dialect "-g -O3 -fbacktrace -cpp -ffree-form -fimplicit-none \
-               -mavx -lblas -llapack")
+               -mavx -fopenmp -lblas -llapack")
   set(bounds "-fbounds-check")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
