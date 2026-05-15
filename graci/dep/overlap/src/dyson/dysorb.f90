@@ -14,13 +14,15 @@ contains
     use global
     use detfuncs
     use factors
-    
+    use mkl_compat
+    use omp_lib
+
     implicit none
 
     ! Indices of the pairs of states for which overlaps are requested
     integer(is), intent(in) :: npairs
     integer(is), intent(in) :: ipairs(npairs,2)
-    
+
     ! Dyson orbitals
     integer(is), intent(in) :: n_basis
     real(dp), intent(inout) :: dysorb(n_basis,npairs)
@@ -28,19 +30,23 @@ contains
     ! Transposed eigenvector arrays
     real(dp), allocatable    :: vecTB(:,:),vecTK(:,:)
 
-    ! Occupied MOs
+    ! Occupied MOs (per-thread)
     integer(is)              :: noccB,noccK
-    integer(is), allocatable :: occB(:),occK(:)
+    integer(is), allocatable :: occB(:,:),occK(:,:)
 
-    ! Work arrays
-    real(dp), allocatable    :: fwork(:,:)
-    integer(is), allocatable :: iwork(:)
-    
+    ! Work arrays (per-thread)
+    real(dp), allocatable    :: fwork(:,:,:)
+    integer(is), allocatable :: iwork(:,:)
+
+    ! Threading
+    integer(is)              :: nthreads,tid
+    integer(is)              :: saved_blas_threads
+
     ! Everything else
     integer(is)              :: isHK,isK,isB,itB,itK,idB,idK
     integer(is)              :: iloc,imo,iphase,n,istaB,istaK
     real(dp)                 :: sfac,tfac,prefac
-    
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
@@ -50,13 +56,16 @@ contains
     allocate(vecTK(nrootsK,ndetK))
     vecTK=0.0d0
 
-    allocate(occB(nel_sigmaB), occK(nel_sigmaK))
+    ! Per-thread scratch: trailing dimension indexed by thread id+1.
+    nthreads=omp_get_max_threads()
+
+    allocate(occB(nel_sigmaB,nthreads), occK(nel_sigmaK,nthreads))
     occB=0; occK=0
 
-    allocate(fwork(nel_sigmaB,nel_sigmaK))
+    allocate(fwork(nel_sigmaB,nel_sigmaK,nthreads))
     fwork=0.0d0
 
-    allocate(iwork(nel_sigmaB))
+    allocate(iwork(nel_sigmaB,nthreads))
     iwork=0
 
 !----------------------------------------------------------------------
@@ -71,22 +80,34 @@ contains
     ! Initialisation
     dysorb=0.0d0
 
-    ! Loop over ket sigma-hole strings
+    ! Force MKL to single-threaded inside the OMP region so the inner
+    ! dgetrf calls do not oversubscribe. Restored on exit.
+    saved_blas_threads = save_and_set_blas_threads(1_is)
+
+    ! Parallel loop over (ket sigma-hole, bra sigma) string pairs.
+    ! Iterations are independent; dysorb is a reduction target.
+    !$omp parallel do collapse(2) default(shared) &
+    !$omp&  private(isHK,isB,isK,idK,idB,iloc,n,iphase,imo,itB,itK, &
+    !$omp&          noccB,noccK,sfac,tfac,prefac,istaB,istaK,tid) &
+    !$omp&  reduction(+:dysorb) &
+    !$omp&  schedule(dynamic)
     do isHK=1,nsigmaHK
-
-       ! Get the ket occupied MO indices
-       call mo_occ_string(n_intK,sigmaHK(:,isHK),nel_sigmaK,noccK,occK)
-
-       ! Loop over bra sigma strings
        do isB=1,nsigmaB
 
+          tid=omp_get_thread_num()+1
+
           ! Get the ket occupied MO indices
+          call mo_occ_string(n_intK,sigmaHK(:,isHK),nel_sigmaK,&
+               noccK,occK(:,tid))
+
+          ! Get the bra occupied MO indices
           call mo_occ_string(n_intB,sigmaB(:,isB),nel_sigmaB,&
-               noccB,occB)
+               noccB,occB(:,tid))
 
           ! Compute the sigma factor for this pair of strings
           call get_one_factor(nel_sigmaB,sigmaB(:,isB),&
-               sigmaHK(:,isHK),occB,occK,fwork,iwork,sfac)
+               sigmaHK(:,isHK),occB(:,tid),occK(:,tid),&
+               fwork(:,:,tid),iwork(:,tid),sfac)
 
           ! Cycle if the sigma factor is below threshold
           if (abs(sfac) < fthrsh) cycle
@@ -116,7 +137,7 @@ contains
 
                    ! Bra beta string index
                    itB=det2tauB(idB)
-                
+
                    ! tau factor
                    tfac=taufac(itB,itK)
 
@@ -125,32 +146,35 @@ contains
 
                    ! sigma-factor * tau-factor * phase-factor
                    prefac=iphase*sfac*tfac
-                   
+
                    ! Loop over bra-ket state pairs
                    do n=1,npairs
 
                       ! Bra and ket state indices
                       istaB=ipairs(n,1)
                       istaK=ipairs(n,2)
-                      
+
                       ! Contribution to the Dyson orbital
                       dysorb(imo,n)=dysorb(imo,n) &
                            +prefac*vecTB(istaB,idB)*vecTK(istaK,idK)
-                      
+
                    enddo
-                   
+
                 enddo
-                   
+
              enddo
-             
+
           enddo
-          
+
        enddo
-       
+
     enddo
+    !$omp end parallel do
+
+    call restore_blas_threads(saved_blas_threads)
 
     return
-    
+
   end subroutine get_dysorbs
 
 !######################################################################

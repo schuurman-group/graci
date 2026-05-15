@@ -19,30 +19,36 @@ contains
     use constants
     use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose
     use detfuncs
-    
+    use mkl_compat
+    use omp_lib
+
     implicit none
 
     ! Number of electrons in each bra and ket string
     ! (these have to be equal for an overlap calculation)
     integer(is), intent(in)  :: nelX
-    
+
     ! Dimensions
     integer(is), intent(in)  :: nstringB,nstringK
 
     ! Unique alpha/beta strings
     integer(ib), intent(in)  :: stringB(n_intB,nstringB)
-    integer(ib), intent(in)  :: stringK(n_intK,nstringK)    
+    integer(ib), intent(in)  :: stringK(n_intK,nstringK)
 
     ! Alpha/beta factors
     real(dp), intent(out)    :: fac(nstringB,nstringK)
 
-    ! Occupied MOs
+    ! Occupied MOs (per-thread)
     integer(is)              :: noccB,noccK
-    integer(is), allocatable :: occB(:),occK(:)
+    integer(is), allocatable :: occB(:,:),occK(:,:)
 
-    ! Work arrays
-    real(dp), allocatable    :: work(:,:)
-    integer(is), allocatable :: ipiv(:)
+    ! Work arrays (per-thread)
+    real(dp), allocatable    :: work(:,:,:)
+    integer(is), allocatable :: ipiv(:,:)
+
+    ! Threading
+    integer(is)              :: nthreads,tid
+    integer(is)              :: saved_blas_threads
 
     ! Everything else
     integer(is)              :: ibra,iket,m,n
@@ -50,52 +56,68 @@ contains
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
-    allocate(occB(nelX), occK(nelX))
+    nthreads=omp_get_max_threads()
+
+    allocate(occB(nelX,nthreads), occK(nelX,nthreads))
     occB=0; occK=0
 
-    allocate(work(nelX,nelX))
+    allocate(work(nelX,nelX,nthreads))
     work=0.0d0
 
-    allocate(ipiv(nelX))
+    allocate(ipiv(nelX,nthreads))
     ipiv=0
 
 !----------------------------------------------------------------------
 ! Compute the unique factors
 !----------------------------------------------------------------------
-    ! Loop over ket strings
+    ! Force MKL to single-threaded inside the OMP region so the inner
+    ! dgetrf calls do not oversubscribe. Restored on exit.
+    saved_blas_threads = save_and_set_blas_threads(1_is)
+
+    ! Parallel loop over ket strings. Inner ibra loop runs serially
+    ! within each thread so the mo_occ_string(...occK) lift is preserved.
+    !$omp parallel do default(shared) &
+    !$omp&  private(iket,ibra,m,n,tid,noccB,noccK) &
+    !$omp&  schedule(dynamic)
     do iket=1,nstringK
 
+       tid=omp_get_thread_num()+1
+
        ! Get the ket occupied MO indices
-       call mo_occ_string(n_intK,stringK(:,iket),nelX,noccK,occK)
+       call mo_occ_string(n_intK,stringK(:,iket),nelX,noccK,occK(:,tid))
 
        ! Loop over bra strings
        do ibra=1,nstringB
 
           ! Get the bra occupied MO indices
-          call mo_occ_string(n_intB,stringB(:,ibra),nelX,noccB,occB)
-       
+          call mo_occ_string(n_intB,stringB(:,ibra),nelX,noccB,&
+               occB(:,tid))
+
           ! Fill in the matrix of occupied bra-ket MO overlaps
           do m=1,nelX
              do n=1,nelX
-                work(n,m)=smo(occB(n),occK(m))
+                work(n,m,tid)=smo(occB(n,tid),occK(m,tid))
              enddo
           enddo
 
           ! Determinant screening
-          if (hadamard_bound(nelX,work) < hthrsh) then
+          if (hadamard_bound(nelX,work(:,:,tid)) < hthrsh) then
              fac(ibra,iket)=0.0d0
              cycle
           endif
-             
+
           ! Determinant of the matrix of MO overlaps
-          fac(ibra,iket)=ludet(nelX,work,ipiv)
-          
+          fac(ibra,iket)=ludet(nelX,work(:,:,tid),ipiv(:,tid))
+
        enddo
-       
+
     enddo
+    !$omp end parallel do
+
+    call restore_blas_threads(saved_blas_threads)
 
     return
-    
+
   end subroutine get_all_factors
 
 !######################################################################

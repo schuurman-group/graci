@@ -193,7 +193,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra
   call truncate_wave_functions(n_intB,ndetB1,nrootsB,detB1,vecB1,&
        normthrsh,ndetB,detB,vecB)
-  
+
   ! Ket
   call truncate_wave_functions(n_intK,ndetK1,nrootsK,detK1,vecK1,&
        normthrsh,ndetK,detK,vecK)
@@ -251,7 +251,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
   ! Bra
   call symm_ortho(n_intB,ndetB,nrootsB,vecB)
-  
+
   ! Ket
   call symm_ortho(n_intK,ndetK,nrootsK,vecK)
 
@@ -262,7 +262,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Bra
   call det_sorting(1,2,n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
        alphaB,betaB,offsetB,det2betaB)
-  
+
   ! Ket
   call det_sorting(1,2,n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
        alphaK,betaK,offsetK,det2betaK)
@@ -305,7 +305,7 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   else
      call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
   endif
-     
+
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------
