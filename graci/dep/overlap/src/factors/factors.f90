@@ -19,6 +19,7 @@ contains
     use constants
     use global, only: n_intB,n_intK,nmoB,nmoK,smo,hthrsh,verbose
     use detfuncs
+    use mkl_compat
     use omp_lib
 
     implicit none
@@ -47,6 +48,7 @@ contains
 
     ! Threading
     integer(is)              :: nthreads,tid
+    integer(is)              :: saved_blas_threads
 
     ! Everything else
     integer(is)              :: ibra,iket,m,n
@@ -68,6 +70,10 @@ contains
 !----------------------------------------------------------------------
 ! Compute the unique factors
 !----------------------------------------------------------------------
+    ! Force MKL to single-threaded inside the OMP region so the inner
+    ! dgetrf calls do not oversubscribe. Restored on exit.
+    saved_blas_threads = save_and_set_blas_threads(1_is)
+
     ! Parallel loop over ket strings. Inner ibra loop runs serially
     ! within each thread so the mo_occ_string(...occK) lift is preserved.
     !$omp parallel do default(shared) &
@@ -107,6 +113,8 @@ contains
 
     enddo
     !$omp end parallel do
+
+    call restore_blas_threads(saved_blas_threads)
 
     return
 

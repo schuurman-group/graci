@@ -18,6 +18,7 @@ contains
     use global
     use detfuncs
     use factors
+    use mkl_compat
     use omp_lib
 
     implicit none
@@ -42,6 +43,7 @@ contains
 
     ! Threading
     integer(is)              :: nthreads,tid
+    integer(is)              :: saved_blas_threads
 
     ! Everything else
     integer(is)              :: n,isB,isK,iaB,iaK,ibB,ibK,idB,idK
@@ -81,6 +83,10 @@ contains
 !----------------------------------------------------------------------
     ! Initialisation
     Sij=0.0d0
+
+    ! Force MKL to single-threaded inside the OMP region so the inner
+    ! dgetrf calls do not oversubscribe. Restored on exit.
+    saved_blas_threads = save_and_set_blas_threads(1_is)
 
     ! Parallel loop over (ket alpha, bra alpha) string pairs.
     ! Iterations are independent; Sij is a reduction target.
@@ -149,6 +155,8 @@ contains
 
     enddo
     !$omp end parallel do
+
+    call restore_blas_threads(saved_blas_threads)
 
     return
 
