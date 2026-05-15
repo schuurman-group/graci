@@ -128,7 +128,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   
   ! Timing variables
   real(dp)                :: tcpu_start,tcpu_end,twall_start,twall_end
-  real(dp)                :: tcpu_ph1,tcpu_ph2,twall_ph1,twall_ph2
 
   ! Everything else
   integer(is)             :: i,ic,j
@@ -191,8 +190,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
 ! Truncate the wave functions
 !----------------------------------------------------------------------
-  call get_times(twall_ph1,tcpu_ph1)
-
   ! Bra
   call truncate_wave_functions(n_intB,ndetB1,nrootsB,detB1,vecB1,&
        normthrsh,ndetB,detB,vecB)
@@ -200,10 +197,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Ket
   call truncate_wave_functions(n_intK,ndetK1,nrootsK,detK1,vecK1,&
        normthrsh,ndetK,detK,vecK)
-
-  call get_times(twall_ph2,tcpu_ph2)
-  if (verbose) call report_times(twall_ph2-twall_ph1,tcpu_ph2-tcpu_ph1,&
-       'truncate_wave_functions')
 
   ! Ouput the numbers of determinants
   if (verbose) then
@@ -256,24 +249,16 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
 !----------------------------------------------------------------------
 ! Symmetric orthogonalisation the truncated wave functions
 !----------------------------------------------------------------------
-  call get_times(twall_ph1,tcpu_ph1)
-
   ! Bra
   call symm_ortho(n_intB,ndetB,nrootsB,vecB)
 
   ! Ket
   call symm_ortho(n_intK,ndetK,nrootsK,vecK)
 
-  call get_times(twall_ph2,tcpu_ph2)
-  if (verbose) call report_times(twall_ph2-twall_ph1,tcpu_ph2-tcpu_ph1,&
-       'symm_ortho')
-
 !----------------------------------------------------------------------
 ! Sorting of the bra and ket determinants, as well as the
 ! determination of the unique alpha and beta strings
 !----------------------------------------------------------------------
-  call get_times(twall_ph1,tcpu_ph1)
-
   ! Bra
   call det_sorting(1,2,n_intB,ndetB,nrootsB,detB,vecB,nalphaB,nbetaB,&
        alphaB,betaB,offsetB,det2betaB)
@@ -281,10 +266,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   ! Ket
   call det_sorting(1,2,n_intK,ndetK,nrootsK,detK,vecK,nalphaK,nbetaK,&
        alphaK,betaK,offsetK,det2betaK)
-
-  call get_times(twall_ph2,tcpu_ph2)
-  if (verbose) call report_times(twall_ph2-twall_ph1,tcpu_ph2-tcpu_ph1,&
-       'det_sorting')
   
   ! Ouput the number of unique alpha and beta strings
   if (verbose) then
@@ -318,8 +299,6 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
   allocate(betafac(nbetaB,nbetaK))
   betafac=0.0d0
 
-  call get_times(twall_ph1,tcpu_ph1)
-
   if (schur) then
      call get_all_factors_schur(nfixed,nvar_betaB,nbetaB,nbetaK,&
           betaB,betaK,betafac)
@@ -327,24 +306,14 @@ subroutine overlap(nmoB1,nmoK1,n_intB1,n_intK1,ndetB1,ndetK1,nrootsB1,&
      call get_all_factors(nel_betaB,nbetaB,nbetaK,betaB,betaK,betafac)
   endif
 
-  call get_times(twall_ph2,tcpu_ph2)
-  if (verbose) call report_times(twall_ph2-twall_ph1,tcpu_ph2-tcpu_ph1,&
-       'get_all_factors')
-
 !----------------------------------------------------------------------
 ! Calculate the wave function overlaps
 !----------------------------------------------------------------------
-  call get_times(twall_ph1,tcpu_ph1)
-
   if (schur) then
      call get_overlaps_schur(npairs,ipairs,Sij)
   else
      call get_overlaps(npairs,ipairs,Sij)
   endif
-
-  call get_times(twall_ph2,tcpu_ph2)
-  if (verbose) call report_times(twall_ph2-twall_ph1,tcpu_ph2-tcpu_ph1,&
-       'get_overlaps')
      
 !----------------------------------------------------------------------
 ! Stop timing and print report
