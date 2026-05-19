@@ -430,17 +430,13 @@ class Scf:
         # MO phase convention: positive dominant coefficients
         # for degenerate coefficients, pick the first occurrence
         # N.B. this is essential for diabatisation runs
-        nmo  = mf.mo_coeff.shape[1]
-        nao  = mf.mo_coeff.shape[0]
-        imax = [np.argmax(np.abs(mf.mo_coeff[:,i])) for i in range(nmo)]
-        for i in range(nmo):
-            coeff_max = mf.mo_coeff[imax[i], i]
-            diff = np.abs(mf.mo_coeff[:, i]) - abs(coeff_max)
-            indx = [1 if abs(diff[i]) < 1e-6 else 0
-                    for i in range(nao)].index(1)
-            if mf.mo_coeff[indx, i] < 0.:
-                mf.mo_coeff[:, i] *= -1.
-        
+        abs_coeff = np.abs(mf.mo_coeff)
+        max_abs   = abs_coeff.max(axis=0, keepdims=True)
+        # argmax on a boolean array returns the index of the first True
+        indx      = (abs_coeff > max_abs - 1e-6).argmax(axis=0)
+        dominant  = mf.mo_coeff[indx, np.arange(mf.mo_coeff.shape[1])]
+        mf.mo_coeff *= np.where(dominant < 0., -1.0, 1.0)
+
         return mf
 
     #
