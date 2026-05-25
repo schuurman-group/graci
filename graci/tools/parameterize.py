@@ -47,7 +47,7 @@ class Parameterize:
         #  do we optimize the parameters for of the hamiltonian
         self.opt             = []
         # which parameters to freeze during optimization
-        self.freeze          = []
+        self.freeze          = [[]]
         # bounds for ham parameters
         self.bounds          = [] 
 
@@ -217,19 +217,26 @@ class Parameterize:
                     list(range(len(self.opt_options[ham]['params'])))
 
         # loop over strings in scan_var
+        rm_ind = []
         for p_str in self.scan_var:
             p_index = int(p_str[-1])
+            rm_ind.append(p_index)
             ham     = p_str[:-1]
       
             if ham not in self.opt_options.keys():
                 msg = 'Hamiltonian: '+str(ham)+' not recognized.'
                 self.hard_exit(msg)
 
-            self.opt_options[ham]['freeze'].pop(p_index)
+            #self.opt_options[ham]['freeze'].pop(p_index)
             labels.append(ham)
             bounds.append(self.opt_options[ham]['bounds'][p_index])
             p_scan.append(self.opt_options[ham]['params'][p_index])
             n_scan += 1
+
+        # unfreeze the scan indices
+        rm_ind.sort(reverse=True)
+        for i in range(len(rm_ind)):
+            self.opt_options[ham]['freeze'].pop(rm_ind[i])
 
         delta = [(bounds[i][1] - bounds[i][0]) / (ngrid[i]-1)
                   if ngrid[i] > 1 else 0. for i in range(n_scan)]
