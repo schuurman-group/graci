@@ -301,7 +301,7 @@ class Parameterize:
                 nde         += 1
 
         if self.opt_target == 'rmsd':
-            self.error = np.linalg.norm(dif_vec)
+            self.error = np.linalg.norm(dif_vec) / np.sqrt(nde)
         elif self.opt_target == 'mae':
             self.error = 0.
             if nde > 0:
@@ -389,7 +389,7 @@ class Parameterize:
             ci_type = str(ci_ref.__class__.__name__).lower()
 
             if ci_type == self.method:
-                ci_opt = ci_ref
+                ci_opt = ci_ref.copy()
             else:
                 ci_class = self.method.capitalize()
                 ci_opt = getattr(globals()[ci_class.lower()], ci_class)(ci_ref)
