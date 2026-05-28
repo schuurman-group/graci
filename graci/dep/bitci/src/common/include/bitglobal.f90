@@ -145,8 +145,10 @@ module bitglobal
   !
   real(dp), allocatable :: fii(:)    ! On-diagonal Fock matrix elements
   real(dp), allocatable :: fock(:,:) ! Fock matrix
-  real(dp), allocatable :: Vc(:,:)   ! Coulomb integrals V_iijj
-  real(dp), allocatable :: Vx(:,:)   ! Exchange integrals V_ijji
+  real(dp), allocatable :: Vc(:,:)    ! Coulomb integrals V_iijj
+  real(dp), allocatable :: Vx(:,:)    ! Exchange integrals V_ijji
+  real(dp), allocatable :: Vc_lr(:,:) ! LR Coulomb integrals V_iijj^LR
+  real(dp), allocatable :: Vx_lr(:,:) ! LR Exchange integrals V_ijji^LR
   real(dp)              :: Escf      ! SCF energy
 
   !
@@ -158,6 +160,11 @@ module bitglobal
   ! DFT/MRCI logical flag
   !
   logical :: ldftmrci
+
+  !
+  ! LR integral flag: set when a 3-centre LR DF integral file is loaded
+  !
+  logical :: leri_lr
 
   !
   ! Hamiltonian build & diagonalisation

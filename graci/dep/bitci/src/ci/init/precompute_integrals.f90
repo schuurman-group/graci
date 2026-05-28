@@ -15,6 +15,7 @@ contains
     use constants
     use bitglobal
     use detutils
+    use hparam
     
     implicit none
 
@@ -41,6 +42,12 @@ contains
     allocate(Vx(nmo,nmo))
     Vx=0.0d0
 
+    ! LR Coulomb and exchange integrals (non-zero only for RSH functionals)
+    allocate(Vc_lr(nmo,nmo))
+    Vc_lr=0.0d0
+    allocate(Vx_lr(nmo,nmo))
+    Vx_lr=0.0d0
+
 !----------------------------------------------------------------------
 ! Get the list of occupied alpha and beta MOs in the base determinant
 !----------------------------------------------------------------------
@@ -65,6 +72,22 @@ contains
           Vx(j,i)=Vx(i,j)
        enddo
     enddo
+
+!----------------------------------------------------------------------
+! LR Coulomb and exchange integrals
+!----------------------------------------------------------------------
+    if (ihamiltonian == 18) then
+      if (.not. leri_lr) &
+        stop 'rc_dftmrci (ihamiltonian=18) requires LR integral file'
+      do i=1,nmo
+         do j=i,nmo
+            Vc_lr(i,j)=bitci_ints%mo_int_lr(i,i,j,j)
+            Vx_lr(i,j)=bitci_ints%mo_int_lr(i,j,j,i)
+            Vc_lr(j,i)=Vc_lr(i,j)
+            Vx_lr(j,i)=Vx_lr(i,j)
+         enddo
+      enddo
+    endif
     
 !----------------------------------------------------------------------
 ! On-diagonal Fock matrix elements in the HF/DFT ordering

@@ -619,10 +619,12 @@ contains
     
     ! Integrals
     real(dp)                 :: Vpqrs(nmo)
-    
+    real(dp)                 :: Vpqrs_lr(nmo)
+
     ! Everything else
     integer(is)              :: i,bcsf,kcsf
     real(dp), dimension(1)   :: hij
+    real(dp), dimension(1)   :: hij_lr
     
 !----------------------------------------------------------------------
 ! Initialisation
@@ -718,7 +720,34 @@ contains
           ! case once we implement the Dusseldorf group Hamiltonians...
           if (nexci > 0 .and. ldftmrci) then
              hij=reshape(subhmat(bcsf:bcsf,kcsf:kcsf),(/1/))
-             call hij_dftmrci_batch(hij,1,1,subavii(bcsf),subavii(kcsf))
+             if (ihamiltonian == 18) then
+                select case(nexci)
+                case(1)
+                   call package_integrals_nexci1_lr(&
+                        sop(:,:,bcsf),sop(:,:,kcsf),&
+                        hlist(1),plist(1),bnopen,knopen,bpattern,kpattern,&
+                        Vpqrs_lr,cfg%m2c,socc,nsocc,nbefore,Dw,ndiff,&
+                        icase,insp)
+                   hij_lr(1)=hij_single_mrci(&
+                        omega(bcsf),omega(kcsf),bnopen,knopen,&
+                        bpattern,kpattern,Vpqrs_lr,socc,nsocc,&
+                        ndiff,hlist(1),plist(1),insp)
+                case(2)
+                   call package_integrals_nexci2_lr(&
+                        sop(:,:,bcsf),sop(:,:,kcsf),&
+                        hlist(1:2),plist(1:2),bnopen,knopen,&
+                        bpattern(1:2),kpattern(1:2),Vpqrs_lr(1:2),cfg%m2c,&
+                        nbefore,insp(1:2))
+                   hij_lr(1)=hij_double_mrci(&
+                        omega(bcsf),omega(kcsf),bnopen,knopen,&
+                        bpattern(1:2),kpattern(1:2),Vpqrs_lr(1:2),&
+                        plist(1:2),hlist(1:2),insp)
+                end select
+                call hij_dftmrci_batch(hij,1,1,subavii(bcsf),subavii(kcsf),&
+                     hij_lr)
+             else
+                call hij_dftmrci_batch(hij,1,1,subavii(bcsf),subavii(kcsf))
+             endif
              subhmat(bcsf,kcsf)=hij(1)
           endif
           

@@ -367,6 +367,224 @@ contains
 !            1 / [(1+delta_ab) * (1+delta_ij)] prefactor to save
 !            effort down the road
 !######################################################################
+! LR variants of the integral packaging routines (ihamiltonian=18).
+! Pattern indices are identical to the SR versions; only the integral
+! calls differ (mo_int_lr instead of mo_int, no LR Fock contribution).
+!######################################################################
+  subroutine package_integrals_nexci1_lr(bsop,ksop,hindx,pindx,bnopen,&
+       knopen,bpattern,kpattern,Vpqrs,m2c,socc,nsocc,knbefore,Dw,&
+       ndiff,icase,insp)
+
+    use constants
+    use bitglobal
+    use pattern_indices
+    use bitstrings
+    use mrciutils
+
+    implicit none
+
+    integer(ib), intent(in)  :: bsop(n_int,2),ksop(n_int,2)
+    integer(ib), intent(out) :: icase
+    integer(is), intent(in)  :: hindx,pindx
+    integer(is)              :: ia,ac,ia1,ac1
+    integer(is)              :: i1
+    integer(is), intent(in)  :: bnopen,knopen
+    integer(is), intent(out) :: bpattern(nmo+1),kpattern(nmo+1)
+    integer(ib)              :: icase_b,icase_k
+    real(dp), intent(out)    :: Vpqrs(nmo)
+    integer(is), intent(in)  :: m2c(nmo)
+    integer(is), intent(in)  :: nsocc
+    integer(is), intent(in)  :: socc(nmo)
+    integer(is), intent(in)  :: knbefore(nmo)
+    integer(is)              :: nc_k,na_k,nc_b,na_b
+    integer(is), intent(out) :: insp(nmo)
+    integer(is)             :: ndiff
+    integer(is)             :: Dw(nmo,2)
+    integer(is)             :: i,k,k1,count
+    integer(is)             :: wac,wia
+    integer(is)             :: bnsp,knsp
+
+    ia=hindx
+    ac=pindx
+
+    k=(ac-1)/n_bits+1
+    i=ac-(k-1)*n_bits-1
+    if (btest(ksop(k,1),i)) then
+       wac=1
+    else
+       wac=0
+    endif
+
+    k=(ia-1)/n_bits+1
+    i=ia-(k-1)*n_bits-1
+    if (btest(ksop(k,1),i)) then
+       wia=1
+    else
+       wia=2
+    endif
+
+    if (nsocc > 0) then
+       do k=1,nsocc
+          k1=socc(k)
+          if (k1 == ia) cycle
+          if (k1 == ac) cycle
+          icase_b=get_icase(bsop,k1,ac)
+          icase_k=get_icase(ksop,k1,ia)
+          exit
+       enddo
+    endif
+
+    knsp=ncsfs(knopen)
+    if (nsocc > 0) then
+       do k=1,nsocc
+          k1=socc(k)
+          if (k1 == ia) cycle
+          if (k1 == ac) cycle
+          select case(icase_k)
+          case(i1a)
+             insp(k)=knsp
+          case(i1b)
+             insp(k)=knsp
+          case(i2a)
+             insp(k)=ncsfs(knopen+2)
+          case(i2b)
+             insp(k)=ncsfs(knopen-2)
+          end select
+       enddo
+    endif
+
+    na_k=knbefore(ia)
+    na_b=n_bits_set_before(bsop(:,1),n_int,ac)
+    do k=1,nsocc
+       k1=socc(k)
+       if (k1 == ia) cycle
+       if (k1 == ac) cycle
+       nc_b=n_bits_set_before(bsop(:,1),n_int,k1)
+       bpattern(k)=pattern_index(bsop,k1,ac,nc_b,na_b,bnopen,icase_b)
+       nc_k=knbefore(k1)
+       kpattern(k)=pattern_index(ksop,k1,ia,nc_k,na_k,knopen,icase_k)
+    enddo
+
+    nc_k=knbefore(ac)
+    na_k=knbefore(ia)
+    icase=get_icase(ksop,ac,ia)
+    kpattern(nsocc+1)=pattern_index(ksop,ac,ia,nc_k,na_k,knopen,icase)
+
+    count=0
+    ia1=m2c(ia)
+    ac1=m2c(ac)
+
+    do k=1,nsocc
+       count=count+1
+       k1=m2c(socc(k))
+       Vpqrs(count)=bitci_ints%mo_int_lr(ia1,k1,k1,ac1)
+    enddo
+
+    count=count+1
+    Vpqrs(count)=0.0d0
+    do k=1,ndiff
+       k1=m2c(Dw(k,1))
+       Vpqrs(count)=Vpqrs(count) &
+            +(bitci_ints%mo_int_lr(ia1,ac1,k1,k1) &
+            -0.5d0*bitci_ints%mo_int_lr(ia1,k1,k1,ac1))*Dw(k,2)
+    enddo
+
+    count=count+1
+    Vpqrs(count)=0.5d0*(bitci_ints%mo_int_lr(ac1,ac1,ac1,ia1)*wac &
+         +bitci_ints%mo_int_lr(ac1,ia1,ia1,ia1)*(wia-2))
+
+    return
+
+  end subroutine package_integrals_nexci1_lr
+
+!######################################################################
+  subroutine package_integrals_nexci2_lr(bsop,ksop,hlist,plist,bnopen,&
+       knopen,bpattern,kpattern,Vpqrs,m2c,knbefore,insp)
+
+    use constants
+    use bitglobal
+    use pattern_indices
+    use bitstrings
+    use mrciutils
+
+    implicit none
+
+    integer(ib), intent(in)  :: bsop(n_int,2),ksop(n_int,2)
+    integer(is), intent(in)  :: hlist(2),plist(2)
+    integer(is)              :: ia,ja,ac,bc
+    integer(is)              :: i1,j1,a1,b1
+    integer(is), intent(in)  :: bnopen,knopen
+    integer(is), intent(out) :: bpattern(2),kpattern(2)
+    integer(ib)              :: icase_b(2),icase_k(2)
+    real(dp), intent(out)    :: Vpqrs(2)
+    integer(is), intent(in)  :: m2c(nmo)
+    integer(is), intent(in)  :: knbefore(nmo)
+    integer(is)              :: nc,na
+    integer(is), intent(out) :: insp(2)
+    real(dp)                 :: fac1,fac2
+    integer(is)              :: bnsp,knsp
+    integer(is)              :: m
+
+    ia=hlist(1)
+    ja=hlist(2)
+    ac=plist(1)
+    bc=plist(2)
+
+    icase_b(1)=get_icase(bsop,ia,ac)
+    icase_b(2)=get_icase(bsop,ja,ac)
+    icase_k(1)=get_icase(ksop,bc,ja)
+    icase_k(2)=get_icase(ksop,bc,ia)
+
+    knsp=ncsfs(knopen)
+    do m=1,2
+       select case(icase_k(m))
+       case(i1a)
+          insp(m)=knsp
+       case(i1b)
+          insp(m)=knsp
+       case(i2a)
+          insp(m)=ncsfs(knopen+2)
+       case(i2b)
+          insp(m)=ncsfs(knopen-2)
+       end select
+    enddo
+
+    nc=n_bits_set_before(bsop(:,1),n_int,ia)
+    na=n_bits_set_before(bsop(:,1),n_int,ac)
+    bpattern(1)=pattern_index(bsop,ia,ac,nc,na,bnopen,icase_b(1))
+    nc=n_bits_set_before(bsop(:,1),n_int,ja)
+    bpattern(2)=pattern_index(bsop,ja,ac,nc,na,bnopen,icase_b(2))
+    nc=knbefore(bc)
+    na=knbefore(ja)
+    kpattern(1)=pattern_index(ksop,bc,ja,nc,na,knopen,icase_k(1))
+    na=knbefore(ia)
+    kpattern(2)=pattern_index(ksop,bc,ia,nc,na,knopen,icase_k(2))
+
+    a1=m2c(ac)
+    b1=m2c(bc)
+    i1=m2c(ia)
+    j1=m2c(ja)
+
+    Vpqrs(1)=bitci_ints%mo_int_lr(a1,i1,b1,j1)
+    Vpqrs(2)=bitci_ints%mo_int_lr(a1,j1,b1,i1)
+
+    if (ac == bc) then
+       fac1=2.0d0
+    else
+       fac1=1.0d0
+    endif
+    if (ia == ja) then
+       fac2=2.0d0
+    else
+       fac2=1.0d0
+    endif
+    Vpqrs=Vpqrs/(fac1*fac2)
+
+    return
+
+  end subroutine package_integrals_nexci2_lr
+
+!######################################################################
   subroutine package_integrals_nexci2(bsop,ksop,hlist,plist,bnopen,&
        knopen,bpattern,kpattern,Vpqrs,m2c,knbefore,insp)
 

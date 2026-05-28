@@ -107,26 +107,27 @@ contains
 ! hij_dftmrci_batch: applies DFT/MRCI corrections to a batch of
 !                    off-diagonal Hamiltonian matrix elements
 !######################################################################
-  subroutine hij_dftmrci_batch(hij,bdim,kdim,bav,kav)
+  subroutine hij_dftmrci_batch(hij,bdim,kdim,bav,kav,hij_lr)
 
     use constants
     use bitglobal
     use hparam
     use iomod
-    
+
     implicit none
 
     ! Hamiltonian matrix elements
-    integer(is), intent(in) :: bdim,kdim
-    real(dp), intent(inout) :: hij(:)
-    real(dp), intent(in)    :: bav,kav
-    real(dp)                :: damp
-    
+    integer(is), intent(in)           :: bdim,kdim
+    real(dp), intent(inout)           :: hij(:)
+    real(dp), intent(in)              :: bav,kav
+    real(dp), optional, intent(in)    :: hij_lr(:)
+    real(dp)                          :: damp,damp_lr
+
 !----------------------------------------------------------------------
 ! Compute the damping factor
 !----------------------------------------------------------------------
     select case(ihamiltonian)
-       
+
     case(2:3)
        ! Grimme's parameterisation
        damp=damping_grimme(bav,kav)
@@ -143,7 +144,7 @@ contains
     case(10)
        ! R2022 parameterisation
        damp=damping_r2022(bav,kav)
-       
+
     case(11:14,17)
        ! QE8 parameterisations
        damp=damping_qe8(bav,kav)
@@ -151,6 +152,7 @@ contains
     case(18)
        ! RC DFT/MRCI parameterisation
        damp=damping_rc(bav,kav)
+       damp_lr=damping_rc_lr(bav,kav)
 
     case(15:16)
        ! 2026 and CVS-2026 parameterisations
@@ -165,10 +167,16 @@ contains
 !----------------------------------------------------------------------
 ! Apply the damping factor
 !----------------------------------------------------------------------
-    hij(1:bdim*kdim)=hij(1:bdim*kdim)*damp
-    
+    if (ihamiltonian == 18 .and. present(hij_lr)) then
+       ! LR/SR split: damp the SR contribution, leave the LR undamped
+       hij(1:bdim*kdim)=damp*hij(1:bdim*kdim) &
+            +(1.0d0-damp)*hij_lr(1:bdim*kdim)
+    else
+       hij(1:bdim*kdim)=hij(1:bdim*kdim)*damp
+    endif
+
     return
-    
+
   end subroutine hij_dftmrci_batch
 
 !######################################################################
@@ -1797,8 +1805,8 @@ contains
 
 !----------------------------------------------------------------------
 ! Parameter values
-! hpar(1)=pJ_SR, hpar(2)=pJ_LR, hpar(3)=pF_SR, hpar(4)=pF_LR,
-! hpar(5)=p1,    hpar(6)=p2,     hpar(7)=n
+! hpar(1)=pJ_SR, hpar(2)=pJ_LR, hpar(3)=pF_SR,  hpar(4)=pF_LR,
+! hpar(5)=p1_LR, hpar(6)=p1,    hpar(7)=p2,      hpar(8)=n
 !----------------------------------------------------------------------
     pJSR = hpar(1)
     pJLR = hpar(2)
@@ -1839,10 +1847,10 @@ contains
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
           if (i == j .and. abs(Dwi) == 2) then
-             Viijj_eff=pJSR*Vc(i1,i1)+dJLR*bitci_ints%j_lr(i1,i1)
+             Viijj_eff=pJSR*Vc(i1,i1)+dJLR*Vc_lr(i1,i1)
              contrib=contrib-Viijj_eff
           else if (i /= j) then
-             Viijj_eff=pJSR*Vc(i1,j1)+dJLR*bitci_ints%j_lr(i1,j1)
+             Viijj_eff=pJSR*Vc(i1,j1)+dJLR*Vc_lr(i1,j1)
              contrib=contrib-Viijj_eff*Dwi*Dwj
           endif
        enddo
@@ -1854,7 +1862,7 @@ contains
     do i=1,ndiff
        i1=m2c(Dw(i,1))
        if (iopen0(i1) == 0) cycle
-       Viijj_eff=pJSR*Vc(i1,i1)+dJLR*bitci_ints%j_lr(i1,i1)
+       Viijj_eff=pJSR*Vc(i1,i1)+dJLR*Vc_lr(i1,i1)
        contrib=contrib-0.5d0*Viijj_eff
     enddo
 
@@ -1869,7 +1877,7 @@ contains
        do j=ipos,ndiff
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
-          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*symvx_lr(i1,j1)
           contrib=contrib+0.5d0*Vijji_eff*Dwi*Dwj
        enddo
     enddo
@@ -1894,7 +1902,7 @@ contains
           if (degen_orbs(i1) == j1) cycle
           pattern=pattern_index_case2b(sop,ic,ja,nbefore(ic),&
                nbefore(ja),nopen)
-          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*symvx_lr(i1,j1)
           start=pattern
           do omega=1,nsp
              product=dot_product(&
@@ -1918,7 +1926,7 @@ contains
           if (i == j) cycle
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
-          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*symvx_lr(i1,j1)
           contrib=contrib+0.5d0*Vijji_eff*abs(Dwj)
        enddo
     enddo
@@ -1935,7 +1943,7 @@ contains
           if (i == j) cycle
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
-          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*bitci_ints%v_lr(i1,j1)
+          Vijji_eff = pFSR*symvx(i1,j1) + dFLR*symvx_lr(i1,j1)
           contrib=contrib+0.5d0*Vijji_eff*abs(Dwj)
        enddo
     enddo
@@ -3452,8 +3460,7 @@ contains
   end function damping_qe8
 
 !######################################################################
-! damping_rc: RC DFT/MRCI damping. Same functional form as QE8 but
-!             p1=hpar(4), p2=hpar(5), n=hpar(6).
+! damping_rc: RC DFT/MRCI SR off-diagonal damping. p1=hpar(6), p2=hpar(7), n=hpar(8).
 !######################################################################
   function damping_rc(av1,av2) result(func)
 
@@ -3467,12 +3474,34 @@ contains
     real(dp), intent(in) :: av1,av2
     real(dp)             :: DEp3
 
-    DEp3=abs(av1-av2)**hpar(7)
-    func=hpar(5)*exp(-hpar(6)*DEp3)
+    DEp3=abs(av1-av2)**hpar(8)
+    func=hpar(6)*exp(-hpar(7)*DEp3)
 
     return
 
   end function damping_rc
+
+!######################################################################
+! damping_rc_lr: RC DFT/MRCI LR off-diagonal damping. p1_LR=hpar(5), p2=hpar(7), n=hpar(8).
+!######################################################################
+  function damping_rc_lr(av1,av2) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+
+    implicit none
+
+    real(dp)             :: func
+    real(dp), intent(in) :: av1,av2
+    real(dp)             :: DEp3
+
+    DEp3=abs(av1-av2)**hpar(8)
+    func=hpar(5)*exp(-hpar(7)*DEp3)
+
+    return
+
+  end function damping_rc_lr
 
 !######################################################################
 ! damping_r2022: for two CSF-averaged on-diagonal matrix element
@@ -3588,6 +3617,40 @@ contains
     return
 
   end function symvx
+
+!######################################################################
+! symvx_lr: LR exchange integral V_pqqp^LR averaged over degenerate
+!           partners of p and/or q. Mirrors symvx but uses Vx_lr.
+!######################################################################
+  function symvx_lr(p, q) result(val)
+
+    use constants
+    use bitglobal
+
+    implicit none
+
+    integer(is), intent(in) :: p, q
+    real(dp)                :: val
+    integer(is)             :: ip, jq
+
+    ip = degen_orbs(p)
+    jq = degen_orbs(q)
+
+    if (ip == 0 .and. jq == 0) then
+       val = Vx_lr(p, q)
+    else if (ip == q) then
+       val = Vx_lr(p, q)
+    else if (ip /= 0 .and. jq == 0) then
+       val = 0.5d0 * (Vx_lr(p, q) + Vx_lr(ip, q))
+    else if (ip == 0 .and. jq /= 0) then
+       val = 0.5d0 * (Vx_lr(p, q) + Vx_lr(p, jq))
+    else
+       val = 0.5d0 * (Vx_lr(p, q) + Vx_lr(ip, q))
+    end if
+
+    return
+
+  end function symvx_lr
 
 !######################################################################
 

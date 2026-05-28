@@ -26,17 +26,16 @@ class Ao2mo:
     """Class constructor for ao2mo object"""
 
     def __init__(self):
-        self.precision_2e = 'single'
-        self.moint_2e_eri = None
-        self.moint_1e     = None
-        self.moint_v_lr   = None
-        self.moint_j_lr   = None
-        self.nmo          = None
-        self.emo          = None
-        self.mosym        = None
-        self.emo_cut      = None
-        self.orbs         = None
-        self.label        = 'default'
+        self.precision_2e    = 'single'
+        self.moint_2e_eri    = None
+        self.moint_2e_eri_lr = None
+        self.moint_1e        = None
+        self.nmo             = None
+        self.emo             = None
+        self.mosym           = None
+        self.emo_cut         = None
+        self.orbs            = None
+        self.label           = 'default'
         self.allowed_precision = ['single', 'double']
 
     @timing.timed
@@ -87,10 +86,10 @@ class Ao2mo:
                                                  self.moint_2e_eri)
         del(eri_mo)
 
-        # Compute LR exchange integrals for RSH functionals
+        # Compute 3-centre LR DF integrals for RSH functionals
         omega = self._rsh_omega(scf)
         if abs(omega) > 1e-10:
-            self._compute_write_v_lr(scf, omega)
+            self._compute_write_eri_lr(scf, omega)
 
         # Construct the core Hamiltonian
         one_nuc_ao = scf.mol.pymol().intor('int1e_nuc')
@@ -120,14 +119,12 @@ class Ao2mo:
         else:
             type_str = 'exact'
 
-        vlr_file = self.moint_v_lr if (self.moint_v_lr is not None
-                                       and os.path.isfile(self.moint_v_lr)) else ''
-        jlr_file = self.moint_j_lr if (self.moint_j_lr is not None
-                                       and os.path.isfile(self.moint_j_lr)) else ''
+        eri_lr_file = self.moint_2e_eri_lr if (self.moint_2e_eri_lr is not None
+                                               and os.path.isfile(self.moint_2e_eri_lr)) else ''
 
         libs.lib_func('bitci_int_initialize',
                 ['pyscf', type_str, self.precision_2e,
-                           self.moint_1e, self.moint_2e_eri, vlr_file, jlr_file])
+                           self.moint_1e, self.moint_2e_eri, eri_lr_file])
 
         return
 
@@ -147,10 +144,9 @@ class Ao2mo:
         self.mosym   = scf.orb_sym[:self.nmo]
 
         # set default file names
-        self.moint_2e_eri = '2e_eri_'+str(scf.label).strip()+'.h5'
-        self.moint_1e     = '1e_'+str(scf.label).strip()+'.h5'
-        self.moint_v_lr   = 'v_lr_'+str(scf.label).strip()+'.bin'
-        self.moint_j_lr   = 'j_lr_'+str(scf.label).strip()+'.bin'
+        self.moint_2e_eri    = '2e_eri_'+str(scf.label).strip()+'.h5'
+        self.moint_2e_eri_lr = '2e_eri_lr_'+str(scf.label).strip()+'.bin'
+        self.moint_1e        = '1e_'+str(scf.label).strip()+'.h5'
 
         return
 
@@ -234,45 +230,24 @@ class Ao2mo:
             omega = 0.0
         return float(omega)
 
-    def _compute_write_v_lr(self, scf, omega):
-        """Compute and write LR exchange K_LR(i,j) and LR Coulomb J_LR(i,j)."""
-        import h5py
+    def _compute_write_eri_lr(self, scf, omega):
+        """Compute and write 3-centre LR DF integrals B_P^{ij} (shape naux x n_ij)."""
 
-        nmo      = self.nmo
-        mo       = self.orbs          # already truncated to nmo
+        mo       = self.orbs
         mol      = scf.mol.pymol()
         auxbasis = scf.mol.ri_basis
 
-        # 3-centre LR integrals using DF with erf(ω r)/r operator
         ij_trans = np.concatenate(([mo], [mo]))
         with mol.with_range_coulomb(omega):
-            df.outcore.general(mol, ij_trans, '_tmp_v_lr',
+            df.outcore.general(mol, ij_trans, '_tmp_eri_lr',
                                auxbasis=auxbasis, dataname='eri_mo',
                                verbose=0)
 
-        with h5py.File('_tmp_v_lr', 'r') as f:
+        with h5py.File('_tmp_eri_lr', 'r') as f:
             b_lr = np.array(f['eri_mo'])   # shape (naux, n_ij), n_ij=nmo*(nmo+1)//2
-        os.remove('_tmp_v_lr')
+        os.remove('_tmp_eri_lr')
 
-        naux = b_lr.shape[0]
-
-        # Unpack packed upper-triangle to full (naux, nmo, nmo)
-        b_full = np.zeros((naux, nmo, nmo))
-        idx = 0
-        for i in range(nmo):
-            for j in range(i + 1):
-                b_full[:, i, j] = b_lr[:, idx]
-                b_full[:, j, i] = b_lr[:, idx]
-                idx += 1
-
-        # LR exchange: K_LR(i,j) = Σ_P B_P^(ij) B_P^(ij)
-        v_lr = np.einsum('Pij,Pij->ij', b_full, b_full)
-        self.write_integrals(v_lr, 'double', self.moint_v_lr)
-
-        # LR Coulomb: J_LR(i,j) = Σ_P B_P^(ii) B_P^(jj)
-        b_diag = b_full[:, np.arange(nmo), np.arange(nmo)]  # (naux, nmo)
-        j_lr   = np.einsum('Pi,Pj->ij', b_diag, b_diag)
-        self.write_integrals(j_lr, 'double', self.moint_j_lr)
+        self.write_integrals(b_lr, 'double', self.moint_2e_eri_lr)
         return
 
 

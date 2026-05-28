@@ -38,6 +38,8 @@ subroutine bitci_finalise()
   if (allocated(fock))      deallocate(fock)
   if (allocated(Vc))        deallocate(Vc)
   if (allocated(Vx))        deallocate(Vx)
+  if (allocated(Vc_lr))     deallocate(Vc_lr)
+  if (allocated(Vx_lr))     deallocate(Vx_lr)
   if (allocated(hpar))      deallocate(hpar)
 
   !

@@ -212,7 +212,8 @@ contains
     use bitglobal
     use mrci_integrals
     use dftmrci
-    
+    use hparam
+
     implicit none
 
     ! Array of off-diagonal matrix elements
@@ -221,7 +222,7 @@ contains
 
     ! Bra and ket configuration indices
     integer(is), intent(in) :: bconf,kconf
-    
+
     ! Excitation degree
     integer(is), intent(in) :: nexci
 
@@ -230,7 +231,7 @@ contains
 
     ! Number of bra and ket CSFs
     integer(is), intent(in) :: bnsp,knsp
-    
+
     ! Number of open shells in the bra and ket configurations
     integer(is), intent(in) :: bnopen,knopen
 
@@ -246,32 +247,34 @@ contains
 
     ! Number of open shells preceding each MO
     integer(is), intent(in) :: nbefore(nmo)
-    
+
     ! Difference configuration information
     integer(is),intent(in)  :: ndiff
     integer(is),intent(in)  :: Dw(nmo,2)
-    
+
     ! CSF offsets
     integer(is), intent(in) :: kdim,bdim
     integer(is), intent(in) :: bcsfs(bdim),kcsfs(kdim)
 
     ! Bra and ket spin-coupling averaged Hii values
     real(dp), intent(in)    :: bavii,kavii
-    
+
     ! Spin-coupling sub-case bitsting encodings
     integer(ib)             :: pairindx(nmo)
     integer(ib)             :: icase
-    
+
     ! Pattern indices
     integer(is)             :: bpattern(nmo+1),kpattern(nmo+1)
 
     ! No. CSFs for the intermediate configuration in the spin-coupling
     ! coefficients <w' omega'|E_i^j E_k^l|w omega>
     integer(is)             :: insp(nmo)
-    
-    ! Integrals
-    real(dp)                :: Vpqrs(nmo)
-    
+
+    ! Integrals (full) and LR integrals (ihamiltonian=18 only)
+    real(dp)                   :: Vpqrs(nmo)
+    real(dp)                   :: Vpqrs_lr(nmo)
+    real(dp), allocatable      :: harr_lr(:)
+
 !*********************************************************************
 ! Note that here the lists of holes/particles are the indices of the
 ! annihilation/creation operators operating on the ket configuration
@@ -282,7 +285,7 @@ contains
 ! Initialisation
 !----------------------------------------------------------------------
     harr(1:bnsp*knsp)=0.0d0
-    
+
 !----------------------------------------------------------------------
 ! Fill the integrals, pattern index, and pair index arrays
 !----------------------------------------------------------------------
@@ -311,15 +314,52 @@ contains
             kpattern(1:2),Vpqrs(1:2),plist(1:2),hlist(1:2),harr,&
             harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp(1:2))
     end select
-    
+
+!----------------------------------------------------------------------
+! LR matrix elements for ihamiltonian=18 (rc_dftmrci)
+!----------------------------------------------------------------------
+    if (ihamiltonian == 18) then
+       allocate(harr_lr(harrdim))
+
+       select case(nexci)
+       case(1)
+          call package_integrals_nexci1_lr(bsop,ksop,hlist(1),plist(1),&
+               bnopen,knopen,bpattern,kpattern,Vpqrs_lr,m2c,socc,nsocc,&
+               nbefore,Dw,ndiff,icase,insp)
+       case(2)
+          call package_integrals_nexci2_lr(bsop,ksop,hlist(1:2),plist(1:2),&
+               bnopen,knopen,bpattern(1:2),kpattern(1:2),Vpqrs_lr(1:2),m2c,&
+               nbefore,insp(1:2))
+       end select
+
+       harr_lr(1:bnsp*knsp)=0.0d0
+       select case(nexci)
+       case(1)
+          call hij_single_mrci_batch(bnopen,knopen,bpattern,kpattern,&
+               Vpqrs_lr,socc,nsocc,ndiff,hlist(1),plist(1),harr_lr,harrdim,&
+               bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp)
+       case(2)
+          call hij_double_mrci_batch(bnopen,knopen,bpattern(1:2),&
+               kpattern(1:2),Vpqrs_lr(1:2),plist(1:2),hlist(1:2),harr_lr,&
+               harrdim,bcsfs,kcsfs,bdim,kdim,bconf,kconf,insp(1:2))
+       end select
+    endif
+
 !----------------------------------------------------------------------
 ! DFT/MRCI corrections
 !----------------------------------------------------------------------
-    if (ldftmrci) call hij_dftmrci_batch(harr(1:bnsp*knsp),bnsp,&
-         knsp,bavii,kavii)
+    if (ldftmrci) then
+       if (ihamiltonian == 18) then
+          call hij_dftmrci_batch(harr(1:bnsp*knsp),bnsp,knsp,bavii,kavii,&
+               harr_lr(1:bnsp*knsp))
+          deallocate(harr_lr)
+       else
+          call hij_dftmrci_batch(harr(1:bnsp*knsp),bnsp,knsp,bavii,kavii)
+       endif
+    endif
 
     return
-    
+
   end subroutine hij_mrci
   
 !######################################################################

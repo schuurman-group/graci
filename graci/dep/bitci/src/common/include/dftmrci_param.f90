@@ -221,12 +221,13 @@ module hparam
 ! *** Preliminary parameters: initialized to QE8 values ***
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(7) :: rc_dftmrci_p= &
+  real(dp), parameter, dimension(8) :: rc_dftmrci_p= &
        [0.425623d0, & ! pJ_SR
        0.425623d0, &  ! pJ_LR
        0.252259d0, &  ! pF_SR
        0.252259d0, &  ! pF_LR
-       0.692173d0, &  ! p1
+       1.0d0,      &  ! p1_LR (LR off-diagonal pre-factor)
+       0.692173d0, &  ! p1    (SR off-diagonal pre-factor)
        4.611269d0, &  ! p2
        8.0d0]         ! n
 
@@ -412,7 +413,7 @@ contains
     case(18)
        ! RC DFT/MRCI: range-corrected exchange and Coulomb with separate SR/LR scaling
        ldftmrci=.true.
-       nhpar=7
+       nhpar=8
        allocate(hpar(nhpar))
        hpar=rc_dftmrci_p
        desel=1.0d0
