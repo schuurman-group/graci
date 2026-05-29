@@ -25,6 +25,7 @@ contains
     use conftype
     use pt2_common
     use iomod
+    use omp_lib
 
     implicit none
 
@@ -63,9 +64,9 @@ contains
     integer(is), allocatable        :: iroots(:)
     real(dp), allocatable           :: e0(:),vec0(:,:)
 
-    ! Temporary Hij array
-    integer(is)                     :: harr2dim
-    real(dp), allocatable           :: harr2(:)
+    ! Per-thread Hij working array (column per OpenMP thread)
+    integer(is)                     :: harr2dim,nthreads
+    real(dp), allocatable           :: harr2(:,:)
 
     ! I/O
     integer(is)                     :: iscratch
@@ -91,9 +92,10 @@ contains
     iroots=0
     vec0=0.0d0
 
-    ! Hij working array
-    harr2dim=maxval(ncsfs(0:nomax))**2    
-    allocate(harr2(harr2dim))
+    ! Shared per-thread Hij working array
+    harr2dim=maxval(ncsfs(0:nomax))**2
+    nthreads=omp_get_max_threads()
+    allocate(harr2(harr2dim,nthreads))
 
 !----------------------------------------------------------------------
 ! Reference space eigenpairs
@@ -116,13 +118,13 @@ contains
 ! (1) 1-hole configurations -> 1I and 1E configurations
 !----------------------------------------------------------------------
     call avec_1h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots,&
-         harr2,harr2dim)
-    
+         harr2,harr2dim,nthreads)
+
 !----------------------------------------------------------------------
 ! (2)  2-hole configurations -> 2I, 2E and 1I1E configurations
 !----------------------------------------------------------------------
     call avec_2h(cfg,Avec,averageii,vec0,csfdim,confdim,refdim,nroots,&
-         harr2,harr2dim)
+         harr2,harr2dim,nthreads)
     
 !----------------------------------------------------------------------
 ! Divide by (H_nn - E^0_I)
@@ -147,7 +149,7 @@ contains
     deallocate(harr2)
 
     return
-    
+
   end subroutine enpt2
     
 !######################################################################

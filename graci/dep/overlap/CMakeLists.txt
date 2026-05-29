@@ -35,7 +35,7 @@ endif()
 #
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   set(dialect "-g -O3 -fbacktrace -cpp -ffree-form -fimplicit-none \
-               -mavx -lblas -llapack")
+               -mavx -fopenmp -lblas -llapack")
   set(bounds "-fbounds-check")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
@@ -43,6 +43,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
                -mkl -qopenmp -xhost -auto -ipo -qopt-prefetch \
                -check noarg_temp_created")
   set(bounds "-check bounds")
+  add_definitions(-DUSE_MKL)
 endif()
 
 list(APPEND CMAKE_Fortran_FLAGS_DEBUG ${bounds})
