@@ -3496,8 +3496,10 @@ contains
     real(dp), intent(in) :: av1,av2
     real(dp)             :: DEp3
 
+    ! just scale, not damp
     DEp3=abs(av1-av2)**hpar(8)
-    func=hpar(5)*exp(-hpar(7)*DEp3)
+    !func=hpar(5)*exp(-hpar(7)*DEp3)
+    func = hpar(5)
 
     return
 
