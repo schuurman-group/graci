@@ -266,7 +266,6 @@ class Spinorbit(interaction.Interaction):
         nao   = pymol.nao_nr()
         # No. MOs
         nmo   = self.mos.shape[1]
-        print('nmo='+str(nmo))
 
         # get the MF density matrix
         rho_ao = self.build_rho()
@@ -299,7 +298,7 @@ class Spinorbit(interaction.Interaction):
             #h2_ao  = 1.0*np.einsum("ipqrs,rs->ipq", h2e_ao, rho_ao) 
             #h2_ao -= 1.5*np.einsum("ipsrq,rs->ipq", h2e_ao, rho_ao)
             #h2_ao -= 1.5*np.einsum("irqps,rs->ipq", h2e_ao, rho_ao)
-            h2_ao  = 1.0*np.einsum("ipqrs,rs->ipq", h2e_ao, rho_ao) 
+            h2_ao  = 1.0*np.einsum("ipqrs,rs->ipq", h2e_ao, rho_ao)
             h2_ao -= 1.5*np.einsum("iprsq,rs->ipq", h2e_ao, rho_ao)
             h2_ao -= 1.5*np.einsum("isqpr,rs->ipq", h2e_ao, rho_ao)
 
@@ -519,33 +518,6 @@ class Spinorbit(interaction.Interaction):
 
         return hsoc
 
-    #
-    @timing.timed
-    def contract_redmat(self, h1e, S_bra, S_ket, M_bra, M_ket,
-                        cg_coef, redmat):
-        """
-        Computes a single element 
-        < I_bra M_bra | H_SOC | I_ket M_ket >
-        of the SOC Hamiltonian matrix via the contraction
-        of the reduced matrices with the Clebsch-Gordan coefficient-
-        scaled one-electron SOC matrices h^(k), k=-1,0,+1
-        """
-
-        # Sum of the scaled one-electron SOC matrices
-        nmo    = self.mos.shape[1]
-        hscale = np.zeros((nmo, nmo), dtype=np.cdouble)
-        kval   = [-1, 0, 1]
-        coe    = [1., np.sqrt(2.), -1.]
-        for n in range(3):
-            i, i12  = mrci_soc.clebsch_gordan_index(
-                                      S_bra, M_bra,
-                                      S_ket, M_ket, kval[n])
-            hscale += h1e[2-n, :, :] * cg_coef[i12, i] * coe[n]
-
-        # Contraction with the reduced matrix
-        hij = 0.5 * np.einsum('ij,ij', redmat, hscale)
-
-        return hij
 
     #
     def hsoc_ondiag(self, dim):
