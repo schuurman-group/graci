@@ -45,6 +45,11 @@ class Dftmrci2(cimethod.Cimethod):
         self.refiter         = 3
         self.ref_sci         = False
         self.ref_prune       = True
+        # N.B. these are no longer user keywords. Diabatisation is driven
+        # by a $pbdd section, which owns the chain and sets them on the
+        # per-geometry copies it makes. Setting them by hand would also
+        # leak the previous geometry's determinant expansions, whose
+        # lifetime Pbdd now manages.
         self.diabatic        = False
         self.adt_type        = 'qdpt'
         self.propagate_mos   = True
@@ -302,13 +307,12 @@ class Dftmrci2(cimethod.Cimethod):
                 
                 mrci_wf.extract_wf(self, rep='diabatic')
 
-            # temporary: delete the previous geometry wave functions
-            # now that they are no longer needed
-            # this will be moved to the diabatisation class once it
-            # has been written
-            for key in guess.det_strings.keys():
-                guess.det_strings[key] = None
-                guess.vec_det[key]     = None
+            # N.B. the previous geometry's wave functions used to be
+            # released here. That is now the business of the object
+            # driving the chain, which is the only thing that knows when
+            # they are no longer needed: Pbdd.walk_chain frees them once
+            # the next point has been run *and* the chain diagnostics
+            # have been computed from them.
 
             # output the diabatic potentials
             if self.verbose:

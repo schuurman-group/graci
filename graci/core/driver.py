@@ -332,7 +332,12 @@ class Driver:
         """
 
         if type(run_obj).__name__ in params.postci_objs:
-            lbls = list(run_obj.couple_groups)
+            # most postci objects couple a group of ci objects; Pbdd takes
+            # a single reference calculation
+            if hasattr(run_obj, 'reference'):
+                lbls = [run_obj.reference]
+            else:
+                lbls = list(run_obj.couple_groups)
         elif type(run_obj).__name__ in params.si_objs:
             if hasattr(run_obj, 'final_label'):
                 lbls = [run_obj.final_label, run_obj.init_label]

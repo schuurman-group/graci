@@ -14,6 +14,7 @@ import graci.core.molecule as molecule
 import graci.core.scf as scf
 import graci.core.bitciwfn as bitciwfn
 import graci.tools.parameterize as parameterize
+import graci.tools.pbdd as pbdd
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
 import graci.properties.moments as moments

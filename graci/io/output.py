@@ -554,6 +554,146 @@ def print_spinorbit_header(label):
 
     return
 
+def print_pbdd_header(label, reference):
+    """ print out Pbdd section header"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'Pbdd, label = '+str(label)+', reference = '+str(reference)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN)+'\n')
+        outfile.flush()
+
+    return
+
+def print_pbdd_modes(point_group, freqs, labels, program_labels=None):
+    """print the normal modes and their symmetries.
+
+       The point group and the mode symmetries are always printed: Mulliken
+       labels depend on the orientation, and these are assigned in the
+       reference calculation's frame rather than the frequency program's.
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Normal modes, classified in the point group of '
+                      'the reference calculation\n')
+        outfile.write(' Point group: '+str(point_group).upper()+'\n\n')
+
+        hdr = '   mode      freq (eV)   symmetry'
+        if program_labels is not None:
+            hdr += '   as printed by the frequency program'
+        outfile.write(hdr+'\n')
+        outfile.write(' '+'-'*(len(hdr)+1)+'\n')
+
+        for i in range(len(freqs)):
+            line = '   %4d     %10.5f   %-8s' % (i+1, freqs[i], labels[i])
+            if program_labels is not None:
+                line += '   %s' % (program_labels[i])
+            outfile.write(line+'\n')
+
+        outfile.flush()
+
+    return
+
+def print_pbdd_fit(model, data):
+    """print the fitted vibronic model's residuals"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Vibronic coupling Hamiltonian fitted\n\n')
+        outfile.write('   states           %6d\n' % (model.nsta))
+        outfile.write('   modes            %6d\n' % (model.nmodes))
+        outfile.write('   expansion order  %6d\n' % (model.order))
+        outfile.write('   ab initio points %6d\n' % (data.diabpot.shape[2]))
+        outfile.write('   rmsd             %12.6e eV\n' % (model.rmsd))
+        outfile.flush()
+
+    return
+
+def print_pbdd_state_syms(irreps, irreplbl, smin):
+    """report the state symmetries assigned to a chain
+
+       The chains run in C1, so these come from the reference calculation
+       by wave function overlap rather than from the chain itself.
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n State symmetries, mapped from the reference '
+                      'calculation by wave function overlap\n')
+        outfile.write(' Smallest overlap relied on: %7.5f\n\n' % (smin))
+        outfile.write('   state   symmetry\n')
+        outfile.write(' '+'-'*20+'\n')
+        for i in range(len(irreps)):
+            outfile.write('   %4d    %s\n' % (i+1, irreplbl[irreps[i]]))
+        outfile.write('\n')
+        outfile.flush()
+
+    return
+
+def print_pbdd_refcheck(stem, dev, tol):
+    """report how closely point 0 of a chain reproduces the reference
+
+       The two sit at the same geometry but the reference runs with
+       symmetry and the chain in C1, so their reference spaces are
+       selected differently and exact agreement is not expected.
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('   %-10s point   0   reproduces the reference '
+                      'states to %9.2e Hartree (tolerance %7.1e)\n'
+                      % (stem, dev, tol))
+        outfile.flush()
+
+    return
+
+def print_pbdd_step(stem, ipoint, sdiag, ssvd, sdet, warn):
+    """report the wave function overlap diagnostics for one step of a chain
+
+       The ADT is built as S^-1 (S S^T)^1/2, which yields a well-formed
+       matrix from a badly conditioned overlap, so a chain that has lost
+       track of its states does not otherwise announce itself.
+
+       Only the singular measures trigger a warning. A small min|S_ii| on
+       its own means the adiabatic states have exchanged between the two
+       geometries, which is routine and is what the diabatisation is for.
+    """
+
+    flag = ''
+    if warn is not None and (ssvd < warn or sdet < warn):
+        flag = '   <-- state space not preserved'
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('   %-10s point %3d   min|S_ii| = %7.5f'
+                      '   min svd = %7.5f   |det S| = %7.5f%s\n'
+                      % (stem, ipoint, sdiag, ssvd, sdet, flag))
+        outfile.flush()
+
+    return
+
+def print_pbdd_summary(diabpot):
+    """print a summary of the harvested diabatic potentials"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Diabatic potentials harvested\n\n')
+        outfile.write('   chain          states   geometries\n')
+        outfile.write(' '+'-'*40+'\n')
+
+        for stem in sorted(diabpot.keys()):
+            shape = diabpot[stem].shape
+            outfile.write('   %-14s %4d   %8d\n'
+                          % (stem, shape[0], shape[2]))
+
+        outfile.flush()
+
+    return
+
 def print_spinorbit_table(hsoc, hdim, stlbl, socc, thrsh):
     """print out the summary files for the SOC matrix elements"""
 

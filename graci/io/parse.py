@@ -13,6 +13,7 @@ import graci.utils.rydano as rydano
 import graci.core.molecule as molecule
 import graci.core.scf as scf
 import graci.tools.parameterize as parameterize
+import graci.tools.pbdd as pbdd
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
 import graci.interaction.transition as transition
@@ -41,6 +42,13 @@ def parse_input():
         # parse all section keywords
         run_list.extend(parse_section(obj_name, 
                                       input_file))
+
+    # validate any pbdd sections before replication: a Pbdd reference must
+    # be a single-geometry calculation, so it has to be checked against the
+    # sections as the user wrote them
+    for obj in run_list:
+        if type(obj).__name__ == 'Pbdd':
+            check_pbdd(obj, run_list)
 
     # check for multiple-geometry molecule sections
     # and create all required replicate class objects
@@ -396,7 +404,150 @@ def check_input(run_list):
             # shift statesby 1 to internal/C ordering
             obj.bra_states -= 1
             obj.ket_states -= 1
-            
+
+    return
+
+#
+def check_pbdd(obj, run_list):
+    """Validate a Pbdd section. Everything here is checked at parse time
+       rather than at run time: the fit happens after every CI calculation
+       has run, and a keyword error discovered there is expensive.
+
+    Arguments:
+      obj:      the Pbdd object
+      run_list: all parsed objects, used to resolve the reference label
+
+    Returns:
+      None
+    """
+
+    err = '\n ERROR: Pbdd section, label = '+str(obj.label)+'\n '
+
+    # the reference calculation
+    # ---------------------------------------------------------------
+    if obj.reference is None:
+        sys.exit(err+'a reference keyword is required')
+
+    ref_obj = None
+    for chk_obj in run_list:
+        if type(chk_obj).__name__ in params.ci_objs \
+                and chk_obj.label == obj.reference:
+            ref_obj = chk_obj
+            break
+
+    if ref_obj is None:
+        sys.exit(err+'reference = '+str(obj.reference)+' does not match '
+                 'any ci section')
+
+    # diabatisation of any kind is a DFT/MRCI(2) feature: dftmrci
+    # implements neither the BDD nor the QDPT interface
+    if type(ref_obj).__name__ != 'Dftmrci2':
+        sys.exit(err+'reference = '+str(obj.reference)+' is a '
+                 +str(type(ref_obj).__name__)+' section, but Pbdd requires '
+                 'a dftmrci2 reference')
+
+    # Pbdd generates its own geometries, so the reference molecule must be
+    # a single structure
+    scf_obj = None
+    for chk_obj in run_list:
+        if type(chk_obj).__name__ == 'Scf' \
+                and chk_obj.label == ref_obj.scf_label:
+            scf_obj = chk_obj
+            break
+
+    if scf_obj is not None:
+        for chk_obj in run_list:
+            if type(chk_obj).__name__ == 'Molecule' \
+                    and chk_obj.label == scf_obj.mol_label \
+                    and chk_obj.multi_geom:
+                sys.exit(err+'the reference molecule section holds multiple '
+                         'geometries; Pbdd requires a single reference '
+                         'structure')
+
+    # run mode
+    # ---------------------------------------------------------------
+    if obj.hessian_file is not None and obj.path_file is not None:
+        sys.exit(err+'hessian_file and path_file are mutually exclusive')
+
+    if obj.hessian_file is None and obj.path_file is None:
+        sys.exit(err+'one of hessian_file or path_file is required')
+
+    # the cut and fit keywords have no meaning without normal modes
+    if not obj.hessian_mode():
+        default = pbdd.Pbdd()
+        hess_only = ['cut_scheme', 'stepsize', 'npoints', 'diag_order',
+                     'offdiag_order', 'weight', 'reexpand', 'blocks',
+                     'blockdiag_algorithm', 'cartgrad', 'point_group',
+                     'op_file', 'sop_file', 'opstates']
+        for kword in hess_only:
+            if not np.array_equal(getattr(obj, kword),
+                                  getattr(default, kword)):
+                sys.exit(err+kword+' requires hessian_file: a path_file run '
+                         'has no normal modes, so it produces diabatic '
+                         'potentials and no fit')
+
+    # multiple-choice keywords
+    # ---------------------------------------------------------------
+    choices = [('adt_type',            obj.allowed_adt_type),
+               ('cut_scheme',          obj.allowed_cut_scheme),
+               ('blockdiag_algorithm', obj.allowed_blockdiag)]
+
+    for kword, allowed in choices:
+        if str(getattr(obj, kword)).lower() not in allowed:
+            sys.exit(err+'unrecognised '+kword+': '
+                     +str(getattr(obj, kword))+'\n allowed values: '
+                     +str(allowed))
+        setattr(obj, kword, str(getattr(obj, kword)).lower())
+
+    # expansion orders
+    # ---------------------------------------------------------------
+    for kword in ['diag_order', 'offdiag_order']:
+        order = getattr(obj, kword)
+
+        # a scalar sets the one-mode order and requests no two-mode terms
+        if isinstance(order, (int, np.integer)):
+            order = [int(order), 0]
+
+        order = [int(n) for n in order]
+
+        if len(order) != 2:
+            sys.exit(err+kword+' takes [one-mode order, two-mode order], '
+                     'got '+str(order))
+
+        if order[0] < 1:
+            sys.exit(err+kword+': the one-mode order must be at least 1')
+
+        # a term linear in two modes is a one-mode term, so an order of 1
+        # requests nothing that an order of 0 does not
+        if order[1] == 1:
+            order[1] = 0
+
+        # anything above the bilinear term is not determined by the cut
+        # schemes: the 2-mode cuts sample only the line Q_a = Q_b, where
+        # terms of equal total degree are indistinguishable
+        if order[1] not in [0, obj.max_twomode_order]:
+            sys.exit(err+kword+': the two-mode order must be 0 or '
+                     +str(obj.max_twomode_order)+', got '+str(order[1])+
+                     '\n the 2-mode cuts displace both modes equally, so '
+                     'they sample only the line Q_a = Q_b, where terms of '
+                     'equal total degree are indistinguishable. Only the '
+                     'bilinear term is determined by that data.')
+
+        setattr(obj, kword, np.array(order, dtype=int))
+
+    # array-valued keywords
+    # ---------------------------------------------------------------
+    # N.B. state and irrep indices are passed to BDDpy untouched, and BDDpy
+    # numbers states from 1. They are deliberately not shifted to GRaCI's
+    # internal 0-based ordering here.
+    for kword in ['state_irreps', 'opstates']:
+        value = getattr(obj, kword)
+        if value is not None and not isinstance(value, (list, np.ndarray)):
+            setattr(obj, kword, np.array([value], dtype=int))
+
+    if obj.blocks is not None and not isinstance(obj.blocks, list):
+        obj.blocks = [obj.blocks]
+
     return
     
 #
@@ -526,8 +677,10 @@ def replicate_sections(run_list):
         ci_list   = [obj for obj in ci_objs
                      if obj.scf_label in scf_labels]
         ci_labels = [obj.label for obj in ci_list]
+        # N.B. not every postci object couples a group of ci objects --
+        # Pbdd takes a single reference and is never replicated
         postci_list = [obj for obj in postci_objs
-                       if any(lbl in obj.couple_groups
+                       if any(lbl in getattr(obj, 'couple_groups', [])
                               for lbl in ci_labels)]
         postci_labels = [obj.label for obj in postci_list]
         all_ci_labels = list(set(ci_labels).union(set(postci_labels)))

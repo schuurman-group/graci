@@ -110,8 +110,6 @@ dftmrci2_kword  = {'mult'           : int,
                    'ref_prune'      : bool,
                    'guess_label'    : str,
                    'precision'      : str,
-                   'diabatic'       : bool,
-                   'adt_type'       : str,
                    'propagate_mos'  : bool,
                    'norm_thresh'    : float,
                    'det_thresh'     : float,
@@ -125,6 +123,39 @@ dftmrci2_kword  = {'mult'           : int,
                    'mo_cutoff'      : float,
                    'scf_label'      : str,
                    'label'          : str}
+
+#---------------------------------------------------
+
+# propagative BDD diabatisation input keywords and data types
+# N.B. the list-valued keywords give their element type, as elsewhere in
+# this module
+pbdd_kword      = {'reference'           : str,
+                   'hessian_file'        : str,
+                   'path_file'           : str,
+                   'adt_type'            : str,
+                   'norm_thresh'         : float,
+                   'det_thresh'          : float,
+                   'overlap_warn'        : float,
+                   'cut_scheme'          : str,
+                   'stepsize'            : float,
+                   'npoints'             : int,
+                   'diag_order'          : int,
+                   'offdiag_order'       : int,
+                   'weight'              : float,
+                   'reexpand'            : int,
+                   'blocks'              : int,
+                   'blockdiag_algorithm' : str,
+                   'cartgrad'            : bool,
+                   'point_group'         : str,
+                   'state_irreps'        : int,
+                   'op_file'             : str,
+                   'sop_file'            : str,
+                   'print_potentials'    : bool,
+                   'print_couplings'     : bool,
+                   'opstates'            : int,
+                   'h5_file'             : str,
+                   'verbose'             : bool,
+                   'label'               : str}
 
 #---------------------------------------------------
 
@@ -199,7 +230,7 @@ parameterize_kword = {'label'          : str,
 # inartful.
 base_objs    = ['Molecule', 'Rydano', 'Scf', 'Parameterize']
 ci_objs      = ['Dftmrci', 'Dftmrci2']
-postci_objs  = ['Spinorbit']
+postci_objs  = ['Spinorbit', 'Pbdd']
 si_objs      = ['Transition', 'Overlap', 'Dyson']
 support_objs = ['Bitciwfn','Moments', 'Cigroup']
 valid_objs   = base_objs + ci_objs + postci_objs + si_objs
@@ -217,6 +248,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Dftmrci'      : dftmrci_kword,
           'Dftmrci2'     : dftmrci2_kword,
           'Spinorbit'    : spinorbit_kword,
+          'Pbdd'         : pbdd_kword,
           'Transition'   : transition_kword,
           'Overlap'      : overlap_kword,
           'Dyson'        : dyson_kword}
