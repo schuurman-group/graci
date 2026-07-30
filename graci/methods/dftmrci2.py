@@ -286,8 +286,9 @@ class Dftmrci2(cimethod.Cimethod):
         if self.diabatic:
             if self.adt_type == 'bdd':
                 # block diagonalisation diabatisation
-                adt_matrices = bdd.adt(guess, self)
-                self.adt     = adt_matrices
+                adt_matrices, smatrices = bdd.adt(guess, self)
+                self.adt        = adt_matrices
+                self.chain_smat = smatrices
                 self.diabatize()
             elif self.adt_type == 'qdpt':                
                 # QDPT diabatisation

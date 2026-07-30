@@ -129,33 +129,31 @@ dftmrci2_kword  = {'mult'           : int,
 # propagative BDD diabatisation input keywords and data types
 # N.B. the list-valued keywords give their element type, as elsewhere in
 # this module
-pbdd_kword      = {'reference'           : str,
+pbdd_kword      = {'job_type'            : str,
+                   'reference'           : str,
+                   'reference_file'      : str,
                    'hessian_file'        : str,
-                   'path_file'           : str,
                    'adt_type'            : str,
                    'norm_thresh'         : float,
                    'det_thresh'          : float,
-                   'overlap_warn'        : float,
                    'cut_scheme'          : str,
                    'stepsize'            : float,
                    'npoints'             : int,
-                   'diag_order'          : int,
-                   'offdiag_order'       : int,
-                   'weight'              : float,
-                   'reexpand'            : int,
-                   'blocks'              : int,
-                   'blockdiag_algorithm' : str,
-                   'cartgrad'            : bool,
-                   'point_group'         : str,
-                   'state_irreps'        : int,
-                   'op_file'             : str,
-                   'sop_file'            : str,
-                   'print_potentials'    : bool,
-                   'print_couplings'     : bool,
-                   'opstates'            : int,
-                   'h5_file'             : str,
                    'verbose'             : bool,
                    'label'               : str}
+
+# N.B. the state symmetries are not a keyword. They are derived from the
+# reference calculation by wave function overlap, in the same frame the
+# mode symmetries are classified in. A user-asserted set could be in a
+# different frame, which is exactly the silent mismatch this design exists
+# to prevent -- if the mapping is wrong, the mapping is what needs fixing.
+#
+# N.B. everything to do with the fit -- the expansion orders, the
+# transformations, the operator files, the overlap threshold -- belongs to
+# the kdc program, not here. A $pbdd section produces diabatic potentials
+# and never an operator file, so that no one can go from an input file to a
+# Hamiltonian without having looked at a single curve. See port_plan.md
+# section 8.11.
 
 #---------------------------------------------------
 

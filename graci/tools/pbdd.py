@@ -17,11 +17,14 @@ BDDpy/docs/port_plan.md section 8.
 """
 
 import sys as sys
+import os as os
 import copy as copy
+import shutil as shutil
 import numpy as np
 
 import graci.core.params as params
 import graci.core.ao2mo as ao2mo
+import graci.core.molecule as molecule
 import graci.io.output as output
 import graci.utils.timing as timing
 import graci.utils.constants as constants
@@ -31,7 +34,7 @@ import graci.interfaces.overlap.overlap as overlap
 #
 def load_bddpy():
     """Import BDDpy, which is only needed for the parts of a Pbdd run that
-       involve normal modes. A path_file run never touches it.
+       involve normal modes. A cut job never touches it.
 
     Returns:
       the bddpy system, hessian, constants and symmetry-detection modules
@@ -73,6 +76,52 @@ def kabsch(mobile, target):
     return np.matmul(u, np.matmul(np.diag([1., 1., d]), vt))
 
 
+#
+def rebuild_system(system_data):
+    """
+    Rebuild a BDDpy System from the derived state a run recorded.
+
+    Nothing is re-derived: the modes are the symmetry-adapted ones the run
+    finished with and the irreps are read rather than reassigned, so a
+    collect step cannot reach a different model space than the run did.
+
+    Arguments:
+      system_data: the dict recorded by Pbdd.store_system
+
+    Returns:
+      the BDDpy System
+    """
+
+    bddpy_system, _, bddpy_constants, bddpy_detect = load_bddpy()
+
+    system = bddpy_system.System.from_arrays(
+        labels      = list(system_data['labels']),
+        numbers     = np.asarray(system_data['numbers']),
+        coords      = np.asarray(system_data['coords']),
+        masses      = np.asarray(system_data['masses']),
+        frequencies = np.asarray(system_data['frequencies']),
+        modes       = np.asarray(system_data['modes']),
+        source      = str(system_data.get('source', '')))
+
+    system.program_mode_labels = list(
+        system_data.get('program_mode_labels') or [])
+
+    irreps = system_data.get('mode_irreps')
+    if irreps is not None:
+        system.mode_irreps = np.asarray(irreps, dtype=int)
+
+    axes   = system_data.get('frame_axes')
+    origin = system_data.get('frame_origin')
+
+    if axes is not None:
+        system.frame = bddpy_detect.frame_from_axes(
+            str(system_data['point_group']),
+            np.asarray(axes),
+            origin = None if origin is None else np.asarray(origin))
+
+    return system
+
+
 class Pbdd:
     """Class constructor for the Pbdd object."""
     def __init__(self):
@@ -85,25 +134,48 @@ class Pbdd:
         # the reference calculation: a Dftmrci2 section label
         self.reference           = None
 
-        # run mode: exactly one of these is set
+        # generate: run the reference, derive the model space, and write
+        #           the displaced geometries and the reference checkpoint
+        # cut:      walk one chain of geometries and record what collect
+        #           needs. The geometries come from the $molecule section
+        #           and the chain is seeded from reference_file.
+        #
+        # There is no mode that does both. Fitting is gkdc's job, so no
+        # GRaCI run can produce an operator file -- see port_plan.md 8.11.
+        self.job_type            = 'generate'
         self.hessian_file        = None
-        self.path_file           = None
+
+        # a checkpoint from a generate run: supplies the derived model
+        # space and the wave functions a chain propagates from
+        self.reference_file      = None
+
+        # where generate writes the displaced geometries
+        self.geom_dir            = 'pbdd'
+
+        # which reference this run propagated from, recorded so that a
+        # collect step can refuse a set of cuts that did not share one
+        self.ref_source          = None
 
         # diabatisation
         self.adt_type            = 'qdpt'
         self.norm_thresh         = 0.999
         self.det_thresh          = 1e-6
-        # warn when min|S_ii| or det(S) along a chain falls below this
-        self.overlap_warn        = 0.7
-
         # cut generation (hessian_file mode only)
         self.cut_scheme          = '1mode'
         self.stepsize            = 0.5
         self.npoints             = 10
 
-        # the fit (hessian_file mode only)
-        # [one-mode order, two-mode order], for the on- and off-diagonal
-        # elements of the diabatic potential matrix respectively
+
+        #
+        # Private variables -- should not be directly referenced
+        #                      outside the class
+        # ------------------------------------------------------------
+        # The fit is not driven from here. A $pbdd section harvests
+        # diabatic potentials and stops; turning them into a Hamiltonian is
+        # the kdc program's job, which sets these before calling fit(). The
+        # split is deliberate: it makes it impossible to go from an input
+        # file to an operator file without having looked at the data. See
+        # port_plan.md section 8.11.
         self.diag_order          = [6, 2]
         self.offdiag_order       = [6, 2]
         self.weight              = None
@@ -111,27 +183,16 @@ class Pbdd:
         self.blocks              = None
         self.blockdiag_algorithm = 'svd'
         self.cartgrad            = False
-
-        # overrides for quantities that are otherwise derived
-        self.point_group         = None
-        self.state_irreps        = None
-
-        # output
+        self.opstates            = None
         self.op_file             = None
         self.sop_file            = None
-        self.opstates            = None
         self.h5_file             = None
-
-        # text dumps of the harvested surfaces, one file per cut, for
-        # plotting or for fitting functional forms of one's own
         self.print_potentials    = False
         self.print_couplings     = False
+        self.overlap_warn        = 0.7
 
-        #
-        # Private variables -- should not be directly referenced
-        #                      outside the class
-        # ------------------------------------------------------------
         # allowed values for the multiple-choice keywords
+        self.allowed_job_type    = ['generate', 'cut']
         self.allowed_adt_type    = ['bdd', 'qdpt']
         self.allowed_cut_scheme  = ['1mode', '2mode', '2mode_ondiag']
         self.allowed_blockdiag   = ['svd', 'invsqrt']
@@ -153,6 +214,27 @@ class Pbdd:
         self.qvec                = {}
         self.diabpot             = {}
 
+        # chain health, keyed by cut name: (ngeom, 3) of
+        # [min|S_ii|, smallest singular value of S, |det S|], with point 0
+        # NaN since it has no predecessor. Recorded, never judged here --
+        # the thresholds are applied at collect time, so revising one costs
+        # a single collect run rather than re-running every cut. See
+        # port_plan.md section 8.11.
+        self.diagnostics         = {}
+
+        # per-cut deviation of point 0 from the reference states, Hartree
+        self.refcheck            = {}
+
+        # the derived state: everything about the model space that comes
+        # from the reference calculation and the Hessian rather than from
+        # the cuts. Persisted as plain arrays so that a later collect step
+        # can rebuild the System without re-deriving it -- re-deriving
+        # would repeat the frame and symmetry decisions of section 8.4,
+        # and the mode symmetrisation can rotate modes within a degenerate
+        # block, so a second derivation is not guaranteed to agree with
+        # the first. See port_plan.md section 8.11.
+        self.system_data         = {}
+
         # state symmetries, taken from the reference calculation
         self.state_syms          = None
 
@@ -164,6 +246,12 @@ class Pbdd:
         # with the data being expanded, so it comes from the same C1
         # calculations the potentials do.
         self.q0_ener             = None
+
+        # retain each geometry's bitci scratch instead of deleting it once
+        # the chain has moved past. Only for debugging a chain that has
+        # gone wrong: a production run cannot afford it (see
+        # release_scratch)
+        self.keep_scratch        = False
 
         # largest RMSD, in Bohr, tolerated between the Hessian geometry and
         # the reference geometry once they have been aligned
@@ -195,10 +283,15 @@ class Pbdd:
         return new
 
     #
-    def hessian_mode(self):
-        """True if this is a Hessian-driven run, i.e. one that generates
-           its own cuts and fits a vibronic Hamiltonian"""
-        return self.hessian_file is not None
+    def generate_mode(self):
+        """True if this run derives the model space and writes the
+           displaced geometries"""
+        return str(self.job_type).lower() == 'generate'
+
+    #
+    def cut_mode(self):
+        """True if this run walks one chain of geometries"""
+        return str(self.job_type).lower() == 'cut'
 
     #
     def reference_frame(self, ref_obj):
@@ -350,7 +443,42 @@ class Pbdd:
 
             self.check_point_group(system, ref_obj)
 
+        self.store_system(system, ref_obj)
+
         return system
+
+    #
+    def store_system(self, system, ref_obj):
+        """
+        Record the derived state so a later step can rebuild the System.
+
+        The modes are taken *after* assign_symmetry, since symmetry
+        adaptation may have rotated them within a degenerate block; the
+        irreps are stored alongside rather than re-derived, so that
+        rebuilding cannot reach a different answer than the run did.
+        """
+
+        frame = system.frame
+
+        self.system_data = {
+            'labels'      : [str(x) for x in system.labels],
+            'numbers'     : np.asarray(system.numbers, dtype=int),
+            'coords'      : np.asarray(system.coords, dtype=float),
+            'masses'      : np.asarray(system.masses, dtype=float),
+            'frequencies' : np.asarray(system.frequencies, dtype=float),
+            'modes'       : np.asarray(system.modes, dtype=float),
+            'mode_irreps' : (np.asarray(system.mode_irreps, dtype=int)
+                             if system.mode_irreps is not None else None),
+            'point_group' : str(system.point_group),
+            'frame_axes'  : (np.asarray(frame.axes, dtype=float)
+                             if frame is not None else None),
+            'frame_origin': (np.asarray(frame.origin, dtype=float)
+                             if frame is not None else None),
+            'program_mode_labels' : [str(x) for x in
+                                     (system.program_mode_labels or [])],
+            'source'      : 'graci: '+str(self.hessian_file)}
+
+        return
 
     #
     def check_point_group(self, system, ref_obj):
@@ -375,37 +503,6 @@ class Pbdd:
                      'is '+str(found))
 
         return
-
-    #
-    def read_path(self, ref_obj):
-        """
-        Read a path_file of Cartesian geometries.
-
-        The reference geometry is always the head of the chain, so it is
-        prepended: the path file holds the displaced points only.
-
-        Returns:
-          (npoints+1, natm, 3) geometries in Angstrom
-        """
-
-        # imported here rather than at module scope: parse imports this
-        # module in order to validate a $pbdd section
-        import graci.io.parse as parse
-
-        mol = ref_obj.scf.mol.copy()
-        mol.xyz_file = self.path_file
-
-        coords = parse.parse_all_geoms(mol)
-
-        # parse_all_geoms returns the file in its own units, and a Molecule
-        # section declaring bohr means the path file is in bohr too
-        if str(mol.units).lower().startswith('b'):
-            coords = coords * constants.bohr2ang
-
-        # atom_coords is always in bohr
-        ref_crds = ref_obj.scf.mol.pymol().atom_coords() * constants.bohr2ang
-
-        return np.concatenate([ref_crds.reshape(1, -1, 3), coords], axis=0)
 
     #
     def ensure_reference_wavefunctions(self, ref_obj):
@@ -588,6 +685,136 @@ class Pbdd:
         return
 
     #
+    def release_scratch(self, ci):
+        """
+        Delete a geometry's bitci scratch files and MO integrals.
+
+        bitci gives every calculation its own scratch directory, named for
+        the object label, and the AO -> MO integrals are written per scf
+        label, so a chain of N geometries leaves N of each behind with
+        nothing reclaiming them. The old multi-step workflow was bounded
+        by one cut per process; a chain walked here is not, and on
+        C2H4/aug-cc-pVTZ this runs to about 110 MB per geometry.
+
+        Safe at the same moment the determinant expansions are dropped:
+        the diabatisation and the overlaps both read the previous
+        geometry's wave functions from memory rather than from disk, so
+        nothing reopens these files once the successor has run.
+        """
+
+        if self.keep_scratch:
+            return
+
+        # take the directories from the recorded file names rather than
+        # assuming where bitci puts them
+        dirs = set()
+
+        for wfn in [getattr(ci, 'mrci_wfn', None),
+                    getattr(ci, 'ref_wfn', None)]:
+            if wfn is None:
+                continue
+            for attr in ['conf_name', 'ci_name', 'avii_name']:
+                names = getattr(wfn, attr, None)
+                if not isinstance(names, dict):
+                    continue
+                for rep_names in names.values():
+                    if rep_names is None:
+                        continue
+                    for name in rep_names:
+                        if name:
+                            dirs.add(os.path.dirname(str(name)))
+
+        for path in dirs:
+            if path and os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+
+        # the AO -> MO integrals are written per scf label and are equally
+        # dead once the geometry is done with. Every geometry has its own
+        # label, so these are never shared and never reused.
+        label = str(getattr(ci, 'scf_label', '')).strip()
+
+        if label:
+            for name in ['1e_'+label+'.h5', '2e_eri_'+label+'.h5']:
+                if os.path.isfile(name):
+                    try:
+                        os.remove(name)
+                    except OSError:
+                        pass
+
+        return
+
+    #
+    def run_point(self, ref_obj, coords, label, prev_scf=None,
+                  prev_ci=None, diabatic=True):
+        """
+        Run one geometry of a chain.
+
+        Every point gets its own copies of the Molecule, Scf and CI
+        objects: the chain is object-to-object in memory, so point n needs
+        point n-1's CI *and* Scf objects alive and populated, and reusing
+        one object would destroy the reference before it was used.
+
+        Arguments:
+          ref_obj:  the reference CI object, used as the template
+          coords:   (natm, 3) geometry in Angstrom
+          label:    label for this point's objects
+          prev_scf: the previous point's Scf object, or None at the head
+          prev_ci:  the previous point's CI object, or None at the head
+          diabatic: whether to diabatise against prev_ci
+
+        Returns:
+          (mol, scf, ci)
+        """
+
+        nsta    = int(np.sum(ref_obj.nstates))
+        ref_scf = ref_obj.scf
+        ref_mol = ref_scf.mol
+
+        # geometry: symmetry is switched off along a chain, since a
+        # displacement generally breaks it
+        mol = ref_mol.copy()
+        mol.label      = label
+        mol.use_sym    = False
+        mol.sym_grp    = None
+        mol.multi_geom = False
+        mol.units      = 'angstrom'
+        mol.crds       = 1. * np.asarray(coords)
+        mol.run()
+
+        # scf, started from the previous point's orbitals
+        scf = ref_scf.copy()
+        scf.label       = label
+        scf.mol_label   = label
+        scf.restart     = False
+        scf.guess_label = None if prev_scf is None else prev_scf.label
+
+        if scf.run(mol, prev_scf) is None:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n scf did not converge at point '+str(label))
+
+        # ci: the state space is flattened, since the chain runs in C1
+        ci = ref_obj.copy()
+        ci.label       = label
+        ci.scf_label   = label
+        ci.nstates     = np.array([nsta], dtype=int)
+        ci.save_wf     = True
+        ci.adt_type    = self.adt_type
+        ci.norm_thresh = self.norm_thresh
+        ci.det_thresh  = self.det_thresh
+        ci.diabatic    = diabatic and prev_ci is not None
+        ci.guess_label = None if prev_ci is None else prev_ci.label
+
+        # the AO -> MO transformation lives in the driver rather than in
+        # ci.run, so it has to be done here
+        eri_mo         = ao2mo.Ao2mo()
+        eri_mo.emo_cut = ci.mo_cutoff
+        eri_mo.run(scf, ci.precision)
+
+        ci.run(scf, prev_ci, mo_ints=eri_mo)
+
+        return mol, scf, ci
+
+    #
     def chain_overlap(self, prev_ci, cur_ci):
         """
         Wave function overlaps between consecutive points of a chain.
@@ -598,6 +825,11 @@ class Pbdd:
         schemes compute an overlap internally but neither returns it, so it
         is recomputed here from the adiabatic wave functions. That is one
         extra overlap per point, small beside the CI calculation itself.
+
+        The `bdd` scheme builds S on its way to the ADT and now hands it
+        back, so for that adt_type this costs nothing. `qdpt` computes its
+        overlaps inside the Fortran and does not return them, so there the
+        matrix is rebuilt here.
 
         The health of a step is measured by the smallest singular value of
         S and by |det S|, not by the smallest diagonal element. Adiabatic
@@ -612,13 +844,25 @@ class Pbdd:
           (min|S_ii|, smallest singular value of S, |det S|)
         """
 
-        nstates = prev_ci.vec_det['adiabatic'][0].shape[1]
-        pairs   = np.array([[i, j] for i in range(nstates)
-                            for j in range(nstates)], dtype=int)
+        # reuse the diabatisation's own overlap where it was kept.
+        # N.B. bdd returns S already transformed by the previous
+        # geometry's ADT, so it is <diabatic_n-1|adiabatic_n> rather than
+        # the raw adiabatic overlap. The ADT is orthogonal, so singular
+        # values and |det S| -- the two measures anything is judged on --
+        # are unchanged by that. min|S_ii| is basis dependent and so is not
+        # strictly the same quantity as in the recomputed branch; it is
+        # reported for information only and never tested against.
+        if getattr(cur_ci, 'chain_smat', None) is not None:
+            Sij = cur_ci.chain_smat[0]
 
-        Sij = overlap.overlap(prev_ci, cur_ci, cur_ci.smo, pairs, 0,
-                              self.norm_thresh, self.det_thresh, False)
-        Sij = np.reshape(Sij, (nstates, nstates))
+        else:
+            nstates = prev_ci.vec_det['adiabatic'][0].shape[1]
+            pairs   = np.array([[i, j] for i in range(nstates)
+                                for j in range(nstates)], dtype=int)
+
+            Sij = overlap.overlap(prev_ci, cur_ci, cur_ci.smo, pairs, 0,
+                                  self.norm_thresh, self.det_thresh, False)
+            Sij = np.reshape(Sij, (nstates, nstates))
 
         return (np.min(np.abs(np.diag(Sij))),
                 np.min(np.linalg.svd(Sij, compute_uv=False)),
@@ -626,7 +870,8 @@ class Pbdd:
 
     #
     @timing.timed
-    def walk_chain(self, ref_obj, coords, stem):
+    def walk_chain(self, ref_obj, coords, stem,
+                   head_scf=None, head_ci=None):
         """
         Walk one chain of geometries, propagating the diabatisation.
 
@@ -660,58 +905,26 @@ class Pbdd:
 
         diabpot = np.zeros((npoints, nsta, nsta), dtype=float)
 
-        prev_scf = None
-        prev_ci  = None
+        # point 0 has no predecessor, so its row stays NaN
+        health  = np.full((npoints, 3), np.nan, dtype=float)
+
+        # a cut is seeded from the reference calculation rather than
+        # recomputing it, so that every chain starts from the same
+        # wave functions and their phases cannot differ
+        prev_scf = head_scf
+        prev_ci  = head_ci
+        seeded   = head_ci is not None
 
         for ipt in range(npoints):
 
             lbl = stem + '_' + str(ipt)
 
-            # geometry: symmetry is switched off along a chain, since a
-            # displacement generally breaks it
-            mol = ref_mol.copy()
-            mol.label      = lbl
-            mol.use_sym    = False
-            mol.sym_grp    = None
-            mol.multi_geom = False
-            mol.units      = 'angstrom'
-            mol.crds       = 1. * coords[ipt]
-            mol.run()
+            mol, scf, ci = self.run_point(ref_obj, coords[ipt], lbl,
+                                          prev_scf, prev_ci)
 
-            # scf, started from the previous point's orbitals
-            scf = ref_scf.copy()
-            scf.label       = lbl
-            scf.mol_label   = lbl
-            scf.restart     = False
-            scf.guess_label = None if prev_scf is None else prev_scf.label
-
-            if scf.run(mol, prev_scf) is None:
-                sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
-                         '\n scf did not converge at point '+str(ipt)+
-                         ' of chain '+str(stem))
-
-            # ci: the state space is flattened, since the chain runs in C1
-            ci = ref_obj.copy()
-            ci.label       = lbl
-            ci.scf_label   = lbl
-            ci.nstates     = np.array([nsta], dtype=int)
-            ci.save_wf     = True
-            ci.adt_type    = self.adt_type
-            ci.norm_thresh = self.norm_thresh
-            ci.det_thresh  = self.det_thresh
-            ci.diabatic    = ipt > 0
-            ci.guess_label = None if prev_ci is None else prev_ci.label
-
-            # the AO -> MO transformation lives in the driver rather than
-            # in ci.run, so it has to be done here
-            eri_mo         = ao2mo.Ao2mo()
-            eri_mo.emo_cut = ci.mo_cutoff
-            eri_mo.run(scf, ci.precision)
-
-            ci.run(scf, prev_ci, mo_ints=eri_mo)
-
-            if ipt == 0:
+            if ipt == 0 and not seeded:
                 dev = self.check_reference_energies(ref_obj, ci, stem)
+                self.refcheck[stem] = dev
                 output.print_pbdd_refcheck(stem, dev, self.ener_tol)
 
                 if self.q0_ener is None:
@@ -735,8 +948,8 @@ class Pbdd:
                 diabpot[ipt] = ci.diabpot[0]
 
                 sdiag, ssvd, sdet = self.chain_overlap(prev_ci, ci)
-                output.print_pbdd_step(stem, ipt, sdiag, ssvd, sdet,
-                                       self.overlap_warn)
+                health[ipt] = [sdiag, ssvd, sdet]
+                output.print_pbdd_step(stem, ipt, sdiag, ssvd, sdet)
 
             chkpt.write(ci)
 
@@ -750,10 +963,12 @@ class Pbdd:
 
         self.release_wavefunctions(prev_ci)
 
+        self.diagnostics[stem] = health
+
         return diabpot
 
     #
-    def assemble_data(self, ref_obj):
+    def assemble_data(self):
         """
         Gather every chain into the single arrays BDDpy fits.
 
@@ -775,7 +990,7 @@ class Pbdd:
                                        origin=origin)
 
     #
-    def build_config(self, ref_obj, system):
+    def build_config(self, system):
         """
         Translate the Pbdd keywords into a BDDpy KdcConfig.
 
@@ -787,10 +1002,6 @@ class Pbdd:
         _, _, _, _ = load_bddpy()
         import bddpy.config as bddpy_config
 
-        state_irreps = self.state_irreps
-        if state_irreps is None:
-            state_irreps = self.state_syms
-
         return bddpy_config.KdcConfig(
             q0_energies         = self.q0_ener,
             order               = int(max(self.diag_order[0],
@@ -798,7 +1009,7 @@ class Pbdd:
             diag_order          = self.diag_order,
             offdiag_order       = self.offdiag_order,
             point_group         = system.frame.group,
-            state_irreps        = state_irreps,
+            state_irreps        = self.state_syms,
             weight              = self.weight,
             reexpand            = self.reexpand,
             blocks              = self.blocks,
@@ -834,7 +1045,7 @@ class Pbdd:
         return groups
 
     #
-    def write_surfaces(self, ref_obj, model=None):
+    def write_surfaces(self, model=None):
         """
         Dump the harvested diabatic potentials and couplings as text.
 
@@ -845,9 +1056,8 @@ class Pbdd:
         columns are directly comparable.
 
         Arguments:
-          ref_obj: the reference CI object, for the zero of energy
-          model:   the fitted model, when there is one. Its values are
-                   written alongside the ab initio ones.
+          model: the fitted model, when there is one. Its values are
+                 written alongside the ab initio ones.
         """
 
         _, _, bddpy_constants, _ = load_bddpy()
@@ -949,10 +1159,14 @@ class Pbdd:
 
     #
     @timing.timed
-    def fit(self, ref_obj, system):
+    def fit(self, system):
         """
         Fit the vibronic coupling Hamiltonian and write the requested
         output files.
+
+        Takes no reference object: everything it needs was recorded while
+        the chains were walked, which is what lets the collect step call
+        it against harvested data alone.
 
         Returns:
           the BDDpy VibronicModel
@@ -964,8 +1178,8 @@ class Pbdd:
         import bddpy.operators.mctdh as bddpy_mctdh
         import bddpy.operators.multiqd as bddpy_multiqd
 
-        data   = self.assemble_data(ref_obj)
-        config = self.build_config(ref_obj, system)
+        data   = self.assemble_data()
+        config = self.build_config(system)
         config.validate()
 
         model = bddpy_fitting.fit(system, config, data)
@@ -985,9 +1199,219 @@ class Pbdd:
                              config=config)
 
         if self.print_potentials or self.print_couplings:
-            self.write_surfaces(ref_obj, model)
+            self.write_surfaces(model)
 
         return model
+
+    #
+    def load_reference_file(self):
+        """
+        Read a generate run's checkpoint: the model space, and the wave
+        functions a chain propagates from.
+
+        Named explicitly rather than found at a well-known location, and
+        a file that is named but cannot be used is an error rather than a
+        quiet recompute. A typo or a file that had not finished staging
+        would otherwise produce a job that ran fine, reported nothing, and
+        used a different diabatic basis from its siblings -- and phases do
+        not show up in energies, so nothing downstream could detect it.
+
+        Returns:
+          the C1 reference CI object
+        """
+
+        import graci.io.chkpt as chkpt
+
+        path = self.reference_file
+
+        if not os.path.isfile(path):
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n reference_file '+str(path)+' does not exist')
+
+        groups = chkpt.contents(file_name=path) or []
+        pbdd   = [g for g in groups if str(g).startswith('Pbdd.')]
+
+        if not pbdd:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n reference_file '+str(path)+' holds no Pbdd '
+                     'section: it is not a generate run\'s checkpoint')
+
+        source = chkpt.read(pbdd[0], file_name=path,
+                            build_subobj=False, make_mol=False)
+
+        if not source.system_data:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n reference_file '+str(path)+' carries no normal '
+                     'mode data')
+
+        # the derived state is copied, not referenced, so that this cut's
+        # own output records what it was computed against
+        self.system_data = source.system_data
+        self.q0_ener     = source.q0_ener
+        self.state_syms  = source.state_syms
+        self.ref_source  = os.path.abspath(path)
+
+        name = 'Dftmrci2.'+str(source.label)+'_q0'
+
+        if name not in groups:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n reference_file '+str(path)+' holds no C1 '
+                     'reference calculation ('+name+')')
+
+        c1_ci = chkpt.read(name, file_name=path, build_subobj=True,
+                           make_mol=True)
+
+        if c1_ci is None or c1_ci.vec_det['adiabatic'] is None:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n the C1 reference in '+str(path)+' did not '
+                     'retain its wave functions, so no chain can be '
+                     'propagated from it')
+
+        return c1_ci
+
+    #
+    def walk_from_molecule(self, ref_obj):
+        """
+        Walk the chain of geometries given in the $molecule section.
+
+        A cut is identified by its geometry file and by nothing inside it:
+        the label here is only for reporting, since collect recovers the
+        normal coordinate from the geometry itself rather than trusting a
+        name.
+        """
+
+        mol  = ref_obj.scf.mol
+        path = mol.xyz_file
+
+        if path is None:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n a cut job takes its geometries from the '
+                     '$molecule section, which names no xyz_file')
+
+        _, coords = molecule.read_xyz_file(path)
+
+        if str(mol.units).lower().startswith('b'):
+            coords = coords * constants.bohr2ang
+
+        stem = os.path.basename(path)
+        for suffix in ['.xyz']:
+            if stem.endswith(suffix):
+                stem = stem[:-len(suffix)]
+        if stem.startswith('geom_'):
+            stem = stem[len('geom_'):]
+
+        c1_ci = self.load_reference_file()
+
+        # the first geometry of a generated cut is the reference itself,
+        # which the reference_file already holds: walking it again would
+        # repeat the calculation and, worse, give this chain a different
+        # head from its siblings
+        first = 1 if coords.shape[0] > 1 and np.allclose(
+            coords[0], np.asarray(self.system_data['coords'])
+            * constants.bohr2ang, atol=1e-8) else 0
+
+        self.walk_chain(ref_obj, coords[first:], stem,
+                        head_scf=c1_ci.scf, head_ci=c1_ci)
+
+        return
+
+    #
+    @timing.timed
+    def generate(self, ref_obj):
+        """
+        Derive the model space and write the displaced geometries.
+
+        This is where everything the integration provides is worked out --
+        the pinned frame, the mode symmetries, the state symmetries, the
+        expansion origin. All of it comes from the reference calculation
+        and the Hessian, and none of it from the cuts, which is what lets
+        the cuts be farmed out without losing any of it. It is carried in
+        this run's checkpoint, which becomes the cut jobs' reference_file.
+
+        Two reference calculations are run: the symmetric one the user
+        supplied, which fixes the frame and gives the state irreps, and a
+        C1 one at the same geometry, which supplies the expansion origin,
+        the wave functions every chain propagates from, and the states the
+        symmetry mapping is made against.
+        """
+
+        # imported here rather than at module scope: chkpt imports this
+        # module in order to register the Pbdd class
+        import graci.io.chkpt as chkpt
+
+        _, _, _, _ = load_bddpy()
+        import bddpy.displace as bddpy_displace
+
+        system = self.build_system(ref_obj)
+
+        if self.verbose:
+            output.print_pbdd_modes(system.frame.group,
+                                    system.frequencies,
+                                    system.mode_symmetry_labels(),
+                                    system.program_mode_labels)
+
+        # the C1 reference: the head every chain propagates from
+        coords = system.coords_angstrom
+        _, _, c1_ci = self.run_point(ref_obj, coords, str(self.label)+'_q0',
+                                     diabatic=False)
+
+        dev = self.check_reference_energies(ref_obj, c1_ci, 'q0')
+        self.refcheck['q0'] = dev
+        output.print_pbdd_refcheck('q0', dev, self.ener_tol)
+
+        self.q0_ener = np.asarray(c1_ci.energies).reshape(-1).copy()
+
+        if ref_obj.n_irrep() > 1:
+            self.state_syms, smin = self.map_state_symmetries(ref_obj,
+                                                              c1_ci)
+            output.print_pbdd_state_syms(self.state_syms,
+                                         ref_obj.scf.mol.irreplbl, smin)
+
+        # the C1 reference is written whole: a cut job reads its orbitals
+        # and determinant expansions to seed its chain
+        chkpt.write(c1_ci)
+
+        # stepsize and npoints may be given per mode, which cannot be
+        # length-checked at parse time since the mode count comes from
+        # the Hessian
+        try:
+            cuts = bddpy_displace.generate(system,
+                                           scheme  = self.cut_scheme,
+                                           step    = self.stepsize,
+                                           npoints = self.npoints)
+        except ValueError as err:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n '+str(err))
+
+        os.makedirs(self.geom_dir, exist_ok=True)
+
+        written = []
+        for cut in cuts:
+            path = os.path.join(self.geom_dir, self.cut_filename(cut))
+            bddpy_displace.write_cut(cut, system, path,
+                                     comment=self.cut_filename(cut)[:-4])
+            written.append((path, cut))
+
+        output.print_pbdd_generated(written, self.geom_dir)
+
+        return system
+
+    #
+    def cut_filename(self, cut):
+        """
+        The xyz file name for a cut: the modes it displaces and which way.
+
+        A cut is identified by its file, not by anything inside it, so the
+        name has to carry the whole identity -- geom_d3_pos.xyz for the
+        positive half-cut along mode 3, geom_d3_d5_neg.xyz for the
+        negative half of the diagonal cut through modes 3 and 5. Modes are
+        numbered from one, as they are everywhere the user sees them.
+        """
+
+        modes = '_'.join('d'+str(m+1) for m in cut.modes)
+        way   = 'pos' if cut.direction == 'r' else 'neg'
+
+        return 'geom_'+modes+'_'+way+'.xyz'
 
     #
     @timing.timed
@@ -1006,42 +1430,15 @@ class Pbdd:
 
         self.ensure_reference_wavefunctions(ref_obj)
 
-        if self.hessian_mode():
-            system = self.build_system(ref_obj)
+        if self.generate_mode():
+            self.generate(ref_obj)
+            return
 
-            if self.verbose:
-                output.print_pbdd_modes(system.frame.group,
-                                        system.frequencies,
-                                        system.mode_symmetry_labels(),
-                                        system.program_mode_labels)
-
-            bddpy_system, _, _, _ = load_bddpy()
-            import bddpy.displace as bddpy_displace
-
-            cuts = bddpy_displace.generate(system,
-                                           scheme  = self.cut_scheme,
-                                           step    = self.stepsize,
-                                           npoints = self.npoints)
-
-            # stored geometry-last, matching BDDpy's DiabaticData, so that
-            # nothing is transposed on the way into the fit
-            for cut in cuts:
-                walked = self.walk_chain(ref_obj, cut.coords, cut.name)
-                self.diabpot[cut.name] = walked.transpose(1, 2, 0)
-                self.qvec[cut.name]    = 1. * cut.qvec
-
-        else:
-            coords = self.read_path(ref_obj)
-            walked = self.walk_chain(ref_obj, coords, 'path')
-            self.diabpot['path'] = walked.transpose(1, 2, 0)
+        # cut mode: the geometries come from the $molecule section
+        self.walk_from_molecule(ref_obj)
 
         output.print_pbdd_summary(self.diabpot)
-
-        # a path_file run has no normal modes, so there is nothing to
-        # expand in and the diabatic potentials are the deliverable
-        if self.hessian_mode():
-            self.fit(ref_obj, system)
-        elif self.print_potentials or self.print_couplings:
-            self.write_surfaces(ref_obj)
+        output.print_pbdd_diagnostics(self.diagnostics, self.refcheck,
+                                      self.overlap_warn, self.ener_tol)
 
         return

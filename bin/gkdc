@@ -1,0 +1,619 @@
+#!/usr/bin/env python
+"""
+gkdc -- fit a vibronic coupling Hamiltonian from GRaCI checkpoint files.
+
+This is the collect step of a distributed Pbdd calculation: the cuts are run
+as independent GRaCI jobs, and this program gathers their checkpoints, applies
+the thresholds, fits, and writes the operator files.
+
+It deliberately does no quantum chemistry. GRaCI's compiled libraries are
+loaded lazily by libs.lib_load and never at import, so nothing here needs
+bitci, the Intel runtime, or a compiled GRaCI at all -- only PySCF, h5py,
+NumPy and SciPy. It is meant to run on a login node, or on a laptop against
+files copied off a cluster.
+
+Checkpoints may be given in any order. Everything about the model space --
+frame, normal modes, mode and state symmetries, expansion origin -- is read
+from the files rather than re-derived, so this cannot reach a different answer
+than the runs that produced them.
+
+See BDDpy/docs/port_plan.md section 8.11.
+"""
+
+import os
+import sys
+import argparse
+
+import h5py
+import numpy as np
+
+import graci.io.chkpt as chkpt
+import graci.tools.pbdd as pbdd
+
+
+#
+def read_cmdline(argv=None):
+    """parse the command line"""
+
+    parser = argparse.ArgumentParser(
+        prog='gkdc',
+        description='Fit a vibronic coupling Hamiltonian from GRaCI '
+                    'checkpoint files.')
+
+    parser.add_argument('chkpt', nargs='*', default=[],
+                        help='GRaCI checkpoint files, in any order')
+
+    parser.add_argument('-d', '--dir', metavar='DIR', action='append',
+                        default=None,
+                        help='scan a directory and take every file in it '
+                             'that is a GRaCI checkpoint holding a Pbdd '
+                             'section; may be given more than once')
+    parser.add_argument('--no-recurse', action='store_true',
+                        help='do not descend into subdirectories when '
+                             'scanning')
+
+    parser.add_argument('-o', '--op', metavar='FILE', default=None,
+                        help='write an MCTDH operator file')
+    parser.add_argument('-s', '--sop', metavar='FILE', default=None,
+                        help='write a MultiQD operator file')
+    parser.add_argument('--h5', metavar='FILE', default=None,
+                        help='write the BDDpy store (model, data, system)')
+    parser.add_argument('--potentials', action='store_true',
+                        help='dump the diabatic potentials as text')
+    parser.add_argument('--couplings', action='store_true',
+                        help='dump the diabatic couplings as text')
+
+    parser.add_argument('--diag-order', metavar='N', nargs='+', type=int,
+                        default=None,
+                        help='on-diagonal expansion order, as '
+                             '"one-mode two-mode"; overrides the run')
+    parser.add_argument('--offdiag-order', metavar='N', nargs='+', type=int,
+                        default=None,
+                        help='off-diagonal expansion order; overrides the '
+                             'run')
+    parser.add_argument('--overlap-warn', metavar='X', type=float,
+                        default=None,
+                        help='flag chain steps whose smallest singular '
+                             'value or |det S| falls below this; '
+                             'overrides the run')
+    parser.add_argument('--opstates', metavar='N', nargs='+', type=int,
+                        default=None,
+                        help='states to include in the operator file')
+
+    parser.add_argument('--weight', metavar='X', type=float, default=None,
+                        help='weighting factor for the fit')
+    parser.add_argument('--reexpand', metavar='N', type=int, default=None,
+                        help='re-expand about the minimum of this state')
+    parser.add_argument('--blocks', metavar='SPEC', default=None,
+                        help='block diagonalisation blocks, states '
+                             'comma-separated within a block and blocks '
+                             'separated by a slash, e.g. "1,2/3,4"')
+    parser.add_argument('--blockdiag', choices=('svd', 'invsqrt'),
+                        default=None,
+                        help='block diagonalisation algorithm')
+    parser.add_argument('--cartgrad', action='store_true',
+                        help='report Cartesian gradients')
+
+    parser.add_argument('--coupling-thresh', metavar='X', type=float,
+                        default=0.01,
+                        help='report modes whose linear inter-state '
+                             'coupling exceeds this, in eV (default 0.01)')
+    parser.add_argument('--gradient-thresh', metavar='X', type=float,
+                        default=0.05,
+                        help='report modes whose gradient at the origin '
+                             'exceeds this, in eV (default 0.05)')
+    parser.add_argument('--outlier-factor', metavar='X', type=float,
+                        default=5.0,
+                        help='report cuts holding a point deviating by '
+                             'more than this many times the overall rms '
+                             '(default 5)')
+
+    return parser.parse_args(argv)
+
+
+#
+def holds_pbdd(path):
+    """
+    True if this file is an HDF5 file carrying a Pbdd section.
+
+    Everything that is not is skipped without complaint: a run directory
+    also holds inputs, logs, operator files and the per-geometry integral
+    files, and a checkpoint still being written by a running job will not
+    open. At this scale the scan has to be uninterested in all of that.
+    """
+
+    try:
+        with h5py.File(path, 'r') as handle:
+            return any(str(k).startswith('Pbdd.') for k in handle.keys())
+    except (OSError, KeyError, ValueError):
+        return False
+
+
+#
+def scan_directories(dirs, recurse=True):
+    """
+    Collect every checkpoint holding a Pbdd section from the given
+    directories.
+
+    Returns:
+      (paths, nseen) -- the checkpoints found, and how many files were
+      looked at, so that the difference is visible
+    """
+
+    found = []
+    nseen = 0
+
+    for root_dir in dirs:
+        if not os.path.isdir(root_dir):
+            sys.exit('\n ERROR: not a directory: '+str(root_dir))
+
+        if recurse:
+            walked = ((d, f) for d, _, files in os.walk(root_dir)
+                      for f in files)
+        else:
+            walked = ((root_dir, f) for f in os.listdir(root_dir))
+
+        for directory, name in walked:
+            path = os.path.join(directory, name)
+            if not os.path.isfile(path):
+                continue
+            nseen += 1
+            if holds_pbdd(path):
+                found.append(path)
+
+    return sorted(set(found)), nseen
+
+
+#
+def load_harvests(paths):
+    """
+    Read every Pbdd object out of the given checkpoints.
+
+    Returns:
+      list of (path, Pbdd object)
+    """
+
+    harvests = []
+
+    for path in paths:
+        if not os.path.isfile(path):
+            sys.exit('\n ERROR: no such file: '+str(path))
+
+        # contents() matches whole group names, so filter the top level
+        # rather than asking for a 'Pbdd' stub that is never itself a key
+        groups = chkpt.contents(file_name=path) or []
+        groups = [g for g in groups if str(g).startswith('Pbdd.')]
+
+        if not groups:
+            sys.exit('\n ERROR: '+str(path)+' holds no Pbdd section. '
+                     'gkdc reads the checkpoints written by a $pbdd '
+                     'calculation.')
+
+        for name in groups:
+            obj = chkpt.read(name, file_name=path,
+                             build_subobj=False, make_mol=False)
+            if obj is not None:
+                harvests.append((path, obj))
+
+    if not harvests:
+        sys.exit('\n ERROR: no Pbdd data found in any of the files given')
+
+    return harvests
+
+
+#
+def check_consistency(harvests):
+    """
+    Refuse a set of harvests that were not produced against the same
+    derived state.
+
+    Combining cuts computed against different frames, mode sets or
+    settings would silently produce a plausible operator file, which is
+    the failure mode this whole design exists to prevent. Energies alone
+    cannot detect it, so the model space itself is compared.
+    """
+
+    # a harvest carrying no derived state cannot be checked against the
+    # others, and cannot supply the model space either. Say so plainly
+    # rather than reporting it as a disagreement.
+    bare = [p for p, o in harvests if not o.system_data]
+
+    if bare and len(bare) < len(harvests):
+        sys.exit('\n ERROR: these file(s) carry no normal mode data, so '
+                 'they cannot be combined with ones that do:\n   '
+                 +'\n   '.join(bare)+
+                 '\n They were written either by a path_file run or by a '
+                 'version that did not record it.')
+
+    ref_path, ref = harvests[0]
+
+    for path, obj in harvests[1:]:
+
+        for key in ['frequencies', 'modes', 'mode_irreps']:
+            a = ref.system_data.get(key)
+            b = obj.system_data.get(key)
+
+            if (a is None) != (b is None):
+                sys.exit('\n ERROR: '+str(path)+' and '+str(ref_path)+
+                         ' disagree on '+key)
+
+            if a is not None and not np.allclose(np.asarray(a, dtype=float),
+                                                 np.asarray(b, dtype=float),
+                                                 atol=1e-10):
+                sys.exit('\n ERROR: '+str(path)+' and '+str(ref_path)+
+                         ' were computed against different '+key+
+                         '.\n They cannot be combined.')
+
+        if str(ref.system_data.get('point_group')) != \
+           str(obj.system_data.get('point_group')):
+            sys.exit('\n ERROR: '+str(path)+' and '+str(ref_path)+
+                     ' use different point groups')
+
+        if ref.state_syms is not None and obj.state_syms is not None:
+            if not np.array_equal(np.asarray(ref.state_syms),
+                                  np.asarray(obj.state_syms)):
+                sys.exit('\n ERROR: '+str(path)+' and '+str(ref_path)+
+                         ' disagree on the state symmetries')
+
+        if ref.q0_ener is not None and obj.q0_ener is not None:
+            dev = np.abs(np.asarray(ref.q0_ener) -
+                         np.asarray(obj.q0_ener)).max()
+            if dev > ref.ener_tol:
+                sys.exit('\n ERROR: '+str(path)+' and '+str(ref_path)+
+                         ' expand about different reference energies: '
+                         'largest difference '+str(dev)+' Hartree')
+
+    return ref
+
+
+#
+def merge(harvests):
+    """
+    Gather the cuts from every harvest into one set.
+
+    A cut appearing in more than one file is taken once; a later file does
+    not silently override an earlier one, since that would make the result
+    depend on the order the files were given in.
+
+    Returns:
+      (qvec, diabpot, diagnostics, refcheck) dicts keyed by cut name
+    """
+
+    qvec, diabpot, diagnostics, refcheck, origin = {}, {}, {}, {}, {}
+
+    for path, obj in harvests:
+        for stem in sorted(obj.diabpot.keys()):
+
+            if stem in diabpot:
+                if not np.allclose(diabpot[stem], obj.diabpot[stem],
+                                   atol=1e-10):
+                    sys.exit('\n ERROR: cut '+str(stem)+' appears in both '
+                             +str(origin[stem])+' and '+str(path)+
+                             ' with different data')
+                continue
+
+            diabpot[stem] = np.asarray(obj.diabpot[stem])
+            origin[stem]  = path
+
+            if stem in obj.qvec:
+                qvec[stem] = np.asarray(obj.qvec[stem])
+            if stem in getattr(obj, 'diagnostics', {}):
+                diagnostics[stem] = np.asarray(obj.diagnostics[stem])
+            if stem in getattr(obj, 'refcheck', {}):
+                refcheck[stem] = float(obj.refcheck[stem])
+
+    return qvec, diabpot, diagnostics, refcheck
+
+
+#
+def report_coverage(qvec, diabpot, nmodes):
+    """
+    Say what was found and, as far as it can be known, what is missing.
+
+    A thin data set fitted without comment is how a confident wrong answer
+    gets produced, so the coverage is always stated.
+    """
+
+    print(' Cuts found: %d' % (len(diabpot)))
+    print()
+    print('   cut          states   geometries   modes displaced')
+    print(' '+'-'*52)
+
+    seen = set()
+    for stem in sorted(diabpot.keys()):
+        shape = diabpot[stem].shape
+        modes = ''
+        if stem in qvec:
+            active = np.where(np.abs(qvec[stem]).max(axis=1) > 1e-12)[0]
+            seen.update(active.tolist())
+            modes = ' '.join(str(m+1) for m in active)
+        print('   %-12s %4d   %10d   %s' % (stem, shape[0], shape[2], modes))
+
+    missing = sorted(set(range(nmodes)) - seen)
+    print()
+    if missing:
+        print(' WARNING: no data for mode(s): %s'
+              % (' '.join(str(m+1) for m in missing)))
+        print('          those modes will carry no expansion coefficients.')
+    else:
+        print(' Every mode is represented.')
+    print()
+
+    return
+
+
+#
+def report_diagnostics(diagnostics, refcheck, warn, ener_tol):
+    """apply the thresholds the cut jobs deliberately did not"""
+
+    finite = [d[~np.isnan(d[:, 1])] for d in diagnostics.values() if d.size]
+
+    if not finite:
+        print(' No chain diagnostics recorded.\n')
+        return
+
+    allh = np.concatenate(finite, axis=0)
+
+    print(' Chain diagnostics')
+    print('   steps evaluated         %6d'   % (allh.shape[0]))
+    print('   smallest singular value %10.6f' % (allh[:, 1].min()))
+    print('   smallest |det S|        %10.6f' % (allh[:, 2].min()))
+
+    if refcheck:
+        print('   worst point-0 deviation %10.3e Hartree (tolerance '
+              '%7.1e)' % (max(refcheck.values()), ener_tol))
+
+    suspect = []
+    for stem in sorted(diagnostics.keys()):
+        health = diagnostics[stem]
+        for ipt in range(health.shape[0]):
+            ssvd, sdet = health[ipt, 1], health[ipt, 2]
+            if np.isnan(ssvd):
+                continue
+            if warn is not None and (ssvd < warn or sdet < warn):
+                suspect.append((stem, ipt, ssvd, sdet))
+
+    if warn is None:
+        print('\n   no overlap threshold set; nothing evaluated')
+    elif not suspect:
+        print('\n   no step fell below the threshold of %7.5f' % (warn))
+    else:
+        print('\n   %d step(s) below the threshold of %7.5f -- the state '
+              'space was not preserved:' % (len(suspect), warn))
+        for stem, ipt, ssvd, sdet in suspect:
+            print('     %-10s point %3d   min svd = %7.5f   |det S| = '
+                  '%7.5f' % (stem, ipt, ssvd, sdet))
+    print()
+
+    return
+
+
+#
+def collect_report(model, data, order, coupling_thresh, gradient_thresh,
+                   outlier_factor):
+    """
+    Triage: say which cuts deserve a human eye, and why.
+
+    Looking at every curve is the only reliable way to catch what no
+    automatic test does -- but at a few thousand cuts nobody will, so the
+    report has to point. Two sections: things that look wrong, and things
+    that look interesting. Everything is per mode, since that is the unit
+    a person plots.
+    """
+
+    nmodes = model.nmodes
+    nsta   = model.nsta
+
+    qvec    = np.asarray(data.qvec)
+    origin  = list(data.origin) if data.origin is not None else []
+
+    # residuals against the ab initio adiabatic energies, per point
+    try:
+        resid = np.abs(np.asarray(model.residuals(data)))
+    except Exception:
+        resid = None
+
+    rms = float(np.sqrt((resid**2).mean())) if resid is not None \
+        and resid.size else 0.0
+
+    problems = {}
+    notable  = {}
+
+    def flag(store, mode, text):
+        store.setdefault(mode, []).append(text)
+
+    for mode in range(nmodes):
+
+        # points sampled along this mode
+        on_mode = np.abs(qvec[mode]) > 1e-12
+        qs      = np.unique(np.round(qvec[mode][on_mode], 10))
+        npts    = qs.size
+
+        if npts == 0:
+            continue
+
+        # --- is the expansion actually determined? -----------------------
+        if npts <= order:
+            flag(problems, mode,
+                 'only %d distinct points for an order-%d expansion: the '
+                 'fit interpolates rather than fits, and its RMSD means '
+                 'nothing' % (npts, order))
+
+        # --- does the potential turn over at the edge? -------------------
+        qmax = float(np.abs(qs).max())
+        if qmax > 0.:
+            probe = np.zeros((3, nmodes))
+            probe[:, mode] = [qmax, 0.9*qmax, 0.8*qmax]
+            w = model.diabatic(probe)
+            curv = w[0] - 2.*w[1] + w[2]
+            for i in range(nsta):
+                if curv[i, i] < 0.:
+                    flag(problems, mode,
+                         'state %d is unbound at the edge of the sampled '
+                         'range (curvature < 0 at Q = %.2f)' % (i+1, qmax))
+                    break
+
+        # --- outlying points ---------------------------------------------
+        if resid is not None and rms > 0. and origin:
+            idx = [n for n, stem in enumerate(origin)
+                   if abs(qvec[mode, n]) > 1e-12]
+            if idx:
+                worst = float(resid[idx].max())
+                if worst > outlier_factor*rms:
+                    flag(problems, mode,
+                         'worst point deviates %.4f eV, %.1fx the overall '
+                         'rms' % (worst, worst/rms))
+
+        # --- what the physics is doing ------------------------------------
+        lin = np.abs(model.coeff1[mode, :, :, 0])
+        offd = lin - np.diag(np.diag(lin))
+
+        if offd.max() > coupling_thresh:
+            i, j = np.unravel_index(np.argmax(offd), offd.shape)
+            flag(notable, mode,
+                 'couples states %d and %d, %.4f eV per unit Q'
+                 % (i+1, j+1, offd.max()))
+
+        grad = np.abs(np.diag(lin)).max()
+        if grad > gradient_thresh:
+            i = int(np.argmax(np.abs(np.diag(lin))))
+            flag(notable, mode,
+                 'gradient %.4f eV per unit Q on state %d at the origin'
+                 % (grad, i+1))
+
+    print(' Collect report')
+    print(' '+'-'*60)
+
+    if not problems:
+        print('\n No cut looks wrong.')
+    else:
+        print('\n These cuts look wrong -- look at them first:\n')
+        for mode in sorted(problems):
+            for text in problems[mode]:
+                print('   mode %-3d %s' % (mode+1, text))
+
+    if notable:
+        print('\n These cuts carry the physics -- worth plotting:\n')
+        for mode in sorted(notable):
+            for text in notable[mode]:
+                print('   mode %-3d %s' % (mode+1, text))
+    else:
+        print('\n No mode exceeds the coupling or gradient thresholds.')
+
+    print()
+    if problems or notable:
+        print(' e.g.  bdd-pltkdc <store.h5> -m %d --diabatic'
+              % (sorted(problems or notable)[0]+1))
+        print()
+
+    return
+
+
+#
+def main(argv=None):
+    """collect a set of GRaCI checkpoints and fit"""
+
+    args = read_cmdline(argv)
+
+    paths = list(args.chkpt)
+
+    if args.dir:
+        scanned, nseen = scan_directories(args.dir,
+                                          recurse=not args.no_recurse)
+        print()
+        print(' Scanned %d file(s) in %d director%s: %d hold a Pbdd section'
+              % (nseen, len(args.dir),
+                 'y' if len(args.dir) == 1 else 'ies', len(scanned)))
+        paths.extend(scanned)
+
+    # a file named explicitly and also picked up by a scan is one file
+    paths = sorted(set(paths))
+
+    if not paths:
+        sys.exit('\n ERROR: no checkpoint files given. Name them on the '
+                 'command line, or point --dir at a directory holding '
+                 'them.')
+
+    harvests = load_harvests(paths)
+    ref      = check_consistency(harvests)
+
+    print(' Read %d harvest(s) from %d file(s)'
+          % (len(harvests), len(paths)))
+
+    qvec, diabpot, diagnostics, refcheck = merge(harvests)
+
+    # a path_file run has no normal modes, so there is nothing to expand
+    # in. The potentials are still the deliverable, and looking at them is
+    # still the point, so dump rather than refuse.
+    fitting = bool(ref.system_data)
+
+    system = pbdd.rebuild_system(ref.system_data) if fitting else None
+
+    report_coverage(qvec, diabpot, system.nmodes if fitting else 0)
+
+    warn = args.overlap_warn if args.overlap_warn is not None \
+        else ref.overlap_warn
+    report_diagnostics(diagnostics, refcheck, warn, ref.ener_tol)
+
+    # the fit is driven through the Pbdd object, so that collect and an
+    # in-process run cannot diverge in how they assemble the model
+    ref.qvec    = qvec
+    ref.diabpot = diabpot
+
+    if not fitting:
+        print(' No normal mode data: these are path_file harvests, so the '
+              'diabatic\n potentials are the deliverable and no '
+              'Hamiltonian is fitted.\n')
+        if args.potentials or args.couplings:
+            ref.print_potentials = args.potentials
+            ref.print_couplings  = args.couplings
+            ref.write_surfaces()
+            print(' Surfaces written.\n')
+        return 0
+
+    if args.diag_order is not None:
+        ref.diag_order = args.diag_order
+    if args.offdiag_order is not None:
+        ref.offdiag_order = args.offdiag_order
+    if args.opstates is not None:
+        ref.opstates = args.opstates
+    if args.weight is not None:
+        ref.weight = args.weight
+    if args.reexpand is not None:
+        ref.reexpand = args.reexpand
+    if args.blockdiag is not None:
+        ref.blockdiag_algorithm = args.blockdiag
+    if args.cartgrad:
+        ref.cartgrad = True
+    if args.blocks is not None:
+        ref.blocks = [[int(x) for x in blk.split(',') if x.strip()]
+                      for blk in args.blocks.split('/') if blk.strip()]
+
+    ref.op_file          = args.op
+    ref.sop_file         = args.sop
+    ref.h5_file          = args.h5
+    ref.print_potentials = args.potentials
+    ref.print_couplings  = args.couplings
+
+    model = ref.fit(system)
+
+    print(' Fit complete: %d states, %d modes, order %d, rmsd %.6e eV'
+          % (model.nsta, model.nmodes, model.order, model.rmsd))
+    print()
+
+    collect_report(model, ref.assemble_data(), model.order,
+                   args.coupling_thresh, args.gradient_thresh,
+                   args.outlier_factor)
+
+    for label, name in [('MCTDH operator', args.op),
+                        ('MultiQD operator', args.sop),
+                        ('BDDpy store', args.h5)]:
+        if name is not None:
+            print('   %-18s -> %s' % (label, name))
+    print()
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

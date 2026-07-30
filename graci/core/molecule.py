@@ -63,6 +63,100 @@ atom_ncore = [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 10, 10, 10, 10, 10, 10,
 point_grps = ['c1','ci','c2','cs','c2h','c2v','d2','d2h']
 nirrep     = [1, 2, 2, 2, 4, 4, 4, 8]
 
+#
+def read_xyz_file(path):
+    """
+    Read every geometry from an xyz file.
+
+    The format is parsed as specified: an atom count, exactly one comment
+    line whose contents are ignored, then that many atom lines, repeated.
+
+    This matters. The reader this replaces kept every line holding more
+    than one whitespace-separated token and treated it as an atom, so a
+    descriptive comment -- the obvious thing to write on that line -- was
+    silently read as a coordinate, and the geometries came back corrupted
+    with no error raised. A malformed or truncated file now stops rather
+    than being reshaped into the wrong number of geometries.
+
+    Args:
+        path: the xyz file
+
+    Returns:
+        (asym, coords): atom symbols, and an (ngeom, natm, 3) array
+    """
+
+    try:
+        with open(path, 'r') as xyzfile:
+            lines = xyzfile.readlines()
+    except OSError:
+        sys.exit(' xyz_file: '+str(path)+' not found.')
+
+    geoms  = []
+    asym   = None
+    iline  = 0
+    nlines = len(lines)
+
+    while iline < nlines:
+
+        # blank lines between geometries are tolerated
+        if not lines[iline].strip():
+            iline += 1
+            continue
+
+        try:
+            natm = int(lines[iline].split()[0])
+        except (ValueError, IndexError):
+            sys.exit(' Malformed xyz file '+str(path)+': expected an atom '
+                     'count on line '+str(iline+1)+', found "'
+                     +lines[iline].strip()+'"')
+
+        if natm < 1:
+            sys.exit(' Malformed xyz file '+str(path)+': atom count '
+                     +str(natm)+' on line '+str(iline+1))
+
+        # lines[iline+1] is the comment and may contain anything at all
+        first = iline + 2
+
+        if first + natm > nlines:
+            sys.exit(' Malformed xyz file '+str(path)+': the geometry '
+                     'starting on line '+str(iline+1)+' claims '+str(natm)+
+                     ' atoms but the file ends first')
+
+        labels = []
+        geom   = []
+
+        for atom_line in lines[first:first+natm]:
+            field = atom_line.split()
+
+            if len(field) < 4:
+                sys.exit(' Malformed xyz file '+str(path)+': expected an '
+                         'atom and three coordinates, found "'
+                         +atom_line.strip()+'"')
+
+            try:
+                geom.append([float(field[j]) for j in range(1, 4)])
+            except ValueError:
+                sys.exit(' Malformed xyz file '+str(path)+': cannot read '
+                         'coordinates from "'+atom_line.strip()+'"')
+
+            labels.append(field[0])
+
+        if asym is None:
+            asym = labels
+        elif labels != asym:
+            sys.exit(' Malformed xyz file '+str(path)+': geometry '
+                     +str(len(geoms)+1)+' lists different atoms than the '
+                     'first')
+
+        geoms.append(geom)
+        iline = first + natm
+
+    if not geoms:
+        sys.exit(' No geometries found in xyz file '+str(path))
+
+    return asym, np.array(geoms, dtype=float)
+
+
 class Molecule:
     """Class constructor for the Molecule object."""
     def __init__(self):
@@ -304,41 +398,19 @@ class Molecule:
         read the geometry from the xyz_file specified by 'xyz_file'
         """
 
-        # parse contents of xyz file
-        try:
-            with open(self.xyz_file, 'r') as xyzfile:
-                xyz_gm = xyzfile.readlines()
-        except:
-            output.print_message('xyz_file: '
-                  +str(self.xyz_file)+' not found.')
-            sys.exit()
+        labels, coords = read_xyz_file(self.xyz_file)
 
-        # use the number of atoms rather than number of lines in file
-        natm       = int(xyz_gm[0].strip())
-        self.asym  = []
-        xyz        = []
+        self.asym = []
+        for label in labels:
+            name = label[0].upper() + label[1:]
+            if name not in atom_name:
+                sys.exit('atom '+str(label)+' not found.')
+            self.asym.append(name)
 
-        # do we have a multi-geometry xyz file?
-        ngm = int(len(xyz_gm) / (natm+2))
-        if ngm > 1:
-            self.multi_geom = True
+        # a file holding more than one geometry is run as a set
+        self.multi_geom = coords.shape[0] > 1
 
-        # parse the geometry
-        for i in range(2, natm+2):
-            line = xyz_gm[i].strip().split()
-            try:
-                name_capitalized = line[0][0].upper()+line[0][1:]                
-                atm_indx = atom_name.index(name_capitalized)
-                self.asym.append(atom_name[atm_indx])
-            except ValueError:
-                sys.exit('atom '+str(line.strip()[0])+' not found.')
-
-            try:
-                xyz.append([float(line[j]) for j in range(1,4)])
-            except:
-                sys.exit('Cannot interpret input as a geometry')
-
-        self.crds = np.array(xyz, dtype=float)
+        self.crds = coords[0]
 
         return
 

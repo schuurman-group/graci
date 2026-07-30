@@ -1,6 +1,7 @@
 """Module for performing file operations"""
 
 import sys
+import ast as ast
 import re as re
 import numpy as np 
 import h5py as h5py
@@ -50,10 +51,14 @@ def parse_input():
         if type(obj).__name__ == 'Pbdd':
             check_pbdd(obj, run_list)
 
-    # check for multiple-geometry molecule sections
-    # and create all required replicate class objects
-    # if any are found
-    run_list = replicate_sections(run_list)
+    # a $pbdd cut job takes a multi-geometry molecule section and walks it
+    # itself, so the parser must not replicate it into one object per
+    # geometry the way an ordinary multi-geometry run is
+    if not any(type(obj).__name__ == 'Pbdd' for obj in run_list):
+        # check for multiple-geometry molecule sections
+        # and create all required replicate class objects
+        # if any are found
+        run_list = replicate_sections(run_list)
     
     # check the input
     check_input(run_list)
@@ -179,11 +184,92 @@ def correct_type(value, keyword_type):
     return correct
 
 #
+def eval_list_expr(text, max_len=100000):
+    """Evaluate a Python-style list expression from an input file.
+
+    Written for the case a large molecule forces: 100 modes wanting the
+    same number of points except for one, which is unwriteable as a
+    literal list::
+
+        npoints = [10]*48 + [20] + [10]*51
+
+    Only integer and float literals, list literals, unary minus, + and *
+    are permitted, so this cannot execute anything -- it is not eval().
+    A length cap stops [0]*10**9 from exhausting memory.
+
+    Raises ValueError if the text is not such an expression, which is the
+    signal to fall back to the ordinary parser.
+    """
+
+    def evaluate(node):
+
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, bool) or \
+                    not isinstance(node.value, (int, float)):
+                raise ValueError('only numbers are allowed')
+            return node.value
+
+        if isinstance(node, ast.List):
+            return [evaluate(e) for e in node.elts]
+
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            return -evaluate(node.operand)
+
+        if isinstance(node, ast.BinOp):
+            if not isinstance(node.op, (ast.Add, ast.Mult)):
+                raise ValueError('only + and * are allowed')
+
+            lhs = evaluate(node.left)
+            rhs = evaluate(node.right)
+
+            if isinstance(node.op, ast.Add):
+                if isinstance(lhs, list) != isinstance(rhs, list):
+                    raise ValueError('cannot add a list to a number')
+                result = lhs + rhs
+            else:
+                if isinstance(lhs, list) and isinstance(rhs, list):
+                    raise ValueError('cannot multiply two lists')
+                result = lhs * rhs
+
+            if isinstance(result, list) and len(result) > max_len:
+                raise ValueError('list of '+str(len(result))+' entries is '
+                                 'longer than the '+str(max_len)+' allowed')
+            return result
+
+        raise ValueError('unsupported expression')
+
+    return evaluate(ast.parse(text.strip(), mode='eval').body)
+
+
+#
 def parse_value(valstr, val_type):
     """Returns a value converted to the appropriate type and shape.
     By default, spaces and newlines will be treated as delimiters.
     All keywords are converted to lower case.
     """
+
+    # a Python-style list expression is taken first. The older forms --
+    # space separated [X Y Z] and ranges [X:Y] -- are not valid Python, so
+    # they fail here and fall through to the parser below unchanged.
+    #
+    # A closing bracket followed by * or + can only be a list expression:
+    # no older form uses an operator there, and it cannot be an exponent
+    # like 1e+5. When it is one and it will not evaluate, that is an error
+    # rather than a fall-through, since the older parser would quietly
+    # read something different -- "[0]*10**9" would come back as [0].
+    if val_type is not str and '[' in valstr:
+        explicit = re.search(r'\]\s*[*+]', valstr) is not None
+        try:
+            value = eval_list_expr(valstr)
+            if isinstance(value, list):
+                return convert_array([str(v) for v in value])
+            if explicit:
+                sys.exit(' Not a list: '+valstr.strip())
+        except (ValueError, SyntaxError, TypeError, MemoryError) as err:
+            if explicit:
+                sys.exit(' Could not read the list expression: '
+                         +valstr.strip()+'\n '+str(err)+
+                         '\n Only numbers, lists, + and * are allowed.')
 
     # split any braces or ':' symbols
     split_line = re.split('(:)|(\[)|(\])|\n', valstr.lower())
@@ -446,8 +532,8 @@ def check_pbdd(obj, run_list):
                  +str(type(ref_obj).__name__)+' section, but Pbdd requires '
                  'a dftmrci2 reference')
 
-    # Pbdd generates its own geometries, so the reference molecule must be
-    # a single structure
+    # the molecule the reference calculation runs on
+    mol_obj = None
     scf_obj = None
     for chk_obj in run_list:
         if type(chk_obj).__name__ == 'Scf' \
@@ -458,39 +544,57 @@ def check_pbdd(obj, run_list):
     if scf_obj is not None:
         for chk_obj in run_list:
             if type(chk_obj).__name__ == 'Molecule' \
-                    and chk_obj.label == scf_obj.mol_label \
-                    and chk_obj.multi_geom:
-                sys.exit(err+'the reference molecule section holds multiple '
-                         'geometries; Pbdd requires a single reference '
-                         'structure')
+                    and chk_obj.label == scf_obj.mol_label:
+                mol_obj = chk_obj
+                break
 
-    # run mode
+    # job type
     # ---------------------------------------------------------------
-    if obj.hessian_file is not None and obj.path_file is not None:
-        sys.exit(err+'hessian_file and path_file are mutually exclusive')
+    if str(obj.job_type).lower() not in obj.allowed_job_type:
+        sys.exit(err+'unrecognised job_type: '+str(obj.job_type)+
+                 '\n allowed values: '+str(obj.allowed_job_type))
+    obj.job_type = str(obj.job_type).lower()
 
-    if obj.hessian_file is None and obj.path_file is None:
-        sys.exit(err+'one of hessian_file or path_file is required')
+    default = pbdd.Pbdd()
 
-    # the cut and fit keywords have no meaning without normal modes
-    if not obj.hessian_mode():
-        default = pbdd.Pbdd()
-        hess_only = ['cut_scheme', 'stepsize', 'npoints', 'diag_order',
-                     'offdiag_order', 'weight', 'reexpand', 'blocks',
-                     'blockdiag_algorithm', 'cartgrad', 'point_group',
-                     'op_file', 'sop_file', 'opstates']
-        for kword in hess_only:
+    if obj.generate_mode():
+
+        if obj.hessian_file is None:
+            sys.exit(err+'a generate job needs a hessian_file')
+
+        if obj.reference_file is not None:
+            sys.exit(err+'reference_file belongs to a cut job: a generate '
+                     'job produces one rather than reading one')
+
+        if mol_obj is not None and mol_obj.multi_geom:
+            sys.exit(err+'the reference molecule section holds multiple '
+                     'geometries; a generate job needs a single reference '
+                     'structure and produces the displaced ones itself')
+
+    else:
+
+        if obj.hessian_file is not None:
+            sys.exit(err+'hessian_file belongs to a generate job: a cut '
+                     'job takes its geometries from the $molecule section')
+
+        if obj.reference_file is None:
+            sys.exit(err+'a cut job needs a reference_file: the checkpoint '
+                     'written by the generate job it belongs to')
+
+        if mol_obj is not None and mol_obj.xyz_file is None:
+            sys.exit(err+'a cut job takes its geometries from the '
+                     '$molecule section, which names no xyz_file')
+
+        for kword in ['cut_scheme', 'stepsize', 'npoints']:
             if not np.array_equal(getattr(obj, kword),
                                   getattr(default, kword)):
-                sys.exit(err+kword+' requires hessian_file: a path_file run '
-                         'has no normal modes, so it produces diabatic '
-                         'potentials and no fit')
+                sys.exit(err+kword+' belongs to a generate job: a cut job '
+                         'runs the geometries it is given')
 
     # multiple-choice keywords
     # ---------------------------------------------------------------
-    choices = [('adt_type',            obj.allowed_adt_type),
-               ('cut_scheme',          obj.allowed_cut_scheme),
-               ('blockdiag_algorithm', obj.allowed_blockdiag)]
+    choices = [('adt_type',   obj.allowed_adt_type),
+               ('cut_scheme', obj.allowed_cut_scheme)]
 
     for kword, allowed in choices:
         if str(getattr(obj, kword)).lower() not in allowed:
@@ -499,55 +603,8 @@ def check_pbdd(obj, run_list):
                      +str(allowed))
         setattr(obj, kword, str(getattr(obj, kword)).lower())
 
-    # expansion orders
-    # ---------------------------------------------------------------
-    for kword in ['diag_order', 'offdiag_order']:
-        order = getattr(obj, kword)
-
-        # a scalar sets the one-mode order and requests no two-mode terms
-        if isinstance(order, (int, np.integer)):
-            order = [int(order), 0]
-
-        order = [int(n) for n in order]
-
-        if len(order) != 2:
-            sys.exit(err+kword+' takes [one-mode order, two-mode order], '
-                     'got '+str(order))
-
-        if order[0] < 1:
-            sys.exit(err+kword+': the one-mode order must be at least 1')
-
-        # a term linear in two modes is a one-mode term, so an order of 1
-        # requests nothing that an order of 0 does not
-        if order[1] == 1:
-            order[1] = 0
-
-        # anything above the bilinear term is not determined by the cut
-        # schemes: the 2-mode cuts sample only the line Q_a = Q_b, where
-        # terms of equal total degree are indistinguishable
-        if order[1] not in [0, obj.max_twomode_order]:
-            sys.exit(err+kword+': the two-mode order must be 0 or '
-                     +str(obj.max_twomode_order)+', got '+str(order[1])+
-                     '\n the 2-mode cuts displace both modes equally, so '
-                     'they sample only the line Q_a = Q_b, where terms of '
-                     'equal total degree are indistinguishable. Only the '
-                     'bilinear term is determined by that data.')
-
-        setattr(obj, kword, np.array(order, dtype=int))
-
     # array-valued keywords
     # ---------------------------------------------------------------
-    # N.B. state and irrep indices are passed to BDDpy untouched, and BDDpy
-    # numbers states from 1. They are deliberately not shifted to GRaCI's
-    # internal 0-based ordering here.
-    for kword in ['state_irreps', 'opstates']:
-        value = getattr(obj, kword)
-        if value is not None and not isinstance(value, (list, np.ndarray)):
-            setattr(obj, kword, np.array([value], dtype=int))
-
-    if obj.blocks is not None and not isinstance(obj.blocks, list):
-        obj.blocks = [obj.blocks]
-
     return
     
 #
@@ -797,22 +854,17 @@ def replicate_sections(run_list):
 def parse_all_geoms(mol):
     """
     given a molecule object, reads in all geometries in mol.xyz_file file
+
+    The comment line of each geometry may say anything: it is skipped by
+    position, per the xyz format, rather than by guessing which lines look
+    like atoms. See molecule.read_xyz_file.
     """
 
-    # parse the xyz file
-    with open(mol.xyz_file, 'r') as xyzfile:
-        xyz = xyzfile.readlines()
-        
-    # remove the leading no. atom and blank lines
-    xyz_clean = [string.split() for string in xyz
-                if string.split() != []
-                 and len(string.split()) != 1]
-    n_atm  = len(mol.crds)
-    n_geom = int(len(xyz_clean) / n_atm)
-    
-    # get the array of nuclear geometries
-    coords = np.array([float(xx)
-                       for x in xyz_clean
-                       for xx in x[1:]]).reshape(n_geom,n_atm,3)
+    labels, coords = molecule.read_xyz_file(mol.xyz_file)
+
+    if coords.shape[1] != len(mol.crds):
+        sys.exit(' xyz_file '+str(mol.xyz_file)+' holds '
+                 +str(coords.shape[1])+' atoms, but the molecule section '
+                 'has '+str(len(mol.crds)))
 
     return coords

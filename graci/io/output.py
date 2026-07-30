@@ -617,6 +617,29 @@ def print_pbdd_fit(model, data):
 
     return
 
+def print_pbdd_generated(written, geom_dir):
+    """report the geometries a generate job produced"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Displaced geometries written to %s/\n\n'
+                      % (geom_dir))
+        outfile.write('   file%s points\n' % (' '*26))
+        outfile.write(' '+'-'*44+'\n')
+
+        total = 0
+        for path, cut in written:
+            npts = cut.coords.shape[0]
+            total += npts
+            outfile.write('   %-30s %5d\n' % (os.path.basename(path), npts))
+
+        outfile.write('\n   %d cut(s), %d geometries in total\n'
+                      % (len(written), total))
+        outfile.write('\n Run each as a cut job, then collect them with '
+                      'gkdc.\n')
+        outfile.flush()
+
+    return
+
 def print_pbdd_state_syms(irreps, irreplbl, smin):
     """report the state symmetries assigned to a chain
 
@@ -653,26 +676,82 @@ def print_pbdd_refcheck(stem, dev, tol):
 
     return
 
-def print_pbdd_step(stem, ipoint, sdiag, ssvd, sdet, warn):
+def print_pbdd_step(stem, ipoint, sdiag, ssvd, sdet):
     """report the wave function overlap diagnostics for one step of a chain
 
        The ADT is built as S^-1 (S S^T)^1/2, which yields a well-formed
        matrix from a badly conditioned overlap, so a chain that has lost
        track of its states does not otherwise announce itself.
 
-       Only the singular measures trigger a warning. A small min|S_ii| on
-       its own means the adiabatic states have exchanged between the two
-       geometries, which is routine and is what the diabatisation is for.
+       No judgement is rendered here: the numbers are recorded and the
+       thresholds applied when the harvest is evaluated. A log line is not
+       a workable way to report anything across thousands of cut jobs.
     """
-
-    flag = ''
-    if warn is not None and (ssvd < warn or sdet < warn):
-        flag = '   <-- state space not preserved'
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('   %-10s point %3d   min|S_ii| = %7.5f'
-                      '   min svd = %7.5f   |det S| = %7.5f%s\n'
-                      % (stem, ipoint, sdiag, ssvd, sdet, flag))
+                      '   min svd = %7.5f   |det S| = %7.5f\n'
+                      % (stem, ipoint, sdiag, ssvd, sdet))
+        outfile.flush()
+
+    return
+
+def print_pbdd_diagnostics(diagnostics, refcheck, warn, ener_tol):
+    """evaluate the recorded chain diagnostics and report what is suspect
+
+       This is the collect-time judgement: the chains themselves only
+       record. A small min|S_ii| is not reported, since adiabatic states
+       routinely exchange between neighbouring geometries and that is what
+       the diabatisation absorbs; only the permutation-invariant measures
+       indicate that the state space itself was not preserved.
+    """
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n Chain diagnostics\n\n')
+
+        suspect = []
+        for stem in sorted(diagnostics.keys()):
+            health = diagnostics[stem]
+            for ipt in range(health.shape[0]):
+                ssvd, sdet = health[ipt, 1], health[ipt, 2]
+                if np.isnan(ssvd):
+                    continue
+                if warn is not None and (ssvd < warn or sdet < warn):
+                    suspect.append((stem, ipt, ssvd, sdet))
+
+        finite = [d[~np.isnan(d[:, 1])] for d in diagnostics.values()
+                  if d.size]
+        if finite:
+            allh = np.concatenate(finite, axis=0)
+            outfile.write('   chains                  %6d\n'
+                          % (len(diagnostics)))
+            outfile.write('   steps evaluated         %6d\n'
+                          % (allh.shape[0]))
+            outfile.write('   smallest singular value %10.6f\n'
+                          % (allh[:, 1].min()))
+            outfile.write('   smallest |det S|        %10.6f\n'
+                          % (allh[:, 2].min()))
+
+        if refcheck:
+            worst = max(refcheck.values())
+            outfile.write('   worst point-0 deviation %10.3e Hartree '
+                          '(tolerance %7.1e)\n' % (worst, ener_tol))
+
+        if warn is None:
+            outfile.write('\n   no overlap threshold set; nothing '
+                          'evaluated\n')
+        elif not suspect:
+            outfile.write('\n   no step fell below the threshold of '
+                          '%7.5f\n' % (warn))
+        else:
+            outfile.write('\n   %d step(s) below the threshold of %7.5f '
+                          '-- the state space was not preserved:\n'
+                          % (len(suspect), warn))
+            for stem, ipt, ssvd, sdet in suspect:
+                outfile.write('     %-10s point %3d   min svd = %7.5f'
+                              '   |det S| = %7.5f\n'
+                              % (stem, ipt, ssvd, sdet))
+
         outfile.flush()
 
     return

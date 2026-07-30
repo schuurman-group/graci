@@ -61,6 +61,11 @@ class Cimethod:
         self.smo            = None
         # ADT matrices (one per irrep)
         self.adt            = None
+        # wave function overlaps with the previous geometry of a chain,
+        # per irrep, when the diabatisation computed them explicitly. The
+        # bdd scheme builds them on the way to the ADT, so a caller
+        # wanting them for diagnostics need not repeat the work.
+        self.chain_smat     = None
         # Diabatic potential matrices (one per irrep)
         self.diabpot        = None
         # mos 

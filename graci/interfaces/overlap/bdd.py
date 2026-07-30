@@ -19,6 +19,9 @@ def adt(ref_obj, disp_obj):
     Calculation of the P-BDD ADT matrices for all irreps
     Here, ref_obj corresponds to the previous geometry, R_n-1,
     and disp_obj to the current geometry, R_n
+
+    Returns the ADT matrices and the wave function overlap matrices they
+    were built from, one of each per irrep.
     """
     
     # section header
@@ -29,6 +32,11 @@ def adt(ref_obj, disp_obj):
 
     # initialise the list of disp ADT matrices
     adt_matrices = [None for i in range(nirr)]
+
+    # the bra-ket overlaps are returned alongside: the caller would
+    # otherwise have to recompute them for the chain diagnostics, and this
+    # is the expensive part of the step
+    smatrices    = [None for i in range(nirr)]
     
     # loop over irreps
     for irrep in ref_obj.irreps_nonzero():
@@ -76,5 +84,6 @@ def adt(ref_obj, disp_obj):
 
         # save the disp ADT matrix
         adt_matrices[irrep] = adt
+        smatrices[irrep]    = Sij
 
-    return adt_matrices
+    return adt_matrices, smatrices
