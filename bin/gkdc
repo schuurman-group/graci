@@ -58,6 +58,10 @@ def read_cmdline(argv=None):
                         help='write a MultiQD operator file')
     parser.add_argument('--h5', metavar='FILE', default=None,
                         help='write the BDDpy store (model, data, system)')
+    parser.add_argument('--label', metavar='NAME', default=None,
+                        help='name for the written surfaces; defaults to '
+                             'the operator or store file stem, else '
+                             '"collected"')
     parser.add_argument('--potentials', action='store_true',
                         help='dump the diabatic potentials as text')
     parser.add_argument('--couplings', action='store_true',
@@ -267,6 +271,65 @@ def check_consistency(harvests):
 
 
 #
+def harvest_points(paths, system):
+    """
+    Gather every sampled geometry and its diabatic potential.
+
+    The geometries are read back and converted to normal coordinates here
+    rather than trusting a recorded Q or a file name. That is
+    self-validating: a geometry that does not belong to this model space
+    comes out with a nonsense displacement instead of being silently
+    accepted, and there is no label to be wrong.
+
+    Returns:
+      (qvec, diabpot, origin) in BDDpy's geometry-last layout
+    """
+
+    qs, ws, origin = [], [], []
+
+    for path in paths:
+        groups = chkpt.contents(file_name=path) or []
+
+        with h5py.File(path, 'r') as handle:
+
+            for name in sorted(groups):
+                if not str(name).startswith('Dftmrci2.'):
+                    continue
+
+                grp = handle[name]
+                key = [k for k in grp.keys() if 'diabpot' in k]
+
+                # the reference calculation carries no diabatic potential:
+                # it is the expansion origin, not a sampled point
+                if not key:
+                    continue
+
+                label = str(name).split('.', 1)[1]
+                mol   = 'Molecule.'+label
+
+                if mol not in handle:
+                    sys.exit('\n ERROR: '+str(path)+' holds '+str(name)+
+                             ' but no geometry for it ('+mol+')')
+
+                coords = np.array(handle[mol+'/NUMPY.crds'])
+                w      = np.array(grp[key[0]])
+
+                qs.append(system.to_normal(coords))
+                ws.append(w)
+                origin.append(label)
+
+    if not qs:
+        sys.exit('\n ERROR: no sampled geometries found. A generate run '
+                 'produces the reference only; the cuts have to be run '
+                 'and collected.')
+
+    qvec    = np.asarray(qs).T
+    diabpot = np.transpose(np.asarray(ws), (1, 2, 0))
+
+    return qvec, diabpot, origin
+
+
+#
 def merge(harvests):
     """
     Gather the cuts from every harvest into one set.
@@ -314,20 +377,26 @@ def report_coverage(qvec, diabpot, nmodes):
     gets produced, so the coverage is always stated.
     """
 
-    print(' Cuts found: %d' % (len(diabpot)))
-    print()
-    print('   cut          states   geometries   modes displaced')
-    print(' '+'-'*52)
+    nsta = diabpot.shape[0]
 
+    print(' Sampled geometries: %d' % (qvec.shape[1]))
+    print()
+    print('   mode   points   Q range')
+    print(' '+'-'*40)
+
+    # the geometries are written to seven decimals, so converting them
+    # back to normal coordinates carries about 1e-7 of rounding. A mode is
+    # counted as displaced well above that noise and well below any real
+    # step, which is 0.1 or larger in practice.
     seen = set()
-    for stem in sorted(diabpot.keys()):
-        shape = diabpot[stem].shape
-        modes = ''
-        if stem in qvec:
-            active = np.where(np.abs(qvec[stem]).max(axis=1) > 1e-12)[0]
-            seen.update(active.tolist())
-            modes = ' '.join(str(m+1) for m in active)
-        print('   %-12s %4d   %10d   %s' % (stem, shape[0], shape[2], modes))
+    for mode in range(nmodes):
+        on = np.abs(qvec[mode]) > 1e-6
+        if not on.any():
+            continue
+        seen.add(mode)
+        q = qvec[mode][on]
+        print('   %4d   %6d   %8.3f to %7.3f'
+              % (mode+1, on.sum(), q.min(), q.max()))
 
     missing = sorted(set(range(nmodes)) - seen)
     print()
@@ -540,16 +609,19 @@ def main(argv=None):
     print(' Read %d harvest(s) from %d file(s)'
           % (len(harvests), len(paths)))
 
-    qvec, diabpot, diagnostics, refcheck = merge(harvests)
+    _, _, diagnostics, refcheck = merge(harvests)
 
-    # a path_file run has no normal modes, so there is nothing to expand
-    # in. The potentials are still the deliverable, and looking at them is
-    # still the point, so dump rather than refuse.
-    fitting = bool(ref.system_data)
+    if not ref.system_data:
+        sys.exit('\n ERROR: these checkpoints carry no normal mode data, '
+                 'so there is nothing to expand in.')
 
-    system = pbdd.rebuild_system(ref.system_data) if fitting else None
+    system = pbdd.rebuild_system(ref.system_data)
 
-    report_coverage(qvec, diabpot, system.nmodes if fitting else 0)
+    # the sampled points come from the geometries themselves, not from a
+    # recorded Q or a file name
+    qvec, diabpot, origin = harvest_points(paths, system)
+
+    report_coverage(qvec, diabpot, system.nmodes)
 
     warn = args.overlap_warn if args.overlap_warn is not None \
         else ref.overlap_warn
@@ -557,19 +629,9 @@ def main(argv=None):
 
     # the fit is driven through the Pbdd object, so that collect and an
     # in-process run cannot diverge in how they assemble the model
-    ref.qvec    = qvec
-    ref.diabpot = diabpot
-
-    if not fitting:
-        print(' No normal mode data: these are path_file harvests, so the '
-              'diabatic\n potentials are the deliverable and no '
-              'Hamiltonian is fitted.\n')
-        if args.potentials or args.couplings:
-            ref.print_potentials = args.potentials
-            ref.print_couplings  = args.couplings
-            ref.write_surfaces()
-            print(' Surfaces written.\n')
-        return 0
+    ref.qvec    = {'all': qvec}
+    ref.diabpot = {'all': diabpot}
+    ref.origin  = origin
 
     if args.diag_order is not None:
         ref.diag_order = args.diag_order
@@ -588,6 +650,17 @@ def main(argv=None):
     if args.blocks is not None:
         ref.blocks = [[int(x) for x in blk.split(',') if x.strip()]
                       for blk in args.blocks.split('/') if blk.strip()]
+
+    # the harvests each carry the label of the cut that produced them, so
+    # a collected set has to be named for itself rather than for whichever
+    # one happened to sort first
+    stem = args.label
+    if stem is None:
+        for name in [args.op, args.sop, args.h5]:
+            if name:
+                stem = os.path.splitext(os.path.basename(name))[0]
+                break
+    ref.label = stem or 'collected'
 
     ref.op_file          = args.op
     ref.sop_file         = args.sop

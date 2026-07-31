@@ -591,6 +591,26 @@ def check_pbdd(obj, run_list):
                 sys.exit(err+kword+' belongs to a generate job: a cut job '
                          'runs the geometries it is given')
 
+        # A chain runs without symmetry, so the reference section has to
+        # be written for C1: one nstates entry, not one per irrep. Copying
+        # the generate job's per-irrep nstates is the obvious mistake, and
+        # bitci does not survive it -- it loops over irreps that do not
+        # exist and returns undecodable scratch file names, which surfaces
+        # as a UnicodeDecodeError from deep in the interface rather than
+        # as anything a user could act on.
+        if mol_obj is not None and mol_obj.use_sym:
+            sys.exit(err+'a cut job runs its geometries without symmetry, '
+                     'so its $molecule section needs use_sym = False')
+
+        nstates = np.atleast_1d(np.asarray(ref_obj.nstates))
+
+        if nstates.size != 1:
+            sys.exit(err+'reference = '+str(obj.reference)+' asks for '
+                     +str(nstates.size)+' irreps ('+
+                     ' '.join(str(int(n)) for n in nstates)+'), but a cut '
+                     'runs in C1.\n Give the total instead: nstates = ['
+                     +str(int(nstates.sum()))+']')
+
     # multiple-choice keywords
     # ---------------------------------------------------------------
     choices = [('adt_type',   obj.allowed_adt_type),

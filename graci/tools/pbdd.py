@@ -682,6 +682,8 @@ class Pbdd:
             ci.det_strings[key] = None
             ci.vec_det[key]     = None
 
+        self.release_scratch(ci)
+
         return
 
     #
@@ -955,8 +957,11 @@ class Pbdd:
 
             # the previous point has now been used both to propagate the
             # diabatisation and to compute the diagnostics, so its
-            # determinant expansions can go
-            self.release_wavefunctions(prev_ci)
+            # determinant expansions can go -- unless it is the seeded
+            # head, which belongs to the generate job and is shared by
+            # every other cut
+            if not (seeded and ipt == 0):
+                self.release_wavefunctions(prev_ci)
 
             prev_scf = scf
             prev_ci  = ci
@@ -1022,27 +1027,56 @@ class Pbdd:
     #
     def cut_groups(self):
         """
-        Group the walked chains by the modes they displace.
+        Gather every harvested point and group them by what they displace.
 
-        The two half-cuts through a mode are two halves of one curve, so
-        they belong in one file: joining them is what makes the dumped
-        surfaces plottable without further work.
+        The grouping is per *point*, not per stored chain: a collected set
+        arrives as one flat block of geometries whose only provenance is
+        which modes each one displaces. Asking which modes the whole block
+        touches would answer "all of them" and produce a single file.
 
         Returns:
-          {(mode indices): [chain names]}, mode indices empty for a path
+          {(mode indices): (x, w, q)} -- the scan coordinate, the diabatic
+          potentials (npts, nsta, nsta), and the full normal coordinates
         """
 
-        groups = {}
+        qs, ws = [], []
 
         for stem in sorted(self.diabpot.keys()):
-            qvec = self.qvec.get(stem)
-            if qvec is None:
-                modes = ()
-            else:
-                modes = tuple(np.where(np.abs(qvec).max(axis=1) > 1e-12)[0])
-            groups.setdefault(modes, []).append(stem)
+            w = np.asarray(self.diabpot[stem])
+            q = self.qvec.get(stem)
 
-        return groups
+            ws.append(np.transpose(w, (2, 0, 1)))
+            qs.append(np.asarray(q).T if q is not None
+                      else np.zeros((w.shape[2], 1)))
+
+        if not ws:
+            return {}
+
+        w = np.concatenate(ws, axis=0)
+        q = np.concatenate(qs, axis=0)
+
+        groups = {}
+        for ipt in range(q.shape[0]):
+            # well above the ~1e-7 of rounding a geometry round trip
+            # carries, well below any real step
+            key = tuple(np.where(np.abs(q[ipt]) > 1e-6)[0])
+            groups.setdefault(key, []).append(ipt)
+
+        out = {}
+        for modes, idx in groups.items():
+            idx = np.asarray(idx)
+            x   = q[idx, modes[0]] if modes \
+                else np.arange(len(idx), dtype=float)
+
+            order  = np.argsort(x, kind='stable')
+            idx, x = idx[order], x[order]
+
+            # the half-cuts share the reference geometry
+            keep = np.concatenate([[True], np.abs(np.diff(x)) > 1e-10])
+
+            out[modes] = (x[keep], w[idx][keep], q[idx][keep])
+
+        return out
 
     #
     def write_surfaces(self, model=None):
@@ -1050,10 +1084,10 @@ class Pbdd:
         Dump the harvested diabatic potentials and couplings as text.
 
         One file per cut, with the two half-cuts joined into a single
-        curve running through the reference geometry. Energies are given
-        in eV relative to the reference ground state, which is the
-        convention the fitted model uses, so the ab initio and fitted
-        columns are directly comparable.
+        curve running through the reference geometry. Energies are in eV
+        relative to the reference ground state, which is the convention
+        the fitted model uses, so the ab initio and fitted columns are
+        directly comparable.
 
         Arguments:
           model: the fitted model, when there is one. Its values are
@@ -1065,51 +1099,13 @@ class Pbdd:
         eh2ev = bddpy_constants.active.EH2EV
         ezero = np.min(self.q0_ener)
 
-        nsta  = None
-        diag  = []
-        offd  = []
+        for modes, (x, w, q) in sorted(self.cut_groups().items()):
 
-        for modes, stems in self.cut_groups().items():
-
-            xs = []
-            ws = []
-            qs = []
-
-            for stem in stems:
-                w    = self.diabpot[stem]
-                qvec = self.qvec.get(stem)
-                nsta = w.shape[0]
-
-                if modes:
-                    x = qvec[modes[0]]
-                else:
-                    # a path has no expansion coordinate, so index the
-                    # geometries instead
-                    x = np.arange(w.shape[2], dtype=float)
-
-                xs.append(x)
-                ws.append(np.transpose(w, (2, 0, 1)))
-                if qvec is not None:
-                    qs.append(qvec.T)
-
-            x = np.concatenate(xs)
-            w = np.concatenate(ws, axis=0)
-            q = np.concatenate(qs, axis=0) if qs else None
-
-            # the half-cuts share the reference geometry
-            order = np.argsort(x, kind='stable')
-            x, w  = x[order], w[order]
-            if q is not None:
-                q = q[order]
-            keep  = np.concatenate([[True], np.abs(np.diff(x)) > 1e-10])
-            x, w  = x[keep], w[keep]
-            if q is not None:
-                q = q[keep]
-
-            w = (w - ezero * np.eye(nsta)[None, :, :]) * eh2ev
+            nsta = w.shape[1]
+            w    = (w - ezero * np.eye(nsta)[None, :, :]) * eh2ev
 
             fit = None
-            if model is not None and q is not None:
+            if model is not None and modes:
                 fit = model.diabatic(q)
 
             diag = [(i, i) for i in range(nsta)]
@@ -1261,6 +1257,8 @@ class Pbdd:
         c1_ci = chkpt.read(name, file_name=path, build_subobj=True,
                            make_mol=True)
 
+        self.anchor_scratch(c1_ci, os.path.dirname(os.path.abspath(path)))
+
         if c1_ci is None or c1_ci.vec_det['adiabatic'] is None:
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
                      '\n the C1 reference in '+str(path)+' did not '
@@ -1268,6 +1266,46 @@ class Pbdd:
                      'propagated from it')
 
         return c1_ci
+
+    #
+    def anchor_scratch(self, ci, root):
+        """
+        Make a reference's recorded bitci scratch paths absolute.
+
+        The chain does not propagate from the checkpoint alone: building
+        the next geometry's reference space reads the previous one's
+        configuration files off disk (ref_space.propagate passes their
+        names, not unit numbers). bitci records those names relative to
+        the directory the job ran in, so a cut running anywhere else
+        cannot find them however visible the files are.
+
+        Anchoring them to the reference checkpoint's own directory is what
+        lets the reference sit in one shared place while the cuts run
+        wherever the queue puts them.
+        """
+
+        if ci is None:
+            return
+
+        for wfn in [getattr(ci, 'mrci_wfn', None),
+                    getattr(ci, 'ref_wfn', None)]:
+            if wfn is None:
+                continue
+
+            for attr in ['conf_name', 'ci_name', 'avii_name']:
+                names = getattr(wfn, attr, None)
+                if not isinstance(names, dict):
+                    continue
+
+                for rep, rep_names in names.items():
+                    if not rep_names:
+                        continue
+                    names[rep] = [
+                        n if (not n or os.path.isabs(str(n)))
+                        else os.path.join(root, str(n))
+                        for n in rep_names]
+
+        return
 
     #
     def walk_from_molecule(self, ref_obj):
@@ -1310,8 +1348,15 @@ class Pbdd:
             coords[0], np.asarray(self.system_data['coords'])
             * constants.bohr2ang, atol=1e-8) else 0
 
-        self.walk_chain(ref_obj, coords[first:], stem,
-                        head_scf=c1_ci.scf, head_ci=c1_ci)
+        walked = self.walk_chain(ref_obj, coords[first:], stem,
+                                 head_scf=c1_ci.scf, head_ci=c1_ci)
+
+        # stored geometry-last, matching BDDpy's DiabaticData. gkdc reads
+        # the per-geometry groups rather than this, since pairing each
+        # geometry with its own potential by label cannot go out of step
+        # the way two parallel arrays can -- but it costs nothing to keep
+        # and write_surfaces uses it.
+        self.diabpot[stem] = walked.transpose(1, 2, 0)
 
         return
 
