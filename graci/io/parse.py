@@ -585,7 +585,7 @@ def check_pbdd(obj, run_list):
             sys.exit(err+'a cut job takes its geometries from the '
                      '$molecule section, which names no xyz_file')
 
-        for kword in ['cut_scheme', 'stepsize', 'npoints']:
+        for kword in ['cut_scheme', 'stepsize', 'npoints', 'geom_dir']:
             if not np.array_equal(getattr(obj, kword),
                                   getattr(default, kword)):
                 sys.exit(err+kword+' belongs to a generate job: a cut job '

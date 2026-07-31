@@ -133,6 +133,7 @@ pbdd_kword      = {'job_type'            : str,
                    'reference'           : str,
                    'reference_file'      : str,
                    'hessian_file'        : str,
+                   'geom_dir'            : str,
                    'adt_type'            : str,
                    'norm_thresh'         : float,
                    'det_thresh'          : float,
@@ -153,7 +154,7 @@ pbdd_kword      = {'job_type'            : str,
 # the kdc program, not here. A $pbdd section produces diabatic potentials
 # and never an operator file, so that no one can go from an input file to a
 # Hamiltonian without having looked at a single curve. See port_plan.md
-# section 8.11.
+# section 8.2.
 
 #---------------------------------------------------
 
