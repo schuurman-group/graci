@@ -640,6 +640,28 @@ def print_pbdd_generated(written, geom_dir):
 
     return
 
+def print_pbdd_inherited_ras(label, ras1, ras2, ras3, nhole1, nelec3):
+    """note that a chain point took the reference's active space
+
+       Re-deriving it per geometry would have the points of one chain
+       describing the same states in different active spaces.
+    """
+
+    def ras_str(ras):
+        return ' '.join(str(int(n)) for n in ras) if len(ras) > 0 else '-'
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n %s: using the reference active space rather '
+                      'than re-running autoras\n' % (label))
+        outfile.write('   RAS1   %s\n' % (ras_str(ras1)))
+        if len(ras2) > 0:
+            outfile.write('   RAS2   %s\n' % (ras_str(ras2)))
+        outfile.write('   RAS3   %s\n' % (ras_str(ras3)))
+        outfile.write('   nhole1 %d,  nelec3 %d\n' % (nhole1, nelec3))
+        outfile.flush()
+
+    return
+
 def print_pbdd_state_syms(irreps, irreplbl, smin):
     """report the state symmetries assigned to a chain
 

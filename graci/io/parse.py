@@ -577,10 +577,6 @@ def check_pbdd(obj, run_list):
             sys.exit(err+'hessian_file belongs to a generate job: a cut '
                      'job takes its geometries from the $molecule section')
 
-        if obj.reference_file is None:
-            sys.exit(err+'a cut job needs a reference_file: the checkpoint '
-                     'written by the generate job it belongs to')
-
         if mol_obj is not None and mol_obj.xyz_file is None:
             sys.exit(err+'a cut job takes its geometries from the '
                      '$molecule section, which names no xyz_file')

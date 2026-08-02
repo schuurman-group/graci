@@ -28,6 +28,7 @@ import h5py
 import numpy as np
 
 import graci.io.chkpt as chkpt
+import graci.io.output as output
 import graci.tools.pbdd as pbdd
 
 
@@ -68,13 +69,12 @@ def read_cmdline(argv=None):
                         help='dump the diabatic couplings as text')
 
     parser.add_argument('--diag-order', metavar='N', nargs='+', type=int,
-                        default=None,
+                        default=[6, 2],
                         help='on-diagonal expansion order, as '
-                             '"one-mode two-mode"; overrides the run')
+                             '"one-mode two-mode" (default 6 2)')
     parser.add_argument('--offdiag-order', metavar='N', nargs='+', type=int,
-                        default=None,
-                        help='off-diagonal expansion order; overrides the '
-                             'run')
+                        default=[6, 2],
+                        help='off-diagonal expansion order (default 6 2)')
     parser.add_argument('--overlap-warn', metavar='X', type=float,
                         default=None,
                         help='flag chain steps whose smallest singular '
@@ -93,8 +93,8 @@ def read_cmdline(argv=None):
                              'comma-separated within a block and blocks '
                              'separated by a slash, e.g. "1,2/3,4"')
     parser.add_argument('--blockdiag', choices=('svd', 'invsqrt'),
-                        default=None,
-                        help='block diagonalisation algorithm')
+                        default='svd',
+                        help='block diagonalisation algorithm (default svd)')
     parser.add_argument('--cartgrad', action='store_true',
                         help='report Cartesian gradients')
 
@@ -314,7 +314,10 @@ def harvest_points(paths, system):
                 coords = np.array(handle[mol+'/NUMPY.crds'])
                 w      = np.array(grp[key[0]])
 
-                qs.append(system.to_normal(coords))
+                # without a model space there is no Q to project onto;
+                # the geometries are still what identifies each point
+                qs.append(system.to_normal(coords) if system is not None
+                          else np.zeros(1))
                 ws.append(w)
                 origin.append(label)
 
@@ -579,6 +582,217 @@ def collect_report(model, data, order, coupling_thresh, gradient_thresh,
 
 
 #
+def cut_groups(qvec, diabpot):
+    """
+    Gather every harvested point and group them by what they displace.
+
+    The grouping is per *point*, not per stored chain: a collected set
+    arrives as one flat block of geometries whose only provenance is
+    which modes each one displaces. Asking which modes the whole block
+    touches would answer "all of them" and produce a single file.
+
+    Arguments:
+      qvec:    {stem: (nmodes, ngeom)}, may be empty for a bare path
+      diabpot: {stem: (nsta, nsta, ngeom)}
+
+    Returns:
+      {(mode indices): (x, w, q)} -- the scan coordinate, the diabatic
+      potentials (npts, nsta, nsta), and the full normal coordinates
+    """
+
+    qs, ws = [], []
+
+    for stem in sorted(diabpot.keys()):
+        w = np.asarray(diabpot[stem])
+        q = qvec.get(stem)
+
+        ws.append(np.transpose(w, (2, 0, 1)))
+        qs.append(np.asarray(q).T if q is not None
+                  else np.zeros((w.shape[2], 1)))
+
+    if not ws:
+        return {}
+
+    w = np.concatenate(ws, axis=0)
+    q = np.concatenate(qs, axis=0)
+
+    groups = {}
+    for ipt in range(q.shape[0]):
+        # well above the ~1e-7 of rounding a geometry round trip
+        # carries, well below any real step
+        key = tuple(np.where(np.abs(q[ipt]) > 1e-6)[0])
+        groups.setdefault(key, []).append(ipt)
+
+    out = {}
+    for modes, idx in groups.items():
+        idx = np.asarray(idx)
+        x   = q[idx, modes[0]] if modes \
+            else np.arange(len(idx), dtype=float)
+
+        order  = np.argsort(x, kind='stable')
+        idx, x = idx[order], x[order]
+
+        # the half-cuts share the reference geometry
+        keep = np.concatenate([[True], np.abs(np.diff(x)) > 1e-10])
+
+        out[modes] = (x[keep], w[idx][keep], q[idx][keep])
+
+    return out
+
+
+#
+def write_dat(path, modes, x, w, fit, elements, symbol):
+    """write one surface file"""
+
+    coord = 'point' if not modes else \
+        'Q' + '/Q'.join(str(m+1) for m in modes)
+
+    head = ['%14s' % coord]
+    for (i, j) in elements:
+        head.append('%14s' % ('%s%d%d' % (symbol, i+1, j+1)))
+        if fit is not None:
+            head.append('%14s' % ('%s%d%d_fit' % (symbol, i+1, j+1)))
+
+    with open(path, 'w') as datfile:
+        datfile.write('# diabatic %s, eV, relative to the reference '
+                      'ground state\n'
+                      % ('couplings' if symbol == 'W' else 'potentials'))
+        datfile.write('#'+''.join(head)[1:]+'\n')
+
+        for ipt in range(len(x)):
+            row = ['%14.8f' % x[ipt]]
+            for (i, j) in elements:
+                row.append('%14.8f' % w[ipt, i, j])
+                if fit is not None:
+                    row.append('%14.8f' % fit[ipt, i, j])
+            datfile.write(''.join(row)+'\n')
+
+    return
+
+
+#
+def write_surfaces(label, qvec, diabpot, q0_ener, potentials, couplings,
+                   model=None):
+    """
+    Dump the harvested diabatic potentials and couplings as text.
+
+    One file per cut, with the two half-cuts joined into a single curve
+    running through the reference geometry. Energies are in eV relative
+    to the reference ground state, which is the convention the fitted
+    model uses, so the ab initio and fitted columns are directly
+    comparable.
+
+    Arguments:
+      model: the fitted model, when there is one. Its values are written
+             alongside the ab initio ones.
+    """
+
+    import bddpy.constants as bddpy_constants
+
+    eh2ev = bddpy_constants.active.EH2EV
+    ezero = np.min(q0_ener)
+
+    for modes, (x, w, q) in sorted(cut_groups(qvec, diabpot).items()):
+
+        nsta = w.shape[1]
+        w    = (w - ezero * np.eye(nsta)[None, :, :]) * eh2ev
+
+        fit = None
+        if model is not None and modes:
+            fit = model.diabatic(q)
+
+        diag = [(i, i) for i in range(nsta)]
+        offd = [(i, j) for i in range(nsta) for j in range(i+1, nsta)]
+
+        stem = 'path' if not modes else \
+            'q' + '_q'.join(str(m+1) for m in modes)
+
+        if potentials:
+            write_dat(str(label)+'_'+stem+'_pot.dat',
+                      modes, x, w, fit, diag, 'V')
+
+        if couplings and offd:
+            write_dat(str(label)+'_'+stem+'_coup.dat',
+                      modes, x, w, fit, offd, 'W')
+
+    return
+
+
+#
+def build_config(args, ref, system, label):
+    """
+    Build the BDDpy KdcConfig for the fit.
+
+    The quantities kdc used to require of the user -- the reference
+    energies, the point group, the state symmetries -- come from the
+    harvested reference instead. Everything describing the *fit* comes
+    from the command line: a $pbdd section has no say in it, which is
+    what keeps an input file from reaching an operator file.
+    """
+
+    import bddpy.config as bddpy_config
+
+    return bddpy_config.KdcConfig(
+        q0_energies         = ref.q0_ener,
+        order               = int(max(args.diag_order[0],
+                                      args.offdiag_order[0])),
+        diag_order          = args.diag_order,
+        offdiag_order       = args.offdiag_order,
+        point_group         = system.frame.group,
+        state_irreps        = ref.state_syms,
+        weight              = args.weight,
+        reexpand            = args.reexpand,
+        blocks              = None if args.blocks is None else
+                              [[int(x) for x in blk.split(',') if x.strip()]
+                               for blk in args.blocks.split('/')
+                               if blk.strip()],
+        blockdiag_algorithm = args.blockdiag,
+        cartgrad            = args.cartgrad,
+        operator_states     = args.opstates,
+        label_stem          = str(label),
+        source              = 'graci: gkdc, label = '+str(label))
+
+
+#
+def fit_model(system, config, data, args, label, ref):
+    """
+    Fit the vibronic coupling Hamiltonian and write the requested files.
+
+    Returns:
+      the BDDpy VibronicModel
+    """
+
+    import bddpy.fitting as bddpy_fitting
+    import bddpy.io.store as bddpy_store
+    import bddpy.operators.mctdh as bddpy_mctdh
+    import bddpy.operators.multiqd as bddpy_multiqd
+
+    config.validate()
+
+    model = bddpy_fitting.fit(system, config, data)
+
+    output.print_pbdd_fit(model, data)
+
+    # naming a file selects its writer, so there is no separate operator
+    # format option
+    if args.op is not None:
+        bddpy_mctdh.write(model, args.op)
+
+    if args.sop is not None:
+        bddpy_multiqd.write(model, args.sop, states=args.opstates)
+
+    if args.h5 is not None:
+        bddpy_store.save(args.h5, model, data=data, system=system,
+                         config=config)
+
+    if args.potentials or args.couplings:
+        write_surfaces(label, ref.qvec, ref.diabpot, ref.q0_ener,
+                       args.potentials, args.couplings, model)
+
+    return model
+
+
+#
 def main(argv=None):
     """collect a set of GRaCI checkpoints and fit"""
 
@@ -611,9 +825,28 @@ def main(argv=None):
 
     _, _, diagnostics, refcheck = merge(harvests)
 
+    # a cut run without a reference_file is a path of someone's own
+    # choosing: no normal modes, so nothing to expand in. The diabatic
+    # potentials are still the deliverable, and looking at them is still
+    # the point, so dump rather than refuse.
     if not ref.system_data:
-        sys.exit('\n ERROR: these checkpoints carry no normal mode data, '
-                 'so there is nothing to expand in.')
+        print(' These harvests carry no normal mode data -- a path rather '
+              'than a\n generated cut, so there is nothing to expand in '
+              'and no fit to make.\n')
+
+        if not (args.potentials or args.couplings):
+            print(' Nothing to do. Pass --potentials or --couplings to '
+                  'write the surfaces.\n')
+            return 0
+
+        qvec, diabpot, origin = harvest_points(paths, None)
+
+        write_surfaces(args.label or 'path', {}, {'path': diabpot},
+                       ref.q0_ener, args.potentials, args.couplings)
+
+        print(' Surfaces written for %d geometries.\n'
+              % (diabpot.shape[2]))
+        return 0
 
     system = pbdd.rebuild_system(ref.system_data)
 
@@ -627,30 +860,6 @@ def main(argv=None):
         else ref.overlap_warn
     report_diagnostics(diagnostics, refcheck, warn, ref.ener_tol)
 
-    # the fit is driven through the Pbdd object, so that collect and an
-    # in-process run cannot diverge in how they assemble the model
-    ref.qvec    = {'all': qvec}
-    ref.diabpot = {'all': diabpot}
-    ref.origin  = origin
-
-    if args.diag_order is not None:
-        ref.diag_order = args.diag_order
-    if args.offdiag_order is not None:
-        ref.offdiag_order = args.offdiag_order
-    if args.opstates is not None:
-        ref.opstates = args.opstates
-    if args.weight is not None:
-        ref.weight = args.weight
-    if args.reexpand is not None:
-        ref.reexpand = args.reexpand
-    if args.blockdiag is not None:
-        ref.blockdiag_algorithm = args.blockdiag
-    if args.cartgrad:
-        ref.cartgrad = True
-    if args.blocks is not None:
-        ref.blocks = [[int(x) for x in blk.split(',') if x.strip()]
-                      for blk in args.blocks.split('/') if blk.strip()]
-
     # the harvests each carry the label of the cut that produced them, so
     # a collected set has to be named for itself rather than for whichever
     # one happened to sort first
@@ -660,21 +869,27 @@ def main(argv=None):
             if name:
                 stem = os.path.splitext(os.path.basename(name))[0]
                 break
-    ref.label = stem or 'collected'
+    label = stem or 'collected'
 
-    ref.op_file          = args.op
-    ref.sop_file         = args.sop
-    ref.h5_file          = args.h5
-    ref.print_potentials = args.potentials
-    ref.print_couplings  = args.couplings
+    # Pbdd harvests diabatic potentials and stops -- it holds nothing
+    # about vibronic Hamiltonians, so the model is assembled here from the
+    # harvested arrays and the command line, not by setting fit keywords
+    # back onto the harvest object.
+    ref.qvec    = {'all': qvec}
+    ref.diabpot = {'all': diabpot}
 
-    model = ref.fit(system)
+    import bddpy.data as bddpy_data
+    data   = bddpy_data.DiabaticData(qvec=qvec, diabpot=diabpot,
+                                     origin=origin)
+    config = build_config(args, ref, system, label)
+
+    model = fit_model(system, config, data, args, label, ref)
 
     print(' Fit complete: %d states, %d modes, order %d, rmsd %.6e eV'
           % (model.nsta, model.nmodes, model.order, model.rmsd))
     print()
 
-    collect_report(model, ref.assemble_data(), model.order,
+    collect_report(model, data, model.order,
                    args.coupling_thresh, args.gradient_thresh,
                    args.outlier_factor)
 
