@@ -149,6 +149,27 @@ contains
     enddo
     close(unit)
 
+!----------------------------------------------------------------------
+! [READCHK] TEMPORARY DIAGNOSTIC -- remove with [INTCHK].
+! Everything below is read from the integral files themselves, so two
+! CI calculations on identical input must print identical values. If
+! they differ, the second calculation is reading a different (or badly
+! dimensioned) file; if they agree but [INTCHK] still differs, the
+! corruption is after the read.
+!----------------------------------------------------------------------
+    write(6,'(/,x,a)')       '[READCHK] ---------------- dp'
+    write(6,'(x,a,a)')       '[READCHK] core_file : ',trim(adjustl(core_file))
+    write(6,'(x,a,a)')       '[READCHK] eri_file  : ',trim(adjustl(eri_file))
+    write(6,'(x,a,i0)')      '[READCHK] nmo       : ',ints%nmo
+    write(6,'(x,a,i0)')      '[READCHK] n_aux     : ',ints%n_aux
+    write(6,'(x,a,i0)')      '[READCHK] n_ij      : ',n_ij
+    write(6,'(x,a,i0)')      '[READCHK] nrec      : ',nrec
+    write(6,'(x,a,i0)')      '[READCHK] cpr       : ',cpr
+    write(6,'(x,a,es25.17)') '[READCHK] sum|hcore|: ',sum(abs(dble(ints%h_core)))
+    write(6,'(x,a,es25.17)') '[READCHK] sum|braket|: ',sum(abs(dble(ints%bra_ket)))
+    write(6,'(x,a)')         '[READCHK] ----------------------------------'
+    flush(6)
+
     return
 
   end subroutine init_pyscf_df_dp
@@ -298,6 +319,27 @@ contains
       read(unit)ints%bra_ket( 1:ints%n_aux, 1 + (i-1)*cpr: rend)
     enddo
     close(unit)
+
+!----------------------------------------------------------------------
+! [READCHK] TEMPORARY DIAGNOSTIC -- remove with [INTCHK].
+! Everything below is read from the integral files themselves, so two
+! CI calculations on identical input must print identical values. If
+! they differ, the second calculation is reading a different (or badly
+! dimensioned) file; if they agree but [INTCHK] still differs, the
+! corruption is after the read.
+!----------------------------------------------------------------------
+    write(6,'(/,x,a)')       '[READCHK] ---------------- sp'
+    write(6,'(x,a,a)')       '[READCHK] core_file : ',trim(adjustl(core_file))
+    write(6,'(x,a,a)')       '[READCHK] eri_file  : ',trim(adjustl(eri_file))
+    write(6,'(x,a,i0)')      '[READCHK] nmo       : ',ints%nmo
+    write(6,'(x,a,i0)')      '[READCHK] n_aux     : ',ints%n_aux
+    write(6,'(x,a,i0)')      '[READCHK] n_ij      : ',n_ij
+    write(6,'(x,a,i0)')      '[READCHK] nrec      : ',nrec
+    write(6,'(x,a,i0)')      '[READCHK] cpr       : ',cpr
+    write(6,'(x,a,es25.17)') '[READCHK] sum|hcore|: ',sum(abs(dble(ints%h_core)))
+    write(6,'(x,a,es25.17)') '[READCHK] sum|braket|: ',sum(abs(dble(ints%bra_ket)))
+    write(6,'(x,a)')         '[READCHK] ----------------------------------'
+    flush(6)
 
     return
 
