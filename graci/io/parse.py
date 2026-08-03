@@ -511,14 +511,28 @@ def check_pbdd(obj, run_list):
 
     # the reference calculation
     # ---------------------------------------------------------------
+    # The reference is the CI section every point is copied from. It
+    # rarely needs naming: a cut input carries one CI section and a
+    # generate input carries the one being expanded about, so if there
+    # is exactly one, that is it. The origin file records the label the
+    # generate job used, but matching against it would only work when
+    # the cut happens to reuse the same name, which is not something to
+    # rely on.
     if obj.reference is None:
-        sys.exit(err+'a reference keyword is required: the label of the '
-                 'dftmrci2 section\n in this input that every point of '
-                 'the calculation is copied from.\n A cut job needs it '
-                 'in addition to origin -- the file supplies the '
-                 'model\n space and the wave functions to propagate '
-                 'from, the section supplies the\n settings, and the '
-                 'two are checked against each other.')
+        ci_sections = [o for o in run_list
+                       if type(o).__name__ in params.ci_objs]
+
+        if len(ci_sections) == 1:
+            obj.reference = ci_sections[0].label
+        elif not ci_sections:
+            sys.exit(err+'no ci section to expand about. A Pbdd run needs '
+                     'a dftmrci2 section\n for the reference geometry.')
+        else:
+            sys.exit(err+'reference is not set and this input holds '
+                     +str(len(ci_sections))+' ci sections\n ('
+                     +', '.join(str(o.label) for o in ci_sections)+
+                     '), so which one to expand about is ambiguous.\n '
+                     'Name it with the reference keyword.')
 
     ref_obj = None
     for chk_obj in run_list:

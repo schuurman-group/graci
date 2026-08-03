@@ -209,6 +209,20 @@ class Pbdd:
         # for its assignment to be called. Below this the mapping is
         # ambiguous and the run stops rather than guessing.
         self.map_thresh          = 0.5
+
+        # truncation for the chain health diagnostic. Same reasoning as
+        # the mapping's, and the same quadratic betafac(nbetaB,nbetaK)
+        # cost: a def2-TZVPD stilbene at 0.999 asked for 70 GB and was
+        # killed, where the diabatisation it is checking had already
+        # completed. What is read off the overlap is the smallest
+        # singular value and |det S|, compared against overlap_warn --
+        # a health check, not a number anything is computed from, so it
+        # does not need the diabatisation's precision.
+        #
+        # Only qdpt pays this. bdd hands back the overlap it already
+        # built, and the diagnostic is then free.
+        self.diag_norm_thresh    = 0.95
+        self.diag_det_thresh     = 1e-4
         # cut generation (hessian_file mode only)
         self.cut_scheme          = '1mode'
         self.stepsize            = 0.5
@@ -1009,7 +1023,8 @@ class Pbdd:
                                 for j in range(nstates)], dtype=int)
 
             Sij = overlap.overlap(prev_ci, cur_ci, cur_ci.smo, pairs, 0,
-                                  self.norm_thresh, self.det_thresh, False)
+                                  self.diag_norm_thresh,
+                                  self.diag_det_thresh, False)
             Sij = np.reshape(Sij, (nstates, nstates))
 
         return (np.min(np.abs(np.diag(Sij))),
