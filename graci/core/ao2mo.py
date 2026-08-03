@@ -115,6 +115,27 @@ class Ao2mo:
                      'AGREE' if abs(s_blk-s_bulk) <= 1e-6*abs(s_blk)
                      else '*** BULK READ DIFFERS ***'), flush=True)
 
+            # [AO2MO-2X] TEMPORARY: repeat the transformation with
+            # byte-identical inputs and compare. Same wrong answer twice
+            # => corrupted process state (deterministic). Different wrong
+            # answers => a race. df.outcore.general is deterministic in
+            # isolation (dftest.py, 3/3 SAME on hartree at 8 threads),
+            # so whatever breaks it is something GRaCI's process carries.
+            tmp2 = tmp_eri + '_2x'
+            df.outcore.general(scf.mol.pymol(), ij_trans, tmp2,
+                               auxbasis=scf.mol.ri_basis,
+                               dataname='eri_mo')
+            with h5py.File(tmp2, 'r') as _e2:
+                _a2 = np.array(_e2['eri_mo'])
+            os.remove(tmp2)
+            _s2 = float(np.abs(_a2).sum())
+            print(' [AO2MO-2X] scf=%-12s pass1=%.17e pass2=%.17e  %s'
+                  % (str(scf.label), s_bulk, _s2,
+                     'IDENTICAL -> deterministic (process state)'
+                     if abs(_s2-s_bulk) <= 1e-12*abs(s_bulk)
+                     else '*** DIFFERENT -> race ***'), flush=True)
+            del _a2
+
             os.remove(tmp_eri)
 
             #df.outcore.general(scf.mol.pymol(), ij_trans, 
