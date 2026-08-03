@@ -97,16 +97,27 @@ class Ao2mo:
             # Serialise the transformation, as mkl_compat.f90 already
             # does for the overlap code (commit 80f0239). Costs
             # transform wall time; buys a correct answer.
-            _nthr = pyscf_lib.num_threads()
-            pyscf_lib.num_threads(1)
-            try:
-                df.outcore.general(scf.mol.pymol(), 
-                                    ij_trans,
-                                    tmp_eri,
-                                    auxbasis = scf.mol.ri_basis,
-                                    dataname='eri_mo')
-            finally:
-                pyscf_lib.num_threads(_nthr)
+            # CONFIRMED FIX, currently disabled to test a cheaper one.
+            # Serialising the outer OpenMP region makes the transform
+            # correct (c1c1 on hartree: both calculations 451 and
+            # -538.618475, where the unguarded second pass in the same
+            # run gave 8.35e4 against a correct 3.10e4). But it fixes
+            # the fault whether it lives in pyscf's own threading or in
+            # MKL nested inside it. nr_ao2mo.c calls dgemm_ from within
+            # "#pragma omp parallel", so MKL_NUM_THREADS=1 in the submit
+            # script may fix it while keeping the outer parallelism.
+            # If that test fails, restore these four lines.
+            #
+            # _nthr = pyscf_lib.num_threads()
+            # pyscf_lib.num_threads(1)
+            # try:
+            df.outcore.general(scf.mol.pymol(), 
+                                ij_trans,
+                                tmp_eri,
+                                auxbasis = scf.mol.ri_basis,
+                                dataname='eri_mo')
+            # finally:
+            #     pyscf_lib.num_threads(_nthr)
 
             # [AO2MO-RD] the inputs are sound and eri_mo comes back
             # corrupt, so the fault is in df.outcore.general or in this
