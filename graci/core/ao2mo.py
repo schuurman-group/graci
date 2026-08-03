@@ -9,6 +9,7 @@ import scipy.io as sp_io
 import graci.core.libs as libs
 import graci.utils.timing as timing
 from pyscf import gto, ao2mo, df
+from pyscf import lib as pyscf_lib
 
 #
 
@@ -82,11 +83,30 @@ class Ao2mo:
                      str(self.nmo), hex(id(_pm)), _pm.natm, _pm.nbas,
                      str(_pm.nelec), str(_pm.charge)), flush=True)
 
-            df.outcore.general(scf.mol.pymol(), 
-                                ij_trans,
-                                tmp_eri,
-                                auxbasis = scf.mol.ri_basis,
-                                dataname='eri_mo')
+            # The DF transformation is a RACE once a CI calculation has
+            # run in this process: two back-to-back calls with identical
+            # inputs give different wrong answers (6.91e4 vs 8.09e4
+            # against a correct 3.10e4), while the same call before any
+            # CI is bit-reproducible, and the same call in a standalone
+            # script is reproducible 3/3 even with libbitci loaded.
+            # bitci is built against libiomp5 and pyscf's libao2mo/
+            # libnp_helper link BOTH libgomp and libiomp5, so once
+            # bitci's OpenMP pool is live the transform's threaded
+            # regions are no longer safe.
+            #
+            # Serialise the transformation, as mkl_compat.f90 already
+            # does for the overlap code (commit 80f0239). Costs
+            # transform wall time; buys a correct answer.
+            _nthr = pyscf_lib.num_threads()
+            pyscf_lib.num_threads(1)
+            try:
+                df.outcore.general(scf.mol.pymol(), 
+                                    ij_trans,
+                                    tmp_eri,
+                                    auxbasis = scf.mol.ri_basis,
+                                    dataname='eri_mo')
+            finally:
+                pyscf_lib.num_threads(_nthr)
 
             # [AO2MO-RD] the inputs are sound and eri_mo comes back
             # corrupt, so the fault is in df.outcore.general or in this
