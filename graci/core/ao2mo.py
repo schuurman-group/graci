@@ -88,8 +88,33 @@ class Ao2mo:
                                 auxbasis = scf.mol.ri_basis,
                                 dataname='eri_mo')
 
+            # [AO2MO-RD] the inputs are sound and eri_mo comes back
+            # corrupt, so the fault is in df.outcore.general or in this
+            # read. On stilbene the dataset is 349 MB and is pulled in a
+            # single np.array() call; read it BOTH ways and compare. If
+            # the blocked sum is right and the bulk sum is wrong, the
+            # single large read is at fault, not the transformation.
             with h5py.File(tmp_eri, 'r') as eri:
-                eri_mo = np.array(eri.get('eri_mo'))
+                dset = eri['eri_mo']
+                nrow = dset.shape[0]
+                blk  = max(1, nrow // 16)
+                s_blk = 0.0
+                m_blk = 0.0
+                for i0 in range(0, nrow, blk):
+                    chunk = dset[i0:min(i0+blk, nrow)]
+                    s_blk += float(np.abs(chunk).sum())
+                    m_blk  = max(m_blk, float(np.abs(chunk).max()))
+                eri_mo = np.array(dset)
+
+            s_bulk = float(np.abs(eri_mo).sum())
+            print(' [AO2MO-RD] scf=%-12s dset%s %.1f MB | blocked sum=%.17e'
+                  ' max=%.6e | bulk sum=%.17e max=%.6e | %s'
+                  % (str(scf.label), str(dset.shape),
+                     eri_mo.nbytes/1024**2, s_blk, m_blk,
+                     s_bulk, float(np.abs(eri_mo).max()),
+                     'AGREE' if abs(s_blk-s_bulk) <= 1e-6*abs(s_blk)
+                     else '*** BULK READ DIFFERS ***'), flush=True)
+
             os.remove(tmp_eri)
 
             #df.outcore.general(scf.mol.pymol(), ij_trans, 
