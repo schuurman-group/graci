@@ -58,53 +58,14 @@ class Ao2mo:
         if scf.mol.use_df:
             ij_trans = np.concatenate(([self.orbs], 
                                        [self.orbs]))
-            # A fixed temp file name, an h5py handle that is never
-            # closed, and os.remove() called while that handle is still
-            # open. On a second SCF object in the same process PySCF
-            # writes a new 'tmp_eri' while a live HDF5 handle still
-            # refers to the previous, unlinked inode, and the read back
-            # returns a mixture: on a def2-TZVPD stilbene the first
-            # 14194 of 34453 columns were correct and the rest garbage.
-            # Unique name per call, and close before unlinking.
+            # unique per call, and closed before unlinking: a fixed
+            # name in the working directory would let two GRaCI
+            # processes clobber each other's integrals
             tmp_eri = 'tmp_eri_%s_%d' % (str(scf.label), os.getpid())
 
-            # The DF transformation is a RACE once a CI calculation has
-            # run in this process: two back-to-back calls with identical
-            # inputs give different wrong answers (6.91e4 vs 8.09e4
-            # against a correct 3.10e4), while the same call before any
-            # CI is bit-reproducible, and the same call in a standalone
-            # script is reproducible 3/3 even with libbitci loaded.
-            # bitci is built against libiomp5 and pyscf's libao2mo/
-            # libnp_helper link BOTH libgomp and libiomp5, so once
-            # bitci's OpenMP pool is live the transform's threaded
-            # regions are no longer safe.
-            #
-            # Serialise the transformation, as mkl_compat.f90 already
-            # does for the overlap code (commit 80f0239). Costs
-            # transform wall time; buys a correct answer.
-            # pyscf's nr_ao2mo.c calls dgemm_ from inside a
-            # "#pragma omp parallel" region. MKL normally detects
-            # omp_in_parallel() and runs serially, but once bitci has
-            # driven the shared libiomp5 that detection stops working:
-            # MKL spawns threads inside an already-parallel region and
-            # the transform races, silently returning a corrupt tensor.
-            #
-            # Measured on hartree (c1c1.inp, 8 threads): the first SCF's
-            # transform is always correct and bit-reproducible; every
-            # later one gives sum|eri| of 6e4-9e4 against a correct
-            # 3.10e4, differing on every call. Downstream that shifts
-            # the first MRCI iteration by ~1e-3, refsel picks 455
-            # configurations instead of 451, and the calculation runs
-            # away by 5-7 Hartree.
-            #
-            # Pinning MKL to one thread for the duration removes the
-            # nesting while keeping the outer parallelism. This is done
-            # here rather than left to MKL_NUM_THREADS in a submit
-            # script so that it protects every run, not only the ones
-            # whose environment happens to be set correctly. Same
-            # remedy as mkl_compat.f90 applies to the overlap code
-            # (commit 80f0239).
-            libs.mkl_state('before transform ' + str(scf.label))
+            # pyscf calls BLAS from inside its OpenMP regions here.
+            # MKL must not thread inside them -- see
+            # libs.mkl_single_thread and doc/mkl_openmp_nesting.md.
             with libs.mkl_single_thread():
                 df.outcore.general(scf.mol.pymol(), 
                                     ij_trans,

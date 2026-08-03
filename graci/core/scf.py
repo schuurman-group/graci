@@ -381,13 +381,9 @@ class Scf:
         mf.direct_scf = self.direct_scf 
 
         # run the scf computation
-        # pyscf's DFT numerical integration calls BLAS from inside
-        # OpenMP regions (nr_numint.c has eleven of them). Once bitci has
-        # driven the shared libiomp5, MKL stops detecting the nesting and
-        # threads inside an already-parallel region, which corrupts the
-        # Fock build -- seen as a second SCF failing to converge where
-        # the same calculation run first converges fine. See
-        # libs.mkl_single_thread.
+        # the DFT numerical integration calls BLAS from inside its
+        # OpenMP regions; MKL must not thread inside them -- see
+        # libs.mkl_single_thread and doc/mkl_openmp_nesting.md
         with libs.mkl_single_thread():
             self.energy = mf.kernel(dm0=dm)
        
