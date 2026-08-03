@@ -512,7 +512,13 @@ def check_pbdd(obj, run_list):
     # the reference calculation
     # ---------------------------------------------------------------
     if obj.reference is None:
-        sys.exit(err+'a reference keyword is required')
+        sys.exit(err+'a reference keyword is required: the label of the '
+                 'dftmrci2 section\n in this input that every point of '
+                 'the calculation is copied from.\n A cut job needs it '
+                 'in addition to origin -- the file supplies the '
+                 'model\n space and the wave functions to propagate '
+                 'from, the section supplies the\n settings, and the '
+                 'two are checked against each other.')
 
     ref_obj = None
     for chk_obj in run_list:
@@ -559,11 +565,21 @@ def check_pbdd(obj, run_list):
 
     if obj.generate_mode():
 
+        # the state symmetry mapping overlaps the reference against the
+        # C1 point, so a generate job needs the reference's determinant
+        # expansions. extract_wf only fires on save_wf or diabatic, and
+        # postci runs after every CI object, so the flag cannot be set
+        # retroactively -- Pbdd would have to re-run the whole reference
+        # to obtain them. Set it here instead of making the user
+        # remember. A cut job never uses them and is left alone.
+        if not ref_obj.save_wf:
+            ref_obj.save_wf = True
+
         if obj.hessian_file is None:
             sys.exit(err+'a generate job needs a hessian_file')
 
-        if obj.reference_file is not None:
-            sys.exit(err+'reference_file belongs to a cut job: a generate '
+        if obj.origin is not None:
+            sys.exit(err+'origin belongs to a cut job: a generate '
                      'job produces one rather than reading one')
 
         if mol_obj is not None and mol_obj.multi_geom:
@@ -580,6 +596,20 @@ def check_pbdd(obj, run_list):
         if mol_obj is not None and mol_obj.xyz_file is None:
             sys.exit(err+'a cut job takes its geometries from the '
                      '$molecule section, which names no xyz_file')
+
+        # A cut's reference section is a template: Pbdd copies it for
+        # every point and sets save_wf itself, and the expansions are
+        # stripped from each point's checkpoint entry on the way out.
+        # The template is written by the driver, though, which Pbdd
+        # cannot reach -- so save_wf here would put the full determinant
+        # expansions into every one of the 2 x nmodes checkpoints, for
+        # nothing. Hundreds of MB apiece on anything real.
+        #
+        # Forced rather than refused: a suite is hundreds of jobs, and
+        # scanning them all for a fatal error over a setting with one
+        # sensible value would be worse than quietly using it.
+        if ref_obj.save_wf:
+            ref_obj.save_wf = False
 
         for kword in ['cut_scheme', 'stepsize', 'npoints', 'geom_dir']:
             if not np.array_equal(getattr(obj, kword),

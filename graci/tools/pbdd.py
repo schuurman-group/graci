@@ -158,7 +158,7 @@ class Pbdd:
         #           the displaced geometries and the reference checkpoint
         # cut:      walk one chain of geometries and record what collect
         #           needs. The geometries come from the $molecule section
-        #           and the chain is seeded from reference_file.
+        #           and the chain is seeded from origin.
         #
         # There is no mode that does both. Fitting is gkdc's job, so no
         # GRaCI run can produce an operator file -- see port_plan.md 8.11.
@@ -167,7 +167,7 @@ class Pbdd:
 
         # a checkpoint from a generate run: supplies the derived model
         # space and the wave functions a chain propagates from
-        self.reference_file      = None
+        self.origin      = None
 
         # where generate writes the displaced geometries
         self.geom_dir            = 'pbdd'
@@ -175,6 +175,17 @@ class Pbdd:
         # which reference this run propagated from, recorded so that a
         # collect step can refuse a set of cuts that did not share one
         self.ref_source          = None
+
+        # the reference space configuration files of the C1 reference,
+        # as raw bytes keyed by file name. ref_space.propagate is handed
+        # file *names* rather than unit numbers, so a cut has to have
+        # these on disk -- and they are the only thing in the chain that
+        # is read from the reference's bitci scratch rather than from
+        # memory. Carrying them in the checkpoint is what makes
+        # origin self-contained: 30 kB on a def2-TZVPD stilbene,
+        # against a scratch directory that every cut would otherwise
+        # have to reach.
+        self.ref_confs           = {}
 
         # diabatisation
         self.adt_type            = 'qdpt'
@@ -324,9 +335,14 @@ class Pbdd:
 
         output.print_pbdd_header(self.label, ref_obj.label)
 
-        self._ensure_reference_wavefunctions(ref_obj)
-
         if self.generate_mode():
+            # only a generate job maps state symmetries against the
+            # reference, so only it needs the reference's determinant
+            # expansions. A cut takes its wave functions from the
+            # origin, or from its own point 0, and re-running
+            # the reference here would be a wasted CI calculation on
+            # every one of the 2 x nmodes cuts.
+            self._ensure_reference_wavefunctions(ref_obj)
             self._generate(ref_obj)
             return
 
@@ -710,7 +726,7 @@ class Pbdd:
         return dev
 
     #
-    def _check_against_reference_file(self, ref_obj, stem):
+    def _check_against_origin(self, ref_obj, stem):
         """
         Confirm a seeded cut's own q0 calculation agrees with the
         reference it propagates from.
@@ -719,7 +735,7 @@ class Pbdd:
         the first geometry of the cut file -- which is the reference
         geometry, since Molecule.read_xyz takes coords[0]. That
         calculation is otherwise unused: the chain propagates its
-        reference space and wave functions from the reference_file, not
+        reference space and wave functions from the origin, not
         from this section. What it is good for is a check, and it is the
         only one available -- nothing else compares a cut input to the
         generate job it belongs to, so an edited hamiltonian, functional,
@@ -730,7 +746,7 @@ class Pbdd:
         The reference space is not what is being checked. Whether the cut
         arrived at its space through autoras or through explicit
         ras1/ras3 is the user's business, and either way the space that
-        propagates comes from the reference_file. This checks that the
+        propagates comes from the origin. This checks that the
         two calculations describe the same states.
 
         Returns:
@@ -744,7 +760,7 @@ class Pbdd:
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
                      '\n this cut\'s reference calculation holds '
                      +str(cut_ener.size)+' states, the reference in\n '
-                     +str(self.reference_file)+' holds '
+                     +str(self.origin)+' holds '
                      +str(ref_ener.size)+
                      '\n The two were not set up for the same states.')
 
@@ -754,7 +770,7 @@ class Pbdd:
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
                      '\n this cut\'s reference calculation does not '
                      'reproduce the reference held in\n '
-                     +str(self.reference_file)+
+                     +str(self.origin)+
                      '\n largest deviation = '+str(dev)+
                      ' Hartree, tolerance = '+str(self.ener_tol)+
                      '\n reference   : '+str(ref_ener)+
@@ -911,7 +927,7 @@ class Pbdd:
 
         # The active space is only ever chosen twice: at the symmetric
         # reference of a generate job, and at the head of a cut that has
-        # no reference_file. Everywhere else a guess object is passed and
+        # no origin. Everywhere else a guess object is passed and
         # dftmrci/dftmrci2 build the reference space with
         # ref_space.propagate rather than ref_space.generate, so autoras
         # is not reached at all.
@@ -1083,7 +1099,7 @@ class Pbdd:
                 health[ipt] = [sdiag, ssvd, sdet]
                 output.print_pbdd_step(stem, ipt, sdiag, ssvd, sdet)
 
-            chkpt.write(ci)
+            self._write_point(ci)
 
             # the previous point has now been used both to propagate the
             # diabatisation and to compute the diagnostics, so its
@@ -1103,7 +1119,7 @@ class Pbdd:
         return diabpot
 
     #
-    def _load_reference_file(self):
+    def _load_origin(self):
         """
         Read a generate run's checkpoint: the model space, and the wave
         functions a chain propagates from.
@@ -1121,18 +1137,18 @@ class Pbdd:
 
         import graci.io.chkpt as chkpt
 
-        path = self.reference_file
+        path = self.origin
 
         if not os.path.isfile(path):
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
-                     '\n reference_file '+str(path)+' does not exist')
+                     '\n origin '+str(path)+' does not exist')
 
         groups = chkpt.contents(file_name=path) or []
         pbdd   = [g for g in groups if str(g).startswith('Pbdd.')]
 
         if not pbdd:
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
-                     '\n reference_file '+str(path)+' holds no Pbdd '
+                     '\n origin '+str(path)+' holds no Pbdd '
                      'section: it is not a generate run\'s checkpoint')
 
         source = chkpt.read(pbdd[0], file_name=path,
@@ -1140,7 +1156,7 @@ class Pbdd:
 
         if not source.system_data:
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
-                     '\n reference_file '+str(path)+' carries no normal '
+                     '\n origin '+str(path)+' carries no normal '
                      'mode data')
 
         # the derived state is copied, not referenced, so that this cut's
@@ -1148,19 +1164,20 @@ class Pbdd:
         self.system_data = source.system_data
         self.q0_ener     = source.q0_ener
         self.state_syms  = source.state_syms
+        self.ref_confs   = getattr(source, 'ref_confs', {})
         self.ref_source  = os.path.abspath(path)
 
         name = 'Dftmrci2.'+str(source.label)+'_q0'
 
         if name not in groups:
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
-                     '\n reference_file '+str(path)+' holds no C1 '
+                     '\n origin '+str(path)+' holds no C1 '
                      'reference calculation ('+name+')')
 
         c1_ci = chkpt.read(name, file_name=path, build_subobj=True,
                            make_mol=True)
 
-        self._anchor_scratch(c1_ci, os.path.dirname(os.path.abspath(path)))
+        self._restore_ref_confs(c1_ci)
 
         if c1_ci is None or c1_ci.vec_det['adiabatic'] is None:
             sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
@@ -1171,42 +1188,141 @@ class Pbdd:
         return c1_ci
 
     #
-    def _anchor_scratch(self, ci, root):
+    def _write_point(self, ci):
         """
-        Make a reference's recorded bitci scratch paths absolute.
+        Write one chain point's checkpoint entry, without the bulk.
 
-        The chain does not propagate from the checkpoint alone: building
-        the next geometry's reference space reads the previous one's
-        configuration files off disk (ref_space.propagate passes their
-        names, not unit numbers). bitci records those names relative to
-        the directory the job ran in, so a cut running anywhere else
-        cannot find them however visible the files are.
+        A cut writes one entry per geometry and a suite is 2 x nmodes
+        cuts, so these files have to stay small: gkdc reads exactly two
+        things from a point, the diabatic potential matrix and the
+        geometry, and nothing else in the object is ever read back.
 
-        Anchoring them to the reference checkpoint's own directory is what
-        lets the reference sit in one shared place while the cuts run
-        wherever the queue puts them.
+        The determinant expansions, natural orbitals, density matrices,
+        MO coefficients and MO overlaps are dropped for the write and put
+        back afterwards -- vec_det and det_strings are still needed in
+        memory, since the next point diabatises against them. On a
+        def2-TZVPD stilbene those run to hundreds of MB per geometry,
+        against a few kB of potential matrix.
+
+        chkpt.write walks __dict__, so setting an attribute aside is
+        enough to keep it out of the file.
         """
 
-        if ci is None:
-            return
+        import graci.io.chkpt as chkpt
 
-        for wfn in [getattr(ci, 'mrci_wfn', None),
-                    getattr(ci, 'ref_wfn', None)]:
-            if wfn is None:
+        # chkpt.write recurses into sub-objects, so the point's Scf is
+        # written too. It has to stay attached -- Molecule.<label> comes
+        # through it and gkdc reads the geometry from there -- but its
+        # arrays are as unwanted as the CI object's. orbs and rdm_ao are
+        # both still needed in memory: the next point takes its MO
+        # overlaps from the former and its SCF guess density from the
+        # latter.
+        bulky = [(ci, ['vec_det', 'det_strings', 'natorb_ao', 'natocc',
+                       'dmats', 'mos', 'smo']),
+                 (getattr(ci, 'scf', None), ['orbs', 'rdm_ao'])]
+
+        stash = []
+        for obj, attrs in bulky:
+            if obj is None:
                 continue
+            for attr in attrs:
+                if hasattr(obj, attr):
+                    stash.append((obj, attr, getattr(obj, attr)))
+                    setattr(obj, attr, None)
 
-            for attr in ['conf_name', 'ci_name', 'avii_name']:
-                names = getattr(wfn, attr, None)
-                if not isinstance(names, dict):
+        try:
+            chkpt.write(ci)
+        finally:
+            for obj, attr, val in stash:
+                setattr(obj, attr, val)
+
+        return
+
+    #
+    def _store_ref_confs(self, ci):
+        """
+        Copy the reference space configuration files into this object, so
+        that the checkpoint carries everything a cut needs.
+
+        ref_space.propagate is passed file names rather than unit numbers
+        (ref_space.py, `confnames0 = ci_method0.ref_wfn.conf_name[rep]`),
+        so the reference's configurations have to exist on disk wherever
+        a cut runs. It is the only thing in a chain that comes off the
+        reference's bitci scratch -- the wave functions, the MOs and the
+        reference space dimensions all travel in the checkpoint already.
+
+        Stored as raw bytes keyed by base name, so that a cut can lay
+        them down in its own scratch directory under the names bitci
+        expects.
+        """
+
+        self.ref_confs = {}
+
+        names = getattr(getattr(ci, 'ref_wfn', None), 'conf_name', None)
+        if not isinstance(names, dict):
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n the reference calculation recorded no reference '
+                     'space configuration files,\n so no cut could '
+                     'propagate from it')
+
+        for rep, rep_names in names.items():
+            for name in (rep_names or []):
+                if not name:
                     continue
+                if not os.path.isfile(name):
+                    sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                             '\n the reference space configuration file '
+                             +str(name)+'\n was not found; a cut cannot '
+                             'propagate from this reference')
+                with open(name, 'rb') as handle:
+                    self.ref_confs[os.path.basename(name)] = \
+                        np.frombuffer(handle.read(), dtype=np.uint8)
 
-                for rep, rep_names in names.items():
-                    if not rep_names:
-                        continue
-                    names[rep] = [
-                        n if (not n or os.path.isabs(str(n)))
-                        else os.path.join(root, str(n))
-                        for n in rep_names]
+        if not self.ref_confs:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n no reference space configuration files were '
+                     'stored')
+
+        return
+
+    #
+    def _restore_ref_confs(self, ci):
+        """
+        Write the stored reference space configurations into this job's
+        own scratch, and point the reference object at them.
+
+        This is what lets a cut run anywhere: it needs no access to the
+        directory the generate job ran in, and 2 x nmodes cuts do not
+        contend on one shared scratch tree.
+        """
+
+        if not self.ref_confs:
+            sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
+                     '\n origin '+str(self.origin)+
+                     ' carries no reference space\n configurations. It '
+                     'was written by an older version of the generate '
+                     'job;\n re-run it to produce a self-contained '
+                     'reference.')
+
+        root = os.path.abspath(os.path.join('bitscratch',
+                                            str(ci.label)))
+        os.makedirs(root, exist_ok=True)
+
+        written = {}
+        for base, data in self.ref_confs.items():
+            path = os.path.join(root, str(base))
+            with open(path, 'wb') as handle:
+                handle.write(np.asarray(data, dtype=np.uint8).tobytes())
+            written[str(base)] = path
+
+        # rewrite the recorded names in place, preserving the per-irrep
+        # ordering the reference recorded them in
+        names = ci.ref_wfn.conf_name
+        for rep, rep_names in names.items():
+            if not rep_names:
+                continue
+            names[rep] = [written.get(os.path.basename(str(n)), n)
+                          for n in rep_names]
 
         return
 
@@ -1220,7 +1336,7 @@ class Pbdd:
         normal coordinate from the geometry itself rather than trusting a
         name.
 
-        With `reference_file` given -- the generated case -- the chain is
+        With `origin` given -- the generated case -- the chain is
         seeded from that reference and the copy of it at the head of the
         geometry file is verified and skipped.
 
@@ -1253,17 +1369,17 @@ class Pbdd:
         c1_ci = None
         first = 0
 
-        if self.reference_file is not None:
+        if self.origin is not None:
 
-            c1_ci = self._load_reference_file()
+            c1_ci = self._load_origin()
 
             # A generated cut carries the reference as its first geometry,
-            # which the reference_file already holds. Skipping it avoids
+            # which the origin already holds. Skipping it avoids
             # repeating the calculation and, more importantly, keeps every
             # chain propagating from the same wave functions.
             #
             # If it does not match, the geometry file and the
-            # reference_file were not generated together, and the run
+            # origin were not generated together, and the run
             # stops. This used to fall through to walking it as an
             # ordinary point, which silently computed something other than
             # what was asked for.
@@ -1284,7 +1400,7 @@ class Pbdd:
                 sys.exit('\n ERROR: Pbdd, label = '+str(self.label)+
                          '\n the first geometry of '+str(path)+' is not '
                          'the reference geometry held in\n '
-                         +str(self.reference_file)+
+                         +str(self.origin)+
                          ' (largest difference '+('%.2e' % worst)+
                          ' Angstrom).\n They were not generated together, '
                          'so this cut cannot propagate from that '
@@ -1296,7 +1412,7 @@ class Pbdd:
             # comparison is free -- and it is the only thing standing
             # between an edited cut input and a chain that propagates
             # from a head it does not match.
-            dev = self._check_against_reference_file(ref_obj, stem)
+            dev = self._check_against_origin(ref_obj, stem)
             self.refcheck[stem] = dev
             output.print_pbdd_refcheck(stem, dev, self.ener_tol)
 
@@ -1324,7 +1440,7 @@ class Pbdd:
         expansion origin. All of it comes from the reference calculation
         and the Hessian, and none of it from the cuts, which is what lets
         the cuts be farmed out without losing any of it. It is carried in
-        this run's checkpoint, which becomes the cut jobs' reference_file.
+        this run's checkpoint, which becomes the cut jobs' origin.
 
         Two reference calculations are run: the symmetric one the user
         supplied, which fixes the frame and gives the state irreps, and a
@@ -1367,6 +1483,7 @@ class Pbdd:
 
         # the C1 reference is written whole: a cut job reads its orbitals
         # and determinant expansions to seed its chain
+        self._store_ref_confs(c1_ci)
         chkpt.write(c1_ci)
 
         # stepsize and npoints may be given per mode, which cannot be

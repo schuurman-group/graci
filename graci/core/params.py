@@ -131,7 +131,7 @@ dftmrci2_kword  = {'mult'           : int,
 # this module
 pbdd_kword      = {'job_type'            : str,
                    'reference'           : str,
-                   'reference_file'      : str,
+                   'origin'      : str,
                    'hessian_file'        : str,
                    'geom_dir'            : str,
                    'adt_type'            : str,
