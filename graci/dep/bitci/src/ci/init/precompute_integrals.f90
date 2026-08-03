@@ -113,32 +113,6 @@ contains
        enddo
     enddo
 
-!----------------------------------------------------------------------
-! [INTCHK] TEMPORARY DIAGNOSTIC -- remove once the C1-after-C1 bug is
-! closed.
-!
-! Fingerprints the integrals this calculation was actually built from.
-! Two CI calculations on identical input must print identical values
-! here. c1c1.inp gives identical configuration counts (8586, 1525) and
-! identical saved-element counts (4753686, 300898) but different
-! energies, so the Hamiltonian VALUES differ. This says whether that
-! starts in the integrals or downstream of them.
-!----------------------------------------------------------------------
-    write(6,'(/,x,a)')         '[INTCHK] ---------------------------------'
-    write(6,'(x,a,i0)')        '[INTCHK] nmo       : ',nmo
-    write(6,'(x,a,i0)')        '[INTCHK] sum(iocc) : ',sum(iocc)
-    write(6,'(x,a,es25.17)')   '[INTCHK] sum|fii|  : ',sum(abs(fii))
-    write(6,'(x,a,es25.17)')   '[INTCHK] sum|fock| : ',sum(abs(fock))
-    write(6,'(x,a,es25.17)')   '[INTCHK] sum|Vc|   : ',sum(abs(Vc))
-    write(6,'(x,a,es25.17)')   '[INTCHK] sum|Vx|   : ',sum(abs(Vx))
-    write(6,'(x,a,es25.17)')   '[INTCHK] h_1e(1,1) : ',bitci_ints%h_1e(1,1)
-    write(6,'(x,a,es25.17)')   '[INTCHK] h_1e(N,N) : ',bitci_ints%h_1e(nmo,nmo)
-    write(6,'(x,a,es25.17)')   '[INTCHK] (11|11)   : ',&
-         bitci_ints%mo_int(1,1,1,1)
-    write(6,'(x,a,es25.17)')   '[INTCHK] (NN|NN)   : ',&
-         bitci_ints%mo_int(nmo,nmo,nmo,nmo)
-    write(6,'(x,a)')           '[INTCHK] ---------------------------------'
-    flush(6)
 
     return
     

@@ -11,6 +11,7 @@ import numpy as np
 import graci.core.params as params
 import graci.core.orbitals as orbitals
 import graci.io.output as output
+import graci.core.libs as libs
 import graci.utils.timing as timing
 import graci.core.solvents as solvents
 import graci.core.functionals as functionals
@@ -380,7 +381,15 @@ class Scf:
         mf.direct_scf = self.direct_scf 
 
         # run the scf computation
-        self.energy = mf.kernel(dm0=dm)
+        # pyscf's DFT numerical integration calls BLAS from inside
+        # OpenMP regions (nr_numint.c has eleven of them). Once bitci has
+        # driven the shared libiomp5, MKL stops detecting the nesting and
+        # threads inside an already-parallel region, which corrupts the
+        # Fock build -- seen as a second SCF failing to converge where
+        # the same calculation run first converges fine. See
+        # libs.mkl_single_thread.
+        with libs.mkl_single_thread():
+            self.energy = mf.kernel(dm0=dm)
        
         # if not converged, kill things
         if not mf.converged:

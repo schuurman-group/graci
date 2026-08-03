@@ -3,14 +3,13 @@ The Ao2mo object and its associated functions.
 """
 import sys as sys
 import os as os
+import ctypes as ctypes
 import numpy as np
 import h5py as h5py
 import scipy.io as sp_io
 import graci.core.libs as libs
 import graci.utils.timing as timing
 from pyscf import gto, ao2mo, df
-from pyscf import lib as pyscf_lib
-
 #
 
 def moints_exist(scf):
@@ -69,20 +68,6 @@ class Ao2mo:
             # Unique name per call, and close before unlinking.
             tmp_eri = 'tmp_eri_%s_%d' % (str(scf.label), os.getpid())
 
-            # [AO2MO-IN] is the INPUT to the transformation sound? If the
-            # orbitals and the molecule check out here but eri_mo comes
-            # back corrupt, the fault is inside df.outcore.general or the
-            # h5py read; if orbs is already wrong, it is upstream in
-            # load_scf / the Scf object.
-            _pm = scf.mol.pymol()
-            print(' [AO2MO-IN] scf=%-12s orbs%s sum|orbs|=%.17e'
-                  ' emo_cut=%s nmo=%s | pymol id=%s natm=%d nbas=%d'
-                  ' nelec=%s charge=%s'
-                  % (str(scf.label), str(self.orbs.shape),
-                     float(np.abs(self.orbs).sum()), str(self.emo_cut),
-                     str(self.nmo), hex(id(_pm)), _pm.natm, _pm.nbas,
-                     str(_pm.nelec), str(_pm.charge)), flush=True)
-
             # The DF transformation is a RACE once a CI calculation has
             # run in this process: two back-to-back calls with identical
             # inputs give different wrong answers (6.91e4 vs 8.09e4
@@ -97,76 +82,38 @@ class Ao2mo:
             # Serialise the transformation, as mkl_compat.f90 already
             # does for the overlap code (commit 80f0239). Costs
             # transform wall time; buys a correct answer.
-            # CONFIRMED FIX, currently disabled to test a cheaper one.
-            # Serialising the outer OpenMP region makes the transform
-            # correct (c1c1 on hartree: both calculations 451 and
-            # -538.618475, where the unguarded second pass in the same
-            # run gave 8.35e4 against a correct 3.10e4). But it fixes
-            # the fault whether it lives in pyscf's own threading or in
-            # MKL nested inside it. nr_ao2mo.c calls dgemm_ from within
-            # "#pragma omp parallel", so MKL_NUM_THREADS=1 in the submit
-            # script may fix it while keeping the outer parallelism.
-            # If that test fails, restore these four lines.
+            # pyscf's nr_ao2mo.c calls dgemm_ from inside a
+            # "#pragma omp parallel" region. MKL normally detects
+            # omp_in_parallel() and runs serially, but once bitci has
+            # driven the shared libiomp5 that detection stops working:
+            # MKL spawns threads inside an already-parallel region and
+            # the transform races, silently returning a corrupt tensor.
             #
-            # _nthr = pyscf_lib.num_threads()
-            # pyscf_lib.num_threads(1)
-            # try:
-            df.outcore.general(scf.mol.pymol(), 
-                                ij_trans,
-                                tmp_eri,
-                                auxbasis = scf.mol.ri_basis,
-                                dataname='eri_mo')
-            # finally:
-            #     pyscf_lib.num_threads(_nthr)
+            # Measured on hartree (c1c1.inp, 8 threads): the first SCF's
+            # transform is always correct and bit-reproducible; every
+            # later one gives sum|eri| of 6e4-9e4 against a correct
+            # 3.10e4, differing on every call. Downstream that shifts
+            # the first MRCI iteration by ~1e-3, refsel picks 455
+            # configurations instead of 451, and the calculation runs
+            # away by 5-7 Hartree.
+            #
+            # Pinning MKL to one thread for the duration removes the
+            # nesting while keeping the outer parallelism. This is done
+            # here rather than left to MKL_NUM_THREADS in a submit
+            # script so that it protects every run, not only the ones
+            # whose environment happens to be set correctly. Same
+            # remedy as mkl_compat.f90 applies to the overlap code
+            # (commit 80f0239).
+            libs.mkl_state('before transform ' + str(scf.label))
+            with libs.mkl_single_thread():
+                df.outcore.general(scf.mol.pymol(), 
+                                    ij_trans,
+                                    tmp_eri,
+                                    auxbasis = scf.mol.ri_basis,
+                                    dataname='eri_mo')
 
-            # [AO2MO-RD] the inputs are sound and eri_mo comes back
-            # corrupt, so the fault is in df.outcore.general or in this
-            # read. On stilbene the dataset is 349 MB and is pulled in a
-            # single np.array() call; read it BOTH ways and compare. If
-            # the blocked sum is right and the bulk sum is wrong, the
-            # single large read is at fault, not the transformation.
             with h5py.File(tmp_eri, 'r') as eri:
-                dset = eri['eri_mo']
-                nrow = dset.shape[0]
-                blk  = max(1, nrow // 16)
-                s_blk = 0.0
-                m_blk = 0.0
-                for i0 in range(0, nrow, blk):
-                    chunk = dset[i0:min(i0+blk, nrow)]
-                    s_blk += float(np.abs(chunk).sum())
-                    m_blk  = max(m_blk, float(np.abs(chunk).max()))
-                eri_mo = np.array(dset)
-
-            s_bulk = float(np.abs(eri_mo).sum())
-            print(' [AO2MO-RD] scf=%-12s dset%s %.1f MB | blocked sum=%.17e'
-                  ' max=%.6e | bulk sum=%.17e max=%.6e | %s'
-                  % (str(scf.label), str(dset.shape),
-                     eri_mo.nbytes/1024**2, s_blk, m_blk,
-                     s_bulk, float(np.abs(eri_mo).max()),
-                     'AGREE' if abs(s_blk-s_bulk) <= 1e-6*abs(s_blk)
-                     else '*** BULK READ DIFFERS ***'), flush=True)
-
-            # [AO2MO-2X] TEMPORARY: repeat the transformation with
-            # byte-identical inputs and compare. Same wrong answer twice
-            # => corrupted process state (deterministic). Different wrong
-            # answers => a race. df.outcore.general is deterministic in
-            # isolation (dftest.py, 3/3 SAME on hartree at 8 threads),
-            # so whatever breaks it is something GRaCI's process carries.
-            tmp2 = tmp_eri + '_2x'
-            df.outcore.general(scf.mol.pymol(), ij_trans, tmp2,
-                               auxbasis=scf.mol.ri_basis,
-                               dataname='eri_mo')
-            with h5py.File(tmp2, 'r') as _e2:
-                _a2 = np.array(_e2['eri_mo'])
-            os.remove(tmp2)
-            _s2 = float(np.abs(_a2).sum())
-            print(' [AO2MO-2X] scf=%-12s pass1=%.17e pass2=%.17e  %s'
-                  % (str(scf.label), s_bulk, _s2,
-                     'IDENTICAL -> deterministic (process state)'
-                     if abs(_s2-s_bulk) <= 1e-12*abs(s_bulk)
-                     else '*** DIFFERENT -> race ***'), flush=True)
-            del _a2
-
+                eri_mo = np.array(eri.get('eri_mo'))
             os.remove(tmp_eri)
 
             #df.outcore.general(scf.mol.pymol(), ij_trans, 
@@ -181,18 +128,6 @@ class Ao2mo:
             #eri_mo = ao2mo.incore.full(eri_ao, self.orbs)
             #with h5py.File(self.moint_2e_eri, 'w') as f:
             #    f['eri_mo'] = eri_mo
-
-        # [AO2MO] TEMPORARY DIAGNOSTIC -- remove with [INTCHK]/[READCHK].
-        # bitci reads sum|bra_ket| = 3.10e4 for the first CI calculation
-        # and 8.83e4 for the second, from files with identical dimensions.
-        # This prints the tensor as PySCF produced it, BEFORE it is
-        # written, so the corruption can be placed on one side or the
-        # other of write_integrals without keeping the files.
-        print(' [AO2MO] scf=%-12s shape=%-16s dtype=%-9s'
-              ' sum|eri_mo|=%.17e max=%.6e nonfinite=%d'
-              % (str(scf.label), str(eri_mo.shape), str(eri_mo.dtype),
-                 float(np.abs(eri_mo).sum()), float(np.abs(eri_mo).max()),
-                 int((~np.isfinite(eri_mo)).sum())), flush=True)
 
         self.write_integrals(eri_mo, self.precision_2e, 
                                                  self.moint_2e_eri)

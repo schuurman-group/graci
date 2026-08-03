@@ -5,9 +5,90 @@ import sys
 import numpy as np
 import copy as copy
 import ctypes as ctypes
+import contextlib as contextlib
 import graci.io.convert as convert
 
 libraries      = ['bitci','bitsi','bitwf','overlap']
+
+
+#
+def mkl_set_num_threads(n):
+    """Set MKL's thread count, returning the previous value, or None if
+       MKL is not resident.
+
+       Looked up in the process image rather than by loading a library
+       by name: MKL is already loaded (bitci links it, and so do pyscf's
+       C extensions), and the file name varies between an oneAPI layout
+       and a conda one.
+    """
+
+    try:
+        fn = ctypes.CDLL(None).MKL_Set_Num_Threads_Local
+    except (OSError, AttributeError):
+        return None
+
+    fn.restype  = ctypes.c_int
+    fn.argtypes = [ctypes.c_int]
+
+    return int(fn(ctypes.c_int(int(n))))
+
+
+#
+def mkl_state(tag=''):
+    """[MKLSTATE] TEMPORARY: report MKL's dynamic flag and thread count.
+
+    MKL is meant to detect omp_in_parallel() and serialise itself inside
+    a nested region; that behaviour is governed by MKL_DYNAMIC. If a CI
+    calculation flips it off, restoring it would fix the nesting without
+    the blunt single-thread guard -- which costs ~38% on the SCF.
+    """
+
+    try:
+        h = ctypes.CDLL(None)
+        h.MKL_Get_Dynamic.restype     = ctypes.c_int
+        h.MKL_Get_Max_Threads.restype = ctypes.c_int
+        print(' [MKLSTATE] %-24s MKL_DYNAMIC=%d  max_threads=%d'
+              % (tag, h.MKL_Get_Dynamic(), h.MKL_Get_Max_Threads()),
+              flush=True)
+    except (OSError, AttributeError):
+        print(' [MKLSTATE] %-24s MKL not reachable' % tag, flush=True)
+
+    return
+
+
+#
+@contextlib.contextmanager
+def mkl_single_thread():
+    """Run a block with MKL pinned to one thread.
+
+       pyscf calls BLAS from inside "#pragma omp parallel" regions all
+       over its C layer -- nr_ao2mo.c in the integral transformation,
+       and nr_numint.c (eleven parallel regions) in the DFT numerical
+       integration that every SCF iteration goes through. MKL normally
+       detects omp_in_parallel() and runs serially, but once bitci has
+       driven the shared libiomp5 that detection stops working: MKL
+       spawns threads inside an already-parallel region and the result
+       races.
+
+       Measured on a def2-TZVPD stilbene at 8 threads: the first SCF and
+       its transformation are always correct and bit-reproducible, and
+       every one after a CI calculation is not -- sum|eri| of 6e4-9e4
+       against a correct 3.10e4, differing on every call, which shifts
+       the first MRCI iteration by ~1e-3 and ends in a 5-7 Hartree
+       runaway. The same mechanism shows up as convergence trouble in a
+       second SCF.
+
+       Only pyscf's threaded regions need this. bitci calls MKL from
+       serial context and wants it threaded, so the previous value is
+       restored on the way out.
+    """
+
+    prev = mkl_set_num_threads(1)
+    try:
+        yield
+    finally:
+        if prev is not None:
+            mkl_set_num_threads(prev)
 
 # registry of bitci functions
 bitci_registry = {
