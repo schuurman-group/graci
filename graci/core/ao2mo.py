@@ -7,21 +7,6 @@ import numpy as np
 import h5py as h5py
 import scipy.io as sp_io
 import graci.core.libs as libs
-
-# PySCF overlaps outcore I/O with computation by running the loader in a
-# background thread (lib.map_with_prefetch). In df.outcore.general that
-# means one HDF5 file is read while another is written, concurrently, and
-# under thread contention the transformed tensor comes back corrupt --
-# sum|eri| of 6e4-9e4 against a correct 3.1e4, differing every run. It
-# only bites once a second SCF object is transformed in the same process,
-# and only when the transform takes more than one block, which is why it
-# never shows on small systems.
-#
-# ASYNC_IO = False makes map_with_prefetch fully serial. The cost is
-# losing the read/compute overlap; the benefit is a deterministic
-# transformation at any memory size.
-from pyscf.lib import misc as _pyscf_misc
-_pyscf_misc.ASYNC_IO = False
 import graci.utils.timing as timing
 from pyscf import gto, ao2mo, df
 
