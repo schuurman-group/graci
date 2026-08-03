@@ -58,15 +58,25 @@ class Ao2mo:
         if scf.mol.use_df:
             ij_trans = np.concatenate(([self.orbs], 
                                        [self.orbs]))
+            # A fixed temp file name, an h5py handle that is never
+            # closed, and os.remove() called while that handle is still
+            # open. On a second SCF object in the same process PySCF
+            # writes a new 'tmp_eri' while a live HDF5 handle still
+            # refers to the previous, unlinked inode, and the read back
+            # returns a mixture: on a def2-TZVPD stilbene the first
+            # 14194 of 34453 columns were correct and the rest garbage.
+            # Unique name per call, and close before unlinking.
+            tmp_eri = 'tmp_eri_%s_%d' % (str(scf.label), os.getpid())
+
             df.outcore.general(scf.mol.pymol(), 
                                 ij_trans,
-                                'tmp_eri',
+                                tmp_eri,
                                 auxbasis = scf.mol.ri_basis,
                                 dataname='eri_mo')
 
-            eri    = h5py.File('tmp_eri', 'r')
-            eri_mo = np.array(eri.get('eri_mo'))
-            os.remove('tmp_eri')
+            with h5py.File(tmp_eri, 'r') as eri:
+                eri_mo = np.array(eri.get('eri_mo'))
+            os.remove(tmp_eri)
 
             #df.outcore.general(scf.mol.pymol(), ij_trans, 
             #                   self.moint_2e_eri,
@@ -80,6 +90,18 @@ class Ao2mo:
             #eri_mo = ao2mo.incore.full(eri_ao, self.orbs)
             #with h5py.File(self.moint_2e_eri, 'w') as f:
             #    f['eri_mo'] = eri_mo
+
+        # [AO2MO] TEMPORARY DIAGNOSTIC -- remove with [INTCHK]/[READCHK].
+        # bitci reads sum|bra_ket| = 3.10e4 for the first CI calculation
+        # and 8.83e4 for the second, from files with identical dimensions.
+        # This prints the tensor as PySCF produced it, BEFORE it is
+        # written, so the corruption can be placed on one side or the
+        # other of write_integrals without keeping the files.
+        print(' [AO2MO] scf=%-12s shape=%-16s dtype=%-9s'
+              ' sum|eri_mo|=%.17e max=%.6e nonfinite=%d'
+              % (str(scf.label), str(eri_mo.shape), str(eri_mo.dtype),
+                 float(np.abs(eri_mo).sum()), float(np.abs(eri_mo).max()),
+                 int((~np.isfinite(eri_mo)).sum())), flush=True)
 
         self.write_integrals(eri_mo, self.precision_2e, 
                                                  self.moint_2e_eri)
