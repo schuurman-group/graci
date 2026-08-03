@@ -68,6 +68,20 @@ class Ao2mo:
             # Unique name per call, and close before unlinking.
             tmp_eri = 'tmp_eri_%s_%d' % (str(scf.label), os.getpid())
 
+            # [AO2MO-IN] is the INPUT to the transformation sound? If the
+            # orbitals and the molecule check out here but eri_mo comes
+            # back corrupt, the fault is inside df.outcore.general or the
+            # h5py read; if orbs is already wrong, it is upstream in
+            # load_scf / the Scf object.
+            _pm = scf.mol.pymol()
+            print(' [AO2MO-IN] scf=%-12s orbs%s sum|orbs|=%.17e'
+                  ' emo_cut=%s nmo=%s | pymol id=%s natm=%d nbas=%d'
+                  ' nelec=%s charge=%s'
+                  % (str(scf.label), str(self.orbs.shape),
+                     float(np.abs(self.orbs).sum()), str(self.emo_cut),
+                     str(self.nmo), hex(id(_pm)), _pm.natm, _pm.nbas,
+                     str(_pm.nelec), str(_pm.charge)), flush=True)
+
             df.outcore.general(scf.mol.pymol(), 
                                 ij_trans,
                                 tmp_eri,
