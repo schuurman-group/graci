@@ -6,12 +6,12 @@
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
      normthrsh,detthrsh,confscr,vec0scr,Ascr,diabpot,diab_vecscr,&
-     diab_confscr,diab_nconf,diab_aviiscr) bind(c,name="gvvpt2_diab")
+     diab_confscr,diab_nconf,diab_aviiscr,smat_out) bind(c,name="gvvpt2_diab")
 #else
 subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
      ndetR0,nrootsR0,detR0,vecR0,nmoR0,smoR0,ncore,icore,lfrzcore,&
      normthrsh,detthrsh,confscr,vec0scr,Ascr,diabpot,diab_vecscr,&
-     diab_confscr,diab_nconf,diab_aviiscr)
+     diab_confscr,diab_nconf,diab_aviiscr,smat_out)
 #endif
 
   use constants
@@ -74,6 +74,12 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
 
   ! Diabatic potential matrix
   real(dp), intent(out)    :: diabpot(nrootsR0,nrootsR0)
+
+  ! Overlaps of the current reference space states with the previous
+  ! geometry's diabatic states -- the matrix the diabatisation is built
+  ! from. Returned so that a caller tracking chain health does not have
+  ! to recompute an overlap of its own. See doc: pbdd chain diagnostics.
+  real(dp), intent(out)      :: smat_out(nroots+nextra,nrootsR0)
 
   ! Diabatic state vector scratch file number
   integer(is), intent(out) :: diab_vecscr
@@ -254,7 +260,7 @@ subroutine gvvpt2_diab(irrep,nroots,nextra,ireg,regfac,n_intR0,&
   ! Compute the prototype diabatic states in the ref CSF basis
   call get_pds_basis(cfg,refdim,nvec,vec0,nmoR0,n_intR0,ndetR0,&
        nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds,&
-       normthrsh,detthrsh)
+       normthrsh,detthrsh,smat_out)
 
 !----------------------------------------------------------------------
 ! Calculation of the complement space states

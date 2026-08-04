@@ -44,6 +44,9 @@ def diabpot(ci_method0, ci_method):
     # initialise the list to hold the numbers of diabatic confs
     diab_nconf  = 0
     diab_nconfs = [0 for i in range(nirr)]
+
+    # overlaps with the previous geometry's diabatic states, per irrep
+    smats       = [None for i in range(nirr)]
     
     # GVVPT2 regularizer index
     ireg = ci_method.allowed_regularizer.index(ci_method.regularizer)+1
@@ -120,16 +123,22 @@ def diabpot(ci_method0, ci_method):
 
         # Output diabatic potential matrix
         diabpot = np.zeros((nroots*nroots), dtype=float)
+
+        # Overlaps of this geometry's reference space states with the
+        # previous geometry's diabatic states. Computed inside the
+        # diabatisation regardless; returned so that chain health can be
+        # judged without a second overlap calculation.
+        smat_out = np.zeros(((nroots+nextra)*n_vec0), dtype=float)
             
         args = (irrep, nroots, nextra, ireg, regfac,
                 n_int0, n_det0, n_vec0, dets0, vec0,
                 nmo0, smat, ncore, icore, delete_core,
                 norm_thresh, det_thresh, ci_confunits,
                 ref_ciunits, Aunit, diabpot, diab_ciunit,
-                diab_confunit, diab_nconf, diab_aviiunit)
+                diab_confunit, diab_nconf, diab_aviiunit, smat_out)
 
         diabpot, diab_ciunit, diab_confunit, diab_nconf, \
-            diab_aviiunit = libs.lib_func('gvvpt2_diab', args)
+            diab_aviiunit, smat_out = libs.lib_func('gvvpt2_diab', args)
 
         # Bitci diabatic state vector scratch file number
         diab_ciunits[irrep] = diab_ciunit
@@ -146,6 +155,10 @@ def diabpot(ci_method0, ci_method):
         
         # Save the diabatic potential
         diabpots[irrep] = np.reshape(diabpot, (nroots, nroots), order='F')
+
+        # ref-state / previous-diabatic-state overlaps, for chain health
+        smats[irrep] = np.reshape(smat_out, (nroots+nextra, n_vec0),
+                                  order='F')
 
     # Retrieve the DFT/MRCI(2) diabatic state vector scratch file names
     diab_cinames = ['' for i in range(nirr)]
@@ -173,4 +186,4 @@ def diabpot(ci_method0, ci_method):
         
     return diabpots, np.array(diab_ciunits, dtype=int), diab_cinames,\
         np.array(diab_confunits, dtype=int), diab_confnames, diab_nconfs, \
-        np.array(diab_aviiunits), diab_aviiname
+        np.array(diab_aviiunits), diab_aviiname, smats

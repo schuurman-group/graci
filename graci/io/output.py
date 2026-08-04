@@ -698,7 +698,7 @@ def print_pbdd_refcheck(stem, dev, tol):
 
     return
 
-def print_pbdd_step(stem, ipoint, sdiag, ssvd, sdet):
+def print_pbdd_step(stem, ipoint, sdiag, ssvd, sdet, note=None):
     """report the wave function overlap diagnostics for one step of a chain
 
        The ADT is built as S^-1 (S S^T)^1/2, which yields a well-formed
@@ -712,13 +712,15 @@ def print_pbdd_step(stem, ipoint, sdiag, ssvd, sdet):
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('   %-10s point %3d   min|S_ii| = %7.5f'
-                      '   min svd = %7.5f   |det S| = %7.5f\n'
-                      % (stem, ipoint, sdiag, ssvd, sdet))
+                      '   min svd = %7.5f   <s> = %7.5f%s\n'
+                      % (stem, ipoint, sdiag, ssvd, sdet,
+                         '' if not note else '   [' + str(note) + ']'))
         outfile.flush()
 
     return
 
-def print_pbdd_diagnostics(diagnostics, refcheck, warn, ener_tol):
+def print_pbdd_diagnostics(diagnostics, refcheck, warn, ener_tol,
+                           nstates=None):
     """evaluate the recorded chain diagnostics and report what is suspect
 
        This is the collect-time judgement: the chains themselves only
@@ -738,8 +740,18 @@ def print_pbdd_diagnostics(diagnostics, refcheck, warn, ener_tol):
                 ssvd, sdet = health[ipt, 1], health[ipt, 2]
                 if np.isnan(ssvd):
                     continue
-                if warn is not None and (ssvd < warn or sdet < warn):
-                    suspect.append((stem, ipt, ssvd, sdet))
+
+                # |det S| is the product of nstates singular values, so
+                # comparing it to the same threshold as the smallest one
+                # is a category error: at 23 states even a uniform 0.98
+                # overlap gives |det S| = 0.63 and would be flagged.
+                # Its nstates-th root is the geometric mean singular
+                # value, which is on the same footing as min svd and
+                # does not move with how many states were asked for.
+                gmean = sdet      # already a geometric mean
+
+                if warn is not None and (ssvd < warn or gmean < warn):
+                    suspect.append((stem, ipt, ssvd, gmean))
 
         finite = [d[~np.isnan(d[:, 1])] for d in diagnostics.values()
                   if d.size]
@@ -751,7 +763,7 @@ def print_pbdd_diagnostics(diagnostics, refcheck, warn, ener_tol):
                           % (allh.shape[0]))
             outfile.write('   smallest singular value %10.6f\n'
                           % (allh[:, 1].min()))
-            outfile.write('   smallest |det S|        %10.6f\n'
+            outfile.write('   smallest <s> (geom mean) %9.6f\n'
                           % (allh[:, 2].min()))
 
         if refcheck:
@@ -769,10 +781,10 @@ def print_pbdd_diagnostics(diagnostics, refcheck, warn, ener_tol):
             outfile.write('\n   %d step(s) below the threshold of %7.5f '
                           '-- the state space was not preserved:\n'
                           % (len(suspect), warn))
-            for stem, ipt, ssvd, sdet in suspect:
+            for stem, ipt, ssvd, gmean in suspect:
                 outfile.write('     %-10s point %3d   min svd = %7.5f'
-                              '   |det S| = %7.5f\n'
-                              % (stem, ipt, ssvd, sdet))
+                              '   <s> = %7.5f\n'
+                              % (stem, ipt, ssvd, gmean))
 
         outfile.flush()
 

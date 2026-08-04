@@ -210,19 +210,6 @@ class Pbdd:
         # ambiguous and the run stops rather than guessing.
         self.map_thresh          = 0.5
 
-        # truncation for the chain health diagnostic. Same reasoning as
-        # the mapping's, and the same quadratic betafac(nbetaB,nbetaK)
-        # cost: a def2-TZVPD stilbene at 0.999 asked for 70 GB and was
-        # killed, where the diabatisation it is checking had already
-        # completed. What is read off the overlap is the smallest
-        # singular value and |det S|, compared against overlap_warn --
-        # a health check, not a number anything is computed from, so it
-        # does not need the diabatisation's precision.
-        #
-        # Only qdpt pays this. bdd hands back the overlap it already
-        # built, and the diagnostic is then free.
-        self.diag_norm_thresh    = 0.95
-        self.diag_det_thresh     = 1e-4
         # cut generation (hessian_file mode only)
         self.cut_scheme          = '1mode'
         self.stepsize            = 0.5
@@ -365,7 +352,9 @@ class Pbdd:
 
         output.print_pbdd_summary(self.diabpot)
         output.print_pbdd_diagnostics(self.diagnostics, self.refcheck,
-                                      self.overlap_warn, self.ener_tol)
+                                      self.overlap_warn, self.ener_tol,
+                                      nstates=None if self.q0_ener is None
+                                      else len(np.atleast_1d(self.q0_ener)))
 
         return
 
@@ -1018,23 +1007,38 @@ class Pbdd:
             Sij = cur_ci.chain_smat[0]
 
         else:
+            # nothing should reach here now that both adt_types hand
+            # their overlap back; kept so an adt_type that does not is
+            # diagnosed rather than silently skipped
             nstates = prev_ci.vec_det['adiabatic'][0].shape[1]
             pairs   = np.array([[i, j] for i in range(nstates)
                                 for j in range(nstates)], dtype=int)
 
             Sij = overlap.overlap(prev_ci, cur_ci, cur_ci.smo, pairs, 0,
-                                  self.diag_norm_thresh,
-                                  self.diag_det_thresh, False)
+                                  self.norm_thresh,
+                                  self.det_thresh, False)
             Sij = np.reshape(Sij, (nstates, nstates))
 
-        return (np.min(np.abs(np.diag(Sij))),
-                np.min(np.linalg.svd(Sij, compute_uv=False)),
-                abs(np.linalg.det(Sij)))
+        # Everything is read off the singular values, which is what
+        # makes this work for the rectangular overlap the diabatisation
+        # returns -- (nroots+nextra) x nrootsR0 -- as well as for a
+        # square one. |det S| would need square, and in any case is the
+        # product of nstates singular values, so it cannot share a
+        # threshold with the smallest of them: at 23 states a uniform
+        # 0.98 overlap gives 0.63 and would look like a failure.
+        #
+        # The geometric mean is that product's nstates-th root, which
+        # sits on the same footing as the smallest singular value and
+        # does not move with how many states were asked for.
+        svals = np.linalg.svd(Sij, compute_uv=False)
+        gmean = float(np.exp(np.mean(np.log(np.maximum(svals, 1e-300)))))
+
+        return (np.min(np.abs(np.diag(Sij))), np.min(svals), gmean)
 
     #
     @timing.timed
     def _walk_chain(self, ref_obj, coords, stem,
-                   head_scf=None, head_ci=None):
+                   head_scf=None, head_ci=None, point0=0, notes=None):
         """
         Walk one chain of geometries, propagating the diabatisation.
 
@@ -1112,7 +1116,14 @@ class Pbdd:
 
                 sdiag, ssvd, sdet = self._chain_overlap(prev_ci, ci)
                 health[ipt] = [sdiag, ssvd, sdet]
-                output.print_pbdd_step(stem, ipt, sdiag, ssvd, sdet)
+                # numbered by position in the geometry file, not by
+                # position in the walk: the origin is geometry 0, so a
+                # seeded cut's first walked point is 1. The comment line
+                # carries the mode and signed displacement, which is the
+                # unambiguous identifier.
+                output.print_pbdd_step(stem, ipt + point0, sdiag, ssvd,
+                                       sdet,
+                                       None if not notes else notes[ipt])
 
             self._write_point(ci)
 
@@ -1369,7 +1380,7 @@ class Pbdd:
                      '\n a cut job takes its geometries from the '
                      '$molecule section, which names no xyz_file')
 
-        _, coords = molecule.read_xyz_file(path)
+        _, coords, notes = molecule.read_xyz_file(path, comments=True)
 
         if str(mol.units).lower().startswith('b'):
             coords = coords * constants.bohr2ang
@@ -1433,7 +1444,8 @@ class Pbdd:
 
         walked = self._walk_chain(ref_obj, coords[first:], stem,
                                  head_scf=None if c1_ci is None
-                                 else c1_ci.scf, head_ci=c1_ci)
+                                 else c1_ci.scf, head_ci=c1_ci,
+                                 point0=first, notes=notes[first:])
 
         # stored geometry-last, matching BDDpy's DiabaticData. gkdc reads
         # the per-geometry groups rather than this, since pairing each

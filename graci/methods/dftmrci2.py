@@ -294,8 +294,12 @@ class Dftmrci2(cimethod.Cimethod):
                 # QDPT diabatisation
                 diabpots, ciunits, cinames, \
                     confunits, confnames, nconfs, \
-                    avii_units, avii_files = \
+                    avii_units, avii_files, smatrices = \
                     gvvpt2_diab.diabpot(guess, self)
+
+                # the overlaps the diabatisation was built from, kept so
+                # that chain health can be judged without recomputing one
+                self.chain_smat = smatrices
 
                 self.diabpot = diabpots
                 self.mrci_wfn.set_ciunits(ciunits, rep='diabatic')
@@ -332,22 +336,27 @@ class Dftmrci2(cimethod.Cimethod):
                     n_conf_new = gvvpt2_truncate.truncate_wf(self, rep)
                     self.mrci_wfn.set_nconf(n_conf_new, rep)
 
-        # construct density matrices
-        self.get_dmats()
-        
-        # build the natural orbitals in AO basis by default
-        self.build_nos()
+        # Density matrices, natural orbitals and everything drawn from
+        # them. print_orbitals implies build_natorbs -- there is nothing
+        # to print otherwise -- so the two cannot be set inconsistently.
+        if self.build_natorbs or self.print_orbitals:
 
-        # only print if user-requested
-        if self.print_orbitals:
-            self.print_nos()
+            # construct density matrices
+            self.get_dmats()
 
-        # determine promotion numbers if ref_state != -1
-        if self.ref_state != -1:
-            self.print_promotion(self.ref_state)
+            # build the natural orbitals in AO basis by default
+            self.build_nos()
 
-        # print the moments
-        self.print_moments()
+            # only print if user-requested
+            if self.print_orbitals:
+                self.print_nos()
+
+            # determine promotion numbers if ref_state != -1
+            if self.ref_state != -1:
+                self.print_promotion(self.ref_state)
+
+            # print the moments
+            self.print_moments()
 
         # Finalize the bitCI library
         bitci_init.finalize()

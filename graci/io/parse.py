@@ -625,6 +625,15 @@ def check_pbdd(obj, run_list):
         if ref_obj.save_wf:
             ref_obj.save_wf = False
 
+        # Nothing in a chain reads the density matrices or natural
+        # orbitals -- the diabatisation works from the determinant
+        # expansions -- and they are 43 MB and a diagonalisation per
+        # state on a def2-TZVPD stilbene, at every one of the points.
+        # print_orbitals still forces them, so asking to see them is
+        # honoured; this only stops paying for what is thrown away.
+        if not ref_obj.print_orbitals:
+            ref_obj.build_natorbs = False
+
         for kword in ['cut_scheme', 'stepsize', 'npoints', 'geom_dir']:
             if not np.array_equal(getattr(obj, kword),
                                   getattr(default, kword)):

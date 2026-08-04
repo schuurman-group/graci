@@ -64,7 +64,7 @@ point_grps = ['c1','ci','c2','cs','c2h','c2v','d2','d2h']
 nirrep     = [1, 2, 2, 2, 4, 4, 4, 8]
 
 #
-def read_xyz_file(path):
+def read_xyz_file(path, comments=False):
     """
     Read every geometry from an xyz file.
 
@@ -83,6 +83,10 @@ def read_xyz_file(path):
 
     Returns:
         (asym, coords): atom symbols, and an (ngeom, natm, 3) array
+        (asym, coords, notes) if comments=True, notes being the comment
+        line of each geometry -- $pbdd tags these with the mode and the
+        signed displacement index, so a chain can report which geometry
+        a point came from rather than just its position in the file
     """
 
     try:
@@ -92,6 +96,7 @@ def read_xyz_file(path):
         sys.exit(' xyz_file: '+str(path)+' not found.')
 
     geoms  = []
+    notes  = []
     asym   = None
     iline  = 0
     nlines = len(lines)
@@ -149,10 +154,14 @@ def read_xyz_file(path):
                      'first')
 
         geoms.append(geom)
+        notes.append(lines[iline+1].strip())
         iline = first + natm
 
     if not geoms:
         sys.exit(' No geometries found in xyz file '+str(path))
+
+    if comments:
+        return asym, np.array(geoms, dtype=float), notes
 
     return asym, np.array(geoms, dtype=float)
 

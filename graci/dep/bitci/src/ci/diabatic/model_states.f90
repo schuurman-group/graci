@@ -22,7 +22,7 @@ contains
 !######################################################################
   subroutine get_pds_basis(cfg,refdim,nvec,vec0,nmoR0,n_intR0,ndetR0,&
        nrootsR0,detR0,vecR0,smoR0,ncore,icore,lfrzcore,vec_pds,&
-       normthrsh,detthrsh)
+       normthrsh,detthrsh,smat_out)
     
     use constants
     use bitglobal
@@ -88,6 +88,14 @@ contains
     real(dp), allocatable    :: Sij(:),Smat(:,:)
     real(dp), allocatable    :: smoT(:,:)
     logical                  :: lprint
+
+    ! Copy of the ref-state/previous-diabatic-state overlaps, returned
+    ! to the caller. These are the quantity the diabatisation is built
+    ! from, so their singular values are the honest measure of whether
+    ! the state space carried over -- and they are computed here in any
+    ! case. Handing them back saves the caller recomputing an overlap
+    ! purely to check on it.
+    real(dp), intent(out)    :: smat_out(nvec,nrootsR0)
     
     ! Everything else
     integer(is)              :: i,j,n
@@ -208,6 +216,9 @@ contains
 ! Lowdin's symmetric orthonormalisation of the precursor states to
 ! yield the prototype diabatic states in the ref space state basis
 !----------------------------------------------------------------------
+    ! hand the ref-state/previous-diabatic-state overlaps back
+    smat_out=precoe
+
     pdscoe=precoe
     call symm_ortho(nvec,nrootsR0,pdscoe)
 

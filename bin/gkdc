@@ -415,7 +415,8 @@ def report_coverage(qvec, diabpot, nmodes):
 
 
 #
-def report_diagnostics(diagnostics, refcheck, warn, ener_tol):
+def report_diagnostics(diagnostics, refcheck, warn, ener_tol,
+                       nstates=None):
     """apply the thresholds the cut jobs deliberately did not"""
 
     finite = [d[~np.isnan(d[:, 1])] for d in diagnostics.values() if d.size]
@@ -429,7 +430,7 @@ def report_diagnostics(diagnostics, refcheck, warn, ener_tol):
     print(' Chain diagnostics')
     print('   steps evaluated         %6d'   % (allh.shape[0]))
     print('   smallest singular value %10.6f' % (allh[:, 1].min()))
-    print('   smallest |det S|        %10.6f' % (allh[:, 2].min()))
+    print('   smallest <s> (geom mean) %9.6f' % (allh[:, 2].min()))
 
     if refcheck:
         print('   worst point-0 deviation %10.3e Hartree (tolerance '
@@ -442,8 +443,14 @@ def report_diagnostics(diagnostics, refcheck, warn, ener_tol):
             ssvd, sdet = health[ipt, 1], health[ipt, 2]
             if np.isnan(ssvd):
                 continue
-            if warn is not None and (ssvd < warn or sdet < warn):
-                suspect.append((stem, ipt, ssvd, sdet))
+            # |det S| is a product of nstates singular values, so it
+            # cannot share a threshold with the smallest of them: at 23
+            # states a uniform 0.98 overlap already gives 0.63. Compare
+            # its nstates-th root, the geometric mean singular value.
+            gmean = sdet      # already a geometric mean
+
+            if warn is not None and (ssvd < warn or gmean < warn):
+                suspect.append((stem, ipt, ssvd, gmean))
 
     if warn is None:
         print('\n   no overlap threshold set; nothing evaluated')
@@ -858,7 +865,9 @@ def main(argv=None):
 
     warn = args.overlap_warn if args.overlap_warn is not None \
         else ref.overlap_warn
-    report_diagnostics(diagnostics, refcheck, warn, ref.ener_tol)
+    report_diagnostics(diagnostics, refcheck, warn, ref.ener_tol,
+                       nstates=None if ref.q0_ener is None
+                       else len(np.atleast_1d(ref.q0_ener)))
 
     # the harvests each carry the label of the cut that produced them, so
     # a collected set has to be named for itself rather than for whichever

@@ -70,6 +70,12 @@ class Cimethod:
         self.diabpot        = None
         # mos 
         self.mos            = None
+        # build the density matrices and natural orbitals. They cost a
+        # 1-RDM and a diagonalisation per state, and on a def2-TZVPD
+        # stilbene they are 43 MB per calculation -- worth skipping for
+        # a workflow that never looks at them. Nothing turns this off by
+        # default; a $pbdd cut job does.
+        self.build_natorbs  = True
         # number of MOs in CSF expansions
         self.nmo            = None
         # mo energies
