@@ -197,7 +197,7 @@ class Ao2mo:
                 f.write_record(out_tensor[j*cprec:cend, 0:rend])
 
         f.close()
-
+ 
         return
 
     def n_records(self, tensor_dims, precision):

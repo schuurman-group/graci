@@ -631,6 +631,9 @@ def check_pbdd(obj, run_list):
         # state on a def2-TZVPD stilbene, at every one of the points.
         # print_orbitals still forces them, so asking to see them is
         # honoured; this only stops paying for what is thrown away.
+        #
+        # A $transition section in a cut input therefore cannot work:
+        # it builds NDOs from rdm(), which returns None here.
         if not ref_obj.print_orbitals:
             ref_obj.build_natorbs = False
 

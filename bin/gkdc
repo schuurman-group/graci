@@ -32,7 +32,171 @@ import graci.io.output as output
 import graci.tools.pbdd as pbdd
 
 
+# Written when --h5 names nothing.
+DEFAULT_STORE = 'model.h5'
+
+
 #
+def order_int(text):
+    """An expansion order. Only exists to replace argparse's message for
+       a bad int, which names the offending value without saying what it
+       was being read as -- and the value it names is usually a
+       checkpoint file the greedy nargs='+' has swallowed."""
+
+    try:
+        return int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "'"+str(text)+"' is not an integer. The order flags take one "
+            "or two integers,\n as \"one-mode [two-mode]\" -- with no "
+            "commas or brackets. They also consume\n everything that "
+            "follows them, so put the checkpoint files before the flag "
+            "or\n name them with -d.")
+
+
+def expand_states(text):
+    """Expand a comma-separated state list, in which any entry may be a
+       "lo:hi" range, into a flat list of integers. "1:5" is 1 2 3 4 5,
+       and "1:3,7,9:10" is 1 2 3 7 9 10.
+
+       Ranges are inclusive of both ends, which is how state indices are
+       written everywhere else in GRaCI. Duplicates are dropped and the
+       result is sorted, so overlapping ranges are harmless.
+
+       Raises ValueError, for the caller to turn into a parser error."""
+
+    states = []
+
+    for entry in str(text).split(','):
+        entry = entry.strip()
+        if not entry:
+            continue
+
+        if ':' not in entry:
+            try:
+                states.append(int(entry))
+            except ValueError:
+                raise ValueError("'"+entry+"' is not a state index")
+            continue
+
+        bounds = entry.split(':')
+        if len(bounds) != 2:
+            raise ValueError("'"+entry+"' is not a range: a range is "
+                             "written lo:hi")
+        try:
+            lo, hi = int(bounds[0]), int(bounds[1])
+        except ValueError:
+            raise ValueError("'"+entry+"' is not a range: both ends must "
+                             "be integers")
+        if hi < lo:
+            raise ValueError("'"+entry+"' runs backwards: a range is "
+                             "written lo:hi")
+
+        states.extend(range(lo, hi + 1))
+
+    return sorted(set(states))
+
+
+def plot_model(model, data, args, q0_ener=None):
+    """Draw one cut of a fitted model, and either save it or show it.
+
+       The same cuts as BDDpy's bdd-pltkdc, drawn through the same
+       bddpy.plot routines -- this is a front end, not a second
+       implementation, so the two cannot drift apart.
+
+       Mode and state indices are one-based on the command line, as
+       everywhere else in GRaCI, and converted here."""
+
+    import bddpy.plot as bddpy_plot
+
+    mode   = args.mode - 1
+    second = None if args.mode2 is None else args.mode2 - 1
+    span   = tuple(args.range)
+
+    if args.element is not None:
+        axis = bddpy_plot.plot_coupling(model,
+                                        args.element[0] - 1,
+                                        args.element[1] - 1,
+                                        mode, span=span,
+                                        npoints=args.npoints)
+    else:
+        axis = bddpy_plot.plot_cut(
+            model, mode, second,
+            data           = None if args.no_points else data,
+            representation = 'diabatic' if args.diabatic else 'adiabatic',
+            span           = span,
+            npoints        = args.npoints)
+
+        # The expansion origin is a diabatic point like any other -- it
+        # is the one the chain propagates from, where the diabatic basis
+        # is defined to coincide with the adiabatic one, so its diabatic
+        # matrix is diag(q0_ener) and both representations show it at
+        # the same place.
+        #
+        # It is missing from the plot for two reasons that have nothing
+        # to do with its status. The harvest skips it because the
+        # checkpoint records it as the reference rather than as a
+        # sampled point, so it carries no diabpot array to read. And
+        # BDDpy's point selection would drop it even if it were there:
+        # a point on the cut for mode m must have exactly m displaced,
+        # and the origin has nothing displaced, so it lies on every cut
+        # and matches none of them.
+        if q0_ener is not None and not args.no_points:
+            import bddpy.constants as bddpy_constants
+
+            q0 = np.atleast_1d(np.asarray(q0_ener, dtype=float))
+            y  = (q0 - q0[0]) * bddpy_constants.active.EH2EV
+
+            # Drawn as an ordinary ab initio point, because that is what it
+            # is; it is only plotted separately because BDDpy's selection
+            # cannot match a point with no mode displaced.
+            axis.plot(np.zeros(len(y)), y, linestyle='none', marker='o',
+                      ms=3.0, mfc='none', mew=0.9, color='0.25', zorder=5)
+
+    if args.output is not None:
+        bddpy_plot.save(axis, args.output)
+        print('   %-18s -> %s' % ('plot', args.output))
+    else:
+        import matplotlib.pyplot as plt
+        plt.show()
+
+    return axis
+
+
+def plot_store(args):
+    """Draw a cut from a stored fit. This is the whole of a --plot run:
+       no checkpoint is read and nothing is written but the picture."""
+
+    import bddpy.cli.mergeop as bddpy_mergeop
+    import bddpy.data as bddpy_data
+    import bddpy.io.store as bddpy_store
+
+    if not os.path.isfile(args.plot):
+        sys.stderr.write('\n gkdc: no such store: '+str(args.plot)+'\n\n')
+        return 1
+
+    model    = bddpy_mergeop._load(args.plot)
+    contents = bddpy_store.load(args.plot)
+
+    # The points are optional: a store written from a merge, or one the
+    # data was stripped from, still plots -- just without them.
+    data = None
+    if not args.no_points and 'data' in contents:
+        data = bddpy_data.DiabaticData(qvec=contents['data']['qvec'],
+                                       diabpot=contents['data']['diabpot'])
+    elif not args.no_points:
+        print('\n This store holds no ab initio points; plotting the '
+              'model alone.\n')
+
+    # the origin is kept with the fit configuration rather than with the
+    # sampled points, so it has to be fetched separately
+    q0_ener = contents.get('config', {}).get('q0_energies')
+
+    plot_model(model, data, args, q0_ener=q0_ener)
+
+    return 0
+
+
 def read_cmdline(argv=None):
     """parse the command line"""
 
@@ -58,7 +222,10 @@ def read_cmdline(argv=None):
     parser.add_argument('-s', '--sop', metavar='FILE', default=None,
                         help='write a MultiQD operator file')
     parser.add_argument('--h5', metavar='FILE', default=None,
-                        help='write the BDDpy store (model, data, system)')
+                        help='name for the BDDpy store (model, data, '
+                             'system). The store is written whether or '
+                             'not this is given; without it the file is '
+                             'model.h5')
     parser.add_argument('--label', metavar='NAME', default=None,
                         help='name for the written surfaces; defaults to '
                              'the operator or store file stem, else '
@@ -68,21 +235,65 @@ def read_cmdline(argv=None):
     parser.add_argument('--couplings', action='store_true',
                         help='dump the diabatic couplings as text')
 
-    parser.add_argument('--diag-order', metavar='N', nargs='+', type=int,
-                        default=[6, 2],
-                        help='on-diagonal expansion order, as '
-                             '"one-mode two-mode" (default 6 2)')
-    parser.add_argument('--offdiag-order', metavar='N', nargs='+', type=int,
-                        default=[6, 2],
-                        help='off-diagonal expansion order (default 6 2)')
+    # Plotting is a mode, not a modifier: --plot names a store and
+    # everything else in this group describes the picture. gkdc always
+    # writes a store, so plotting a fit you just made is a second
+    # invocation rather than a flag on the first.
+    #
+    # These are the cuts BDDpy's bdd-pltkdc draws, through the same
+    # bddpy.plot routines, so the two cannot drift apart.
+    plt_grp = parser.add_argument_group(
+        'plotting',
+        'gkdc --plot FILE.h5 [options] plots a stored fit and does '
+        'nothing else; the collection options above are not read.')
+    plt_grp.add_argument('--plot', metavar='FILE', default=None,
+                         help='plot from this BDDpy store')
+    plt_grp.add_argument('-m', '--mode', metavar='N', type=int,
+                         default=None,
+                         help='mode to scan, one-based')
+    plt_grp.add_argument('--mode2', metavar='N', type=int, default=None,
+                         help='second mode, for a diagonal cut')
+    plt_grp.add_argument('-r', '--range', metavar=('LOW', 'HIGH'), nargs=2,
+                         type=float, default=(-7.0, 7.0),
+                         help='cut extent in dimensionless normal '
+                              'coordinates (default -7 7)')
+    plt_grp.add_argument('-n', '--npoints', metavar='N', type=int,
+                         default=1000,
+                         help='points along the cut (default 1000)')
+    plt_grp.add_argument('--diabatic', action='store_true',
+                         help='plot diabatic rather than adiabatic '
+                              'potentials')
+    plt_grp.add_argument('--element', metavar=('I', 'J'), nargs=2,
+                         type=int, default=None,
+                         help='plot the diabatic coupling between two '
+                              'states instead of the potentials')
+    plt_grp.add_argument('--no-points', action='store_true',
+                         help='omit the ab initio points from the plot')
+    plt_grp.add_argument('--output', metavar='FILE', default=None,
+                         help='write the plot here; without it the plot '
+                              'is shown interactively')
+
+    # One or two values: the one-mode order, and optionally the two-mode
+    # order, which defaults to 0. bddpy requires the pair, so a single
+    # value is padded below rather than passed through short.
+    parser.add_argument('--diag-order', metavar='N', nargs='+',
+                        type=order_int, default=[6, 2],
+                        help='on-diagonal expansion order, as "one-mode '
+                             '[two-mode]"; the two-mode order defaults '
+                             'to 0 (default 6 2)')
+    parser.add_argument('--offdiag-order', metavar='N', nargs='+',
+                        type=order_int, default=[6, 2],
+                        help='off-diagonal expansion order, same form '
+                             '(default 6 2)')
     parser.add_argument('--overlap-warn', metavar='X', type=float,
                         default=None,
                         help='flag chain steps whose smallest singular '
                              'value or |det S| falls below this; '
                              'overrides the run')
-    parser.add_argument('--opstates', metavar='N', nargs='+', type=int,
+    parser.add_argument('--opstates', metavar='SPEC', nargs='+',
                         default=None,
-                        help='states to include in the operator file')
+                        help='states to include in the operator file; '
+                             'accepts ranges, e.g. "1:5" or "1:3,7 9"')
 
     parser.add_argument('--weight', metavar='X', type=float, default=None,
                         help='weighting factor for the fit')
@@ -91,7 +302,8 @@ def read_cmdline(argv=None):
     parser.add_argument('--blocks', metavar='SPEC', default=None,
                         help='block diagonalisation blocks, states '
                              'comma-separated within a block and blocks '
-                             'separated by a slash, e.g. "1,2/3,4"')
+                             'separated by a slash, e.g. "1,2/3,4". '
+                             'States accept ranges: "1:4/5:8"')
     parser.add_argument('--blockdiag', choices=('svd', 'invsqrt'),
                         default='svd',
                         help='block diagonalisation algorithm (default svd)')
@@ -112,7 +324,76 @@ def read_cmdline(argv=None):
                              'more than this many times the overall rms '
                              '(default 5)')
 
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+
+    # bddpy wants [one-mode, two-mode]. A lone value is the one-mode
+    # order with the two-mode terms left out.
+    for name in ('diag_order', 'offdiag_order'):
+        order = list(getattr(args, name))
+        if len(order) == 1:
+            order.append(0)
+        elif len(order) > 2:
+            parser.error('--'+name.replace('_', '-')+' takes one or two '
+                         'integers, as "one-mode [two-mode]", got '
+                         +' '.join(str(o) for o in order))
+        setattr(args, name, order)
+
+    # The plotting options only mean anything in a --plot run, and a
+    # --plot run needs a mode to scan.
+    if args.plot is not None:
+        if args.mode is None:
+            parser.error('--plot needs -m MODE to say which cut to draw')
+    else:
+        stray = [flag for flag, value in (('-m', args.mode),
+                                          ('--mode2', args.mode2),
+                                          ('--element', args.element),
+                                          ('--output', args.output))
+                 if value is not None]
+        if stray:
+            parser.error(', '.join(stray)+' belong'
+                         +('' if len(stray) > 1 else 's')
+                         +' to a --plot run; name a store with --plot')
+
+    for flag, mode in (('-m', args.mode), ('--mode2', args.mode2)):
+        if mode is not None and mode < 1:
+            parser.error(flag+' is one-based, got '+str(mode))
+
+    if args.range[0] >= args.range[1]:
+        parser.error('-r is "low high", got '
+                     +' '.join(str(x) for x in args.range))
+
+    # State lists, expanded here rather than where they are consumed so a
+    # malformed one is caught before any checkpoint is read.
+    if args.opstates is not None:
+        try:
+            args.opstates = expand_states(','.join(args.opstates))
+        except ValueError as err:
+            parser.error('--opstates: '+str(err))
+        if not args.opstates:
+            parser.error('--opstates names no states')
+
+    if args.blocks is not None:
+        try:
+            args.blocks = [expand_states(blk)
+                           for blk in args.blocks.split('/') if blk.strip()]
+        except ValueError as err:
+            parser.error('--blocks: '+str(err))
+
+        if not args.blocks:
+            parser.error('--blocks names no blocks')
+
+        # A state in two blocks is not a block diagonalisation, and the
+        # failure downstream would be obscure.
+        seen = [s for blk in args.blocks for s in blk]
+        repeated = sorted(set(s for s in seen if seen.count(s) > 1))
+        if repeated:
+            parser.error('--blocks: state'
+                         +('s ' if len(repeated) > 1 else ' ')
+                         +', '.join(str(s) for s in repeated)
+                         +(' appear' if len(repeated) > 1 else ' appears')
+                         +' in more than one block')
+
+    return args
 
 
 #
@@ -333,6 +614,51 @@ def harvest_points(paths, system):
 
 
 #
+def add_origin(qvec, diabpot, origin, q0_ener):
+    """
+    Prepend the expansion origin to the sampled points.
+
+    The origin is a diabatic point like any other -- it is the geometry the
+    chain propagates from, where the diabatic basis is defined to coincide
+    with the adiabatic one, so its diabatic matrix is diag(q0_ener). It is
+    absent from the harvest only because the checkpoint records it as the
+    reference rather than as a sampled point, so it carries no diabpot array
+    to read.
+
+    It belongs in the fit: with the constant term fitted rather than imposed,
+    the origin is what pins W(0), and leaving it out means the one geometry
+    the whole model space is defined by has no say in the model.
+
+    Returns:
+      (qvec, diabpot, origin) with the extra point first, unchanged if a
+      point already sits at Q = 0
+    """
+
+    if q0_ener is None:
+        sys.exit('\n ERROR: the harvested checkpoints carry no reference '
+                 'energies (q0_ener).\n Every cut written by a Pbdd chain '
+                 'records them, so this indicates the\n checkpoints did not '
+                 'come from one, or were written by an older version.')
+
+    q0 = np.atleast_1d(np.asarray(q0_ener, dtype=float))
+
+    if q0.shape[0] != diabpot.shape[0]:
+        sys.exit('\n ERROR: the reference holds '+str(q0.shape[0])+
+                 ' energies but the sampled points carry '+
+                 str(diabpot.shape[0])+' states.')
+
+    # A cut that happens to sample the origin already, or a rerun collected
+    # twice, must not get it twice over.
+    if qvec.size and np.any(np.all(np.abs(qvec) < 1e-8, axis=0)):
+        return qvec, diabpot, origin
+
+    qvec    = np.column_stack([np.zeros(qvec.shape[0]), qvec])
+    diabpot = np.concatenate([np.diag(q0)[:, :, None], diabpot], axis=2)
+
+    return qvec, diabpot, ['origin'] + list(origin)
+
+
+#
 def merge(harvests):
     """
     Gather the cuts from every harvest into one set.
@@ -486,6 +812,18 @@ def collect_report(model, data, order, coupling_thresh, gradient_thresh,
     qvec    = np.asarray(data.qvec)
     origin  = list(data.origin) if data.origin is not None else []
 
+    # Which points lie on which cut, decided exactly as the fit decides it.
+    # A hand-rolled "is this mode displaced" test here used a 1e-12 cutoff,
+    # which is below the numerical noise of the Cartesian-to-normal
+    # projection: a point displaced 4.5 along one mode carries ~1e-6 in the
+    # others, so it looked like a 37-mode point and its residual was
+    # attributed to every one of them. That is how one far-out point came to
+    # be reported as the worst point of half the modes in the molecule.
+    from bddpy.fitting import indices as _bdd_indices
+
+    on_cut, _pairs, _unused, at_origin = _bdd_indices.classify(qvec)
+    at_origin = list(np.asarray(at_origin, dtype=int))
+
     # residuals against the ab initio adiabatic energies, per point
     try:
         resid = np.abs(np.asarray(model.residuals(data)))
@@ -495,53 +833,66 @@ def collect_report(model, data, order, coupling_thresh, gradient_thresh,
     rms = float(np.sqrt((resid**2).mean())) if resid is not None \
         and resid.size else 0.0
 
-    problems = {}
-    notable  = {}
+    # One record per mode rather than a list of sentences: the section is a
+    # triage table, and a table needs a value per column, not prose.
+    problems  = {}
+    gradients = []
+    couplings = []
+
+    def record(mode):
+        return problems.setdefault(mode, {'unbound': None, 'worst': None,
+                                          'sparse': None})
 
     def flag(store, mode, text):
         store.setdefault(mode, []).append(text)
 
     for mode in range(nmodes):
 
-        # points sampled along this mode
-        on_mode = np.abs(qvec[mode]) > 1e-12
-        qs      = np.unique(np.round(qvec[mode][on_mode], 10))
-        npts    = qs.size
-
-        if npts == 0:
+        # points sampled along this mode: the cut itself, plus the origin,
+        # which lies on every cut and is fitted along with the rest
+        points = list(np.asarray(on_cut.get(mode, []), dtype=int))
+        if not points:
             continue
+
+        points = points + at_origin
+        qs     = np.unique(np.round(qvec[mode][points], 10))
+        npts   = qs.size
 
         # --- is the expansion actually determined? -----------------------
         if npts <= order:
-            flag(problems, mode,
-                 'only %d distinct points for an order-%d expansion: the '
-                 'fit interpolates rather than fits, and its RMSD means '
-                 'nothing' % (npts, order))
+            record(mode)['sparse'] = npts
 
         # --- does the potential turn over at the edge? -------------------
-        qmax = float(np.abs(qs).max())
-        if qmax > 0.:
+        # Both ends: a cut can turn over on one side and not the other, and
+        # only probing +Qmax missed half of them.
+        ends = []
+        for label, edge in (('max', float(qs.max())), ('min', float(qs.min()))):
+            if abs(edge) <= 0.:
+                continue
             probe = np.zeros((3, nmodes))
-            probe[:, mode] = [qmax, 0.9*qmax, 0.8*qmax]
+            probe[:, mode] = [edge, 0.9*edge, 0.8*edge]
             w = model.diabatic(probe)
             curv = w[0] - 2.*w[1] + w[2]
             for i in range(nsta):
                 if curv[i, i] < 0.:
-                    flag(problems, mode,
-                         'state %d is unbound at the edge of the sampled '
-                         'range (curvature < 0 at Q = %.2f)' % (i+1, qmax))
+                    ends.append(label)
                     break
+        if ends:
+            record(mode)['unbound'] = '/'.join(ends)
 
         # --- outlying points ---------------------------------------------
-        if resid is not None and rms > 0. and origin:
-            idx = [n for n, stem in enumerate(origin)
-                   if abs(qvec[mode, n]) > 1e-12]
+        if resid is not None and rms > 0.:
+            idx = [n for n in points if n < len(resid)]
             if idx:
-                worst = float(resid[idx].max())
+                block = resid[idx]
+                worst = float(block.max())
                 if worst > outlier_factor*rms:
-                    flag(problems, mode,
-                         'worst point deviates %.4f eV, %.1fx the overall '
-                         'rms' % (worst, worst/rms))
+                    # which state is missed, not just by how much: a large
+                    # residual on one state is a different problem from a
+                    # cut that is poor everywhere
+                    _, state = np.unravel_index(int(block.argmax()),
+                                                block.shape)
+                    record(mode)['worst'] = (worst, int(state) + 1)
 
         # --- what the physics is doing ------------------------------------
         lin = np.abs(model.coeff1[mode, :, :, 0])
@@ -549,16 +900,12 @@ def collect_report(model, data, order, coupling_thresh, gradient_thresh,
 
         if offd.max() > coupling_thresh:
             i, j = np.unravel_index(np.argmax(offd), offd.shape)
-            flag(notable, mode,
-                 'couples states %d and %d, %.4f eV per unit Q'
-                 % (i+1, j+1, offd.max()))
+            couplings.append((float(offd.max()), mode, int(i)+1, int(j)+1))
 
         grad = np.abs(np.diag(lin)).max()
         if grad > gradient_thresh:
             i = int(np.argmax(np.abs(np.diag(lin))))
-            flag(notable, mode,
-                 'gradient %.4f eV per unit Q on state %d at the origin'
-                 % (grad, i+1))
+            gradients.append((float(grad), mode, i+1))
 
     print(' Collect report')
     print(' '+'-'*60)
@@ -566,23 +913,79 @@ def collect_report(model, data, order, coupling_thresh, gradient_thresh,
     if not problems:
         print('\n No cut looks wrong.')
     else:
-        print('\n These cuts look wrong -- look at them first:\n')
-        for mode in sorted(problems):
-            for text in problems[mode]:
-                print('   mode %-3d %s' % (mode+1, text))
+        print('\n These cuts look wrong -- look at them first.')
+        print(' A mode appears only if something about it is over '
+              'threshold; a dash\n means that column is fine.\n')
 
-    if notable:
-        print('\n These cuts carry the physics -- worth plotting:\n')
-        for mode in sorted(notable):
-            for text in notable[mode]:
-                print('   mode %-3d %s' % (mode+1, text))
+        print('   %6s   %-22s   %18s' %
+              ('mode', 'unbound at Q(max/min)', 'max error (eV)'))
+        print('   '+'-'*52)
+
+        for mode in sorted(problems):
+            rec = problems[mode]
+            unbound = 'no' if rec['unbound'] is None \
+                else 'yes (%s)' % rec['unbound']
+            if rec['worst'] is None:
+                worst = '-'
+            else:
+                value, state = rec['worst']
+                worst = 'state %d / %.4f' % (state, value)
+            print('   %6d   %-22s   %18s' % (mode+1, unbound, worst))
+
+        print('   '+'-'*52)
+        print('   max error is the worst single point on that cut, shown '
+              'when it exceeds')
+        print('   %.1fx the overall rms of %.4f eV (= %.4f eV).'
+              % (outlier_factor, rms, outlier_factor*rms))
+
+        sparse = [(m, problems[m]['sparse']) for m in sorted(problems)
+                  if problems[m]['sparse'] is not None]
+        if sparse:
+            print()
+            print('   Too few points to determine an order-%d expansion -- '
+                  'these fits' % order)
+            print('   interpolate rather than fit, and their rmsd means '
+                  'nothing:')
+            for mode, npts in sparse:
+                print('     mode %-4d %d distinct points' % (mode+1, npts))
+
+    # Two separate tables: a large gradient and a large inter-state coupling
+    # are different physics and get looked at for different reasons, so
+    # ranking them together buries whichever list is shorter. Both are
+    # ordered by magnitude rather than by mode -- the question these answer
+    # is "which are the big ones", not "what does mode 34 do".
+    if gradients:
+        print('\n Spectroscopically active modes -- largest gradients at '
+              'the origin:\n')
+        print('   %6s   %7s   %22s' % ('mode', 'state', 'gradient (eV/Q)'))
+        print('   '+'-'*42)
+        for grad, mode, state in sorted(gradients, reverse=True):
+            print('   %6d   %7d   %22.4f' % (mode+1, state, grad))
+        print('   '+'-'*42)
+        print('   shown above %.4f eV per unit Q' % gradient_thresh)
     else:
-        print('\n No mode exceeds the coupling or gradient thresholds.')
+        print('\n No mode exceeds the gradient threshold of %.4f eV per '
+              'unit Q.' % gradient_thresh)
+
+    if couplings:
+        print('\n Coupling modes -- largest inter-state couplings:\n')
+        print('   %6s   %11s   %22s' % ('mode', 'states', 'coupling (eV/Q)'))
+        print('   '+'-'*46)
+        for value, mode, i, j in sorted(couplings, reverse=True):
+            print('   %6d   %11s   %22.4f'
+                  % (mode+1, '%d - %d' % (i, j), value))
+        print('   '+'-'*46)
+        print('   shown above %.4f eV per unit Q' % coupling_thresh)
+    else:
+        print('\n No mode exceeds the coupling threshold of %.4f eV per '
+              'unit Q.' % coupling_thresh)
 
     print()
-    if problems or notable:
-        print(' e.g.  bdd-pltkdc <store.h5> -m %d --diabatic'
-              % (sorted(problems or notable)[0]+1))
+    if problems or gradients or couplings:
+        first = sorted(problems)[0] if problems else \
+            (sorted(gradients, reverse=True)[0][1] if gradients
+             else sorted(couplings, reverse=True)[0][1])
+        print(' e.g.  gkdc --plot <store.h5> -m %d --diabatic' % (first+1))
         print()
 
     return
@@ -749,10 +1152,7 @@ def build_config(args, ref, system, label):
         state_irreps        = ref.state_syms,
         weight              = args.weight,
         reexpand            = args.reexpand,
-        blocks              = None if args.blocks is None else
-                              [[int(x) for x in blk.split(',') if x.strip()]
-                               for blk in args.blocks.split('/')
-                               if blk.strip()],
+        blocks              = args.blocks,
         blockdiag_algorithm = args.blockdiag,
         cartgrad            = args.cartgrad,
         operator_states     = args.opstates,
@@ -788,9 +1188,11 @@ def fit_model(system, config, data, args, label, ref):
     if args.sop is not None:
         bddpy_multiqd.write(model, args.sop, states=args.opstates)
 
-    if args.h5 is not None:
-        bddpy_store.save(args.h5, model, data=data, system=system,
-                         config=config)
+    # The store is the fit itself -- everything else here is a view of
+    # it -- so it is always written. A run that produced a model and left
+    # nothing behind is never what was wanted.
+    bddpy_store.save(args.h5 or DEFAULT_STORE, model, data=data,
+                     system=system, config=config)
 
     if args.potentials or args.couplings:
         write_surfaces(label, ref.qvec, ref.diabpot, ref.q0_ener,
@@ -804,6 +1206,12 @@ def main(argv=None):
     """collect a set of GRaCI checkpoints and fit"""
 
     args = read_cmdline(argv)
+
+    # Plotting a stored fit is not a collection at all: no checkpoints
+    # are read and nothing is written, so it short-circuits everything
+    # below rather than threading a flag through it.
+    if args.plot is not None:
+        return plot_store(args)
 
     paths = list(args.chkpt)
 
@@ -861,6 +1269,12 @@ def main(argv=None):
     # recorded Q or a file name
     qvec, diabpot, origin = harvest_points(paths, system)
 
+    # The expansion origin is a sampled point as far as the fit is
+    # concerned; it just is not stored as one, because the checkpoint
+    # records it as the reference. q0_ener rides along in every cut
+    # checkpoint, so it is always available here.
+    qvec, diabpot, origin = add_origin(qvec, diabpot, origin, ref.q0_ener)
+
     report_coverage(qvec, diabpot, system.nmodes)
 
     warn = args.overlap_warn if args.overlap_warn is not None \
@@ -904,7 +1318,7 @@ def main(argv=None):
 
     for label, name in [('MCTDH operator', args.op),
                         ('MultiQD operator', args.sop),
-                        ('BDDpy store', args.h5)]:
+                        ('BDDpy store', args.h5 or DEFAULT_STORE)]:
         if name is not None:
             print('   %-18s -> %s' % (label, name))
     print()
