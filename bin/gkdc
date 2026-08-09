@@ -37,21 +37,38 @@ DEFAULT_STORE = 'model.h5'
 
 
 #
-def order_int(text):
-    """An expansion order. Only exists to replace argparse's message for
-       a bad int, which names the offending value without saying what it
-       was being read as -- and the value it names is usually a
-       checkpoint file the greedy nargs='+' has swallowed."""
+def parse_orders(tokens):
+    """Read an expansion order written any of the ways it comes to mind.
 
-    try:
-        return int(text)
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            "'"+str(text)+"' is not an integer. The order flags take one "
-            "or two integers,\n as \"one-mode [two-mode]\" -- with no "
-            "commas or brackets. They also consume\n everything that "
-            "follows them, so put the checkpoint files before the flag "
-            "or\n name them with -d.")
+       All of these give [6, 0]:
+
+           6 0        [6 0]      [6,0]      6,0
+           "[6 0]"    "6 0"      [ 6 , 0 ]
+
+       An unquoted [6 0] reaches argparse as two tokens, "[6" and "0]", so
+       the brackets cannot be stripped per token -- the pieces are joined
+       first and the punctuation taken off the whole.
+
+       Raises ValueError, for the caller to turn into a parser error."""
+
+    text = ' '.join(str(t) for t in tokens)
+
+    for ch in '[](),':
+        text = text.replace(ch, ' ')
+
+    values = []
+    for word in text.split():
+        try:
+            values.append(int(word))
+        except ValueError:
+            raise ValueError(
+                "'"+word+"' is not an integer. The order flags take one or "
+                "two integers,\n written \"one-mode [two-mode]\" -- brackets "
+                "and commas are optional.\n They also consume everything "
+                "that follows them, so put the checkpoint\n files before the "
+                "flag or name them with -d.")
+
+    return values
 
 
 def expand_states(text):
@@ -111,7 +128,18 @@ def plot_model(model, data, args, q0_ener=None):
 
     mode   = args.mode - 1
     second = None if args.mode2 is None else args.mode2 - 1
-    span   = tuple(args.range)
+
+    # The range covers the data, always. There is no reason to draw a cut
+    # over an interval the calculation did not sample, and a fixed default
+    # silently clipped points off the edge whenever it disagreed with the
+    # displacements actually run -- at +/-7.5 that was four points of thirty,
+    # since the +/-7.0 pair sits at 7.00000013 after the round trip through
+    # Cartesians. Only a store carrying no points falls back.
+    span = (-7.0, 7.0)
+    if data is not None:
+        edge = float(np.abs(np.asarray(data.qvec)[mode]).max())
+        if edge > 0.:
+            span = (-1.02*edge, 1.02*edge)
 
     if args.element is not None:
         axis = bddpy_plot.plot_coupling(model,
@@ -180,8 +208,10 @@ def plot_store(args):
 
     # The points are optional: a store written from a merge, or one the
     # data was stripped from, still plots -- just without them.
+    # Loaded whether or not the points are drawn: --no-points suppresses the
+    # markers, but the sampled extent still sets the range.
     data = None
-    if not args.no_points and 'data' in contents:
+    if 'data' in contents:
         data = bddpy_data.DiabaticData(qvec=contents['data']['qvec'],
                                        diabpot=contents['data']['diabpot'])
     elif not args.no_points:
@@ -253,10 +283,6 @@ def read_cmdline(argv=None):
                          help='mode to scan, one-based')
     plt_grp.add_argument('--mode2', metavar='N', type=int, default=None,
                          help='second mode, for a diagonal cut')
-    plt_grp.add_argument('-r', '--range', metavar=('LOW', 'HIGH'), nargs=2,
-                         type=float, default=(-7.0, 7.0),
-                         help='cut extent in dimensionless normal '
-                              'coordinates (default -7 7)')
     plt_grp.add_argument('-n', '--npoints', metavar='N', type=int,
                          default=1000,
                          help='points along the cut (default 1000)')
@@ -277,12 +303,12 @@ def read_cmdline(argv=None):
     # order, which defaults to 0. bddpy requires the pair, so a single
     # value is padded below rather than passed through short.
     parser.add_argument('--diag-order', metavar='N', nargs='+',
-                        type=order_int, default=[6, 2],
+                        default=[6, 2],
                         help='on-diagonal expansion order, as "one-mode '
                              '[two-mode]"; the two-mode order defaults '
                              'to 0 (default 6 2)')
     parser.add_argument('--offdiag-order', metavar='N', nargs='+',
-                        type=order_int, default=[6, 2],
+                        default=[6, 2],
                         help='off-diagonal expansion order, same form '
                              '(default 6 2)')
     parser.add_argument('--overlap-warn', metavar='X', type=float,
@@ -309,6 +335,12 @@ def read_cmdline(argv=None):
                         help='block diagonalisation algorithm (default svd)')
     parser.add_argument('--cartgrad', action='store_true',
                         help='report Cartesian gradients')
+    parser.add_argument('--constrain-bound', action='store_true',
+                        help='re-fit any diagonal cut whose potential turns '
+                             'over at the edge of its sampled range, adding '
+                             'a penalty that pushes the curvature back '
+                             'positive. Costs accuracy on the cuts it '
+                             'touches; off by default')
 
     parser.add_argument('--coupling-thresh', metavar='X', type=float,
                         default=0.01,
@@ -329,10 +361,14 @@ def read_cmdline(argv=None):
     # bddpy wants [one-mode, two-mode]. A lone value is the one-mode
     # order with the two-mode terms left out.
     for name in ('diag_order', 'offdiag_order'):
-        order = list(getattr(args, name))
+        try:
+            order = parse_orders(getattr(args, name))
+        except ValueError as err:
+            parser.error('--'+name.replace('_', '-')+': '+str(err))
+
         if len(order) == 1:
             order.append(0)
-        elif len(order) > 2:
+        elif len(order) > 2 or not order:
             parser.error('--'+name.replace('_', '-')+' takes one or two '
                          'integers, as "one-mode [two-mode]", got '
                          +' '.join(str(o) for o in order))
@@ -357,10 +393,6 @@ def read_cmdline(argv=None):
     for flag, mode in (('-m', args.mode), ('--mode2', args.mode2)):
         if mode is not None and mode < 1:
             parser.error(flag+' is one-based, got '+str(mode))
-
-    if args.range[0] >= args.range[1]:
-        parser.error('-r is "low high", got '
-                     +' '.join(str(x) for x in args.range))
 
     # State lists, expanded here rather than where they are consumed so a
     # malformed one is caught before any checkpoint is read.
@@ -698,34 +730,65 @@ def merge(harvests):
 
 
 #
-def report_coverage(qvec, diabpot, nmodes):
+def report_coverage(qvec, diabpot, nmodes, frequencies=None):
     """
     Say what was found and, as far as it can be known, what is missing.
 
     A thin data set fitted without comment is how a confident wrong answer
     gets produced, so the coverage is always stated.
+
+    frequencies, when given, are the harmonic frequencies in eV, as the
+    system carries them; they are shown in wavenumbers, which is what a
+    mode is recognised by.
     """
 
     nsta = diabpot.shape[0]
 
+    wn = None
+    if frequencies is not None:
+        import bddpy.constants as bddpy_constants
+        wn = np.asarray(frequencies, dtype=float) \
+            / bddpy_constants.active.INVCM2EV
+
     print(' Sampled geometries: %d' % (qvec.shape[1]))
     print()
-    print('   mode   points   Q range')
-    print(' '+'-'*40)
+    if wn is None:
+        print('   mode   points   Q range')
+        print(' '+'-'*40)
+    else:
+        print('   mode   freq /cm-1   points   Q range')
+        print(' '+'-'*52)
 
-    # the geometries are written to seven decimals, so converting them
-    # back to normal coordinates carries about 1e-7 of rounding. A mode is
-    # counted as displaced well above that noise and well below any real
-    # step, which is 0.1 or larger in practice.
+    # Which points lie on which cut, decided as the fit decides it. A
+    # hand-rolled threshold here read 1e-6, which is not above the noise it
+    # was meant to clear: converting a geometry back to normal coordinates
+    # leaves up to 3e-6 in the modes that were not displaced. Cuts then
+    # claimed points belonging to other cuts -- mode 47 reported 202 points
+    # for a 20-point cut -- which is alarming in a table whose whole job is
+    # to say how thin the sampling is.
+    from bddpy.fitting import indices as _bdd_indices
+
+    on_cut, _pairs, _unused, at_origin = _bdd_indices.classify(qvec)
+
     seen = set()
     for mode in range(nmodes):
-        on = np.abs(qvec[mode]) > 1e-6
-        if not on.any():
+        points = np.asarray(on_cut.get(mode, []), dtype=int)
+        if not points.size:
             continue
         seen.add(mode)
-        q = qvec[mode][on]
-        print('   %4d   %6d   %8.3f to %7.3f'
-              % (mode+1, on.sum(), q.min(), q.max()))
+        on = points
+        q = qvec[mode][points]
+        if wn is None:
+            print('   %4d   %6d   %8.3f to %7.3f'
+                  % (mode+1, points.size, q.min(), q.max()))
+        else:
+            print('   %4d   %10.1f   %6d   %8.3f to %7.3f'
+                  % (mode+1, wn[mode], points.size, q.min(), q.max()))
+
+    print(' '+'-'*(52 if wn is not None else 40))
+    print('   points are those on the cut itself; the expansion origin (%d '
+          'point)' % len(at_origin))
+    print('   lies on every cut and is counted separately.')
 
     missing = sorted(set(range(nmodes)) - seen)
     print()
@@ -1155,9 +1218,74 @@ def build_config(args, ref, system, label):
         blocks              = args.blocks,
         blockdiag_algorithm = args.blockdiag,
         cartgrad            = args.cartgrad,
+        constrain_bound     = args.constrain_bound,
         operator_states     = args.opstates,
         label_stem          = str(label),
         source              = 'graci: gkdc, label = '+str(label))
+
+
+#
+def report_bound_constraint(model, baseline, data):
+    """What the boundedness constraint cost, and what it failed to fix."""
+
+    touched = getattr(model, 'bound_constrained', []) or []
+    failed  = getattr(model, 'bound_failed', []) or []
+
+    print()
+    print(' Boundedness constraint')
+    print('   expansions altered       %d' % len(touched))
+    print('   rmsd unconstrained       %.6e eV' % baseline.rmsd)
+    print('   rmsd constrained         %.6e eV' % model.rmsd)
+
+    if baseline.rmsd > 0.:
+        change = 100.*(model.rmsd - baseline.rmsd)/baseline.rmsd
+        print('   cost                     %+.2f%%' % change)
+
+    # One entry per offending edge comes back, so a cut that turns over at
+    # both ends appears twice; collapse to one row per expansion carrying the
+    # multiplier it needed.
+    worst = {}
+    for mode, state, multiplier in touched:
+        key = (mode, state)
+        worst[key] = max(multiplier, worst.get(key, 0.))
+
+    if worst:
+        print()
+        if len(worst) <= 15:
+            print('   %6s   %7s   %10s' % ('mode', 'state', 'multiplier'))
+            print('   '+'-'*32)
+            for (mode, state), multiplier in sorted(worst.items()):
+                print('   %6d   %7d   %10.0e' % (mode+1, state+1, multiplier))
+        else:
+            # too many to list one by one; a mode needing it across many
+            # states is the interesting pattern anyway
+            per_mode = {}
+            for mode, state in worst:
+                per_mode[mode] = per_mode.get(mode, 0) + 1
+            print('   %6s   %s' % ('mode', 'states constrained'))
+            print('   '+'-'*32)
+            for mode in sorted(per_mode):
+                print('   %6d   %d' % (mode+1, per_mode[mode]))
+
+    # The constraint is soft: it makes turnover expensive, not impossible.
+    # A flag named --constrain-bound that quietly failed would be worse than
+    # not having it, so what it could not fix is stated plainly.
+    if failed:
+        print()
+        print(' WARNING: %d expansion(s) still turn over after the '
+              'constraint.' % len(failed))
+        print('          The penalty could not overcome the data at the '
+              'largest multiplier')
+        print('          tried; these potentials are unbound at the edge '
+              'of their range:')
+        for mode, state in sorted(failed):
+            print('            mode %-4d state %d' % (mode+1, state+1))
+        print('          Lower the expansion order on these cuts, or sample '
+              'them further out.')
+
+    print()
+
+    return
 
 
 #
@@ -1176,9 +1304,23 @@ def fit_model(system, config, data, args, label, ref):
 
     config.validate()
 
+    # With --constrain-bound the fit is run twice: once as it would have
+    # been, once constrained. The constraint buys a bounded potential by
+    # spending accuracy on the cuts it touches, and that price is only
+    # visible against the fit that did not pay it.
+    baseline = None
+    if config.constrain_bound:
+        import copy
+        plain = copy.copy(config)
+        plain.constrain_bound = False
+        baseline = bddpy_fitting.fit(system, plain, data)
+
     model = bddpy_fitting.fit(system, config, data)
 
     output.print_pbdd_fit(model, data)
+
+    if baseline is not None:
+        report_bound_constraint(model, baseline, data)
 
     # naming a file selects its writer, so there is no separate operator
     # format option
@@ -1275,7 +1417,8 @@ def main(argv=None):
     # checkpoint, so it is always available here.
     qvec, diabpot, origin = add_origin(qvec, diabpot, origin, ref.q0_ener)
 
-    report_coverage(qvec, diabpot, system.nmodes)
+    report_coverage(qvec, diabpot, system.nmodes,
+                    frequencies=system.frequencies)
 
     warn = args.overlap_warn if args.overlap_warn is not None \
         else ref.overlap_warn
