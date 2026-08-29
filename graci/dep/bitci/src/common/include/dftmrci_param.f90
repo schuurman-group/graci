@@ -221,15 +221,25 @@ module hparam
 ! *** Preliminary parameters: initialized to QE8 values ***
 !----------------------------------------------------------------------
   ! delta E_sel = 1.0
-  real(dp), parameter, dimension(8) :: rc_dftmrci_p= &
+! Off-diagonal elements carry two independent damping functions:
+!
+!   H_IJ = damp * H_SR + damp_LR * H_LR
+!   damp    = p1    * exp(-p2    * |dE|**n)
+!   damp_LR = p1_LR * exp(-p2_LR * |dE|**n_LR)
+!
+! p1_LR is held at 1 so that the LR contribution is the undamped ab initio
+! matrix element as dE -> 0, with p2_LR setting how fast it falls away.
+  real(dp), parameter, dimension(10) :: rc_dftmrci_p= &
        [0.425623d0, & ! pJ_SR
        0.425623d0, &  ! pJ_LR
        0.252259d0, &  ! pF_SR
        0.252259d0, &  ! pF_LR
-       1.0d0,      &  ! p1_LR (LR off-diagonal pre-factor)
+       1.0d0,      &  ! p1_LR (LR off-diagonal pre-factor, held at 1)
+       4.611269d0, &  ! p2_LR (LR off-diagonal exponent coefficient)
+       8.0d0,      &  ! n_LR  (LR off-diagonal exponent power)
        0.692173d0, &  ! p1    (SR off-diagonal pre-factor)
-       4.611269d0, &  ! p2
-       8.0d0]         ! n
+       4.611269d0, &  ! p2    (SR off-diagonal exponent coefficient)
+       8.0d0]         ! n     (SR off-diagonal exponent power)
 
 
 contains
@@ -413,7 +423,7 @@ contains
     case(18)
        ! RC DFT/MRCI: range-corrected exchange and Coulomb with separate SR/LR scaling
        ldftmrci=.true.
-       nhpar=8
+       nhpar=10
        allocate(hpar(nhpar))
        hpar=rc_dftmrci_p
        desel=1.0d0

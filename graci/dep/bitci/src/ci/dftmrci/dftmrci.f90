@@ -168,9 +168,19 @@ contains
 ! Apply the damping factor
 !----------------------------------------------------------------------
     if (ihamiltonian == 18 .and. present(hij_lr)) then
-       ! LR/SR split: damp the SR contribution, leave the LR undamped
+       ! LR/SR split, each with its own damping function:
+       !
+       !   H_IJ = damp * H_SR + damp_lr * H_LR
+       !
+       ! hij holds H_full and hij_lr holds H_LR, so H_SR = hij - hij_lr and
+       ! the combination rearranges to the form below. Writing it this way
+       ! avoids forming H_SR as a temporary.
+       !
+       ! The previous version used (1 - damp) as the LR coefficient, which
+       ! is algebraically damp*H_SR + H_LR: the LR term was undamped at
+       ! every gap, and hpar(5) was computed but never applied.
        hij(1:bdim*kdim)=damp*hij(1:bdim*kdim) &
-            +(1.0d0-damp)*hij_lr(1:bdim*kdim)
+            +(damp_lr-damp)*hij_lr(1:bdim*kdim)
     else
        hij(1:bdim*kdim)=hij(1:bdim*kdim)*damp
     endif
@@ -1806,7 +1816,8 @@ contains
 !----------------------------------------------------------------------
 ! Parameter values
 ! hpar(1)=pJ_SR, hpar(2)=pJ_LR, hpar(3)=pF_SR,  hpar(4)=pF_LR,
-! hpar(5)=p1_LR, hpar(6)=p1,    hpar(7)=p2,      hpar(8)=n
+! hpar(5)=p1_LR, hpar(6)=p2_LR, hpar(7)=n_LR,
+! hpar(8)=p1,    hpar(9)=p2,    hpar(10)=n
 !----------------------------------------------------------------------
     pJSR = hpar(1)
     pJLR = hpar(2)
@@ -3460,7 +3471,8 @@ contains
   end function damping_qe8
 
 !######################################################################
-! damping_rc: RC DFT/MRCI SR off-diagonal damping. p1=hpar(6), p2=hpar(7), n=hpar(8).
+! damping_rc: RC DFT/MRCI SR off-diagonal damping.
+!             p1=hpar(8), p2=hpar(9), n=hpar(10).
 !######################################################################
   function damping_rc(av1,av2) result(func)
 
@@ -3474,15 +3486,21 @@ contains
     real(dp), intent(in) :: av1,av2
     real(dp)             :: DEp3
 
-    DEp3=abs(av1-av2)**hpar(8)
-    func=hpar(6)*exp(-hpar(7)*DEp3)
+    DEp3=abs(av1-av2)**hpar(10)
+    func=hpar(8)*exp(-hpar(9)*DEp3)
 
     return
 
   end function damping_rc
 
 !######################################################################
-! damping_rc_lr: RC DFT/MRCI LR off-diagonal damping. p1_LR=hpar(5), p2=hpar(7), n=hpar(8).
+! damping_rc_lr: RC DFT/MRCI LR off-diagonal damping.
+!                p1_LR=hpar(5), p2_LR=hpar(6), n_LR=hpar(7).
+!
+!                Same functional form as the SR damping but with its own
+!                parameters. p1_LR is held at 1, so at dE = 0 the LR
+!                contribution is the undamped ab initio matrix element and
+!                p2_LR alone sets how quickly it falls away with the gap.
 !######################################################################
   function damping_rc_lr(av1,av2) result(func)
 
@@ -3496,10 +3514,8 @@ contains
     real(dp), intent(in) :: av1,av2
     real(dp)             :: DEp3
 
-    ! just scale, not damp
-    DEp3=abs(av1-av2)**hpar(8)
-    !func=hpar(5)*exp(-hpar(7)*DEp3)
-    func = hpar(5)
+    DEp3=abs(av1-av2)**hpar(7)
+    func=hpar(5)*exp(-hpar(6)*DEp3)
 
     return
 
