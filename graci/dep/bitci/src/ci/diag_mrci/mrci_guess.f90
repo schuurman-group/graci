@@ -720,7 +720,7 @@ contains
           ! case once we implement the Dusseldorf group Hamiltonians...
           if (nexci > 0 .and. ldftmrci) then
              hij=reshape(subhmat(bcsf:bcsf,kcsf:kcsf),(/1/))
-             if (ihamiltonian == 18) then
+             if (ihamiltonian >= 18 .and. ihamiltonian <= 21) then
                 select case(nexci)
                 case(1)
                    call package_integrals_nexci1_lr(&

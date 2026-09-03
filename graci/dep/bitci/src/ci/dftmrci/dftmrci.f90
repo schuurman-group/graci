@@ -88,8 +88,10 @@ contains
        call hii_dftmrci_heil_sym(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(18)
-       ! RC DFT/MRCI: range-corrected exchange
+    case(18,19,20,21)
+       ! RC DFT/MRCI: range-corrected exchange. ihamiltonian=19 and 20
+       ! are restricted forms; hii_dftmrci_rc remaps their parameter
+       ! indices.
        call hii_dftmrci_rc(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
@@ -113,6 +115,7 @@ contains
     use bitglobal
     use hparam
     use iomod
+    use lrsr_diag
 
     implicit none
 
@@ -154,6 +157,24 @@ contains
        damp=damping_rc(bav,kav)
        damp_lr=damping_rc_lr(bav,kav)
 
+    case(19)
+       ! Reduced form: the SR contribution is damped as usual and the LR
+       ! contribution is taken at its ab initio value
+       damp=damping_rc5p(bav,kav)
+       damp_lr=1.0d0
+
+    case(20)
+       ! Physically-motivated form: two prefactors, one shared damping
+       ! function. p1_SR=hpar(4), p1_LR=hpar(5), p2=hpar(6), n=hpar(7).
+       damp=damping_rc7p(bav,kav,hpar(4))
+       damp_lr=damping_rc7p(bav,kav,hpar(5))
+
+    case(21)
+       ! Split Coulomb and exchange, shared damping shape.
+       ! p1_SR=hpar(5), p1_LR=hpar(6), p2=hpar(7), n=hpar(8).
+       damp=damping_rc8p(bav,kav,hpar(5))
+       damp_lr=damping_rc8p(bav,kav,hpar(6))
+
     case(15:16)
        ! 2026 and CVS-2026 parameterisations
        damp=damping_2026(bav,kav)
@@ -167,7 +188,8 @@ contains
 !----------------------------------------------------------------------
 ! Apply the damping factor
 !----------------------------------------------------------------------
-    if (ihamiltonian == 18 .and. present(hij_lr)) then
+    if (ihamiltonian >= 18 .and. ihamiltonian <= 21 &
+         .and. present(hij_lr)) then
        ! LR/SR split, each with its own damping function:
        !
        !   H_IJ = damp * H_SR + damp_lr * H_LR
@@ -179,6 +201,12 @@ contains
        ! The previous version used (1 - damp) as the LR coefficient, which
        ! is algebraically damp*H_SR + H_LR: the LR term was undamped at
        ! every gap, and hpar(5) was computed but never applied.
+       !
+       ! Bin the undamped SR and LR contributions first: once the line
+       ! below runs, H_SR is no longer recoverable from hij.
+       if (lrsr_active) &
+            call lrsr_accumulate(hij(1:bdim*kdim),hij_lr(1:bdim*kdim),&
+            bdim*kdim,bav,kav,damp,damp_lr)
        hij(1:bdim*kdim)=damp*hij(1:bdim*kdim) &
             +(damp_lr-damp)*hij_lr(1:bdim*kdim)
     else
@@ -244,10 +272,17 @@ contains
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
 
-    case(18)
-       ! RC DFT/MRCI: same-config off-diagonal uses (1-pF_SR)
+    case(18,21)
+       ! RC DFT/MRCI: same-config off-diagonal uses (1-pF_SR).
+       ! ihamiltonian=21 carries pK_SR in the same slot.
        nij=nsp*(nsp-1)/2
        hij(1:nij)=(1.0d0-hpar(3))*hij(1:nij)
+       return
+
+    case(19,20)
+       ! Restricted forms: pK_SR is hpar(2) here, not hpar(3)
+       nij=nsp*(nsp-1)/2
+       hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
 
     case(15)
@@ -1819,11 +1854,21 @@ contains
 ! hpar(5)=p1_LR, hpar(6)=p2_LR, hpar(7)=n_LR,
 ! hpar(8)=p1,    hpar(9)=p2,    hpar(10)=n
 !----------------------------------------------------------------------
-    pJSR = hpar(1)
-    pJLR = hpar(2)
+    if (ihamiltonian == 19 .or. ihamiltonian == 20) then
+       ! Restricted forms: a single Coulomb scaling, so dJLR = 0 and the LR
+       ! Coulomb term drops out of the diagonal entirely. Exchange keeps
+       ! its SR/LR split, which the range-separated functional justifies.
+       pJSR = hpar(1)
+       pJLR = hpar(1)
+       pFSR = hpar(2)
+       pFLR = hpar(3)
+    else
+       pJSR = hpar(1)
+       pJLR = hpar(2)
+       pFSR = hpar(3)
+       pFLR = hpar(4)
+    endif
     dJLR = pJLR - pJSR   ! increment applied to LR Coulomb
-    pFSR = hpar(3)
-    pFLR = hpar(4)
     dFLR = pFLR - pFSR   ! increment applied to LR exchange
 
 !----------------------------------------------------------------------
@@ -3520,6 +3565,87 @@ contains
     return
 
   end function damping_rc_lr
+
+!######################################################################
+! damping_rc5p: SR off-diagonal damping for the reduced RC Hamiltonian.
+!               p1=hpar(4), p2=hpar(5), n=hpar(6).
+!
+!               There is no LR counterpart: the long-range contribution
+!               is undamped by construction.
+!######################################################################
+  function damping_rc5p(av1,av2) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+
+    implicit none
+
+    real(dp)             :: func
+    real(dp), intent(in) :: av1,av2
+    real(dp)             :: DEp3
+
+    DEp3=abs(av1-av2)**hpar(6)
+    func=hpar(4)*exp(-hpar(5)*DEp3)
+
+    return
+
+  end function damping_rc5p
+
+!######################################################################
+! damping_rc7p: off-diagonal damping for the physically-motivated RC
+!               Hamiltonian. One damping function, shared by both
+!               channels; only the pre-factor differs.
+!
+!               p1 is passed in (hpar(4) for SR, hpar(5) for LR);
+!               p2=hpar(6) and n=hpar(7) are common to both.
+!######################################################################
+  function damping_rc7p(av1,av2,p1) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+
+    implicit none
+
+    real(dp)             :: func
+    real(dp), intent(in) :: av1,av2,p1
+    real(dp)             :: DEp3
+
+    DEp3=abs(av1-av2)**hpar(7)
+    func=p1*exp(-hpar(6)*DEp3)
+
+    return
+
+  end function damping_rc7p
+
+!######################################################################
+! damping_rc8p: off-diagonal damping for rc_dftmrci_8p. As rc_dftmrci_7p
+!               -- one shared damping function, differing only in the
+!               pre-factor -- but the parameter block is two longer
+!               because the Coulomb scaling is split.
+!
+!               p1 is passed in (hpar(5) for SR, hpar(6) for LR);
+!               p2=hpar(7) and n=hpar(8) are common to both.
+!######################################################################
+  function damping_rc8p(av1,av2,p1) result(func)
+
+    use constants
+    use bitglobal
+    use hparam
+
+    implicit none
+
+    real(dp)             :: func
+    real(dp), intent(in) :: av1,av2,p1
+    real(dp)             :: DEp3
+
+    DEp3=abs(av1-av2)**hpar(8)
+    func=p1*exp(-hpar(7)*DEp3)
+
+    return
+
+  end function damping_rc8p
 
 !######################################################################
 ! damping_r2022: for two CSF-averaged on-diagonal matrix element

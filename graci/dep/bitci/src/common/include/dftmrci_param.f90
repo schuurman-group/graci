@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=18
+  integer(is), parameter :: nham=21
 
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -31,7 +31,10 @@ module hparam
         'r2026               ', &
         'cvs-r2026           ', &
         'qe8_sym             ', &
-        'rc_dftmrci          ']
+        'rc_dftmrci          ', &
+        'rc_dftmrci_5p       ', &
+        'rc_dftmrci_7p       ', &
+        'rc_dftmrci_8p       ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -241,6 +244,130 @@ module hparam
        4.611269d0, &  ! p2    (SR off-diagonal exponent coefficient)
        8.0d0]         ! n     (SR off-diagonal exponent power)
 
+!----------------------------------------------------------------------
+! rc_dftmrci_5p: the reduced, physically-constrained form.
+!
+! Two changes relative to rc_dftmrci (ihamiltonian=18):
+!
+!  1. ONE Coulomb scaling, not two. The Hartree term is not range
+!     separated in any hybrid -- J[rho] uses the full 1/r12 -- so there
+!     is nothing in the functional that would justify pJ_SR /= pJ_LR.
+!     Exchange IS range separated, so pF_SR and pF_LR are kept apart.
+!
+!  2. The long-range off-diagonal contribution carries no damping
+!     parameters at all: H_IJ = p1*exp(-p2*dE^n)*H_SR + H_LR. A
+!     semilocal correlation functional is local in r12 and has nothing
+!     to double count between separated electrons, so the long-range
+!     coupling is taken at its ab initio value. The p1_LR/p2_LR/n_LR of
+!     ihamiltonian=18 were degenerate with p1 and numerically inert.
+!
+! Seeded from the CAM-QTP00 fit of the reduced form (31 QUEST
+! transitions, RMSD 0.129 eV).
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(6) :: rc_dftmrci_5p_p= &
+       [0.420240d0, & ! pJ    (single, full-range Coulomb scaling)
+       0.259689d0, &  ! pF_SR
+       0.302801d0, &  ! pF_LR
+       0.521930d0, &  ! p1    (SR off-diagonal pre-factor)
+       2.786858d0, &  ! p2    (SR off-diagonal exponent coefficient)
+       8.0d0]         ! n     (SR off-diagonal exponent power)
+
+!----------------------------------------------------------------------
+! rc_dftmrci_7p: the physically-motivated form.
+!
+! Every parameter is answerable to something in the functional:
+!
+!  pJ        ONE Coulomb scaling. Neither the Hartree operator nor the
+!            correlation functional is range separated, so there is no
+!            basis for scaling short- and long-range Coulomb differently.
+!
+!  pK_SR,    Exchange IS range separated, and the long-range channel
+!  pK_LR     carries less DFT exchange, so less of it needs correcting.
+!
+!  p1_SR,    Two prefactors answering two independent questions about
+!  p1_LR     the SAME functional: what fraction of each channel's
+!            correlation does E_c already hold? H_SR and H_LR partition
+!            the operator exactly and disjointly, so this is not double
+!            counting. p1_LR is expected near 1 -- but as a prediction to
+!            be tested, not a constraint imposed.
+!
+!  p2, n     SHARED between the channels. dE discriminates static from
+!            dynamic correlation, a property of the configuration pair;
+!            range discriminates where in r12 the coupling lives. The two
+!            axes are orthogonal -- measured directly: mean dE is flat
+!            across the per-element LR fraction -- so the dE dependence
+!            cannot legitimately differ by channel.
+!
+! Note the limits: p1_LR -> p1_SR recovers uniform (canonical) damping and
+! makes the off-diagonal split vacuous; p1_LR -> 1 is the ab initio
+! long-range limit. The fit is free to choose between them.
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(7) :: rc_dftmrci_7p_p= &
+       [0.350000d0, & ! pJ     (single, full-range Coulomb scaling)
+       0.260000d0, &  ! pK_SR
+       0.350000d0, &  ! pK_LR
+       0.520000d0, &  ! p1_SR  (SR off-diagonal pre-factor)
+       0.850000d0, &  ! p1_LR  (LR off-diagonal pre-factor)
+       2.790000d0, &  ! p2     (shared exponent coefficient)
+       8.0d0]         ! n      (shared exponent power)
+
+!----------------------------------------------------------------------
+! rc_dftmrci_8p: split Coulomb, split exchange, shared damping shape.
+!
+! Differs from rc_dftmrci_7p by splitting the Coulomb scaling again. That
+! split is NOT justified by range separation of the functional -- neither
+! J[rho] nor E_c[rho] knows about omega -- but by what the split actually
+! does. The LR fraction of the Coulomb integral (hh|aa),
+!
+!     f_J = (hh|aa)_LR / (hh|aa)
+!
+! measures how diffuse the target orbital is: 0.67 for a compact valence
+! pi* in formaldehyde, 0.93 for a Rydberg orbital. So
+!
+!     pJ_eff = pJ_SR (1 - f_J) + pJ_LR f_J
+!
+! is a state-dependent Coulomb correction -- 0.23 for valence, 0.16 for
+! Rydberg with the fitted values -- applied with no state classification
+! anywhere in the code. The DFT correlation error genuinely does differ
+! between compact and diffuse excited states, so this is physical; it is
+! simply not the physics the SR/LR label advertises. Constraining
+! pJ_SR = pJ_LR removes the state dependence entirely and costs a factor
+! of 1.9 in RMSD.
+!
+! Exchange keeps its split too, though the same analysis shows it does
+! very little: K is 97% short range for valence and still 83% for
+! Rydberg, so pK_LR multiplies almost nothing and is weakly determined.
+! It is retained because that may not hold for other state types.
+!
+! The damping SHAPE (p2, n) is shared between the channels: dE separates
+! static from dynamic correlation, a property of the configuration pair,
+! while range separates where in r12 the coupling sits. The two are
+! measurably independent -- mean dE is flat across the per-element LR
+! fraction -- so the shape cannot legitimately differ by channel. Only
+! the prefactors do.
+!
+! p1_LR went to 1.000 in all seven functionals tested (omega 0.29-0.42,
+! SR exact exchange 0.16-0.54, with and without VV10 nonlocal
+! correlation), so it may reasonably be frozen at 1.
+!
+! Seeded from the CAM-QTP00 six-parameter fit (RMSD 0.129 eV).
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(8) :: rc_dftmrci_8p_p= &
+       [0.420240d0, & ! pJ_SR
+       0.134828d0, &  ! pJ_LR
+       0.259689d0, &  ! pK_SR
+       0.302801d0, &  ! pK_LR
+       0.521930d0, &  ! p1_SR  (SR off-diagonal pre-factor)
+       1.000000d0, &  ! p1_LR  (LR off-diagonal pre-factor)
+       2.786858d0, &  ! p2     (shared exponent coefficient)
+       8.0d0]         ! n      (shared exponent power)
+
+
+
+
 
 contains
 
@@ -426,6 +553,34 @@ contains
        nhpar=10
        allocate(hpar(nhpar))
        hpar=rc_dftmrci_p
+       desel=1.0d0
+
+    case(19)
+       ! RC DFT/MRCI, reduced form: one Coulomb scaling, split exchange,
+       ! undamped long-range off-diagonal contribution
+       ldftmrci=.true.
+       nhpar=6
+       allocate(hpar(nhpar))
+       hpar=rc_dftmrci_5p_p
+       desel=1.0d0
+
+    case(20)
+       ! RC DFT/MRCI, physically-motivated form: one Coulomb scaling,
+       ! split exchange, two off-diagonal prefactors sharing one damping
+       ! function
+       ldftmrci=.true.
+       nhpar=7
+       allocate(hpar(nhpar))
+       hpar=rc_dftmrci_7p_p
+       desel=1.0d0
+
+    case(21)
+       ! RC DFT/MRCI: split Coulomb and exchange, two off-diagonal
+       ! prefactors sharing one damping function
+       ldftmrci=.true.
+       nhpar=8
+       allocate(hpar(nhpar))
+       hpar=rc_dftmrci_8p_p
        desel=1.0d0
 
     case default

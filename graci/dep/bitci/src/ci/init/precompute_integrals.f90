@@ -76,9 +76,9 @@ contains
 !----------------------------------------------------------------------
 ! LR Coulomb and exchange integrals
 !----------------------------------------------------------------------
-    if (ihamiltonian == 18) then
+    if (ihamiltonian >= 18 .and. ihamiltonian <= 21) then
       if (.not. leri_lr) &
-        stop 'rc_dftmrci (ihamiltonian=18) requires LR integral file'
+        stop 'rc_dftmrci requires LR integral file (set a range-separated functional)'
       do i=1,nmo
          do j=i,nmo
             Vc_lr(i,j)=bitci_ints%mo_int_lr(i,i,j,j)

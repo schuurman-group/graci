@@ -5,9 +5,59 @@ import sys
 import numpy as np
 import copy as copy
 import ctypes as ctypes
+import contextlib as contextlib
 import graci.io.convert as convert
 
 libraries      = ['bitci','bitsi','bitwf','overlap']
+
+#
+def mkl_set_num_threads(n):
+    """Set MKL's thread count, returning the previous value, or None if
+       MKL is not resident.
+
+       Looked up in the process image rather than by loading a library
+       by name: MKL is already loaded (bitci links it, and so do pyscf's
+       C extensions), and the file name varies between an oneAPI layout
+       and a conda one.
+    """
+
+    try:
+        fn = ctypes.CDLL(None).MKL_Set_Num_Threads_Local
+    except (OSError, AttributeError):
+        return None
+
+    fn.restype  = ctypes.c_int
+    fn.argtypes = [ctypes.c_int]
+
+    return int(fn(ctypes.c_int(int(n))))
+
+
+#
+@contextlib.contextmanager
+def mkl_single_thread():
+    """Run a block with MKL pinned to one thread.
+
+       pyscf calls BLAS from inside its own OpenMP regions in several
+       places. MKL is meant to notice this and run serially there, but
+       once a CI calculation has run in the process it stops doing so,
+       and the result races: silently corrupt MO integrals for every
+       SCF after the first. Why the detection fails is not understood.
+
+       Only pyscf's threaded regions need this. bitci calls MKL from
+       serial context and wants it threaded, so the previous value is
+       restored on the way out.
+
+       See doc/mkl_openmp_nesting.md.
+    """
+
+    prev = mkl_set_num_threads(1)
+    try:
+        yield
+    finally:
+        if prev is not None:
+            mkl_set_num_threads(prev)
+
+
 
 # registry of bitci functions
 bitci_registry = {

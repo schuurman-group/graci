@@ -13,6 +13,7 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 
   use constants
   use bitglobal
+  use lrsr_diag
   use utils
   use setsym
   use iomod
@@ -258,6 +259,12 @@ subroutine bitci_initialise(imult1,nel1,nmo1,mosym1,moen1,ipg1,&
 !----------------------------------------------------------------------
   flush(6)
   
+!----------------------------------------------------------------------
+! SR/LR off-diagonal diagnostic: query GRACI_LRSR_DIAG here, where it is
+! guaranteed to be outside any OpenMP region
+!----------------------------------------------------------------------
+  call lrsr_init
+
   return
 
 end subroutine bitci_initialise

@@ -8,6 +8,7 @@ import sys
 import h5py
 import copy
 import numpy as np
+import graci.core.libs as libs
 import graci.core.params as params
 import graci.core.orbitals as orbitals
 import graci.io.output as output
@@ -388,7 +389,11 @@ class Scf:
         mf.direct_scf = self.direct_scf 
 
         # run the scf computation
-        self.energy = mf.kernel(dm0=dm)
+        # the DFT numerical integration calls BLAS from inside its
+        # OpenMP regions; MKL must not thread inside them -- see
+        # libs.mkl_single_thread and doc/mkl_openmp_nesting.md
+        with libs.mkl_single_thread():
+            self.energy = mf.kernel(dm0=dm)
        
         # if not converged, kill things
         if not mf.converged:

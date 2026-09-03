@@ -59,11 +59,16 @@ class Ao2mo:
         if scf.mol.use_df:
             ij_trans = np.concatenate(([self.orbs], 
                                        [self.orbs]))
-            df.outcore.general(scf.mol.pymol(), 
-                                ij_trans,
-                                'tmp_eri',
-                                auxbasis = scf.mol.ri_basis,
-                                dataname='eri_mo')
+            # pyscf calls BLAS from inside its own OpenMP regions here;
+            # MKL must not thread inside them, or the transform races and
+            # silently returns corrupt integrals for every SCF after the
+            # first -- see libs.mkl_single_thread, doc/mkl_openmp_nesting.md
+            with libs.mkl_single_thread():
+                df.outcore.general(scf.mol.pymol(), 
+                                    ij_trans,
+                                    'tmp_eri',
+                                    auxbasis = scf.mol.ri_basis,
+                                    dataname='eri_mo')
 
             eri    = h5py.File('tmp_eri', 'r')
             eri_mo = np.array(eri.get('eri_mo'))
@@ -238,7 +243,8 @@ class Ao2mo:
         auxbasis = scf.mol.ri_basis
 
         ij_trans = np.concatenate(([mo], [mo]))
-        with mol.with_range_coulomb(omega):
+        # same guard as the full-range transform above
+        with mol.with_range_coulomb(omega), libs.mkl_single_thread():
             df.outcore.general(mol, ij_trans, '_tmp_eri_lr',
                                auxbasis=auxbasis, dataname='eri_mo',
                                verbose=0)

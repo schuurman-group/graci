@@ -37,6 +37,9 @@ class Parameterize:
         self.opt_target      = 'rmsd'
         self.conv            = 0.01 
         self.max_iter        = 1000
+        # differential evolution population multiplier: scipy evaluates
+        # popsize*nparam trial vectors per generation
+        self.de_popsize      = 15
         self.method          = 'dftmrci'
         self.xc              = 'qtp17'
 
@@ -130,13 +133,29 @@ class Parameterize:
                          tol      = self.conv,
                          callback = self.status_func)
             else:
-                res = sp_opt.differential_evolution(
-                         self.err_func, self.opt_bnds,
-                         args = (exc_ref, scf_dirs, scf_objs, ci_objs),
-                         callback = self.status_func,
-                         polish   = False,
-                         tol      = self.conv,
-                         x0       = self.p_n)
+                # Differential evolution evaluates popsize*nparam trial
+                # vectors per generation, so the parallelism belongs at the
+                # population level rather than inside a single evaluation.
+                # The per-molecule pool is switched off for the duration:
+                # nesting one ProcessPoolExecutor inside another deadlocks
+                # or oversubscribes the machine.
+                de_workers       = self.max_workers
+                self.max_workers = 1
+                try:
+                    res = sp_opt.differential_evolution(
+                             self.err_func, self.opt_bnds,
+                             args = (exc_ref, scf_dirs, scf_objs, ci_objs),
+                             callback = self.status_func,
+                             polish   = False,
+                             tol      = self.conv,
+                             maxiter  = self.max_iter,
+                             popsize  = self.de_popsize,
+                             x0       = self.p_n,
+                             workers  = de_workers,
+                             updating = 'deferred' if de_workers > 1
+                                        else 'immediate')
+                finally:
+                    self.max_workers = de_workers
 
             self.update_opt_params(res.x)
             # one final eval_energy call with the converged params

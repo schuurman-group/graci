@@ -12,8 +12,14 @@ subroutine bitci_finalise()
   use constants
   use bitglobal
   use hparam
+  use lrsr_diag
   
   implicit none
+
+  !
+  ! Flush the SR/LR off-diagonal diagnostic, if it was switched on
+  !
+  call lrsr_write
 
   !
   ! Deallocate arrays
