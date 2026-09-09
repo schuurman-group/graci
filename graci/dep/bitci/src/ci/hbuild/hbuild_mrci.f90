@@ -318,7 +318,7 @@ contains
 !----------------------------------------------------------------------
 ! LR matrix elements for ihamiltonian=18 (rc_dftmrci)
 !----------------------------------------------------------------------
-    if (ihamiltonian >= 18 .and. ihamiltonian <= 21) then
+    if (ihamiltonian >= 18 .and. ihamiltonian <= 22) then
        allocate(harr_lr(harrdim))
 
        select case(nexci)
@@ -349,7 +349,7 @@ contains
 ! DFT/MRCI corrections
 !----------------------------------------------------------------------
     if (ldftmrci) then
-       if (ihamiltonian >= 18 .and. ihamiltonian <= 21) then
+       if (ihamiltonian >= 18 .and. ihamiltonian <= 22) then
           call hij_dftmrci_batch(harr(1:bnsp*knsp),bnsp,knsp,bavii,kavii,&
                harr_lr(1:bnsp*knsp))
           deallocate(harr_lr)

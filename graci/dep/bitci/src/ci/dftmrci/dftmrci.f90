@@ -88,7 +88,7 @@ contains
        call hii_dftmrci_heil_sym(harr,nsp,Dw,ndiff,nopen,m2c,sop,socc,&
             nsocc,nbefore)
 
-    case(18,19,20,21)
+    case(18,19,20,21,22)
        ! RC DFT/MRCI: range-corrected exchange. ihamiltonian=19 and 20
        ! are restricted forms; hii_dftmrci_rc remaps their parameter
        ! indices.
@@ -169,9 +169,11 @@ contains
        damp=damping_rc7p(bav,kav,hpar(4))
        damp_lr=damping_rc7p(bav,kav,hpar(5))
 
-    case(21)
+    case(21,22)
        ! Split Coulomb and exchange, shared damping shape.
        ! p1_SR=hpar(5), p1_LR=hpar(6), p2=hpar(7), n=hpar(8).
+       ! ihamiltonian=22 differs only in the DIAGONAL Coulomb term, so it
+       ! uses the same off-diagonal damping as 21.
        damp=damping_rc8p(bav,kav,hpar(5))
        damp_lr=damping_rc8p(bav,kav,hpar(6))
 
@@ -188,7 +190,7 @@ contains
 !----------------------------------------------------------------------
 ! Apply the damping factor
 !----------------------------------------------------------------------
-    if (ihamiltonian >= 18 .and. ihamiltonian <= 21 &
+    if (ihamiltonian >= 18 .and. ihamiltonian <= 22 &
          .and. present(hij_lr)) then
        ! LR/SR split, each with its own damping function:
        !
@@ -272,9 +274,9 @@ contains
        hij(1:nij)=(1.0d0-hpar(2))*hij(1:nij)
        return
 
-    case(18,21)
+    case(18,21,22)
        ! RC DFT/MRCI: same-config off-diagonal uses (1-pF_SR).
-       ! ihamiltonian=21 carries pK_SR in the same slot.
+       ! ihamiltonian=21 and 22 carry pK_SR in the same slot.
        nij=nsp*(nsp-1)/2
        hij(1:nij)=(1.0d0-hpar(3))*hij(1:nij)
        return
@@ -1833,6 +1835,8 @@ contains
     real(dp)                :: contrib(nsp)
     real(dp)                :: product
     real(dp)                :: pJSR,pJLR,dJLR,pFSR,pFLR,dFLR
+    real(dp)                :: pJK,dJLRij
+    logical                 :: lkj
     real(dp)                :: Viijj_eff
 
 !----------------------------------------------------------------------
@@ -1871,6 +1875,16 @@ contains
     dJLR = pJLR - pJSR   ! increment applied to LR Coulomb
     dFLR = pFLR - pFSR   ! increment applied to LR exchange
 
+    ! ihamiltonian=22: the LR Coulomb scaling carries a K/J term, so the
+    ! increment becomes pair-dependent,
+    !     dJLR(i,j) = dJLR + pJ_K * K(i,j)/J(i,j)
+    ! K/J is what separates a displaced CT pair (K -> 0) from a diffuse
+    ! Rydberg pair (K small but finite); f_J alone cannot -- see the
+    ! rc_dftmrci_kj block in dftmrci_param.f90.  pJ_K = 0 recovers 8p.
+    lkj = (ihamiltonian == 22)
+    pJK = 0.0d0
+    if (lkj) pJK = hpar(9)
+
 !----------------------------------------------------------------------
 ! Sum_i F_ii^KS - F_ii^HF Delta w_i
 !----------------------------------------------------------------------
@@ -1903,10 +1917,23 @@ contains
           j1=m2c(Dw(j,1))
           Dwj=Dw(j,2)
           if (i == j .and. abs(Dwi) == 2) then
+             ! intraorbital: both electrons in the same spatial orbital,
+             ! so this is an ee (or hh) pair, never hole-particle. The
+             ! K/J term does not apply.
              Viijj_eff=pJSR*Vc(i1,i1)+dJLR*Vc_lr(i1,i1)
              contrib=contrib-Viijj_eff
           else if (i /= j) then
-             Viijj_eff=pJSR*Vc(i1,j1)+dJLR*Vc_lr(i1,j1)
+             ! K/J modulation applies ONLY to he-type pairs (Dwi*Dwj < 0):
+             ! one hole, one particle.  That is where charge-transfer
+             ! character lives.  Applying it to every pair instead (the
+             ! 2026-09-09 first attempt) wrecked the open-shell classes --
+             ! radicals +170%, IPs +75% -- because an open-shell system has
+             ! many singly-occupied orbital pairs with large K/J that carry
+             ! no CT character at all.
+             dJLRij=dJLR
+             if (lkj .and. Dwi*Dwj < 0.0d0) &
+                  dJLRij=dJLR+pJK*kj_ratio(i1,j1)
+             Viijj_eff=pJSR*Vc(i1,j1)+dJLRij*Vc_lr(i1,j1)
              contrib=contrib-Viijj_eff*Dwi*Dwj
           endif
        enddo
@@ -1918,6 +1945,7 @@ contains
     do i=1,ndiff
        i1=m2c(Dw(i,1))
        if (iopen0(i1) == 0) cycle
+       ! single-orbital term: no hole-particle pair, so no K/J term
        Viijj_eff=pJSR*Vc(i1,i1)+dJLR*Vc_lr(i1,i1)
        contrib=contrib-0.5d0*Viijj_eff
     enddo
@@ -3716,6 +3744,60 @@ contains
     return
 
   end function damping_2026
+
+!######################################################################
+! kj_ratio: K/J for an orbital pair, K = symvx(p,q), J = Vc(p,q).
+!
+!           Exchange needs hole/particle overlap, Coulomb does not, so
+!           this collapses for a spatially displaced (CT) pair while
+!           staying finite for a concentric diffuse (Rydberg) one.  It is
+!           the descriptor f_J cannot supply: measured on fit-set NTOs,
+!           twisted-DMABN CT has f_J = 0.835/0.896 against Rydberg
+!           0.836-0.874 (indistinguishable) but K/J = 0.003/0.009 against
+!           0.018-0.080 (cleanly separated).
+!
+!           Uses symvx rather than Vx so the degeneracy averaging matches
+!           the exchange correction that consumes the same integrals.
+!######################################################################
+  function kj_ratio(p, q) result(val)
+
+    use constants
+    use bitglobal
+
+    implicit none
+
+    integer(is), intent(in) :: p, q
+    real(dp)                :: val, denom
+
+    ! Cauchy-Schwarz normalisation: with the Coulomb metric
+    ! <rho|sigma> = Int Int rho(1) 1/r12 sigma(2), the exchange integral is
+    ! K_pq = ||rho_pq||^2 for the overlap density rho_pq = phi_p phi_q, and
+    ! Vc(p,p) = ||rho_pp||^2.  So this returns
+    !
+    !     ||rho_pq||^2 / ( ||rho_pp|| ||rho_qq|| )
+    !
+    ! i.e. how much charge density lies where the hole and particle
+    ! coincide, relative to each on its own.  1 when phi_p = phi_q, 0 when
+    ! they are disjoint, and bounded in [0,1] by Cauchy-Schwarz.
+    !
+    ! Dividing by Vc(p,q) instead (the original form) is unbounded: for a
+    ! displaced pair Vc(p,q) ~ 1/R shrinks along with K, partially masking
+    ! the collapse that identifies charge transfer.  Measured on fit-set
+    ! NTOs the normalisation here widens both class gaps -- nitro/Rydberg
+    ! 1.67 -> 1.86, Rydberg/DMABN 5.77 -> 6.20.
+    !
+    ! The denominators are self-repulsions and are never near zero for a
+    ! real orbital; the guard is a formality.
+    denom = Vc(p,p)*Vc(q,q)
+    if (denom < 1.0d-24) then
+       val = 0.0d0
+    else
+       val = symvx(p,q)/sqrt(denom)
+    endif
+
+    return
+
+  end function kj_ratio
 
 !######################################################################
 ! symvx: Exchange integral V_pqqp averaged over degenerate partners

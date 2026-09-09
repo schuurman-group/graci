@@ -36,10 +36,9 @@ class Parameterize:
         self.opt_algorithm   = 'nelder-mead'
         self.opt_target      = 'rmsd'
         self.conv            = 0.01 
-        self.max_iter        = 1000
+        self.max_iter        = 200
         # differential evolution population multiplier: scipy evaluates
         # popsize*nparam trial vectors per generation
-        self.de_popsize      = 15
         self.method          = 'dftmrci'
         self.xc              = 'qtp17'
 
@@ -78,7 +77,7 @@ class Parameterize:
         self.error         = 0
         self.de_thr        = 0.5
         self.log_file      = None
-        self.valid_algos   = ['nelder-mead','differentialevolution']
+        self.valid_algos   = ['nelder-mead','powell']
         self.valid_opt_targ = ['mae','rmsd']
 
     #
@@ -125,37 +124,12 @@ class Parameterize:
             self.iiter = 1
             self.p_n   = self.extract_opt_param()
 
-            if self.opt_algorithm != 'differentialevolution':
-                res = sp_opt.minimize(self.err_func, self.p_n, 
-                         args = (exc_ref, scf_dirs, scf_objs, ci_objs),
-                         bounds   = self.opt_bnds,
-                         method   = self.opt_algorithm,
-                         tol      = self.conv,
-                         callback = self.status_func)
-            else:
-                # Differential evolution evaluates popsize*nparam trial
-                # vectors per generation, so the parallelism belongs at the
-                # population level rather than inside a single evaluation.
-                # The per-molecule pool is switched off for the duration:
-                # nesting one ProcessPoolExecutor inside another deadlocks
-                # or oversubscribes the machine.
-                de_workers       = self.max_workers
-                self.max_workers = 1
-                try:
-                    res = sp_opt.differential_evolution(
-                             self.err_func, self.opt_bnds,
-                             args = (exc_ref, scf_dirs, scf_objs, ci_objs),
-                             callback = self.status_func,
-                             polish   = False,
-                             tol      = self.conv,
-                             maxiter  = self.max_iter,
-                             popsize  = self.de_popsize,
-                             x0       = self.p_n,
-                             workers  = de_workers,
-                             updating = 'deferred' if de_workers > 1
-                                        else 'immediate')
-                finally:
-                    self.max_workers = de_workers
+            res = sp_opt.minimize(self.err_func, self.p_n, 
+                args = (exc_ref, scf_dirs, scf_objs, ci_objs),
+                bounds   = self.opt_bnds,
+                method   = self.opt_algorithm,
+                tol      = self.conv,
+                callback = self.status_func)
 
             self.update_opt_params(res.x)
             # one final eval_energy call with the converged params
@@ -326,6 +300,20 @@ class Parameterize:
             if nde > 0:
                 self.error = np.sum(np.absolute(dif_vec)) / nde
 
+        # Evaluation-indexed trace.  Optimizers report "iterations" that mean
+        # very different things -- a Powell iteration is a full direction-set
+        # cycle of many line-search evaluations, a Nelder-Mead one is roughly
+        # a single evaluation -- so the only comparable axis is the number of
+        # function evaluations.  res['nfev'] gives the endpoint, but a run
+        # that trips the max_iter hard_exit never reaches that print.
+        self.nfev = getattr(self, 'nfev', 0) + 1
+        try:
+            with open(str(self.label)+'_trace.dat', 'a') as trace:
+                trace.write('{:6d}  {:16.10f}\n'.format(self.nfev,
+                                                         self.error))
+        except OSError:
+            pass
+
         return self.error
  
     #
@@ -383,7 +371,7 @@ class Parameterize:
 
         wfn_chkpt  = h5py.File(wfn_file, 'r', libver='latest')
         output.file_names['out_file'] = topdir+'/'+str(molecule)+'.log'
-        mol_dir = topdir+'/'+str(molecule) 
+        mol_dir = topdir+'/'+str(molecule)
 
         os.chdir(mol_dir)
 
@@ -433,7 +421,10 @@ class Parameterize:
                 #...either by re-running it b/c it's the first time
                 # function is called, or, b/c we're optimizing the
                 # functional
-                if gen_orbs:
+                # a worker with its own tree has no TMP_ orbitals cached
+                # yet, so generate them rather than failing the read
+                tmp_orbs = 'TMP_'+scf_name[ci_name]+'.chkpt.h5'
+                if gen_orbs or not os.path.isfile(tmp_orbs):
                     scf_obj = chkpt.read(scf_name[ci_name],
                                          file_handle=wfn_chkpt)
                     scf_obj.verbose = self.verbose

@@ -76,7 +76,7 @@ contains
 !----------------------------------------------------------------------
 ! LR Coulomb and exchange integrals
 !----------------------------------------------------------------------
-    if (ihamiltonian >= 18 .and. ihamiltonian <= 21) then
+    if (ihamiltonian >= 18 .and. ihamiltonian <= 22) then
       if (.not. leri_lr) &
         stop 'rc_dftmrci requires LR integral file (set a range-separated functional)'
       do i=1,nmo

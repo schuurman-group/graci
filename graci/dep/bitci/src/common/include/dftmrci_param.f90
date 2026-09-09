@@ -10,7 +10,7 @@ module hparam
   save
 
   ! Number of Hamiltonians implemented
-  integer(is), parameter :: nham=21
+  integer(is), parameter :: nham=22
 
   ! Hamiltonian labels
   character(len=20), parameter, dimension(nham) :: hlbl= &
@@ -34,7 +34,8 @@ module hparam
         'rc_dftmrci          ', &
         'rc_dftmrci_5p       ', &
         'rc_dftmrci_7p       ', &
-        'rc_dftmrci_8p       ']
+        'rc_dftmrci_8p       ', &
+        'rc_dftmrci_kj       ']
 
   ! Hamiltonian integer label
   integer(is)           :: ihamiltonian
@@ -365,6 +366,57 @@ module hparam
        2.786858d0, &  ! p2     (shared exponent coefficient)
        8.0d0]         ! n      (shared exponent power)
 
+!----------------------------------------------------------------------
+! rc_dftmrci_kj: rc_dftmrci_8p with a K/J-dependent LR Coulomb scaling.
+!
+! Measured 2026-09-09 on the NTOs of the fit-set states (aug-cc-pVTZ,
+! CAM-QTP00, omega=0.29): f_J does NOT separate a 90-degree twisted CT
+! state from a Rydberg state --
+!
+!   twisted DMABN CT   f_J = 0.835, 0.896
+!   Rydberg (CO,H2CO)  f_J = 0.836, 0.841, 0.874
+!
+! -- the CT values straddle the Rydberg range, so no threshold in f_J can
+! tell them apart.  The pJ_LR scans nevertheless show the two want
+! opposite pJ_LR (DMABN 0.000, Rydberg 0.050, nitro sCT 0.100).
+!
+! The ratio K/J = symvx(i,j)/Vc(i,j) DOES separate them, with a clean gap
+! and in the order the scans require:
+!
+!   nitro sCT   K/J = 0.134, 0.150
+!   Rydberg     K/J = 0.018, 0.023, 0.080
+!   DMABN CT    K/J = 0.0031, 0.0094
+!
+! because exchange requires hole/particle overlap and Coulomb does not: a
+! displaced CT pair kills K while J survives, whereas a concentric diffuse
+! Rydberg pair keeps K small but finite.  J itself does no work here --
+! it is 0.185-0.232 for every state measured -- so K/J is really K made
+! dimensionless.
+!
+! The LR Coulomb scaling therefore becomes pair-dependent:
+!
+!   pJ_LR_eff(i,j) = pJ_LR + pJ_K * K(i,j)/sqrt(J(i,i) J(j,j))
+!
+! The normalisation is Cauchy-Schwarz, not K/J: the ratio is then bounded
+! in [0,1] and reads as the fraction of charge density lying where hole and
+! particle coincide.  See kj_ratio in dftmrci.f90.
+!
+! One extra parameter.  pJ_K = 0 reduces this EXACTLY to rc_dftmrci_8p,
+! so the 8p results are recoverable and the seed is the 8p vector with a
+! zero appended.
+!----------------------------------------------------------------------
+  ! delta E_sel = 1.0
+  real(dp), parameter, dimension(9) :: rc_dftmrci_kj_p= &
+       [0.601449d0, & ! pJ_SR
+       0.034748d0, &  ! pJ_LR
+       0.347687d0, &  ! pK_SR
+       0.000293d0, &  ! pK_LR
+       0.562784d0, &  ! p1_SR
+       0.827828d0, &  ! p1_LR
+       5.966700d0, &  ! p2
+       8.0d0, &       ! n
+       0.0d0]         ! pJ_K   (0 => identical to rc_dftmrci_8p)
+
 
 
 
@@ -581,6 +633,14 @@ contains
        nhpar=8
        allocate(hpar(nhpar))
        hpar=rc_dftmrci_8p_p
+       desel=1.0d0
+
+    case(22)
+       ! RC DFT/MRCI with K/J-dependent LR Coulomb scaling
+       ldftmrci=.true.
+       nhpar=9
+       allocate(hpar(nhpar))
+       hpar=rc_dftmrci_kj_p
        desel=1.0d0
 
     case default
