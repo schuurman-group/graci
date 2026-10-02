@@ -7,6 +7,7 @@ import copy as copy
 import graci.io.output as output
 import graci.utils.basis as basis
 import graci.utils.constants as constants
+import graci.utils.xyz as xyzparse
 from pyscf.lib import logger
 from pyscf import gto, df
 
@@ -304,41 +305,32 @@ class Molecule:
         read the geometry from the xyz_file specified by 'xyz_file'
         """
 
-        # parse contents of xyz file
+        # The frame reader consumes each comment line by position, so a
+        # comment of any content -- blank, or containing spaces -- is
+        # ignored rather than mistaken for an atom.  It also counts frames
+        # structurally instead of dividing the total line count, which
+        # miscounted whenever blank lines appeared between frames.
         try:
-            with open(self.xyz_file, 'r') as xyzfile:
-                xyz_gm = xyzfile.readlines()
-        except:
+            frames = xyzparse.read_frames(self.xyz_file)
+        except FileNotFoundError:
             output.print_message('xyz_file: '
                   +str(self.xyz_file)+' not found.')
             sys.exit()
+        except xyzparse.XYZError as e:
+            output.print_message('Error reading xyz_file: ' + str(e))
+            sys.exit()
 
-        # use the number of atoms rather than number of lines in file
-        natm       = int(xyz_gm[0].strip())
+        self.multi_geom = len(frames) > 1
+
+        syms, crds = frames[0]
         self.asym  = []
-        xyz        = []
+        for sym in syms:
+            name_capitalized = sym[0].upper() + sym[1:].lower()
+            if name_capitalized not in atom_name:
+                sys.exit('atom ' + str(sym) + ' not found.')
+            self.asym.append(name_capitalized)
 
-        # do we have a multi-geometry xyz file?
-        ngm = int(len(xyz_gm) / (natm+2))
-        if ngm > 1:
-            self.multi_geom = True
-
-        # parse the geometry
-        for i in range(2, natm+2):
-            line = xyz_gm[i].strip().split()
-            try:
-                name_capitalized = line[0][0].upper()+line[0][1:]                
-                atm_indx = atom_name.index(name_capitalized)
-                self.asym.append(atom_name[atm_indx])
-            except ValueError:
-                sys.exit('atom '+str(line.strip()[0])+' not found.')
-
-            try:
-                xyz.append([float(line[j]) for j in range(1,4)])
-            except:
-                sys.exit('Cannot interpret input as a geometry')
-
-        self.crds = np.array(xyz, dtype=float)
+        self.crds = crds
 
         return
 

@@ -10,6 +10,7 @@ import graci.core.hamiltonians as hamiltonians
 import graci.io.output as output
 import graci.utils.basis as basis
 import graci.utils.rydano as rydano
+import graci.utils.xyz as xyz
 import graci.core.molecule as molecule
 import graci.core.scf as scf
 import graci.tools.parameterize as parameterize
@@ -646,20 +647,22 @@ def parse_all_geoms(mol):
     given a molecule object, reads in all geometries in mol.xyz_file file
     """
 
-    # parse the xyz file
-    with open(mol.xyz_file, 'r') as xyzfile:
-        xyz = xyzfile.readlines()
-        
-    # remove the leading no. atom and blank lines
-    xyz_clean = [string.split() for string in xyz
-                if string.split() != []
-                 and len(string.split()) != 1]
-    n_atm  = len(mol.crds)
-    n_geom = int(len(xyz_clean) / n_atm)
-    
-    # get the array of nuclear geometries
-    coords = np.array([float(xx)
-                       for x in xyz_clean
-                       for xx in x[1:]]).reshape(n_geom,n_atm,3)
+    # The comment line of an xyz frame is arbitrary text and has to be
+    # consumed by POSITION.  Filtering lines by appearance -- the previous
+    # approach -- let any comment containing a space through to be parsed
+    # as an atom.
+    try:
+        frames = xyz.read_frames(mol.xyz_file)
+    except xyz.XYZError as e:
+        output.print_message('Error reading xyz_file: ' + str(e))
+        sys.exit(1)
 
-    return coords
+    n_atm = len(mol.crds)
+    if len(frames[0][0]) != n_atm:
+        output.print_message(
+            'Error reading xyz_file: ' + str(mol.xyz_file) + ' has '
+            + str(len(frames[0][0])) + ' atoms per frame, molecule '
+            + str(mol.label) + ' has ' + str(n_atm))
+        sys.exit(1)
+
+    return np.array([crds for _, crds in frames])
