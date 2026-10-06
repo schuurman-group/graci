@@ -155,9 +155,15 @@ class Transition(interaction.Interaction):
                 if self.same_ci_obj(ket_ci, bra_ci): 
                     pair_type = 'nodiag'
                 
+                # methods that provide their own 1-TDMs (e.g. MRSF-TDDFT)
+                # bypass the bitsi library
+                use_bitsi = not (hasattr(bra_ci, 'tdm_sym') and
+                                 hasattr(ket_ci, 'tdm_sym'))
+
                 # initialize the bitsi library for the calculation 
                 # of 1-TDMs
-                bitsi_init.init(bra_ci, ket_ci, 'tdm', self.verbose)
+                if use_bitsi:
+                    bitsi_init.init(bra_ci, ket_ci, 'tdm', self.verbose)
 
                 # this is main transition_list: stored by adiabatic label
                 ci_tran = self.ci_pair_list('bra', b_lbl, 'ket', k_lbl, 
@@ -182,7 +188,8 @@ class Transition(interaction.Interaction):
 
                 del(tdm)
                 # finalize the bitsi library
-                bitsi_init.finalize()
+                if use_bitsi:
+                    bitsi_init.finalize()
 
         # build the multipole moments  -- easier to just do this once
         # for all transitions
@@ -299,11 +306,14 @@ class Transition(interaction.Interaction):
            TDMs into a more usable format"""
 
         # grab the tdms
-        tdm_list = mrci_1tdm.tdm(self.get_ci_obj('bra', b_lbl), 
-                                 self.get_ci_obj('ket', k_lbl), 
-                                 ci_trans_sym,
-                                 self.modified,
-                                 self.representation)
+        bra_obj = self.get_ci_obj('bra', b_lbl)
+        ket_obj = self.get_ci_obj('ket', k_lbl)
+        if hasattr(bra_obj, 'tdm_sym') and hasattr(ket_obj, 'tdm_sym'):
+            tdm_list = bra_obj.tdm_sym(ket_obj, ci_trans_sym,
+                                       self.representation)
+        else:
+            tdm_list = mrci_1tdm.tdm(bra_obj, ket_obj, ci_trans_sym,
+                                     self.modified, self.representation)
 
         # make the tdm list
         nmo    = self.get_ci_obj('bra', b_lbl).nmo

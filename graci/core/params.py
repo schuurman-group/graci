@@ -126,6 +126,29 @@ dftmrci2_kword  = {'mult'           : int,
                    'scf_label'      : str,
                    'label'          : str}
 
+# MRSF-TDDFT section input keywords and data types
+mrsftddft_kword = {'mult'           : int,
+                   'charge'         : int,
+                   'nstates'        : int,
+                   'nextra'         : int,
+                   'diag_tol'       : float,
+                   'diag_iter'      : int,
+                   'diag_maxvec'    : int,
+                   'hfx'            : float,
+                   'spc'            : float,
+                   'conf_thresh'    : float,
+                   'precision'      : str,
+                   'mem_budget'     : float,
+                   'vv_storage'     : str,
+                   'mo_cutoff'      : float,
+                   'keep_ints'      : bool,
+                   'print_orbitals' : bool,
+                   'ref_state'      : int,
+                   'verbose'        : bool,
+                   'guess_label'    : str,
+                   'scf_label'      : str,
+                   'label'          : str}
+
 #---------------------------------------------------
 
 # spinorbit section input keywords and data typess
@@ -198,7 +221,7 @@ parameterize_kword = {'label'          : str,
 # these are the valid computation classes. This is somewhat
 # inartful.
 base_objs    = ['Molecule', 'Rydano', 'Scf', 'Parameterize']
-ci_objs      = ['Dftmrci', 'Dftmrci2']
+ci_objs      = ['Dftmrci', 'Dftmrci2', 'Mrsftddft']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap', 'Dyson']
 support_objs = ['Bitciwfn','Moments', 'Cigroup']
@@ -216,6 +239,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Scf'          : scf_kword,
           'Dftmrci'      : dftmrci_kword,
           'Dftmrci2'     : dftmrci2_kword,
+          'Mrsftddft'    : mrsftddft_kword,
           'Spinorbit'    : spinorbit_kword,
           'Transition'   : transition_kword,
           'Overlap'      : overlap_kword,

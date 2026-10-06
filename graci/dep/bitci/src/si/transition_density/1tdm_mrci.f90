@@ -289,8 +289,10 @@ contains
           a=cfgB%m2c(plist(1))
 
           ! Damping function value
+          ! (ref confs are first in the global conf ordering, so the
+          ! class-local indices are already global; non-transposed)
           if (modified) then
-             damping=damping_function(ibconf,ikconf)
+             damping=damping_function(ibconf,ikconf,.false.)
           else
              damping=1.0d0
           endif
@@ -373,11 +375,24 @@ contains
     integer(is)             :: ikconf,n,nac,nexci,n_int_I
     integer(is)             :: knsp,knopen
     logical                 :: transpose
+
+    ! Global conf-index offsets of the conf classes within the
+    ! bra and ket cfg objects (averageii damping lookups)
+    integer(is)             :: ioff1I_B,ioff2I_B,ioff1E_B,&
+                               ioff2E_B,ioff1I1E_B
+    integer(is)             :: ioff1I_K,ioff2I_K,ioff1E_K,&
+                               ioff2E_K,ioff1I1E_K
     
 !----------------------------------------------------------------------
 ! Contributions of the ket reference and bra 1I & 1E CSFs
 !----------------------------------------------------------------------
     n_int_I=cfgK%n_int_I
+
+    ! Class offsets for the averageii damping lookups
+    call class_offsets(cfgB,ioff1I_B,ioff2I_B,ioff1E_B,ioff2E_B,&
+         ioff1I1E_B)
+    call class_offsets(cfgK,ioff1I_K,ioff2I_K,ioff1E_K,ioff2E_K,&
+         ioff1I1E_K)
 
     ! Work with elements < Bra | E_p^q | Ket >
     transpose=.false.
@@ -419,7 +434,7 @@ contains
                   cfgB%csfs1I,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,transpose)
+                  cfgB%m2c,ioff1I_B,0_is,transpose)
           endif
 
           ! Ket Ref - bra 1E contributions
@@ -433,7 +448,7 @@ contains
                   cfgB%csfs1E,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,transpose)
+                  cfgB%m2c,ioff1E_B,0_is,transpose)
           endif
           
        enddo
@@ -483,7 +498,7 @@ contains
                   cfgK%csfs1I,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,transpose)
+                  cfgK%m2c,ioff1I_K,0_is,transpose)
           endif
 
           ! Ket Ref - bra 1E contributions
@@ -497,7 +512,7 @@ contains
                   cfgK%csfs1E,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,transpose)
+                  cfgK%m2c,ioff1E_K,0_is,transpose)
           endif
           
        enddo
@@ -550,10 +565,23 @@ contains
     integer(is)             :: knsp,knopen
     logical                 :: transpose
 
+    ! Global conf-index offsets of the conf classes within the
+    ! bra and ket cfg objects (averageii damping lookups)
+    integer(is)             :: ioff1I_B,ioff2I_B,ioff1E_B,&
+                               ioff2E_B,ioff1I1E_B
+    integer(is)             :: ioff1I_K,ioff2I_K,ioff1E_K,&
+                               ioff2E_K,ioff1I1E_K
+
 !----------------------------------------------------------------------
 ! Contributions ket reference and bra 2I, 2E & 1I1E CSFs
 !----------------------------------------------------------------------
     n_int_I=cfgK%n_int_I
+
+    ! Class offsets for the averageii damping lookups
+    call class_offsets(cfgB,ioff1I_B,ioff2I_B,ioff1E_B,ioff2E_B,&
+         ioff1I1E_B)
+    call class_offsets(cfgK,ioff1I_K,ioff2I_K,ioff1E_K,ioff2E_K,&
+         ioff1I1E_K)
 
     ! Work with elements < Bra | E_p^q | Ket >
     transpose=.false.
@@ -595,7 +623,7 @@ contains
                   cfgB%csfs2I,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,transpose)
+                  cfgB%m2c,ioff2I_B,0_is,transpose)
           endif
 
           ! Ket Ref - bra 2E contributions
@@ -609,7 +637,7 @@ contains
                   cfgB%csfs2E,cfgK%csfs0h,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,transpose)
+                  cfgB%m2c,ioff2E_B,0_is,transpose)
           endif
 
           ! Ket Ref - bra 1I1E contributions
@@ -623,7 +651,7 @@ contains
                   cfgB%csfs1I1E,cfgK%csfs0h,&  ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,transpose)
+                  cfgB%m2c,ioff1I1E_B,0_is,transpose)
           endif
           
        enddo
@@ -673,7 +701,7 @@ contains
                   cfgK%csfs2I,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,transpose)
+                  cfgK%m2c,ioff2I_K,0_is,transpose)
           endif
 
           ! Ket Ref - bra 2E contributions
@@ -687,7 +715,7 @@ contains
                   cfgK%csfs2E,cfgB%csfs0h,& ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,transpose)
+                  cfgK%m2c,ioff2E_K,0_is,transpose)
           endif
 
           ! Ket Ref - bra 1I1E contributions
@@ -701,7 +729,7 @@ contains
                   cfgK%csfs1I1E,cfgB%csfs0h,&  ! bra and ket CSF offsets
                   csfdimK,csfdimB,nvecK,nvecB,&
                   vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                  cfgK%m2c,transpose)
+                  cfgK%m2c,ioff1I1E_K,0_is,transpose)
           endif
           
        enddo
@@ -758,10 +786,23 @@ contains
     integer(is)             :: knsp,knopen
     logical                 :: transpose
 
+    ! Global conf-index offsets of the conf classes within the
+    ! bra and ket cfg objects (averageii damping lookups)
+    integer(is)             :: ioff1I_B,ioff2I_B,ioff1E_B,&
+                               ioff2E_B,ioff1I1E_B
+    integer(is)             :: ioff1I_K,ioff2I_K,ioff1E_K,&
+                               ioff2E_K,ioff1I1E_K
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     n_int_I=cfgK%n_int_I
+
+    ! Class offsets for the averageii damping lookups
+    call class_offsets(cfgB,ioff1I_B,ioff2I_B,ioff1E_B,ioff2E_B,&
+         ioff1I1E_B)
+    call class_offsets(cfgK,ioff1I_K,ioff2I_K,ioff1E_K,ioff2E_K,&
+         ioff1I1E_K)
 
     allocate(kconf_int(n_int_I,2))
     allocate(ksop_int(n_int_I,2))
@@ -838,7 +879,7 @@ contains
                         cfgB%csfs1I,cfgK%csfs1I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1I_B,ioff1I_K,transpose)
                 endif
 
                 ! Ket 1I - bra 1E contributions
@@ -853,7 +894,7 @@ contains
                         cfgB%csfs1E,cfgK%csfs1I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1E_B,ioff1I_K,transpose)
                 endif
                 
              enddo
@@ -910,7 +951,7 @@ contains
                         cfgK%csfs1E,cfgB%csfs1I,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1E_K,ioff1I_B,transpose)
                 endif
                 
              enddo
@@ -959,7 +1000,7 @@ contains
                   cfgB%csfs1E,cfgK%csfs1E,& ! bra and ket CSF offsets
                   csfdimB,csfdimK,nvecB,nvecK,&
                   vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                  cfgB%m2c,transpose)
+                  cfgB%m2c,ioff1E_B,ioff1E_K,transpose)
              
           enddo
           
@@ -1018,10 +1059,23 @@ contains
     integer(is)             :: knsp,knopen
     logical                 :: transpose
 
+    ! Global conf-index offsets of the conf classes within the
+    ! bra and ket cfg objects (averageii damping lookups)
+    integer(is)             :: ioff1I_B,ioff2I_B,ioff1E_B,&
+                               ioff2E_B,ioff1I1E_B
+    integer(is)             :: ioff1I_K,ioff2I_K,ioff1E_K,&
+                               ioff2E_K,ioff1I1E_K
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     n_int_I=cfgK%n_int_I
+
+    ! Class offsets for the averageii damping lookups
+    call class_offsets(cfgB,ioff1I_B,ioff2I_B,ioff1E_B,ioff2E_B,&
+         ioff1I1E_B)
+    call class_offsets(cfgK,ioff1I_K,ioff2I_K,ioff1E_K,ioff2E_K,&
+         ioff1I1E_K)
 
     allocate(kconf_int(n_int_I,2))
     allocate(ksop_int(n_int_I,2))
@@ -1100,7 +1154,7 @@ contains
                         cfgB%csfs1I,cfgK%csfs2I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1I_B,ioff2I_K,transpose)
                 endif
 
                 ! Ket 2I - bra 1E contributions
@@ -1114,7 +1168,7 @@ contains
                         cfgB%csfs1E,cfgK%csfs2I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1E_B,ioff2I_K,transpose)
                 endif
                    
              enddo
@@ -1154,7 +1208,7 @@ contains
                         cfgB%csfs1I,cfgK%csfs2E,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1I_B,ioff2E_K,transpose)
                 endif
 
                 ! Ket 2E - bra 1E contributions
@@ -1167,7 +1221,7 @@ contains
                         cfgB%csfs1E,cfgK%csfs2E,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1E_B,ioff2E_K,transpose)
                 endif
                    
              enddo
@@ -1215,7 +1269,7 @@ contains
                         cfgB%csfs1I,cfgK%csfs1I1E,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1I_B,ioff1I1E_K,transpose)
                 endif
 
                 ! Ket 1I1E - bra 1E contributions
@@ -1228,7 +1282,7 @@ contains
                         cfgB%csfs1E,cfgK%csfs1I1E,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1E_B,ioff1I1E_K,transpose)
                 endif
                 
              enddo
@@ -1311,7 +1365,7 @@ contains
                         cfgK%csfs1I,cfgB%csfs2I,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1I_K,ioff2I_B,transpose)
                 endif
 
                 ! Ket 2I - bra 1E contributions
@@ -1325,7 +1379,7 @@ contains
                         cfgK%csfs1E,cfgB%csfs2I,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1E_K,ioff2I_B,transpose)
                 endif
                    
              enddo
@@ -1365,7 +1419,7 @@ contains
                         cfgK%csfs1I,cfgB%csfs2E,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1I_K,ioff2E_B,transpose)
                 endif
 
                 ! Ket 2E - bra 1E contributions
@@ -1378,7 +1432,7 @@ contains
                         cfgK%csfs1E,cfgB%csfs2E,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1E_K,ioff2E_B,transpose)
                 endif
                    
              enddo
@@ -1426,7 +1480,7 @@ contains
                         cfgK%csfs1I,cfgB%csfs1I1E,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1I_K,ioff1I1E_B,transpose)
                 endif
 
                 ! Ket 1I1E - bra 1E contributions
@@ -1439,7 +1493,7 @@ contains
                         cfgK%csfs1E,cfgB%csfs1I1E,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1E_K,ioff1I1E_B,transpose)
                 endif
                    
              enddo
@@ -1502,10 +1556,23 @@ contains
     integer(is)             :: knsp,knopen
     logical                 :: transpose
 
+    ! Global conf-index offsets of the conf classes within the
+    ! bra and ket cfg objects (averageii damping lookups)
+    integer(is)             :: ioff1I_B,ioff2I_B,ioff1E_B,&
+                               ioff2E_B,ioff1I1E_B
+    integer(is)             :: ioff1I_K,ioff2I_K,ioff1E_K,&
+                               ioff2E_K,ioff1I1E_K
+
 !----------------------------------------------------------------------
 ! Allocate arrays
 !----------------------------------------------------------------------
     n_int_I=cfgK%n_int_I
+
+    ! Class offsets for the averageii damping lookups
+    call class_offsets(cfgB,ioff1I_B,ioff2I_B,ioff1E_B,ioff2E_B,&
+         ioff1I1E_B)
+    call class_offsets(cfgK,ioff1I_K,ioff2I_K,ioff1E_K,ioff2E_K,&
+         ioff1I1E_K)
 
     allocate(kconf_int(n_int_I,2))
     allocate(ksop_int(n_int_I,2))
@@ -1587,7 +1654,7 @@ contains
                         cfgB%csfs2I,cfgK%csfs2I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff2I_B,ioff2I_K,transpose)
                 endif
                 
                 ! Ket 2I - bra 2E contributions
@@ -1601,7 +1668,7 @@ contains
                         cfgB%csfs2E,cfgK%csfs2I,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff2E_B,ioff2I_K,transpose)
                 endif
           
                 ! Ket 2I - bra 1I1E contributions
@@ -1616,7 +1683,7 @@ contains
                         cfgB%csfs1I1E,cfgK%csfs2I,&  ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1I1E_B,ioff2I_K,transpose)
                 endif
                    
              enddo
@@ -1673,7 +1740,7 @@ contains
                         cfgK%csfs2E,cfgB%csfs2I,& ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff2E_K,ioff2I_B,transpose)
                 endif
           
                 ! Ket 2I - bra 1I1E contributions
@@ -1688,7 +1755,7 @@ contains
                         cfgK%csfs1I1E,cfgB%csfs2I,&  ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1I1E_K,ioff2I_B,transpose)
                 endif
                    
              enddo
@@ -1743,7 +1810,7 @@ contains
                         cfgB%csfs2E,cfgK%csfs2E,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff2E_B,ioff2E_K,transpose)
                 endif
           
                 ! Ket 2E - bra 1I1E matrix elements
@@ -1757,7 +1824,7 @@ contains
                         cfgB%csfs1I1E,cfgK%csfs2E,&  ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1I1E_B,ioff2E_K,transpose)
                 endif
                    
              enddo
@@ -1812,7 +1879,7 @@ contains
                         cfgK%csfs1I1E,cfgB%csfs2E,&  ! bra and ket CSF offsets
                         csfdimK,csfdimB,nvecK,nvecB,&
                         vecK,vecB,npairs,rhoij,Kmap,Bmap,&
-                        cfgK%m2c,transpose)
+                        cfgK%m2c,ioff1I1E_K,ioff2E_B,transpose)
                 endif
                 
              enddo
@@ -1867,7 +1934,7 @@ contains
                         cfgB%csfs1I1E,cfgK%csfs1I1E,& ! bra and ket CSF offsets
                         csfdimB,csfdimK,nvecB,nvecK,&
                         vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-                        cfgB%m2c,transpose)
+                        cfgB%m2c,ioff1I1E_B,ioff1I1E_K,transpose)
                 endif
                    
              enddo
@@ -1981,7 +2048,7 @@ contains
   subroutine tdm_batch(bn,ikconf,kconf,ksop,knopen,knsp,knbefore,&
        nbconf,nkconf,bconfs,bsops,nh,boffset,bcsfs,kcsfs,&
        csfdimB,csfdimK,nvecB,nvecK,vecB,vecK,npairs,rhoij,Bmap,Kmap,&
-       m2c,transpose)
+       m2c,braoff,ketoff,transpose)
 
     use constants
     use bitglobal
@@ -2026,6 +2093,11 @@ contains
     
     ! MO index mapping array
     integer(is), intent(in) :: m2c(nmo)
+
+    ! Global conf-index offsets of the bra-slot and ket-slot conf
+    ! classes within their owning cfg objects (averageii ordering
+    ! [0h|1I|2I|1E|2E|1I1E]; used for the damping lookups only)
+    integer(is), intent(in) :: braoff,ketoff
 
     ! Fill in the transpose of rho_ij?
     ! i.e., Are we working with
@@ -2092,7 +2164,7 @@ contains
 
        ! Damping function value
        if (modified) then
-          damping=damping_function(ibconf,ikconf)
+          damping=damping_function(braoff+ibconf,ketoff+ikconf,transpose)
        else
           damping=1.0d0
        endif
@@ -2206,29 +2278,66 @@ contains
   end function spincp_coeff
   
 !######################################################################
-
-  function damping_function(ibconf,ikconf) result(func)
+! class_offsets: global conf-index offsets of the configuration
+!                classes within a cfg object, matching the
+!                [0h|1I|2I|1E|2E|1I1E] ordering of the averageii
+!                arrays (cf. hmat_diagonal in hbuild/hii.f90)
+!######################################################################
+  subroutine class_offsets(cfg,ioff1I,ioff2I,ioff1E,ioff2E,ioff1I1E)
 
     use constants
-    
+    use conftype
+
+    implicit none
+
+    type(mrcfg), intent(in)  :: cfg
+    integer(is), intent(out) :: ioff1I,ioff2I,ioff1E,ioff2E,ioff1I1E
+
+    ioff1I=cfg%n0h
+    ioff2I=cfg%n0h+cfg%n1I
+    ioff1E=cfg%n0h+cfg%n1I+cfg%n2I
+    ioff2E=ioff1E+cfg%n1E
+    ioff1I1E=ioff2E+cfg%n2E
+
+    return
+
+  end subroutine class_offsets
+
+!######################################################################
+
+  function damping_function(ibconf,ikconf,transpose) result(func)
+
+    use constants
+
     implicit none
 
     real(dp)                :: func
+
+    ! GLOBAL conf indices of the bra-slot and ket-slot configurations
     integer(is), intent(in) :: ibconf,ikconf
+
+    ! In transposed tdm_batch calls the bra-slot confs belong to the
+    ! ket CI object (and vice versa), so the averageii arrays have to
+    ! be swapped
+    logical, intent(in)     :: transpose
 
     real(dp)                :: av1,av2
     real(dp)                :: DEp3
 
-    av1=averageiiK(ikconf)
-
-    av2=averageiiB(ibconf)
+    if (transpose) then
+       av1=averageiiB(ikconf)
+       av2=averageiiK(ibconf)
+    else
+       av1=averageiiK(ikconf)
+       av2=averageiiB(ibconf)
+    endif
 
     DEp3=abs(av1-av2)**8.0d0
 
     func=0.80*exp(-4.611269d0*DEp3)
-        
+
     return
-    
+
   end function damping_function
 
 !######################################################################

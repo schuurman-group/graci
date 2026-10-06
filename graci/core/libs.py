@@ -7,7 +7,7 @@ import copy as copy
 import ctypes as ctypes
 import graci.io.convert as convert
 
-libraries      = ['bitci','bitsi','bitwf','overlap']
+libraries      = ['bitci','bitsi','bitwf','overlap','mrsf']
 
 # registry of bitci functions
 bitci_registry = {
@@ -216,6 +216,39 @@ overlap_intent = {
                    'in','in']
 }
 
+# registry of mrsf (MRSF-TDDFT) functions
+mrsf_registry = {
+    'mrsf_initialise'     : ['int32','int32','int32','int64','double','double',
+                             'double','double','double','double','double',
+                             'int32','string','logical'],
+    'mrsf_int_initialise' : ['string','string','string','string','double'],
+    'mrsf_get_dims'       : ['int32','int32','int32','int32'],
+    'mrsf_diag'           : ['int32','int32','int32','int32','int32','int32',
+                             'double','int32','double','double','int32','int32'],
+    'mrsf_sigma'          : ['int32','int32','int32','int32','double','double'],
+    'mrsf_diagonal'       : ['int32','int32','double'],
+    'mrsf_density'        : ['int32','double','int32','int32','int32','double',
+                             'double'],
+    'mrsf_tdm'            : ['int32','double','int32','int32','int32','int32',
+                             'int32','int32','double','double','double'],
+    'mrsf_finalise'       : [],
+    'mrsf_report_timings' : []
+}
+
+mrsf_intent = {
+    'mrsf_initialise'     : ['in']*14,
+    'mrsf_int_initialise' : ['in']*5,
+    'mrsf_get_dims'       : ['out']*4,
+    'mrsf_diag'           : ['in','in','out','in','in','in','in','in','out',
+                             'out','out','out'],
+    'mrsf_sigma'          : ['in','in','in','in','in','out'],
+    'mrsf_diagonal'       : ['in','in','out'],
+    'mrsf_density'        : ['in','in','in','in','in','in','out'],
+    'mrsf_tdm'            : ['in']*10 + ['out'],
+    'mrsf_finalise'       : [],
+    'mrsf_report_timings' : []
+}
+
 # list of existing library objects
 lib_objs = {}
 
@@ -244,6 +277,7 @@ def lib_func(name, args):
     global bitsi_registry, bitsi_intent
     global bitwf_registry, bitwf_intent
     global overlap_registry, overlap_intent
+    global mrsf_registry, mrsf_intent
     global lib_objs
 
     if name in bitci_registry:
@@ -258,6 +292,9 @@ def lib_func(name, args):
     elif name in overlap_registry:
         arg_list   = overlap_registry[name]
         arg_intent = overlap_intent[name]
+    elif name in mrsf_registry:
+        arg_list   = mrsf_registry[name]
+        arg_intent = mrsf_intent[name]
     else:
         sys.exit('function: '+str(name)+' not found.') 
 
@@ -303,6 +340,11 @@ def lib_func(name, args):
             getattr(lib_objs['overlap'], name)(*arg_ptr)
         else:
             getattr(lib_objs['overlap'], name)()
+    elif name in mrsf_registry:
+        if len(args) > 0:
+            getattr(lib_objs['mrsf'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['mrsf'], name)()
             
     args_out = ()
     for i in range(len(args)):

@@ -69,6 +69,9 @@ class Driver:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')
 
+        if any(type(obj).__name__ == 'Mrsftddft' for obj in ci_objs):
+            libs.lib_load('mrsf')
+
         # Generate PySCF objects 
         # ----------------------------------------------------
         # generate the pyscf GTO Mole objects

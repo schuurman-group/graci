@@ -8,7 +8,7 @@ import graci.io.output as output
 import graci.utils.basis as basis
 import graci.utils.constants as constants
 from pyscf.lib import logger
-from pyscf import gto, df
+from pyscf import gto, df, symm
 
 atom_name = ['Ghost', 'X' ,'H' , 'He', 
              'Li', 'Be', 
@@ -187,7 +187,12 @@ class Molecule:
 
         if self.mol_obj.symmetry:
             self.sym_indx = point_grps.index(self.comp_sym)
-            self.irreplbl = self.mol_obj.irrep_name
+            # labels of all irreps of the point group, indexed by the
+            # PySCF irrep id (mol_obj.irrep_name only lists the irreps
+            # spanned by the AO basis)
+            irrep_table   = symm.param.IRREP_ID_TABLE[self.mol_obj.groupname]
+            self.irreplbl = [name for name, iid in
+                             sorted(irrep_table.items(), key=lambda t: t[1])]
         else:
             self.sym_indx = -1
             self.irreplbl = ['A']

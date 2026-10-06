@@ -261,6 +261,77 @@ def print_dftmrci_header(label):
     return
 
 #
+def print_mrsftddft_header(label):
+    global file_names
+
+    LLEN = 76
+    
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'MRSF-TDDFT computation, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')                                   
+        outfile.write(  '\n '+str('*'*LLEN))
+        outfile.flush()
+
+    return
+
+#
+def print_mrsftddft_states(ci_method):
+    """print the MRSF-TDDFT eigenstate report"""
+    global file_names
+
+    mult_lbl = {1 : 'singlet', 3 : 'triplet'}[int(ci_method.mult)]
+    irrlbl   = ci_method.scf.mol.irreplbl
+    n_tot    = ci_method.n_states()
+    e_ref    = ci_method.scf.energy
+    e0       = ci_method.energies[0] if n_tot > 0 else e_ref
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n MRSF-TDDFT '+mult_lbl+' states\n')
+        outfile.write(' -------------------------------\n')
+        outfile.write(' Reference (ROKS triplet) energy: '
+                      +'{:16.10f}'.format(e_ref)+' Ha\n')
+        outfile.write(' HF exchange fraction: {:8.4f}'.format(ci_method.chf_eff)
+                      +', spin-pair couplings: '
+                      +', '.join('{:6.4f}'.format(x) for x in ci_method.spc_eff)
+                      +'\n')
+        outfile.write(' Response space: nocc(alpha) = '+str(ci_method.nocca)
+                      +', nvirt(beta) = '+str(ci_method.nvirb)
+                      +', dimension = '+str(ci_method.xdim)
+                      +', naux = '+str(ci_method.naux)+'\n')
+        for irrep in ci_method.irreps_nonzero():
+            niter, iconv = ci_method.diag_info[irrep]
+            outfile.write(' irrep '+str(irrlbl[irrep]).ljust(4)+': '
+                          +str(ci_method.n_states_sym(irrep))+' roots, '
+                          +str(niter)+' Davidson iterations'
+                          +('' if iconv == 1 else ' (NOT CONVERGED)')+'\n')
+
+        outfile.write('\n State  Sym      Energy (Ha)    dE_ref (eV)'
+                      '   dE_0 (eV)   Dominant amplitudes\n')
+        for i in range(n_tot):
+            irr, st = ci_method.state_sym(i)
+            e   = ci_method.energies[i]
+            amp = ci_method.dominant_amplitudes(i)
+            if len(amp) == 0:
+                ampstr = ''
+            else:
+                ampstr = '  '.join('{:7.4f} {}'.format(c, l) for c, l in amp[:3])
+            outfile.write(' {:4d}  {:4s} {:16.10f} {:12.4f} {:12.4f}   {}\n'.format(
+                i+1, str(irrlbl[irr]), e, (e-e_ref)*constants.au2ev,
+                (e-e0)*constants.au2ev, ampstr))
+            for c, l in amp[3:]:
+                outfile.write(' '*55+'{:7.4f} {}\n'.format(c, l))
+        outfile.flush()
+
+    return
+
+#
 def print_dftmrci2_header(label):
     global file_names
 

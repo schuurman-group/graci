@@ -53,3 +53,36 @@ After setting the above environment variables, simply use the command
 graci file.inp
 
 to run a graci calculation, where file.inp is a graci input file
+
+## MRSF-TDDFT
+Mixed-reference spin-flip TDDFT (MRSF-TDDFT, Lee, Filatov, Lee and Choi,
+J. Chem. Phys. 149, 104101 (2018)) is available through the `$mrsftddft`
+section. It requires an ROKS/ROHF triplet reference (`mult = 3` in the
+`$scf` section) and a global hybrid functional (e.g. `xc = bhlyp`); the
+density-fitted MO integrals of the `$scf` section are reused. One section
+computes one spin manifold:
+
+    $mrsftddft section
+     label   = singlets
+     mult    = 1               # 1: singlets, 3: triplets
+     nstates = [3 1 1 2]       # roots per irrep
+    $end
+
+The irreps are those of the MRSF states themselves (the irrep of the
+triplet reference, i.e. the product of the two SOMO irreps, times the irrep
+of the spin-flip excitation), so the closed-shell ground state S0 belongs
+to the totally symmetric irrep.
+
+Optional keywords: `nextra` (extra Davidson roots tracked, 3), `diag_tol`
+(residual norm, 1e-5), `diag_iter` (100), `diag_maxvec` (subspace size per
+root, 20), `hfx` (override the fraction of HF exchange), `spc` (spin-pair
+coupling scale factors, default = HF exchange fraction), `conf_thresh`
+(amplitude print threshold, 0.05), `precision` (`double`/`single` integral
+storage), `mem_budget` (GB for the sigma-vector work arrays, 1.0),
+`vv_storage` (`paired`/`full` storage of the virtual-virtual DF block),
+`print_orbitals`, `ref_state`, `scf_label`, `label`. Total energies are
+E(ROKS triplet) + omega; the lowest singlet root is S0. State densities,
+natural orbitals and moments are produced as for DFT/MRCI, and the
+`$transition` section works between two `$mrsftddft` objects of the same
+multiplicity (see examples/h2o_mrsf). Range-separated functionals,
+spin-orbit coupling and gradients are not yet supported.

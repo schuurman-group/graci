@@ -16,6 +16,7 @@ import graci.core.bitciwfn as bitciwfn
 import graci.tools.parameterize as parameterize
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
+import graci.methods.mrsftddft as mrsftddft
 import graci.properties.moments as moments
 import graci.interaction.interaction as cigroup # still makes me uncomfortable 
 import graci.interaction.transition as transition

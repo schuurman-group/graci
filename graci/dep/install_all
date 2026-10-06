@@ -12,7 +12,7 @@ done
 # Build all the libraries
 #
 topdir=`pwd`
-for lib in overlap bitci; do
+for lib in overlap bitci mrsf; do
 
     cd $lib
 

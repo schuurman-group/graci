@@ -15,6 +15,7 @@ import graci.core.scf as scf
 import graci.tools.parameterize as parameterize
 import graci.methods.dftmrci as dftmrci
 import graci.methods.dftmrci2 as dftmrci2
+import graci.methods.mrsftddft as mrsftddft
 import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap

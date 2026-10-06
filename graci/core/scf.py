@@ -61,6 +61,12 @@ class Scf:
         self.naux         = 0
         self.rdm_ao       = None
         self.auxbasis     = None 
+        # alpha/beta spin Fock matrices in the AO basis, shape (2, nao, nao)
+        # (needed by MRSF-TDDFT; both equal for closed-shell references)
+        self.fock_ao      = None
+        # (omega, alpha, hyb) range-separation/hybrid coefficients of the
+        # functional in the PySCF convention; (0., 0., 1.) for HF
+        self.hyb          = None
 
         # class variables
         self.valid_grids  = ['sg1_prune']
@@ -166,6 +172,9 @@ class Scf:
         # construct density matrix
         occmos = self.orbs[:,self.orb_occ>0]
         self.rdm_ao = occmos @ np.diag(self.orb_occ[self.orb_occ>0]) @ occmos.T 
+
+        # alpha/beta spin Fock matrices and hybrid coefficients
+        self.fock_ao, self.hyb = self.spin_fock(scf_pyscf)
 
         # print the summary of the output to file
         if self.verbose:
@@ -438,6 +447,63 @@ class Scf:
         mf.mo_coeff *= np.where(dominant < 0., -1.0, 1.0)
 
         return mf
+
+    #
+    def spin_fock(self, mf):
+        """
+        returns (fock_ao, hyb): the alpha/beta spin Fock matrices of the
+        converged PySCF object mf as an array of shape (2, nao, nao), and
+        the (omega, alpha, hyb) coefficients of the functional
+        """
+        dm = mf.make_rdm1()
+        f  = mf.get_fock(dm=dm)
+        fa = getattr(f, 'focka', None)
+        if fa is None:
+            fa = fb = np.asarray(f)
+        else:
+            fb = f.fockb
+        fock_ao = np.array([np.asarray(fa), np.asarray(fb)])
+
+        if self.xc == 'hf':
+            hyb = (0., 0., 1.)
+        else:
+            hyb = tuple(float(x) for x in
+                        mf._numint.rsh_and_hybrid_coeff(mf.xc, spin=mf.mol.spin))
+
+        return fock_ao, hyb
+
+    #
+    def build_fock(self):
+        """
+        (re)builds the spin Fock matrices from the stored orbitals, e.g.
+        for an Scf object read from a checkpoint file written before
+        fock_ao existed. Rebuilds the PySCF object with the same settings
+        as run_pyscf and evaluates the Fock matrices for the stored
+        orbitals and occupations without re-converging.
+        """
+        pymol = self.mol.pymol()
+        pymol.verbose = 0
+        try:
+            self.xc = functionals.aliases[self.xc.lower()]
+        except:
+            pass
+        if self.xc == 'hf':
+            mf = scf.RHF(pymol) if self.mol.mult == 1 else scf.ROHF(pymol)
+        else:
+            mf = dft.RKS(pymol) if self.mol.mult == 1 else dft.ROKS(pymol)
+            mf.xc = self.xc
+            mf.grids.level = self.grid_level
+            mf.grids.prune = dft.nwchem_prune
+        if self.x2c:
+            mf = mf.x2c()
+        if self.mol.use_df:
+            mf = mf.density_fit(auxbasis=self.mol.ri_basis)
+        mf.mo_coeff  = self.orbs
+        mf.mo_occ    = self.orb_occ
+        mf.mo_energy = self.orb_ener
+        self.fock_ao, self.hyb = self.spin_fock(mf)
+
+        return self.fock_ao
 
     #
     def guess_dm(self, guess):

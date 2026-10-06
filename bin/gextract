@@ -12,12 +12,12 @@ import graci.core.orbitals as orbitals
 
 valid_formats = ['molden','gamess']
 orb_objs      = {'-scf'     : ['Scf'],
-                 '-nos'     : ['Dftmrci','Dftcis'],
+                 '-nos'     : ['Dftmrci','Dftcis','Mrsftddft'],
                  '-nto'     : ['Transition'],
                  '-ndo'     : ['Transition']}
 wfn_objs      = {'-dets'    : ['Dftmrci','Dftcis','Dftmrci2']}                
 diab_objs     = {'-diabpot' : ['Dftmrci2']}
-adiab_objs    = {'-adiabpot': ['Dftmrci','Dftmrci2']}
+adiab_objs    = {'-adiabpot': ['Dftmrci','Dftmrci2','Mrsftddft']}
 
 #
 def main():
