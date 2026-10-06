@@ -1,0 +1,24 @@
+#!/bin/bash
+
+#
+# Conditional compilation flags
+#
+args=""
+for var in "$@"; do
+    args+=" $var"
+done
+
+#
+# Build the mrsf library
+#
+if [ -d build ]; then
+    rm -r build/*
+else
+    mkdir build
+fi
+
+cd build
+cmake ../ -DCMAKE_INSTALL_PREFIX=../.. $args
+make
+make install
+cd ..
