@@ -23,6 +23,7 @@ import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
 import graci.interaction.dyson as dyson
+import graci.interaction.mrsfgradient as mrsfgradient
 import graci.utils.rydano as rydano
 import graci.io.output as output
 

@@ -25,9 +25,10 @@ $mrsftddft section
 $end
 
 $transition section
- label        = singlets
- init_label   = singlets
- final_label  = singlets
- init_states  = [1]
- final_states = [2:7]
+ label          = singlets
+ init_label     = singlets
+ final_label    = singlets
+ init_states    = [1]
+ final_states   = [2:7]
+ print_orbitals = True
 $end

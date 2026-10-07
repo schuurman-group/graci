@@ -30,6 +30,7 @@ class Driver:
         ci_objs     = []
         postci_objs = []
         si_objs     = []
+        grad_objs   = []
         param_objs  = []
 
         for obj in calc_array:
@@ -45,6 +46,8 @@ class Driver:
                 postci_objs.append(obj)
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
+            elif type(obj).__name__ in params.grad_objs:
+                grad_objs.append(obj)
             elif type(obj).__name__ == 'Parameterize':
                 param_objs.append(obj)
        
@@ -56,6 +59,7 @@ class Driver:
         self.check_labels(ci_objs)
         self.check_labels(postci_objs)
         self.check_labels(si_objs)
+        self.check_labels(grad_objs)
         
         # Load required libraries
         #-----------------------------------------------------
@@ -69,8 +73,15 @@ class Driver:
             libs.lib_load('bitsi')
             libs.lib_load('bitwf')
 
-        if any(type(obj).__name__ == 'Mrsftddft' for obj in ci_objs):
+        if any(type(obj).__name__ == 'Mrsftddft' for obj in ci_objs) \
+           or len(grad_objs) > 0:
             libs.lib_load('mrsf')
+
+        # gradient sections need the MRSF integrals to stay loaded
+        if len(grad_objs) > 0:
+            for ci_obj in ci_objs:
+                if type(ci_obj).__name__ == 'Mrsftddft':
+                    ci_obj.keep_ints = True
 
         # Generate PySCF objects 
         # ----------------------------------------------------
@@ -191,6 +202,31 @@ class Driver:
 
         # All SCF + CI objects are created and run() called before 
         # PostCI and subsequently SI objects are run()
+
+        # Gradient sections
+        # -- these take one Mrsftddft object as argument
+        # ----------------------------------------------------
+        for grad_obj in grad_objs:
+            mrsf_objs = [obj for obj in ci_objs
+                         if type(obj).__name__ == 'Mrsftddft']
+            if grad_obj.mrsf_label is None:
+                if len(mrsf_objs) != 1:
+                    output.print_message('$mrsfgradient: mrsf_label must be '
+                                         'given when several $mrsftddft '
+                                         'sections are present')
+                    sys.exit(1)
+                ci_obj = mrsf_objs[0]
+            else:
+                ci_obj = self.match_sections(grad_obj.mrsf_label, 'label',
+                                             mrsf_objs)
+                if ci_obj is None:
+                    output.print_message('$mrsfgradient: no $mrsftddft '
+                                         'section with label '
+                                         + str(grad_obj.mrsf_label))
+                    sys.exit(1)
+            grad_obj.run(ci_obj)
+            if save_to_chkpt:
+                chkpt.write(grad_obj)
 
         # PostCI Sections 
         # -- these can take ci_objects as arguments

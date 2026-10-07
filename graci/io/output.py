@@ -533,6 +533,70 @@ def print_moments(states, irr, momts):
     return
 
 #
+def print_mrsfgradient_header(label):
+    """ print out Mrsfgradient section header"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'MRSF-TDDFT gradient, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN))
+        outfile.flush()
+
+    return
+
+#
+def print_mrsfgradient_results(grad_obj, states, res):
+    """ print the gradients of the MRSF states (Hartree/Bohr)"""
+
+    ci   = grad_obj.ci
+    mol  = ci.scf.mol
+    asym = mol.asym
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n MRSF-TDDFT section: '+str(ci.label)+
+                      ', manifold: '+('singlets' if ci.mult == 1 else 'triplets'))
+        outfile.write('\n Reference (ROKS) energy: '+
+                      '{:16.10f}'.format(ci.scf.energy)+' Ha')
+        outfile.write('\n Z-vector solver: '+str(grad_obj.zvec_solver)+
+                      ', tolerance '+'{:.1e}'.format(grad_obj.zvec_tol))
+        t = res['times']
+        outfile.write('\n Timings (s): reference gradient {:.2f}, '
+                      'RHS {:.2f}, Z-vector {:.2f}, families {:.2f}, '
+                      'AO derivative contraction {:.2f}, 1e/XC {:.2f}'.format(
+                          t.get('ref', 0.0), t['rhs'], t['zvec'], t['families'], t['2e_ao'], t['1e_xc']))
+        outfile.write('\n\n Gradient of the ROKS reference (Hartree/Bohr)')
+        outfile.write('\n   Atom          x                y                z')
+        for A in range(len(asym)):
+            outfile.write('\n   {:3d} {:2s}'.format(A+1, asym[A]) +
+                          ''.join(['{:17.10f}'.format(v) for v in res['grad_ref'][A]]))
+        for k, st in enumerate(states):
+            irr = ci.state_sym(st)[0]
+            outfile.write('\n\n State {:3d} ({:s}), E = {:16.10f} Ha, '
+                          'Z-vector: {:d} iterations, residual {:.2e}{:s}'.format(
+                          st+1, mol.irreplbl[irr], ci.energy(st),
+                          int(res['zvec_niter'][k]), float(res['zvec_resid'][k]),
+                          '' if res['zvec_converged'][k] else '  (NOT CONVERGED)'))
+            outfile.write('\n Gradient (Hartree/Bohr)')
+            outfile.write('\n   Atom          x                y                z')
+            for A in range(len(asym)):
+                outfile.write('\n   {:3d} {:2s}'.format(A+1, asym[A]) +
+                              ''.join(['{:17.10f}'.format(v) for v in res['grad'][k][A]]))
+            outfile.write('\n   max |gradient component|: {:.6e}'.format(
+                          np.abs(res['grad'][k]).max()))
+        outfile.write('\n')
+        outfile.flush()
+
+    return
+
+#
 def print_transition_header(label):
     """ print out Transition section header"""
 

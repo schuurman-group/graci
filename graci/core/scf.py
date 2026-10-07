@@ -18,6 +18,9 @@ from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 from pyscf.scf import stability
 
+# cache of rebuilt PySCF objects (never stored on the Scf objects themselves)
+_pyscf_cache = {}
+
 class Scf:
     """Class constructor for SCF object"""
     def __init__(self):
@@ -504,6 +507,47 @@ class Scf:
         self.fock_ao, self.hyb = self.spin_fock(mf)
 
         return self.fock_ao
+
+    #
+    def pyscf_obj(self):
+        """
+        returns a PySCF SCF object with the settings of run_pyscf, holding
+        the stored (converged) orbitals, occupations and orbital energies,
+        with the DF and XC-grid objects built. Used by post-SCF methods
+        that need PySCF machinery (gradients). The object is cached in a
+        module-level dictionary rather than on self so that it never
+        reaches the checkpoint file.
+        """
+        global _pyscf_cache
+        key = (self.label, id(self))
+        if key in _pyscf_cache:
+            return _pyscf_cache[key]
+        pymol = self.mol.pymol()
+        pymol.verbose = 0
+        try:
+            self.xc = functionals.aliases[self.xc.lower()]
+        except:
+            pass
+        if self.xc == 'hf':
+            mf = scf.RHF(pymol) if self.mol.mult == 1 else scf.ROHF(pymol)
+        else:
+            mf = dft.RKS(pymol) if self.mol.mult == 1 else dft.ROKS(pymol)
+            mf.xc = self.xc
+            mf.grids.level = self.grid_level
+            mf.grids.prune = dft.nwchem_prune
+            mf.grids.build()
+        if self.x2c:
+            mf = mf.x2c()
+        if self.mol.use_df:
+            mf = mf.density_fit(auxbasis=self.mol.ri_basis)
+            mf.with_df.build()
+        mf.mo_coeff  = self.orbs
+        mf.mo_occ    = self.orb_occ
+        mf.mo_energy = self.orb_ener
+        mf.e_tot     = self.energy
+        mf.converged = True
+        _pyscf_cache[key] = mf
+        return mf
 
     #
     def guess_dm(self, guess):

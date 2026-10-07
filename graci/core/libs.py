@@ -232,7 +232,16 @@ mrsf_registry = {
     'mrsf_tdm'            : ['int32','double','int32','int32','int32','int32',
                              'int32','int32','double','double','double'],
     'mrsf_finalise'       : [],
-    'mrsf_report_timings' : []
+    'mrsf_report_timings' : [],
+    # gradient kernels: 'dptr' = pointer to an F-contiguous float64 array
+    # (passed by address, filled in place for 'out'/'inout')
+    'mrsf_grad_init'      : ['string','int32'],
+    'mrsf_grad_free'      : [],
+    'mrsf_grad_bso'       : ['dptr'],
+    'mrsf_gfock'          : ['int32','double','int32'] + ['dptr']*8,
+    'mrsf_jblocks'        : ['int32'] + ['dptr']*4,
+    'mrsf_grad_state'     : ['double'] + ['dptr']*14,
+    'mrsf_grad_finish'    : ['double'] + ['dptr']*13
 }
 
 mrsf_intent = {
@@ -246,7 +255,14 @@ mrsf_intent = {
     'mrsf_density'        : ['in','in','in','in','in','in','out'],
     'mrsf_tdm'            : ['in']*10 + ['out'],
     'mrsf_finalise'       : [],
-    'mrsf_report_timings' : []
+    'mrsf_report_timings' : [],
+    'mrsf_grad_init'      : ['in','out'],
+    'mrsf_grad_free'      : [],
+    'mrsf_grad_bso'       : ['out'],
+    'mrsf_gfock'          : ['in']*7 + ['out']*4,
+    'mrsf_jblocks'        : ['in']*2 + ['out']*3,
+    'mrsf_grad_state'     : ['in']*2 + ['out']*13,
+    'mrsf_grad_finish'    : ['in']*9 + ['inout']*2 + ['in'] + ['out']*2
 }
 
 # list of existing library objects
@@ -301,6 +317,19 @@ def lib_func(name, args):
     arg_ctype = []
     arg_ptr   = []
     for i in range(len(args)):
+
+        # zero-copy array arguments: pass the address of an F-contiguous
+        # float64 ndarray (the Fortran side reads/writes it in place)
+        if arg_list[i] == 'dptr':
+            arr = args[i]
+            if not (isinstance(arr, np.ndarray) and arr.dtype == np.float64
+                    and arr.flags['F_CONTIGUOUS']):
+                sys.exit('lib_func: dptr argument '+str(i)+' of '+name+
+                         ' must be an F-contiguous float64 ndarray')
+            c_arg = arr.ctypes.data_as(ctypes.c_void_p)
+            arg_ctype.append(c_arg)
+            arg_ptr.append(c_arg)
+            continue
         
         # if argument is a string, pad to a length of 255 characters
         if isinstance(args[i], str):
@@ -348,7 +377,9 @@ def lib_func(name, args):
             
     args_out = ()
     for i in range(len(args)):
-        if arg_intent[i] == 'out':
+        if arg_intent[i] in ('out', 'inout') and arg_list[i] == 'dptr':
+            args_out += (args[i],)
+        elif arg_intent[i] == 'out':
             if isinstance(args[i], list):
                 args_out += (np.ndarray((len(args[i]),), 
                           buffer=arg_ctype[i], dtype=arg_list[i]),)

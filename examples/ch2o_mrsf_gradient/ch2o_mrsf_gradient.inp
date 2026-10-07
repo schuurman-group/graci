@@ -1,0 +1,55 @@
+# Analytic nuclear gradients of MRSF-TDDFT states of formaldehyde
+# (BHHLYP/6-31G*, C2v symmetry).
+#
+# The reference is the ROKS triplet (mult = 3 in $scf). Each $mrsftddft
+# section computes one spin manifold; the $mrsfgradient sections refer to
+# a $mrsftddft section by its label and list the adiabatic states (1-based,
+# in the energy order of that section) to differentiate. The gradients are
+# printed in Hartree/Bohr, stored in the checkpoint file and can be written
+# to files with  gextract ch2o_mrsf_gradient.chkpt.h5 -grad <label>.
+
+$molecule section
+ C   0.000000000   0.000000000  -0.522500000
+ O   0.000000000   0.000000000   0.677500000
+ H   0.000000000   0.940300000  -1.104400000
+ H   0.000000000  -0.940300000  -1.104400000
+ basis   = 6-31g*
+ use_sym = True
+$end
+
+$scf section
+ charge = 0
+ mult   = 3
+ xc     = bhlyp
+$end
+
+# singlet states: 2 x A1 (S0 and a valence state), 1 x A2 (the n -> pi*
+# state S1), 1 x B1, 1 x B2
+$mrsftddft section
+ label    = singlets
+ mult     = 1
+ nstates  = [2 1 1 1]
+ diag_tol = 1e-6
+$end
+
+$mrsftddft section
+ label    = triplets
+ mult     = 3
+ nstates  = [1 1 1 1]
+ diag_tol = 1e-6
+$end
+
+# gradients of S0 (ground state), S1 (1A2, n -> pi*) and S2
+$mrsfgradient section
+ label      = grad_singlets
+ mrsf_label = singlets
+ states     = [1 2 3]
+ zvec_tol   = 1e-8
+$end
+
+# gradient of the lowest triplet (T1, 3A2, n -> pi*)
+$mrsfgradient section
+ label      = grad_triplets
+ mrsf_label = triplets
+ states     = [1]
+$end

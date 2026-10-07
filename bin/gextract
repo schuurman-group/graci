@@ -38,6 +38,9 @@ def main():
 
     # extract the adiabatic potential energies if requested
     extract_adiabpot(chkpt_file, extract_list)
+
+    # MRSF-TDDFT gradients
+    extract_grad(chkpt_file, extract_list)
     
     return
 
@@ -55,6 +58,7 @@ def read_cmdline():
                     '-dets'     : None,
                     '-diabpot'  : None,
                     '-adiabpot' : None,
+                    '-grad'     : None,
                     '-format'   : 'molden',
                     '-cutoff'   : 0,
                     '-cartao'   : 'true'}
@@ -103,7 +107,7 @@ def extract_orbitals(chkpt_file, extract_list):
 
         # these are not orbital related
         non_orb = ['-dets', '-cutoff', '-format', '-cartao',
-                   '-diabpot', '-adiabpot']
+                   '-diabpot', '-adiabpot', '-grad']
         if key in non_orb:
             continue
 
@@ -423,6 +427,45 @@ def extract_adiabpot(chkpt_file, extract_list):
         
     return
 
+
+#
+def extract_grad(chkpt_file, extract_list):
+    """Write the gradients of an Mrsfgradient object (Hartree/Bohr) to
+    files grad/grad_<label>_<state>"""
+
+    if extract_list['-grad'] is None:
+        return
+
+    label = extract_list['-grad']
+    chkpt_objs = chkpt.contents(file_name=chkpt_file)
+    names = [name for name in chkpt_objs if name.startswith('Mrsfgradient.')]
+    if label == 'default' and len(names) == 1:
+        name = names[0]
+    else:
+        cand = [n for n in names if n.endswith('.'+label)]
+        if len(cand) != 1:
+            print('gextract -grad: cannot identify the Mrsfgradient object '
+                  '(available: '+str(names)+')')
+            return
+        name = cand[0]
+    obj = chkpt.read(name, file_name=chkpt_file, build_subobj=True,
+                     make_mol=False)
+    asym = obj.ci.scf.mol.asym
+    if not os.path.isdir('grad'):
+        os.mkdir('grad')
+    for k, st in enumerate(obj.state_list):
+        fname = 'grad/'+str(obj.label)+'_state'+str(int(st)+1)
+        with open(fname, 'w') as f:
+            f.write('# MRSF-TDDFT gradient, section '+str(obj.label)+
+                    ', state '+str(int(st)+1)+' ('+str(obj.state_syms[k])+
+                    '), E = '+'{:.10f}'.format(obj.energies[k])+
+                    ' Ha, Hartree/Bohr\n')
+            for A in range(len(asym)):
+                f.write('{:3s}'.format(asym[A])+
+                        ''.join(['{:18.10f}'.format(v) for v in obj.grad[k][A]])+'\n')
+    print('gradient files written to grad/')
+
+    return
 
 #
 def get_next_arg(arg):

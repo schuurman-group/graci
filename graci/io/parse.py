@@ -20,6 +20,7 @@ import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
 import graci.interaction.dyson as dyson
+import graci.interaction.mrsfgradient as mrsfgradient
 
 from pyscf import gto
 
@@ -386,6 +387,12 @@ def check_input(run_list):
             # shift statesby 1 to internal/C ordering
             obj.init_states  -= 1
             obj.final_states -= 1            
+
+        if type(obj).__name__ == 'Mrsfgradient':
+            if obj.states is not None:
+                if not isinstance(obj.states, (list, np.ndarray)):
+                    obj.states = np.array([obj.states])
+                obj.states = np.array(obj.states) - 1
 
         if type(obj).__name__ == 'Overlap':
             if obj.bra_states is not None:

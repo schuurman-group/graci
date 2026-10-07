@@ -84,5 +84,30 @@ storage), `mem_budget` (GB for the sigma-vector work arrays, 1.0),
 E(ROKS triplet) + omega; the lowest singlet root is S0. State densities,
 natural orbitals and moments are produced as for DFT/MRCI, and the
 `$transition` section works between two `$mrsftddft` objects of the same
-multiplicity (see examples/h2o_mrsf). Range-separated functionals,
-spin-orbit coupling and gradients are not yet supported.
+multiplicity (see examples/h2o_mrsf). Range-separated functionals and
+spin-orbit coupling are not yet supported.
+
+Analytic nuclear gradients of MRSF-TDDFT states are requested with a
+`$mrsfgradient` section referring to an `$mrsftddft` section:
+
+    $mrsfgradient section
+     label      = grad
+     mrsf_label = singlets     # the $mrsftddft section (optional if unique)
+     states     = [1 2]        # adiabatic state indices (default: all)
+    $end
+
+The gradients (Hartree/Bohr, in the PySCF frame of the input geometry)
+are printed, stored in the checkpoint file (`Mrsfgradient.<label>`:
+`grad`, `grad_ref`, `energies`, `state_syms`) and can be written to files
+with `gextract <chkpt> -grad <label>` (see examples/ch2o_mrsf_gradient). The implementation solves one
+Z-vector equation per state (block preconditioned conjugate gradients on
+the ROKS orbital Hessian; `zvec_tol` (1e-8), `zvec_iter` (100),
+`zvec_solver = pcg|dense`), evaluates all MO-space two-electron
+contractions with the density-fitted integrals of the MRSF library, and
+uses PySCF for the AO derivative integrals, the XC terms and the
+reference ROKS gradient. The XC quadrature grid is treated as fixed for
+the response term (the ROKS reference part can include the grid
+response with `grid_response = True`); the resulting error is of the
+order of 1e-5 Hartree/Bohr at the default grid level and vanishes with
+finer grids. Requirements: `precision = double`, the full MO space
+(`mo_cutoff` not truncating), global hybrid or HF functionals.
