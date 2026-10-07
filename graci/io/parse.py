@@ -395,15 +395,15 @@ def check_input(run_list):
                 obj.states = np.array(obj.states) - 1
 
         if type(obj).__name__ == 'Overlap':
+            # shift states by 1 to internal/C ordering (None = all states)
             if obj.bra_states is not None:
                 if not isinstance(obj.bra_states, (list, np.ndarray)):
                     obj.bra_states = np.array([obj.bra_states])
+                obj.bra_states = np.array(obj.bra_states) - 1
             if obj.ket_states is not None:
                 if not isinstance(obj.ket_states, (list, np.ndarray)):
                     obj.ket_states = np.array([obj.ket_states])
-            # shift statesby 1 to internal/C ordering
-            obj.bra_states -= 1
-            obj.ket_states -= 1
+                obj.ket_states = np.array(obj.ket_states) - 1
             
     return
     
@@ -605,8 +605,12 @@ def replicate_sections(run_list):
                 for si in si_list:
                     new_si             = si.copy()
                     new_si.label       = si.label+str(i+1)
-                    new_si.init_label  = si.init_label+str(i+1)
-                    new_si.final_label = si.final_label+str(i+1)
+                    if hasattr(si, 'bra_label'):
+                        new_si.bra_label = si.bra_label+str(i+1)
+                        new_si.ket_label = si.ket_label+str(i+1)
+                    else:
+                        new_si.init_label  = si.init_label+str(i+1)
+                        new_si.final_label = si.final_label+str(i+1)
                     if new_si.representation == 'diabatic' and i == 0:
                         new_si.representation = 'adiabatic'
                     new_run_list.append(new_si)

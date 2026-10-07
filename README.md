@@ -118,3 +118,37 @@ reference part can include the grid response with
 Hartree/Bohr at the default grid level and vanishes with finer grids.
 Requirements: `precision = double`, the full MO space (`mo_cutoff` not
 truncating), global hybrid or HF functionals.
+
+Overlaps between MRSF-TDDFT states of two geometries (for nonadiabatic
+dynamics) are computed by the existing `$overlap` section when its
+`bra_label` and `ket_label` refer to two `$mrsftddft` objects (two
+`$molecule`/`$scf`/`$mrsftddft` sets in one input, same basis and
+reference occupation pattern; see examples/h2o_mrsf_overlap):
+
+    $overlap section
+     bra_label   = singlets1
+     ket_label   = singlets2
+     bra_states  = [1:4]
+     ket_states  = [1:4]
+     mrsf_method = exact         # exact | tlf0 | tlf1 | tlf2
+    $end
+
+The MRSF states are expanded in the determinants of the two reference
+determinants and their overlaps reduce to two-index determinants of the
+MO overlap matrix (determinant factorisation, Lee, Kim, Lee, Choi, JCTC
+15, 882 (2019)). `mrsf_method = exact` (default) evaluates these
+determinants exactly from one inverse of the hole block and one of the
+core block of the MO overlap matrix; `tlf0`, `tlf1`, `tlf2` apply the
+truncated Leibniz formula of that paper to the same determinants (orders
+0, 1, 2 in the off-diagonal MO overlaps; `tlf0` drops the terms coupling
+the two reference determinants). The TLF variants assume that the MOs of
+the two geometries are nearly orthonormal in the same order (as for
+consecutive MD steps with a consistent MO phase convention); MO
+reorderings or mixings between the two calculations, e.g. a
+symmetry-blocked and a C1 calculation, break them, whereas `exact` is
+invariant. Everything but the AO overlap matrix is evaluated in the MRSF
+library; the cost is negligible compared to the two MRSF-TDDFT
+calculations (pyrazine/aug-cc-pVTZ, 8 x 8 states: 0.01 s). Overlaps between singlet and triplet
+objects vanish identically and are returned as zero; the sign of each
+state (and therefore of each row/column) is that of the MRSF
+eigenvectors.

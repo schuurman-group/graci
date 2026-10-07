@@ -13,6 +13,7 @@ import graci.io.output as output
 import graci.interfaces.mrsf.mrsf_init as mrsf_init
 import graci.interfaces.mrsf.mrsf_diag as mrsf_diag
 import graci.interfaces.mrsf.mrsf_density as mrsf_density
+import graci.interfaces.mrsf.mrsf_overlap as mrsf_overlap
 
 class Mrsftddft(cimethod.Cimethod):
     """Class constructor for MRSF-TDDFT objects"""
@@ -318,9 +319,10 @@ class Mrsftddft(cimethod.Cimethod):
 
     #
     def bitci_mrci(self):
-        """MRSF objects have no bitci wave function: used by Spinorbit,
-        Overlap and Dyson, which are not supported for MRSF-TDDFT"""
-        sys.exit('\n ERROR: Spinorbit/Overlap/Dyson sections are not yet '
+        """MRSF objects have no bitci wave function: used by Spinorbit
+        and Dyson, which are not supported for MRSF-TDDFT (Transition and
+        Overlap dispatch to the MRSF library through tdm_sym/overlap_sym)"""
+        sys.exit('\n ERROR: Spinorbit/Dyson sections are not yet '
                  'supported for MRSF-TDDFT objects (label = '
                  +str(self.label)+')')
 
@@ -342,3 +344,24 @@ class Mrsftddft(cimethod.Cimethod):
                      'same MOs for the bra and ket objects')
 
         return mrsf_density.tdm(self, ket, trans_list_sym, rep)
+
+    #
+    def overlap_sym(self, ket, trans_list_sym, method='exact', rep='adiabatic'):
+        """
+        overlaps <bra=self|ket> between the states of this object and those
+        of another Mrsftddft object ket (in general at another geometry) for
+        the (bra_irrep, ket_irrep)-blocked list of state pairs
+        trans_list_sym; same layout as
+        graci.interfaces.bitci.wf_overlap.overlap. method = 'exact'
+        (determinant-factorised two-index determinants, no truncation) or
+        'tlf0' | 'tlf1' | 'tlf2' (truncated Leibniz formula, JCTC 15, 882
+        (2019)). Returns (overlap list, ierr).
+        """
+        if type(ket).__name__ != 'Mrsftddft':
+            sys.exit('\n ERROR: MRSF overlaps require two Mrsftddft objects')
+        for attr in ('nmo', 'nocca', 'nvirb', 'nel'):
+            if getattr(self, attr) != getattr(ket, attr):
+                sys.exit('\n ERROR: MRSF overlaps require bra and ket objects '
+                         'with the same MO space and reference occupation '
+                         'pattern (' + attr + ' differs)')
+        return mrsf_overlap.overlap(self, ket, trans_list_sym, method, rep)

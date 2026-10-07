@@ -6,6 +6,7 @@ import sys as sys
 import numpy as np
 import copy
 import graci.utils.timing as timing
+import graci.core.params as params
 import graci.interaction.interaction as interaction
 import graci.interfaces.bitci.bitwf_init as bitwf_init
 import graci.interfaces.bitci.wf_overlap as wf_overlap
@@ -27,6 +28,9 @@ class Overlap(interaction.Interaction):
         self.norm_thresh    = 0.999
         self.det_thresh     = 1e-6
         self.representation = 'adiabatic'
+        # MRSF-TDDFT overlaps: 'exact' (determinant-factorised, no
+        # truncation) or 'tlf0' | 'tlf1' | 'tlf2' (truncated Leibniz formula)
+        self.mrsf_method    = 'exact'
 
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
@@ -64,6 +68,10 @@ class Overlap(interaction.Interaction):
 
         # sanity check on the representation
         self.check_representation()
+        if self.mrsf_method not in ('exact', 'tlf0', 'tlf1', 'tlf2'):
+            sys.exit('\n ERROR: mrsf_method must be exact, tlf0, tlf1 or tlf2')
+        if self.bra_states is None or self.ket_states is None:
+            sys.exit('\n ERROR: $overlap requires bra_states and ket_states')
 
         # set the bra/ket objects and add the state groups associated
         # with each 
@@ -102,8 +110,19 @@ class Overlap(interaction.Interaction):
                 if self.same_ci_obj(ket_ci, bra_ci):
                     pair_type = 'lower'
 
+                # MRSF-TDDFT objects provide their own overlaps through
+                # the MRSF library (overlap_sym); everything else goes
+                # through bitwf
+                has_b = hasattr(bra_ci, 'overlap_sym')
+                has_k = hasattr(ket_ci, 'overlap_sym')
+                if has_b != has_k:
+                    sys.exit('\n ERROR: overlaps between MRSF-TDDFT and '
+                             'MRCI objects are not supported')
+                use_bitwf = not has_b
+
                 # initialise the bitwf library
-                bitwf_init.init(bra_ci, ket_ci, 'overlap', self.verbose)
+                if use_bitwf:
+                    bitwf_init.init(bra_ci, ket_ci, 'overlap', self.verbose)
 
                 # this state pair list for the current pair of CI 
                 # objects, stored by adiabatic label
@@ -129,7 +148,8 @@ class Overlap(interaction.Interaction):
                                        self.overlaps)
 
                 # finalize the bitwf library
-                bitwf_init.finalize()
+                if use_bitwf:
+                    bitwf_init.finalize()
 
 
         # output the overlaps
@@ -209,16 +229,27 @@ class Overlap(interaction.Interaction):
         bra = self.get_ci_obj('bra', b_lbl)
         ket = self.get_ci_obj('ket', k_lbl)
 
-        # extract the determinant representation of the wave functions
-        self.bra_wfunit, self.ket_wfunit = wf_overlap.extract(bra, ket)
+        if hasattr(bra, 'overlap_sym'):
+            # MRSF-TDDFT: determinant-factorised overlaps in the MRSF library
+            if self.verbose:
+                output.print_message('MRSF-TDDFT overlaps, method: '
+                                     + self.mrsf_method)
+            overlap_list, ierr = bra.overlap_sym(ket, ci_trans_sym,
+                                                 self.mrsf_method)
+            if ierr == 2:
+                output.print_message('WARNING: near-singular core/hole MO '
+                                     'overlap block; explicit minors used')
+        else:
+            # extract the determinant representation of the wave functions
+            self.bra_wfunit, self.ket_wfunit = wf_overlap.extract(bra, ket)
 
-        # compute the overlaps
-        overlap_list = wf_overlap.overlap(bra, ket,
-                                          self.bra_wfunit,
-                                          self.ket_wfunit,
-                                          ci_trans_sym,
-                                          self.norm_thresh,
-                                          self.det_thresh)
+            # compute the overlaps
+            overlap_list = wf_overlap.overlap(bra, ket,
+                                              self.bra_wfunit,
+                                              self.ket_wfunit,
+                                              ci_trans_sym,
+                                              self.norm_thresh,
+                                              self.det_thresh)
         # make the overlap list
         npairs   = len(ci_trans)
         overlaps = np.zeros((npairs), dtype=float)
