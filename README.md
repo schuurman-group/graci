@@ -131,6 +131,7 @@ reference occupation pattern; see examples/h2o_mrsf_overlap):
      bra_states  = [1:4]
      ket_states  = [1:4]
      mrsf_method = exact         # exact | tlf0 | tlf1 | tlf2
+     mrsf_align  = True          # align the ket MOs to the bra MOs
     $end
 
 The MRSF states are expanded in the determinants of the two reference
@@ -142,13 +143,18 @@ core block of the MO overlap matrix; `tlf0`, `tlf1`, `tlf2` apply the
 truncated Leibniz formula of that paper to the same determinants (orders
 0, 1, 2 in the off-diagonal MO overlaps; `tlf0` drops the terms coupling
 the two reference determinants). The TLF variants assume that the MOs of
-the two geometries are nearly orthonormal in the same order (as for
-consecutive MD steps with a consistent MO phase convention); MO
-reorderings or mixings between the two calculations, e.g. a
-symmetry-blocked and a C1 calculation, break them, whereas `exact` is
-invariant. Everything but the AO overlap matrix is evaluated in the MRSF
-library; the cost is negligible compared to the two MRSF-TDDFT
-calculations (pyrazine/aug-cc-pVTZ, 8 x 8 states: 0.01 s). Overlaps between singlet and triplet
+the two geometries are nearly orthonormal in the same order; with
+`mrsf_align = True` (default) the ket MOs are first aligned to the bra
+MOs within each orbital class (core, SOMO pair, virtuals) by orthogonal
+Procrustes rotations obtained from the MO overlap blocks, which removes
+reorderings, sign flips and mixings of (near-)degenerate orbitals
+between the two calculations, e.g. between a symmetry-blocked and a C1
+calculation. The MRSF states are invariant under these rotations, so
+the ket amplitudes are transformed exactly and the `exact` overlaps do
+not change; the alignment only makes the TLF expansions valid.
+Everything but the AO overlap matrix is evaluated in the MRSF library;
+the cost is negligible compared to the two MRSF-TDDFT calculations
+(pyrazine/aug-cc-pVTZ, 8 x 8 states: 0.01 s). Overlaps between singlet and triplet
 objects vanish identically and are returned as zero; the sign of each
 state (and therefore of each row/column) is that of the MRSF
 eigenvectors.

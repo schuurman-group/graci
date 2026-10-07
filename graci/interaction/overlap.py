@@ -31,6 +31,9 @@ class Overlap(interaction.Interaction):
         # MRSF-TDDFT overlaps: 'exact' (determinant-factorised, no
         # truncation) or 'tlf0' | 'tlf1' | 'tlf2' (truncated Leibniz formula)
         self.mrsf_method    = 'exact'
+        # align the ket MOs to the bra MOs within each orbital class
+        # (orthogonal Procrustes) before evaluating MRSF overlaps
+        self.mrsf_align     = True
 
         # ----------------------------------------------------------
         # internal class variables -- should not be accessed
@@ -233,9 +236,11 @@ class Overlap(interaction.Interaction):
             # MRSF-TDDFT: determinant-factorised overlaps in the MRSF library
             if self.verbose:
                 output.print_message('MRSF-TDDFT overlaps, method: '
-                                     + self.mrsf_method)
+                                     + self.mrsf_method + ', MO alignment: '
+                                     + str(self.mrsf_align))
             overlap_list, ierr = bra.overlap_sym(ket, ci_trans_sym,
-                                                 self.mrsf_method)
+                                                 self.mrsf_method,
+                                                 self.mrsf_align)
             if ierr == 2:
                 output.print_message('WARNING: near-singular core/hole MO '
                                      'overlap block; explicit minors used')

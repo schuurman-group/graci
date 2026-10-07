@@ -346,7 +346,7 @@ class Mrsftddft(cimethod.Cimethod):
         return mrsf_density.tdm(self, ket, trans_list_sym, rep)
 
     #
-    def overlap_sym(self, ket, trans_list_sym, method='exact', rep='adiabatic'):
+    def overlap_sym(self, ket, trans_list_sym, method='exact', align=True, rep='adiabatic'):
         """
         overlaps <bra=self|ket> between the states of this object and those
         of another Mrsftddft object ket (in general at another geometry) for
@@ -355,7 +355,8 @@ class Mrsftddft(cimethod.Cimethod):
         graci.interfaces.bitci.wf_overlap.overlap. method = 'exact'
         (determinant-factorised two-index determinants, no truncation) or
         'tlf0' | 'tlf1' | 'tlf2' (truncated Leibniz formula, JCTC 15, 882
-        (2019)). Returns (overlap list, ierr).
+        (2019)); align: align the ket MOs to the bra MOs within each orbital
+        class before the evaluation. Returns (overlap list, ierr).
         """
         if type(ket).__name__ != 'Mrsftddft':
             sys.exit('\n ERROR: MRSF overlaps require two Mrsftddft objects')
@@ -364,4 +365,4 @@ class Mrsftddft(cimethod.Cimethod):
                 sys.exit('\n ERROR: MRSF overlaps require bra and ket objects '
                          'with the same MO space and reference occupation '
                          'pattern (' + attr + ' differs)')
-        return mrsf_overlap.overlap(self, ket, trans_list_sym, method, rep)
+        return mrsf_overlap.overlap(self, ket, trans_list_sym, method, align, rep)

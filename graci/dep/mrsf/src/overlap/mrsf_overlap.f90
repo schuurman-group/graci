@@ -42,15 +42,20 @@ contains
 
 !######################################################################
 ! state_overlap: entry point. occ_b/occ_k: reference occupations (2/1/0)
-! of the bra/ket MOs; method: 0 exact, 1/2/3 = TLF(0/1/2); xb(xdim,nb),
-! xk(xdim,nk): compressed amplitudes (particle fastest); S(nb,nk) out.
-! ierr: 0 ok, 1 class mismatch, 2 singular core/hole block (explicit
-! minors used), 3 unknown method
+! of the bra/ket MOs; method: 0 exact, 1/2/3 = TLF(0/1/2); align: 1 =
+! align the ket MOs to the bra MOs within each orbital class (C, O, V)
+! by orthogonal Procrustes rotations of the MO overlap blocks (the ket
+! amplitudes are transformed accordingly, so the exact overlaps are
+! unchanged and the TLF expansions become valid when the orbitals are
+! reordered, sign-flipped or mixed between the two calculations);
+! xb(xdim,nb), xk(xdim,nk): compressed amplitudes (particle fastest);
+! S(nb,nk) out. ierr: 0 ok, 1 class mismatch, 2 singular core/hole
+! block (explicit minors used), 3 unknown method, 4 SVD failure
 !######################################################################
-  subroutine state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, nb, nk, &
+  subroutine state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, &
        Cb, Ck, Sao, xb, xk, S, ierr)
 
-    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, nb, nk
+    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, align, nb, nk
     real(dp), intent(in)     :: occ_b(nmo), occ_k(nmo), Cb(nao_b,nmo), Ck(nao_k,nmo)
     real(dp), intent(in)     :: Sao(nao_b,nao_k), xb(*), xk(*)
     real(dp), intent(out)    :: S(nb,nk)
@@ -75,7 +80,7 @@ contains
     endif
     nocca = ncb + 2
     nvirb = nvb + 2
-    call overlap_core(nao_b, nao_k, nmo, ncb, nocca, nvirb, hb, pb, hk, pk, mult, method, &
+    call overlap_core(nao_b, nao_k, nmo, ncb, nocca, nvirb, hb, pb, hk, pk, mult, method, align, &
          nb, nk, Cb, Ck, Sao, xb, xk, S, ierr)
     deallocate(hb, pb, hk, pk)
     time_ovl = time_ovl + wall_time() - t0
@@ -86,10 +91,10 @@ contains
 !######################################################################
 ! overlap_core
 !######################################################################
-  subroutine overlap_core(nao_b, nao_k, nmo, nc, nocca, nvirb, hb, pb, hk, pk, mult, method, &
+  subroutine overlap_core(nao_b, nao_k, nmo, nc, nocca, nvirb, hb, pb, hk, pk, mult, method, align, &
        nb, nk, Cb, Ck, Sao, xb, xk, S, ierr)
 
-    integer(is), intent(in)    :: nao_b, nao_k, nmo, nc, nocca, nvirb, mult, method, nb, nk
+    integer(is), intent(in)    :: nao_b, nao_k, nmo, nc, nocca, nvirb, mult, method, align, nb, nk
     integer(is), intent(in)    :: hb(nocca), pb(nvirb), hk(nocca), pk(nvirb)
     real(dp), intent(in)       :: Cb(nao_b,nmo), Ck(nao_k,nmo), Sao(nao_b,nao_k)
     real(dp), intent(in)       :: xb(nvirb*nocca,nb), xk(nvirb*nocca,nk)
@@ -100,13 +105,28 @@ contains
     real(dp), allocatable :: Ap(:,:,:), Am(:,:,:), Bp(:,:,:), Bm(:,:,:)
     real(dp), allocatable :: Zp(:,:,:), Zm(:,:,:), Yp(:,:,:), Ym(:,:,:)
     real(dp), allocatable :: Wp(:,:,:), Wm(:,:,:), Qp(:,:,:), Qm(:,:,:)
-    integer(is) :: v, nz, nw
+    real(dp), allocatable :: Uh(:,:), Up(:,:), Xe(:,:), Xt(:,:)
+    real(dp) :: sgn_o
+    integer(is) :: v, nz, nw, info
 
     ! MO overlap matrix M = Cb^T Sao Ck (bra rows, ket columns)
     allocate(M(nmo,nmo), tmp(nao_b,nmo))
     call dgemm('N','N', nao_b, nmo, nao_k, 1.0_dp, Sao, nao_b, Ck, nao_k, 0.0_dp, tmp, nao_b)
     call dgemm('T','N', nmo, nmo, nao_b, 1.0_dp, Cb, nao_b, tmp, nao_b, 0.0_dp, M, nmo)
     deallocate(tmp)
+
+    ! alignment of the ket MOs to the bra MOs within the classes: M -> M U,
+    ! ket amplitudes X~ -> det(U_O) U_P^T X~ U_H
+    allocate(Uh(nocca,nocca), Up(nvirb,nvirb))
+    sgn_o = 1.0_dp
+    if (align == 1) then
+       call align_ket(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, info)
+       if (info /= 0) then
+          ierr = 4
+          deallocate(M, Uh, Up)
+          return
+       endif
+    endif
 
     ! two-index blocks
     allocate(Sa(nocca,nocca), Sb(nvirb,nvirb), T(nocca,nvirb), U(nvirb,nocca))
@@ -121,9 +141,16 @@ contains
     do v = 1, nb
        call families(nmo, nc, nocca, nvirb, hb, pb, mult, xb(1,v), Ap(1,1,v), Am(1,1,v))
     enddo
+    allocate(Xe(nvirb,nocca), Xt(nvirb,nocca))
     do v = 1, nk
-       call families(nmo, nc, nocca, nvirb, hk, pk, mult, xk(1,v), Bp(1,1,v), Bm(1,1,v))
+       call expand_one(nc, nvirb, nocca, mult, xk(1,v), Xe)
+       if (align == 1) then
+          call dgemm('T','N', nvirb, nocca, nvirb, sgn_o, Up, nvirb, Xe, nvirb, 0.0_dp, Xt, nvirb)
+          call dgemm('N','N', nvirb, nocca, nocca, 1.0_dp, Xt, nvirb, Uh, nocca, 0.0_dp, Xe, nvirb)
+       endif
+       call families_expanded(nc, nocca, nvirb, hk, pk, mult, Xe, Bp(1,1,v), Bm(1,1,v))
     enddo
+    deallocate(Xe, Xt, Uh, Up)
 
     ! direct term: Z = A Sa (nvirb x nocca), Y = Sb B (nvirb x nocca), S += <Z, Y>
     nz = nvirb*nocca
@@ -167,12 +194,25 @@ contains
     real(dp), intent(out)   :: Ap(nvirb,nocca), Am(nvirb,nocca)
 
     real(dp), allocatable :: Xe(:,:)
+
+    allocate(Xe(nvirb,nocca))
+    call expand_one(nc, nvirb, nocca, mult, x, Xe)
+    call families_expanded(nc, nocca, nvirb, hmap, pmap, mult, Xe, Ap, Am)
+    deallocate(Xe)
+
+  end subroutine families
+
+  subroutine families_expanded(nc, nocca, nvirb, hmap, pmap, mult, Xe, Ap, Am)
+
+    integer(is), intent(in) :: nc, nocca, nvirb, hmap(nocca), pmap(nvirb), mult
+    real(dp), intent(in)    :: Xe(nvirb,nocca)
+    real(dp), intent(out)   :: Ap(nvirb,nocca), Am(nvirb,nocca)
+
     integer(is), allocatable :: posH(:), qC(:)
     integer(is) :: il, al
     real(dp) :: cp, spair
 
-    allocate(Xe(nvirb,nocca), posH(nocca), qC(nvirb))
-    call expand_one(nc, nvirb, nocca, mult, x, Xe)
+    allocate(posH(nocca), qC(nvirb))
     call positions(nc, nocca, nvirb, hmap, pmap, posH, qC)
     spair = -1.0_dp
     if (mult /= 1) spair = 1.0_dp
@@ -188,9 +228,83 @@ contains
           endif
        enddo
     enddo
-    deallocate(Xe, posH, qC)
+    deallocate(posH, qC)
 
-  end subroutine families
+  end subroutine families_expanded
+
+!######################################################################
+! align_ket: orthogonal Procrustes alignment of the ket MOs to the bra
+! MOs within the core, SOMO and virtual classes. For each class block
+! B = M[bra X, ket X] = V S W^T, U_X = W V^T makes B U_X symmetric
+! positive definite; M(:, ket X) <- M(:, ket X) U_X. Uh/Up: the hole /
+! particle rotations in the local orderings; sgn_o = det(U_O) (global
+! sign of the rotated reference determinants)
+!######################################################################
+  subroutine align_ket(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, info)
+
+    integer(is), intent(in)    :: nmo, nc, nocca, nvirb, hb(nocca), pb(nvirb), hk(nocca), pk(nvirb)
+    real(dp), intent(inout)    :: M(nmo,nmo)
+    real(dp), intent(out)      :: Uh(nocca,nocca), Up(nvirb,nvirb), sgn_o
+    integer(is), intent(out)   :: info
+
+    real(dp), allocatable :: Uc(:,:), Uo(:,:), Uv(:,:)
+    integer(is) :: nv
+
+    nv = nvirb - 2
+    allocate(Uc(nc,nc), Uo(2,2), Uv(nv,nv))
+    info = 0
+    call procrustes(nmo, nc, hb(1:nc), hk(1:nc), M, Uc, info)
+    if (info == 0) call procrustes(nmo, 2_is, hb(nc+1:nc+2), hk(nc+1:nc+2), M, Uo, info)
+    if (info == 0) call procrustes(nmo, nv, pb(3:nvirb), pk(3:nvirb), M, Uv, info)
+    Uh = 0.0_dp; Up = 0.0_dp
+    Uh(1:nc,1:nc) = Uc
+    Uh(nc+1:nc+2,nc+1:nc+2) = Uo
+    Up(1:2,1:2) = Uo
+    Up(3:nvirb,3:nvirb) = Uv
+    sgn_o = Uo(1,1)*Uo(2,2) - Uo(1,2)*Uo(2,1)
+    sgn_o = sign(1.0_dp, sgn_o)
+    deallocate(Uc, Uo, Uv)
+
+  end subroutine align_ket
+
+  subroutine procrustes(nmo, n, rows, cols, M, U, info)
+
+    integer(is), intent(in)    :: nmo, n, rows(n), cols(n)
+    real(dp), intent(inout)    :: M(nmo,nmo)
+    real(dp), intent(out)      :: U(n,n)
+    integer(is), intent(out)   :: info
+
+    real(dp), allocatable :: B(:,:), Usv(:,:), VT(:,:), sv(:), work(:), tmp(:,:), tmp2(:,:)
+    integer(is) :: i, j, lwork
+
+    info = 0
+    if (n == 0) return
+    allocate(B(n,n), Usv(n,n), VT(n,n), sv(n), tmp(nmo,n), tmp2(nmo,n))
+    do j = 1, n
+       do i = 1, n
+          B(i,j) = M(rows(i), cols(j))
+       enddo
+    enddo
+    lwork = max(1, 5*n)*n + 64*n
+    allocate(work(lwork))
+    call dgesvd('A', 'A', n, n, B, n, sv, Usv, n, VT, n, work, lwork, info)
+    if (info /= 0) then
+       deallocate(B, Usv, VT, sv, work, tmp, tmp2)
+       return
+    endif
+    ! U = W V^T = VT^T Usv^T
+    call dgemm('T','T', n, n, n, 1.0_dp, VT, n, Usv, n, 0.0_dp, U, n)
+    ! M(:, cols) <- M(:, cols) U
+    do j = 1, n
+       tmp(:,j) = M(:,cols(j))
+    enddo
+    call dgemm('N','N', nmo, n, n, 1.0_dp, tmp, nmo, U, n, 0.0_dp, tmp2, nmo)
+    do j = 1, n
+       M(:,cols(j)) = tmp2(:,j)
+    enddo
+    deallocate(B, Usv, VT, sv, work, tmp, tmp2)
+
+  end subroutine procrustes
 
 !######################################################################
 ! positions: posH(il) = rank (0-based) of hole il among the hole MOs,
@@ -747,13 +861,14 @@ module mrsf_overlap_interface
 
 contains
 
-  subroutine mrsf_state_overlap_c(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, nb, nk, &
+  subroutine mrsf_state_overlap_c(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, &
        Cb, Ck, Sao, xb, xk, S, ierr) bind(c, name='mrsf_state_overlap')
-    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, nb, nk
+    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, align, nb, nk
     real(dp), intent(in)     :: occ_b(*), occ_k(*), Cb(*), Ck(*), Sao(*), xb(*), xk(*)
     real(dp), intent(out)    :: S(*)
     integer(is), intent(out) :: ierr
-    call state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, nb, nk, Cb, Ck, Sao, xb, xk, S, ierr)
+    call state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, Cb, Ck, Sao, xb, xk, &
+         S, ierr)
   end subroutine mrsf_state_overlap_c
 
 end module mrsf_overlap_interface

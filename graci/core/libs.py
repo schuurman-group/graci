@@ -263,7 +263,7 @@ mrsf_registry = {
     'mrsf_zvec_factors'   : ['int32','dptr','dptr'],
     'mrsf_zvec_hessian'   : ['int32','double','dptr','dptr','logical','dptr'],
     # state overlaps between two geometries (stateless)
-    'mrsf_state_overlap'  : ['int32']*3 + ['dptr']*2 + ['int32']*4 + ['dptr']*6 + ['int32']
+    'mrsf_state_overlap'  : ['int32']*3 + ['dptr']*2 + ['int32']*5 + ['dptr']*6 + ['int32']
 }
 
 mrsf_intent = {
@@ -304,7 +304,7 @@ mrsf_intent = {
     'mrsf_zvec_free'      : [],
     'mrsf_zvec_factors'   : ['in']*2 + ['out'],
     'mrsf_zvec_hessian'   : ['in']*5 + ['out'],
-    'mrsf_state_overlap'  : ['in']*14 + ['out','out']
+    'mrsf_state_overlap'  : ['in']*15 + ['out','out']
 }
 
 # list of existing library objects

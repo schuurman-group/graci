@@ -190,6 +190,7 @@ overlap_kword   = {'bra_states'        : int,
                    'norm_thresh'       : float,
                    'det_thresh'        : float,
                    'mrsf_method'       : str,
+                   'mrsf_align'        : bool,
                    'verbose'           : bool,
                    'label'             : str}
 
