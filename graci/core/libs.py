@@ -241,7 +241,27 @@ mrsf_registry = {
     'mrsf_gfock'          : ['int32','double','int32'] + ['dptr']*8,
     'mrsf_jblocks'        : ['int32'] + ['dptr']*4,
     'mrsf_grad_state'     : ['double'] + ['dptr']*14,
-    'mrsf_grad_finish'    : ['double'] + ['dptr']*13
+    'mrsf_grad_finish'    : ['double'] + ['dptr']*13,
+    'mrsf_grad_reffam'    : ['double'] + ['dptr']*4,
+    # grid module: XC kernel on factor-pair densities
+    'mrsf_xc_init'        : ['int32']*7 + ['dptr']*5 + ['logical'],
+    'mrsf_xc_add_block'   : ['int32','dptr'],
+    'mrsf_xc_free'        : [],
+    'mrsf_xc_begin'       : ['int32','int32','dptr','dptr','int32'],
+    'mrsf_xc_block'       : ['int32','dptr'],
+    'mrsf_xc_cached'      : [],
+    'mrsf_xc_end'         : ['logical','logical','dptr','dptr'],
+    'mrsf_xc_probe_begin' : ['int32','int32','dptr','dptr','int32'],
+    'mrsf_xc_probe_block' : ['int32','int32','dptr'],
+    'mrsf_xc_probe_end'   : ['dptr'],
+    'mrsf_xc_timings'     : [],
+    'mrsf_aograd_block'   : ['int32']*4 + ['dptr']*6,
+    'mrsf_aograd_free'    : [],
+    'mrsf_aograd_timings' : [],
+    'mrsf_zvec_setup'     : ['int32','int32','dptr','dptr','dptr'],
+    'mrsf_zvec_free'      : [],
+    'mrsf_zvec_factors'   : ['int32','dptr','dptr'],
+    'mrsf_zvec_hessian'   : ['int32','double','dptr','dptr','logical','dptr']
 }
 
 mrsf_intent = {
@@ -262,7 +282,26 @@ mrsf_intent = {
     'mrsf_gfock'          : ['in']*7 + ['out']*4,
     'mrsf_jblocks'        : ['in']*2 + ['out']*3,
     'mrsf_grad_state'     : ['in']*2 + ['out']*13,
-    'mrsf_grad_finish'    : ['in']*9 + ['inout']*2 + ['in'] + ['out']*2
+    'mrsf_grad_finish'    : ['in']*9 + ['inout']*2 + ['in'] + ['out']*2,
+    'mrsf_grad_reffam'    : ['in']*3 + ['out']*2,
+    'mrsf_xc_init'        : ['in']*13,
+    'mrsf_xc_add_block'   : ['in']*2,
+    'mrsf_xc_free'        : [],
+    'mrsf_xc_begin'       : ['in']*5,
+    'mrsf_xc_block'       : ['in']*2,
+    'mrsf_xc_cached'      : [],
+    'mrsf_xc_end'         : ['in']*2 + ['out']*2,
+    'mrsf_xc_probe_begin' : ['in']*5,
+    'mrsf_xc_probe_block' : ['in']*3,
+    'mrsf_xc_probe_end'   : ['out'],
+    'mrsf_xc_timings'     : [],
+    'mrsf_aograd_block'   : ['in']*8 + ['inout','out'],
+    'mrsf_aograd_free'    : [],
+    'mrsf_aograd_timings' : [],
+    'mrsf_zvec_setup'     : ['in']*4 + ['out'],
+    'mrsf_zvec_free'      : [],
+    'mrsf_zvec_factors'   : ['in']*2 + ['out'],
+    'mrsf_zvec_hessian'   : ['in']*5 + ['out']
 }
 
 # list of existing library objects

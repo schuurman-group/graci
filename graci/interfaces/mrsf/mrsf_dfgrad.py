@@ -14,13 +14,11 @@ with Ghh^P etc. the L^-T rotated families.  The contribution to the gradient is
               + sum_{P in A,Q} (nabla_x P|Q) (gamma + gamma^T)_{PQ},  gamma = L^-T g L^-1.
 The derivative integrals are evaluated once per auxiliary block for all states.
 """
-import ctypes
 import numpy as np
 import scipy.linalg
-from pyscf import lib
-from pyscf.ao2mo import _ao2mo
 from pyscf.ao2mo.outcore import balance_partition
 from pyscf.df.grad.rhf import _int3c_wrapper
+import graci.core.libs as libs
 
 
 def rotate_aux(fam, L):
@@ -50,47 +48,47 @@ def df_grad_factorised(mol, auxmol, L, C_H, C_P, states, max_memory=2000):
         FP = rotate_aux(st['Fhp'], L)
         YfP = rotate_aux(st['Yf'], L)
         gam = Linv.T @ st['g'] @ Linv
-        L1 = 0.5*(np.einsum('mi,ijP->mjP', C_H, GhhP) + np.einsum('ma,jaP->mjP', C_P, FP))
-        L2 = np.einsum('ma,ajP->mjP', C_P, YfP)
+        # L1(mu,j,P) = 1/2 [C_H Ghh^P + C_P F^P^T], L2(mu,j,P) = C_P Yf^P  (dgemm on F-ordered views)
+        L1 = 0.5*(C_H @ GhhP.reshape(nocca, -1, order='F')).reshape(nao, nocca, naux, order='F')
+        FPt = np.asfortranarray(FP.transpose(1, 0, 2))                        # (a, j, P)
+        L1 = L1 + 0.5*(C_P @ FPt.reshape(C_P.shape[1], -1, order='F')).reshape(nao, nocca, naux, order='F')
+        L2 = (C_P @ YfP.reshape(C_P.shape[1], -1, order='F')).reshape(nao, nocca, naux, order='F')
         fams.append({'L': [np.asfortranarray(L1), np.asfortranarray(L2)],
                      'R': [R1, np.asfortranarray(C_P @ st['Xt'])],
+                     'active': [bool(np.any(L1)), bool(np.any(L2))],
                      'gam2': np.asfortranarray(gam + gam.T)})
         del GhhP, FP, YfP
 
-    blksize = int(min(max(max_memory*.5e6/8/(nao**2*3), 20), naux, 240))
-    ao_ranges = balance_partition(aux_loc, blksize)
+    # auxiliary blocks: the library holds ip1, its transpose and the
+    # unpacked ip2 block (3 x 3 nao^2 nP words) plus the half-transforms
+    nP_blk = int(max(8, min(naux, max_memory*1e6*0.4/(8.0*9*nao*nao))))
+    ao_ranges = balance_partition(aux_loc, nP_blk)
     get_ip1 = _int3c_wrapper(mol, auxmol, 'int3c2e_ip1', 's1')
-    get_ip2 = _int3c_wrapper(mol, auxmol, 'int3c2e_ip2', 's1')
-    fmmm = _ao2mo.libao2mo.AO2MOmmm_bra_nr_s1
-    fdrv = _ao2mo.libao2mo.AO2MOnr_e2_drv
-    ftrans = _ao2mo.libao2mo.AO2MOtranse2_nr_s1
-    null = lib.c_null_ptr()
-
-    t = np.zeros((nst, 3, nao))
+    get_ip2 = _int3c_wrapper(mol, auxmol, 'int3c2e_ip2', 's2ij')
+    # active (state, family) entries contracted together per block
+    flist = [(k, f) for k, fam in enumerate(fams) for f in range(2) if fam['active'][f]]
+    nf = len(flist)
+    Rf = np.empty((nao, nocca, nf), order='F')
+    for i, (k, f) in enumerate(flist):
+        Rf[:, :, i] = fams[k]['R'][f]
+    tf = np.zeros((nao, 3, nf), order='F')
     u = np.zeros((nst, 3, naux))
     for shl0, shl1, nL in ao_ranges:
         p0, p1 = aux_loc[shl0], aux_loc[shl1]
         nP = p1 - p0
-        ip1 = np.ascontiguousarray(get_ip1((0, nbas, 0, nbas, shl0, shl1)).transpose(0, 3, 2, 1))
-        ip2 = np.ascontiguousarray(get_ip2((0, nbas, 0, nbas, shl0, shl1)).transpose(0, 3, 2, 1))
-        M1 = np.empty((3, nP, nocca, nao))
-        N1 = np.empty((3, nP, nocca, nao))
-        for k, fam in enumerate(fams):
-            for f in range(2):
-                Rf, LfP = fam['R'][f], fam['L'][f][:, :, p0:p1]
-                LfC = np.ascontiguousarray(LfP.transpose(2, 1, 0))             # (P, o, mu)
-                fdrv(ftrans, fmmm, M1.ctypes.data_as(ctypes.c_void_p), ip1.ctypes.data_as(ctypes.c_void_p),
-                     Rf.ctypes.data_as(ctypes.c_void_p), ctypes.c_int(3*nP), ctypes.c_int(nao),
-                     (ctypes.c_int*4)(0, nocca, 0, nao), null, ctypes.c_int(0))
-                t[k] += np.einsum('xpom,pom->xm', M1, LfC, optimize=True)
-                LfK = np.ascontiguousarray(LfP.transpose(0, 2, 1)).reshape(nao*nP, nocca, order='F')
-                for x in range(3):
-                    M2 = ip1[x].reshape(nP*nao, nao).T @ LfK
-                    t[k, x] += np.einsum('mo,mo->m', M2, Rf)
-                fdrv(ftrans, fmmm, N1.ctypes.data_as(ctypes.c_void_p), ip2.ctypes.data_as(ctypes.c_void_p),
-                     Rf.ctypes.data_as(ctypes.c_void_p), ctypes.c_int(3*nP), ctypes.c_int(nao),
-                     (ctypes.c_int*4)(0, nocca, 0, nao), null, ctypes.c_int(0))
-                u[k, :, p0:p1] += 2.0*np.einsum('xpom,pom->xp', N1, LfC, optimize=True)
+        # libcint buffers are (nao, nao, nP, 3) / (npair, nP, 3) Fortran-ordered: no copy
+        ip1 = np.asfortranarray(get_ip1((0, nbas, 0, nbas, shl0, shl1)).transpose(1, 2, 3, 0))
+        ip2 = np.asfortranarray(get_ip2((0, nbas, 0, nbas, shl0, shl1)).transpose(1, 2, 0))
+        Lf = np.empty((nao, nocca, nP, nf), order='F')
+        for i, (k, f) in enumerate(flist):
+            Lf[:, :, :, i] = fams[k]['L'][f][:, :, p0:p1]
+        ublk = np.zeros((nP, 3, nf), order='F')
+        libs.lib_func('mrsf_aograd_block', (nao, nocca, nP, nf, ip1, ip2, Lf, Rf, tf, ublk))
+        for i, (k, f) in enumerate(flist):
+            u[k, :, p0:p1] += ublk[:, :, i].T
+    t = np.zeros((nst, 3, nao))
+    for i, (k, f) in enumerate(flist):
+        t[k] += tf[:, :, i].T
     ip2c = auxmol.intor('int2c2e_ip1', comp=3)
     aoslices = mol.aoslice_by_atom()[:, 2]
     auxslices = auxmol.aoslice_by_atom()[:, 2]

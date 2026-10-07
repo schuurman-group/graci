@@ -101,3 +101,45 @@ def finish(cx, st, Ta_loc, Xt, Za, Zb, occH, dims):
                   (float(cx), farr(st['dq']), farr(st['jT']), farr(Ta_loc), farr(Xt), farr(Za),
                    farr(Zb), st['Sq'], farr(occH), st['Ghh'], st['Fhp'], st['gpp'], g, pq))
     return g, pq
+
+
+def zvec_setup(nao, lz, fa, fb):
+    """rotation space, Fock couplings and diagonal of the Z-vector operator
+    in the library; returns the diagonal (lz)"""
+    hdiag = fzeros(lz)
+    libs.lib_func('mrsf_zvec_setup', (nao, lz, farr(fa), farr(fb), hdiag))
+    return hdiag
+
+
+def zvec_free():
+    libs.lib_func('mrsf_zvec_free', ())
+
+
+def zvec_factors(z, nao, nocca):
+    """AO factors C_P Z_s (nao, nocca, 2, nvec) of the trial densities of z (lz, nvec)"""
+    z = farr(z)
+    nvec = z.shape[1]
+    Lf = fzeros(nao, nocca, 2, nvec)
+    libs.lib_func('mrsf_zvec_factors', (nvec, z, Lf))
+    return Lf
+
+
+def zvec_hessian(cx, z, VHP, have_xc, lz):
+    """H z (lz, nvec); VHP: XC kernel HP blocks (nocca, nvirb, 2, nvec) of the trial densities"""
+    z = farr(z)
+    nvec = z.shape[1]
+    Hz = fzeros(lz, nvec)
+    libs.lib_func('mrsf_zvec_hessian', (nvec, float(cx), z, farr(VHP), bool(have_xc), Hz))
+    return Hz
+
+
+def aograd_free():
+    libs.lib_func('mrsf_aograd_free', ())
+
+
+def reffam(cx, dq, occH, dims):
+    """B-space families (Ghh, g) of the ROKS reference two-electron energy"""
+    nocca, nvirb, naux = dims
+    Ghh = fzeros(nocca, nocca, naux); g = fzeros(naux, naux)
+    libs.lib_func('mrsf_grad_reffam', (float(cx), farr(dq), farr(occH), Ghh, g))
+    return Ghh, g

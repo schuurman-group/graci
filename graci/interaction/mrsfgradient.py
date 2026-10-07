@@ -29,6 +29,9 @@ class Mrsfgradient:
         # include the quadrature-grid response in the reference (ROKS)
         # XC gradient (PySCF grid_response)
         self.grid_response = False
+        # memory budget (GB) for the cached AO values on the XC grid and
+        # the auxiliary blocks of the derivative-integral contraction
+        self.mem_budget    = 2.0
         self.verbose       = True
         self.label         = 'default'
 

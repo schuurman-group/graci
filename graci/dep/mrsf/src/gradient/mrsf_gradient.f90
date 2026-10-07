@@ -352,27 +352,41 @@ contains
        call dgemm('N','N', nvirb*nvirb, nvec, naux, 1.0_dp, Bvv, nvirb*nvirb, &
             jq, naux, 0.0_dp, JPP, nvirb*nvirb)
     else
-       JPP = 0.0_dp
-       do v = 1, nvec
-          !$omp parallel do private(a, k)
-          do b = 1, nvirb
-             do a = b+1, nvirb
-                do k = 1, nplane
-                   ! lower triangle of plane k: Q = 2k-1; upper: Q = 2k
-                   JPP(a,b,v) = JPP(a,b,v) + Bvv(a,b,k)*jq(2*k-1,v)
-                   if (2*k <= naux) JPP(a,b,v) = JPP(a,b,v) + Bvv(b,a,k)*jq(2*k,v)
-                enddo
-                JPP(b,a,v) = JPP(a,b,v)
-             enddo
-          enddo
-          !$omp end parallel do
-          do a = 1, nvirb
-             JPP(a,a,v) = 0.0_dp
-             do Q = 1, naux
-                JPP(a,a,v) = JPP(a,a,v) + Dall(Q,Pmap(a))*jq(Q,v)
-             enddo
-          enddo
-       enddo
+       ! paired planes: plane k holds B^{2k-1} (lower triangle, incl. the
+       ! diagonal) and B^{2k} (strict upper triangle). Two dgemms over the
+       ! planes give T1(a,b) = sum_k Bvv(a,b,k) jq(2k-1) and
+       ! T2(a,b) = sum_k Bvv(a,b,k) jq(2k); for a > b the lower element of
+       ! J is T1(a,b) + T2(b,a).
+       block
+         real(dp), allocatable :: jodd(:,:), jeven(:,:), T1(:,:,:), T2(:,:,:)
+         allocate(jodd(nplane,nvec), jeven(nplane,nvec), source=0.0_dp)
+         allocate(T1(nvirb,nvirb,nvec), T2(nvirb,nvirb,nvec))
+         do k = 1, nplane
+            jodd(k,:) = jq(2*k-1,:)
+            if (2*k <= naux) jeven(k,:) = jq(2*k,:)
+         enddo
+         call dgemm('N','N', nvirb*nvirb, nvec, nplane, 1.0_dp, Bvv, nvirb*nvirb, &
+              jodd, nplane, 0.0_dp, T1, nvirb*nvirb)
+         call dgemm('N','N', nvirb*nvirb, nvec, nplane, 1.0_dp, Bvv, nvirb*nvirb, &
+              jeven, nplane, 0.0_dp, T2, nvirb*nvirb)
+         do v = 1, nvec
+            !$omp parallel do private(a)
+            do b = 1, nvirb
+               do a = b+1, nvirb
+                  JPP(a,b,v) = T1(a,b,v) + T2(b,a,v)
+                  JPP(b,a,v) = JPP(a,b,v)
+               enddo
+            enddo
+            !$omp end parallel do
+            do a = 1, nvirb
+               JPP(a,a,v) = 0.0_dp
+               do Q = 1, naux
+                  JPP(a,a,v) = JPP(a,a,v) + Dall(Q,Pmap(a))*jq(Q,v)
+               enddo
+            enddo
+         enddo
+         deallocate(jodd, jeven, T1, T2)
+       end block
     endif
 
   end subroutine jblocks
@@ -562,5 +576,33 @@ contains
     deallocate(ZT, ZaT, ZbT, W, Wb, WF)
 
   end subroutine grad_finish
+
+!######################################################################
+! grad_reffam: B-space families of the ROKS reference two-electron
+! energy  E = 1/2 (D_t J[D_t]) - cx/2 sum_s (D^s K[D^s]):
+!   Ghh^Q = dq(Q)/2 diag(occ_H) - cx/2 [B^Q_HH + B^Q_CC]   (alpha: 1_H, beta: 1_C)
+!   g(Q,Q') = sum_HH B^Q Ghh^Q'
+!######################################################################
+  subroutine grad_reffam(cx, dq, occH, Ghh, g)
+
+    real(dp), intent(in)  :: cx, dq(naux), occH(nocca)
+    real(dp), intent(out) :: Ghh(nocca,nocca,naux), g(naux,naux)
+    integer(is) :: Q, i, j
+
+    do Q = 1, naux
+       Ghh(:,:,Q) = -0.5_dp*cx*BooQ(:,:,Q)
+       do j = 1, nC
+          do i = 1, nC
+             Ghh(i,j,Q) = Ghh(i,j,Q) - 0.5_dp*cx*BooQ(i,j,Q)
+          enddo
+       enddo
+       do i = 1, nocca
+          Ghh(i,i,Q) = Ghh(i,i,Q) + 0.5_dp*dq(Q)*occH(i)
+       enddo
+    enddo
+    call dgemm('T','N', naux, naux, nocca*nocca, 1.0_dp, BooQ, nocca*nocca, Ghh, nocca*nocca, &
+         0.0_dp, g, naux)
+
+  end subroutine grad_reffam
 
 end module mrsf_gradient

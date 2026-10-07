@@ -572,6 +572,10 @@ def print_mrsfgradient_results(grad_obj, states, res):
                       'RHS {:.2f}, Z-vector {:.2f}, families {:.2f}, '
                       'AO derivative contraction {:.2f}, 1e/XC {:.2f}'.format(
                           t.get('ref', 0.0), t['rhs'], t['zvec'], t['families'], t['2e_ao'], t['1e_xc']))
+        if 'xc_kernel' in t:
+            outfile.write('\n   of which XC grid kernel {:.2f} ({:d} calls), XC probe {:.2f}; AO values {:s}'.format(
+                          t['xc_kernel'], int(t['xc_calls']), t['xc_probe'],
+                          'cached' if t['xc_cached'] else 'streamed (raise mem_budget to cache)'))
         outfile.write('\n\n Gradient of the ROKS reference (Hartree/Bohr)')
         outfile.write('\n   Atom          x                y                z')
         for A in range(len(asym)):

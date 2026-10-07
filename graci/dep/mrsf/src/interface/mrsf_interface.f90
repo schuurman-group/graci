@@ -10,6 +10,7 @@ module mrsf_interface
   use mrsf_space
   use mrsf_integrals
   use mrsf_sigma
+  use mrsf_xcgrid, only: time_xc, nxc_calls, nxc_vecs, time_probe, nprobe_calls
   use mrsf_davidson
   use mrsf_density
 
@@ -253,22 +254,29 @@ contains
 
     real(dp) :: gflop
 
-    if (verbose .and. nsigma_calls > 0) then
+    if (verbose .and. (nsigma_calls > 0 .or. nxc_calls > 0)) then
        write(6,'(/,2x,a)') 'MRSF timings'
-       write(6,'(2x,a,f10.2,a)') 'integral ingestion : ', time_load, ' s'
-       write(6,'(2x,a,f10.2,a,i0,a,i0,a)') 'sigma vectors      : ', time_sigma, &
-            ' s (', nsigma_calls, ' calls, ', nsigma_vecs, ' vectors)'
-       write(6,'(2x,a,f10.2,a)') '  exchange term    : ', time_exch, ' s'
-       if (time_exch > 0.0_dp) then
-          gflop = 2.0_dp * real(naux,dp) * real(nvirb,dp) * real(nocca,dp) &
-               * real(nvirb + nocca,dp) * real(nsigma_vecs,dp) / 1.0e9_dp
-          write(6,'(2x,a,f10.1,a,f10.2,a)') '  exchange kernel  : ', gflop, &
-               ' GFLOP, ', gflop / time_exch, ' GFLOP/s'
+       if (nsigma_calls > 0) then
+          write(6,'(2x,a,f10.2,a)') 'integral ingestion : ', time_load, ' s'
+          write(6,'(2x,a,f10.2,a,i0,a,i0,a)') 'sigma vectors      : ', time_sigma, &
+               ' s (', nsigma_calls, ' calls, ', nsigma_vecs, ' vectors)'
+          write(6,'(2x,a,f10.2,a)') '  exchange term    : ', time_exch, ' s'
+          if (time_exch > 0.0_dp) then
+             gflop = 2.0_dp * real(naux,dp) * real(nvirb,dp) * real(nocca,dp) &
+                  * real(nvirb + nocca,dp) * real(nsigma_vecs,dp) / 1.0e9_dp
+             write(6,'(2x,a,f10.1,a,f10.2,a)') '  exchange kernel  : ', gflop, &
+                  ' GFLOP, ', gflop / time_exch, ' GFLOP/s'
+          endif
        endif
+       if (nxc_calls > 0) write(6,'(2x,a,f10.2,a,i0,a,i0,a)') 'xc kernel (grid)   : ', time_xc, &
+            ' s (', nxc_calls, ' calls, ', nxc_vecs, ' vectors)'
+       if (nprobe_calls > 0) write(6,'(2x,a,f10.2,a,i0,a)') 'xc probe (grid)    : ', time_probe, &
+            ' s (', nprobe_calls, ' calls)'
     endif
 
     time_load = 0.0_dp; time_sigma = 0.0_dp; time_exch = 0.0_dp
     nsigma_calls = 0; nsigma_vecs = 0
+    time_xc = 0.0_dp; nxc_calls = 0; nxc_vecs = 0; time_probe = 0.0_dp; nprobe_calls = 0
 
   end subroutine report_timings
 

@@ -102,12 +102,19 @@ are printed, stored in the checkpoint file (`Mrsfgradient.<label>`:
 with `gextract <chkpt> -grad <label>` (see examples/ch2o_mrsf_gradient). The implementation solves one
 Z-vector equation per state (block preconditioned conjugate gradients on
 the ROKS orbital Hessian; `zvec_tol` (1e-8), `zvec_iter` (100),
-`zvec_solver = pcg|dense`), evaluates all MO-space two-electron
-contractions with the density-fitted integrals of the MRSF library, and
-uses PySCF for the AO derivative integrals, the XC terms and the
-reference ROKS gradient. The XC quadrature grid is treated as fixed for
-the response term (the ROKS reference part can include the grid
-response with `grid_response = True`); the resulting error is of the
-order of 1e-5 Hartree/Bohr at the default grid level and vanishes with
-finer grids. Requirements: `precision = double`, the full MO space
-(`mo_cutoff` not truncating), global hybrid or HF functionals.
+`zvec_solver = pcg|dense`) and evaluates everything but the integral
+and functional-derivative evaluation inside the MRSF library: the
+MO-space two-electron contractions with the density-fitted integrals, the
+Z-vector operator, the XC kernel and the XC gradient terms on the
+quadrature grid (hole-width factor pairs, no AO matrices) and the
+contraction of the derivative integrals with the three-index densities.
+PySCF supplies the AO derivative integrals, the grid and the libxc
+derivatives. `mem_budget` (GB, 2.0) bounds the cached AO values on the
+grid (re-evaluated block by block when they do not fit) and the
+auxiliary blocks of the derivative-integral contraction. The XC
+quadrature grid is treated as fixed for the response term (the ROKS
+reference part can include the grid response with
+`grid_response = True`); the resulting error is of the order of 1e-5
+Hartree/Bohr at the default grid level and vanishes with finer grids.
+Requirements: `precision = double`, the full MO space (`mo_cutoff` not
+truncating), global hybrid or HF functionals.

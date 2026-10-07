@@ -75,4 +75,10 @@ contains
     call grad_finish(cx1, dq1, jT1, Ta1, Xt1, Za1, Zb1, Sq1, occH1, Ghh1, Fhp1, gpp1, g1, pq1)
   end subroutine mrsf_grad_finish_c
 
+  subroutine mrsf_grad_reffam_c(cx1, dq1, occH1, Ghh1, g1) bind(c, name='mrsf_grad_reffam')
+    real(dp), intent(in)  :: cx1, dq1(naux), occH1(nocca)
+    real(dp), intent(out) :: Ghh1(nocca,nocca,naux), g1(naux,naux)
+    call grad_reffam(cx1, dq1, occH1, Ghh1, g1)
+  end subroutine mrsf_grad_reffam_c
+
 end module mrsf_grad_interface
