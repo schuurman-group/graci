@@ -175,7 +175,7 @@ contains
              if (k > nplane) exit
              Q  = 2*k - 1
              Ql = 2*kk - 1
-             call plane_apply(nvec, Bvv(1,1,k), Z, Q, Ql, ldT, dd)
+             call plane_apply(nocca*nvec, Bvv(1,1,k), Z, Q, Ql, ldT, dd)
           enddo
        endif
        do v = 1, nvec
@@ -467,7 +467,7 @@ contains
              if (k > nplane) exit
              Q  = 2*k - 1
              Ql = 2*kk - 1
-             call plane_apply(1_is, Bvv(1,1,k), Xt, Q, Ql, ldT, dd)
+             call plane_apply(nocca, Bvv(1,1,k), Xt, Q, Ql, ldT, dd)
           enddo
        endif
        do Ql = 1, nQb

@@ -301,10 +301,18 @@ def print_mrsftddft_states(ci_method):
                       +', spin-pair couplings: '
                       +', '.join('{:6.4f}'.format(x) for x in ci_method.spc_eff)
                       +'\n')
+        extended = bool(getattr(ci_method, 'extended', False))
         outfile.write(' Response space: nocc(alpha) = '+str(ci_method.nocca)
                       +', nvirt(beta) = '+str(ci_method.nvirb)
                       +', dimension = '+str(ci_method.xdim)
                       +', naux = '+str(ci_method.naux)+'\n')
+        if extended:
+            outfile.write(' Extended MRSF-TDDFT: '+str(ci_method.ncv)
+                          +' core-to-virtual configurations of the closed-shell '
+                          +'configuration G added, c_cp = '
+                          +'{:6.4f}'.format(ci_method.ccp_eff)
+                          +(', XC kernel in the CV block' if ci_method.use_kernel
+                            else ', no XC kernel in the CV block')+'\n')
         for irrep in ci_method.irreps_nonzero():
             niter, iconv = ci_method.diag_info[irrep]
             outfile.write(' irrep '+str(irrlbl[irrep]).ljust(4)+': '
@@ -312,8 +320,9 @@ def print_mrsftddft_states(ci_method):
                           +str(niter)+' Davidson iterations'
                           +('' if iconv == 1 else ' (NOT CONVERGED)')+'\n')
 
+        gcol = '   gamma_CV' if extended else ''
         outfile.write('\n State  Sym      Energy (Ha)    dE_ref (eV)'
-                      '   dE_0 (eV)   Dominant amplitudes\n')
+                      '   dE_0 (eV)'+gcol+'   Dominant amplitudes\n')
         for i in range(n_tot):
             irr, st = ci_method.state_sym(i)
             e   = ci_method.energies[i]
@@ -322,11 +331,12 @@ def print_mrsftddft_states(ci_method):
                 ampstr = ''
             else:
                 ampstr = '  '.join('{:7.4f} {}'.format(c, l) for c, l in amp[:3])
-            outfile.write(' {:4d}  {:4s} {:16.10f} {:12.4f} {:12.4f}   {}\n'.format(
+            gstr = '   {:8.4f}'.format(ci_method.gamma_cv[i]) if extended else ''
+            outfile.write(' {:4d}  {:4s} {:16.10f} {:12.4f} {:12.4f}{}   {}\n'.format(
                 i+1, str(irrlbl[irr]), e, (e-e_ref)*constants.au2ev,
-                (e-e0)*constants.au2ev, ampstr))
+                (e-e0)*constants.au2ev, gstr, ampstr))
             for c, l in amp[3:]:
-                outfile.write(' '*55+'{:7.4f} {}\n'.format(c, l))
+                outfile.write(' '*(55 + (11 if extended else 0))+'{:7.4f} {}\n'.format(c, l))
         outfile.flush()
 
     return

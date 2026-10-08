@@ -1,0 +1,36 @@
+$molecule section
+ O   0.000000000   0.000000000  -0.041061554
+ H  -0.533194329   0.533194329  -0.614469223
+ H   0.533194329  -0.533194329  -0.614469223
+ basis   = 6-31g*
+ use_sym = True
+$end
+
+$scf section
+ charge = 0
+ mult   = 3
+ xc     = bhlyp
+$end
+
+$mrsftddft section
+ label    = singlets
+ mult     = 1
+ nstates  = [3 1 1 2]
+ extended = True
+$end
+
+$mrsftddft section
+ label    = triplets
+ mult     = 3
+ nstates  = [2 1 1 2]
+ extended = True
+$end
+
+$transition section
+ label          = singlets
+ init_label     = singlets
+ final_label    = singlets
+ init_states    = [1]
+ final_states   = [2:7]
+ print_orbitals = True
+$end

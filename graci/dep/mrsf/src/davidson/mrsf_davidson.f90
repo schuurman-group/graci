@@ -3,6 +3,8 @@
 ! the (symmetric) MRSF-TDDFT A matrix of one (multiplicity, irrep)
 ! block. Exact-diagonal preconditioner, locking of converged roots,
 ! re-orthogonalised Gram-Schmidt expansion, Ritz-vector collapse.
+! Vectors have xdim_tot entries (xdim for the standard method, xdim +
+! nvirb*nC with the extended CV columns).
 !**********************************************************************
 module mrsf_davidson
 
@@ -32,7 +34,7 @@ contains
     integer(is), intent(in)    :: mult, irrep, nextra, maxvec_in, maxiter
     integer(is), intent(inout) :: nroots
     real(dp), intent(in)       :: tol
-    real(dp), intent(out)      :: ener(*), vecs(xdim,*)
+    real(dp), intent(out)      :: ener(*), vecs(xdim_tot,*)
     integer(is), intent(out)   :: niter, iconv
 
     integer(is), allocatable :: act(:), idx(:)
@@ -40,17 +42,18 @@ contains
     real(dp), allocatable    :: R(:,:), AR(:,:), res(:,:), rnorm(:), dnew(:,:), ovl(:,:)
     real(dp), allocatable    :: dtmp(:)
     integer(is)              :: nact, nsolve, maxvec, currdim, ist, iend, nnew, nkept
-    integer(is)              :: ia, a, i, k, l, iter, lwork, info, kmin
+    integer(is)              :: ia, a, i, k, l, iter, lwork, info, kmin, ndim
     real(dp)                 :: denom, rmax, dnorm, proj, dmin
     logical                  :: collapsed
 
     iconv = 0
     niter = 0
+    ndim  = xdim_tot
 
     ! active slots
-    allocate(act(xdim))
+    allocate(act(ndim))
     nact = 0
-    do i = 1, nocca
+    do i = 1, ncol
        do a = 1, nvirb
           if (slot_active(mult, irrep, a, i)) then
              nact = nact + 1
@@ -68,14 +71,14 @@ contains
     maxvec = max(maxvec_in, 2*nsolve)
     maxvec = min(maxvec, nact)
 
-    allocate(d(xdim), V(xdim,maxvec), AV(xdim,maxvec), G(maxvec,maxvec), Gc(maxvec,maxvec))
-    allocate(theta(maxvec), R(xdim,nsolve), AR(xdim,nsolve), res(xdim,nsolve))
-    allocate(rnorm(nsolve), dnew(xdim,nsolve), ovl(maxvec,nsolve), dtmp(nact), idx(nsolve))
+    allocate(d(ndim), V(ndim,maxvec), AV(ndim,maxvec), G(maxvec,maxvec), Gc(maxvec,maxvec))
+    allocate(theta(maxvec), R(ndim,nsolve), AR(ndim,nsolve), res(ndim,nsolve))
+    allocate(rnorm(nsolve), dnew(ndim,nsolve), ovl(maxvec,nsolve), dtmp(nact), idx(nsolve))
     V = 0.0_dp; AV = 0.0_dp; G = 0.0_dp
 
     ! diagonal and preconditioner
     call diagonal(mult, d)
-    do ia = 1, xdim
+    do ia = 1, ndim
        if (slot_irrep(ia) /= irrep .and. irrep >= 0) d(ia) = 1.0e20_dp
     enddo
 
@@ -119,7 +122,7 @@ contains
        call sigma_batch(nnew, mult, irrep, V(:,ist:iend), AV(:,ist:iend))
 
        ! subspace matrix update
-       call dgemm('T','N', currdim, nnew, xdim, 1.0_dp, V, xdim, AV(1,ist), xdim, &
+       call dgemm('T','N', currdim, nnew, ndim, 1.0_dp, V, ndim, AV(1,ist), ndim, &
             0.0_dp, G(1,ist), maxvec)
        do k = ist, iend
           do l = 1, currdim
@@ -138,8 +141,8 @@ contains
        if (info /= 0) call mrsf_error('dsyev failed in the Davidson solver')
 
        ! Ritz vectors and residuals
-       call dgemm('N','N', xdim, nsolve, currdim, 1.0_dp, V, xdim, Gc, maxvec, 0.0_dp, R, xdim)
-       call dgemm('N','N', xdim, nsolve, currdim, 1.0_dp, AV, xdim, Gc, maxvec, 0.0_dp, AR, xdim)
+       call dgemm('N','N', ndim, nsolve, currdim, 1.0_dp, V, ndim, Gc, maxvec, 0.0_dp, R, ndim)
+       call dgemm('N','N', ndim, nsolve, currdim, 1.0_dp, AV, ndim, Gc, maxvec, 0.0_dp, AR, ndim)
        do k = 1, nsolve
           res(:,k) = AR(:,k) - theta(k) * R(:,k)
           rnorm(k) = sqrt(dot_product(res(:,k), res(:,k)))
@@ -187,8 +190,8 @@ contains
 
        ! orthogonalise the corrections against the subspace (twice)
        do k = 1, 2
-          call dgemm('T','N', currdim, nnew, xdim, 1.0_dp, V, xdim, dnew, xdim, 0.0_dp, ovl, maxvec)
-          call dgemm('N','N', xdim, nnew, currdim, -1.0_dp, V, xdim, ovl, maxvec, 1.0_dp, dnew, xdim)
+          call dgemm('T','N', currdim, nnew, ndim, 1.0_dp, V, ndim, dnew, ndim, 0.0_dp, ovl, maxvec)
+          call dgemm('N','N', ndim, nnew, currdim, -1.0_dp, V, ndim, ovl, maxvec, 1.0_dp, dnew, ndim)
        enddo
 
        ! modified Gram-Schmidt among the corrections, drop small vectors
@@ -213,7 +216,7 @@ contains
     enddo
 
     ener(1:nroots) = theta(1:nroots)
-    vecs(1:xdim,1:nroots) = R(:,1:nroots)
+    vecs(1:ndim,1:nroots) = R(:,1:nroots)
 
     if (verbose) then
        if (iconv == 1) then

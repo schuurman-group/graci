@@ -1,0 +1,56 @@
+$molecule section
+ label   = geom1
+ O   0.000000000   0.000000000  -0.041061554
+ H  -0.533194329   0.533194329  -0.614469223
+ H   0.533194329  -0.533194329  -0.614469223
+ basis   = 6-31g*
+ use_sym = False
+$end
+
+$molecule section
+ label   = geom2
+ O   0.000000000   0.000000000  -0.041061554
+ H  -0.513194329   0.533194329  -0.614469223
+ H   0.533194329  -0.533194329  -0.614469223
+ basis   = 6-31g*
+ use_sym = False
+$end
+
+$scf section
+ label     = scf1
+ mol_label = geom1
+ charge    = 0
+ mult      = 3
+ xc        = bhlyp
+$end
+
+$scf section
+ label     = scf2
+ mol_label = geom2
+ charge    = 0
+ mult      = 3
+ xc        = bhlyp
+$end
+
+$mrsftddft section
+ label     = singlets1
+ scf_label = scf1
+ mult      = 1
+ nstates   = [4]
+$end
+
+$mrsftddft section
+ label     = singlets2
+ scf_label = scf2
+ mult      = 1
+ nstates   = [4]
+$end
+
+$overlap section
+ label       = s1s2
+ bra_label   = singlets1
+ ket_label   = singlets2
+ bra_states  = [1:4]
+ ket_states  = [1:4]
+ mrsf_method = tlf2
+$end

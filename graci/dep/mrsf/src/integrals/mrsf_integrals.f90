@@ -8,6 +8,7 @@
 !   Dall(naux,nmo): diagonals B^Q_pp
 !   Boo(nQ,nocca,nocca,nblk): hole-hole block, Q-blocked
 !   Bco(naux,nC,2), Bvo(naux,nV,2): SOMO slices
+!   Bcv(nvirb,nC,naux): particle-core block (extended method only)
 ! plus the pairing-strength blocks G, M, N and the diagonal.
 !**********************************************************************
 module mrsf_integrals
@@ -31,7 +32,7 @@ contains
     character(len=*), intent(in) :: fname, prec, vvstore
     real(dp), intent(in)         :: budget_bytes
 
-    integer(is)           :: unit, dims(2), nrec, cpr, irec, c0, c1, ncol
+    integer(is)           :: unit, dims(2), nrec, cpr, irec, c0, c1, ncol1
     integer(is)           :: n_ij, nv_est, p, q, ij
     logical               :: exists
     real(dp), allocatable :: buf(:,:)
@@ -44,10 +45,11 @@ contains
 
     ! reuse the loaded integrals if the key (file, precision, storage,
     ! orbital classes) is unchanged: only the Fock-dependent diagonal
-    ! has to be rebuilt
+    ! has to be rebuilt (and the CV block loaded if newly needed)
     if (ints_loaded .and. ints_match(fname, prec, vvstore)) then
        if (verbose) write(6,'(/,2x,a)') 'MRSF integrals already loaded: reusing them'
        call build_diag0()
+       if (extended .and. .not. allocated(Bcv)) call load_bcv_pass(fname)
        return
     endif
 
@@ -56,6 +58,8 @@ contains
 
     store_sp = (trim(prec) == 'single')
     vv_full  = (trim(vvstore) == 'full')
+    if (extended .and. store_sp) &
+         call mrsf_error('the extended method requires double-precision integrals')
 
     ! header: dimensions, number of records, columns per record
     call freeunit(unit)
@@ -69,10 +73,10 @@ contains
     read(unit) nrec
     read(unit) cpr
 
-    ! block structure
+    ! block structure (the T buffer holds ncol columns per vector)
     nplane = (naux + 1) / 2
     nv_est = 16
-    rq = budget_bytes / (8.0_dp * real(nvirb,dp) * real(nocca,dp) * real(nv_est,dp))
+    rq = budget_bytes / (8.0_dp * real(nvirb,dp) * real(ncol,dp) * real(nv_est,dp))
     if (rq > real(naux + 2, dp)) then
        nQ = naux + mod(naux, 2_is)
     else
@@ -114,6 +118,7 @@ contains
     allocate(Dall(naux,nmo), source=0.0_dp)
     allocate(Bco(naux,max(nC,1_is),2), source=0.0_dp)
     allocate(Bvo(naux,max(nV,1_is),2), source=0.0_dp)
+    if (extended) allocate(Bcv(nvirb,max(nC,1_is),naux), source=0.0_dp)
 
     if (verbose) then
        gb = real(nvirb,dp)**2 * real(merge(naux, nplane, vv_full),dp) &
@@ -122,22 +127,24 @@ contains
        write(6,'(2x,a,i0,a,i0,a,i0)') 'naux = ', naux, ', nplane = ', nplane, &
             ', Q-block size = ', nQ
        write(6,'(2x,a,f8.3,a)') 'vir-vir planes: ', gb, ' GB'
+       if (extended) write(6,'(2x,a,f8.3,a)') 'particle-core block (extended): ', &
+            8.0_dp*real(nvirb,dp)*real(nC,dp)*real(naux,dp)/1.0e9_dp, ' GB'
     endif
 
     ! stream the records
     allocate(buf(naux,cpr))
     if (store_sp .or. trim(prec) == 'single') allocate(buf_sp(naux,cpr))
     do irec = 1, nrec
-       c0   = (irec-1)*cpr + 1
-       c1   = min(irec*cpr, n_ij)
-       ncol = c1 - c0 + 1
+       c0    = (irec-1)*cpr + 1
+       c1    = min(irec*cpr, n_ij)
+       ncol1 = c1 - c0 + 1
        if (trim(prec) == 'single') then
-          read(unit) buf_sp(1:naux, 1:ncol)
-          buf(1:naux,1:ncol) = real(buf_sp(1:naux,1:ncol), dp)
+          read(unit) buf_sp(1:naux, 1:ncol1)
+          buf(1:naux,1:ncol1) = real(buf_sp(1:naux,1:ncol1), dp)
        else
-          read(unit) buf(1:naux, 1:ncol)
+          read(unit) buf(1:naux, 1:ncol1)
        endif
-       call scatter_record(c0, ncol, buf)
+       call scatter_record(c0, ncol1, buf)
     enddo
     close(unit)
     deallocate(buf)
@@ -176,18 +183,22 @@ contains
     if (nmo /= loaded_nmo) return
     if (.not. allocated(loaded_occ)) return
     if (maxval(abs(occ - loaded_occ)) > 1.0e-6_dp) return
+    ! the T buffer / Q-blocking was sized for the loaded column count
+    if (extended .and. nQ < naux .and. ncol > nocca) then
+       if (8.0_dp*real(nvirb,dp)*real(nQ,dp)*real(ncol,dp)*16.0_dp > 1.5_dp*mem_budget) return
+    endif
     same = .true.
 
   end function ints_match
 
 !######################################################################
-! scatter_record: scatter one record (all Q, columns c0..c0+ncol-1 of
+! scatter_record: scatter one record (all Q, columns c0..c0+ncol1-1 of
 ! the packed tensor) into the run-time layouts
 !######################################################################
-  subroutine scatter_record(c0, ncol, buf)
+  subroutine scatter_record(c0, ncol1, buf)
 
-    integer(is), intent(in) :: c0, ncol
-    real(dp), intent(in)    :: buf(naux, ncol)
+    integer(is), intent(in) :: c0, ncol1
+    real(dp), intent(in)    :: buf(naux, ncol1)
 
     integer(is), parameter  :: ktile = 32
     integer(is) :: kt, k1, jc, ij, p, q, a, b, i, j, k, iq, blk, Ql, x, y, tmp
@@ -199,7 +210,7 @@ contains
     do kt = 1, nk, ktile
        k1 = min(kt + ktile - 1, nk)
        !$omp parallel do private(jc, ij, p, q, a, b, k, tmp) schedule(static, 16)
-       do jc = 1, ncol
+       do jc = 1, ncol1
           ij = c0 + jc - 1
           p  = pair_p(ij)
           q  = pair_q(ij)
@@ -238,9 +249,9 @@ contains
        !$omp end parallel do
     enddo
 
-    ! diagonals, hole-hole block, SOMO slices
-    !$omp parallel do private(jc, ij, p, q, i, j, iq, blk, Ql, x, y) schedule(static, 16)
-    do jc = 1, ncol
+    ! diagonals, hole-hole block, SOMO slices, particle-core block
+    !$omp parallel do private(jc, ij, p, q, i, j, iq, blk, Ql, x, y, a, b) schedule(static, 16)
+    do jc = 1, ncol1
        ij = c0 + jc - 1
        p  = pair_p(ij)
        q  = pair_q(ij)
@@ -268,10 +279,86 @@ contains
        ! virtual-SOMO
        if (x > 0 .and. Pinv(q) > 2) Bvo(:,Pinv(q)-2,x) = buf(:,jc)
        if (y > 0 .and. Pinv(p) > 2) Bvo(:,Pinv(p)-2,y) = buf(:,jc)
+       ! particle-core (extended)
+       if (extended) then
+          a = Pinv(p)
+          if (a > 0 .and. j > 0 .and. j <= nC) Bcv(a,j,:) = buf(:,jc)
+          b = Pinv(q)
+          if (b > 0 .and. i > 0 .and. i <= nC) Bcv(b,i,:) = buf(:,jc)
+       endif
     enddo
     !$omp end parallel do
 
   end subroutine scatter_record
+
+!######################################################################
+! load_bcv_pass: second streaming pass over the file collecting only
+! the particle-core block (integrals already resident from a
+! non-extended section)
+!######################################################################
+  subroutine load_bcv_pass(fname)
+
+    character(len=*), intent(in) :: fname
+
+    integer(is)           :: unit, dims(2), nrec, cpr, irec, c0, c1, ncol1
+    integer(is)           :: n_ij, p, q, ij, jc, a, b, i, j
+    integer(is), allocatable :: ptab(:), qtab(:)
+    real(dp), allocatable :: buf(:,:)
+    logical               :: exists
+    real(dp)              :: t0
+
+    t0 = wall_time()
+    if (.not. ints_loaded) call mrsf_error('load_bcv_pass: integrals not loaded')
+    if (store_sp) call mrsf_error('the extended method requires double-precision integrals')
+    inquire(file=trim(fname), exist=exists)
+    if (.not. exists) call mrsf_error('integral file not found: '//trim(fname))
+
+    if (allocated(Bcv)) deallocate(Bcv)
+    allocate(Bcv(nvirb,max(nC,1_is),naux), source=0.0_dp)
+
+    n_ij = nmo*(nmo+1)/2
+    allocate(ptab(n_ij), qtab(n_ij))
+    ij = 0
+    do p = 1, nmo
+       do q = 1, p
+          ij = ij + 1
+          ptab(ij) = p
+          qtab(ij) = q
+       enddo
+    enddo
+
+    call freeunit(unit)
+    open(unit, file=trim(fname), form='unformatted', status='old')
+    read(unit) dims(1)
+    read(unit) dims(2)
+    if (dims(1) /= naux .or. dims(2) /= n_ij) then
+       close(unit)
+       call mrsf_error('load_bcv_pass: integral file does not match the loaded integrals')
+    endif
+    read(unit) nrec
+    read(unit) cpr
+    allocate(buf(naux,cpr))
+    do irec = 1, nrec
+       c0    = (irec-1)*cpr + 1
+       c1    = min(irec*cpr, n_ij)
+       ncol1 = c1 - c0 + 1
+       read(unit) buf(1:naux, 1:ncol1)
+       !$omp parallel do private(ij, p, q, a, b, i, j)
+       do jc = 1, ncol1
+          ij = c0 + jc - 1
+          p = ptab(ij); q = qtab(ij)
+          a = Pinv(p); j = Hinv(q)
+          if (a > 0 .and. j > 0 .and. j <= nC) Bcv(a,j,:) = buf(:,jc)
+          b = Pinv(q); i = Hinv(p)
+          if (b > 0 .and. i > 0 .and. i <= nC) Bcv(b,i,:) = buf(:,jc)
+       enddo
+       !$omp end parallel do
+    enddo
+    close(unit)
+    deallocate(buf, ptab, qtab)
+    if (verbose) write(6,'(2x,a,f10.2,a)') 'particle-core block loaded in ', wall_time() - t0, ' s'
+
+  end subroutine load_bcv_pass
 
 !######################################################################
 ! somo_index: 1 for O1, 2 for O2, 0 otherwise
@@ -367,6 +454,7 @@ contains
     if (allocated(Boo_sp)) deallocate(Boo_sp)
     if (allocated(Bco)) deallocate(Bco)
     if (allocated(Bvo)) deallocate(Bvo)
+    if (allocated(Bcv)) deallocate(Bcv)
     if (allocated(Gp)) deallocate(Gp, Mp, Np, Hp)
     if (allocated(diag0)) deallocate(diag0)
     if (allocated(Twork)) deallocate(Twork)

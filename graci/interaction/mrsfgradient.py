@@ -74,6 +74,9 @@ class Mrsfgradient:
 
         if type(ci).__name__ != 'Mrsftddft':
             sys.exit('$mrsfgradient: mrsf_label must refer to an $mrsftddft section')
+        if getattr(ci, 'extended', False):
+            sys.exit('$mrsfgradient: gradients are not yet available for the '
+                     'extended MRSF-TDDFT method')
         self.ci = ci
 
         output.print_mrsfgradient_header(self.label)

@@ -87,6 +87,32 @@ natural orbitals and moments are produced as for DFT/MRCI, and the
 multiplicity (see examples/h2o_mrsf). Range-separated functionals and
 spin-orbit coupling are not yet supported.
 
+Extended MRSF-TDDFT (EMRSF-TDDFT, Oh, Kim, Jung, Choi and Lee, ChemRxiv
+2026, doi 10.26434/chemrxiv.15000818) adds the core-to-virtual (CV)
+configurations of the closed-shell configuration G = |C O1^2| (the
+excitations present in linear-response TDDFT but absent from MRSF-TDDFT),
+which stabilise charge-transfer states. It is selected with
+`extended = True` in the `$mrsftddft` section; `ccp` scales the coupling
+block between the MRSF and CV configurations (default: the fraction of
+HF exchange, as in the paper). The CV block uses the closed-shell KS
+matrix of G evaluated with the triplet orbitals, corrected on its
+diagonal by (1 - c_HF)[(pp|O2O2) - (pp|O1O1)], the shift A_G of the paper
+and, for singlets, the XC kernel of the functional at the G density; the
+coupling block contains the exact Hamiltonian matrix elements between the
+MRSF and CV configuration state functions (the paper's eq. 8), scaled by
+`ccp`. Energies, amplitudes, the CV weight gamma_CV, state densities
+(natural orbitals, moments) and transition densities (oscillator
+strengths through `$transition` between two extended objects of the same
+multiplicity) are available. The densities are the expectation values
+<Psi_I|E_pq|Psi_J> of the expansion in MRSF and CV configuration state
+functions, as for MRSF-TDDFT. Overlaps and gradients are not yet
+available for extended objects. The kernel needs the AO
+values of the DFT grid cached in memory: `mem_budget` must cover
+8*ncomp*ngrid*(nao+nocc) bytes (about 1 GB for pyrazine/aug-cc-pVTZ at
+grid level 2; the run stops with the required value otherwise). The cost
+per sigma vector is about twice that of MRSF-TDDFT for HF or triplets and
+about four to five times with the kernel (see examples/h2o_mrsf_extended).
+
 Analytic nuclear gradients of MRSF-TDDFT states are requested with a
 `$mrsfgradient` section referring to an `$mrsftddft` section:
 

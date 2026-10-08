@@ -10,6 +10,7 @@ module mrsf_interface
   use mrsf_space
   use mrsf_integrals
   use mrsf_sigma
+  use mrsf_extended
   use mrsf_xcgrid, only: time_xc, nxc_calls, nxc_vecs, time_probe, nprobe_calls
   use mrsf_davidson
   use mrsf_density
@@ -17,6 +18,18 @@ module mrsf_interface
   implicit none
 
 contains
+
+!######################################################################
+! mrsf_set_extended: select the extended method (must precede
+! mrsf_initialise, which lays out the response vector)
+!######################################################################
+  subroutine mrsf_set_extended(flag1) bind(c, name='mrsf_set_extended')
+
+    logical(c_bool), intent(in) :: flag1
+
+    extended = logical(flag1)
+
+  end subroutine mrsf_set_extended
 
 !######################################################################
 ! mrsf_initialise
@@ -69,12 +82,18 @@ contains
        enddo
     enddo
 
+    ! the work buffer is laid out for the current column count
+    if (allocated(Twork)) deallocate(Twork)
+    nvmax = 0
+
     init_done = .true.
 
     if (verbose) then
        write(6,'(/,2x,a)') 'MRSF-TDDFT library initialised'
        write(6,'(2x,a,i0,a,i0,a,i0,a,i0)') 'nmo = ', nmo, ', nC = ', nC, &
             ', nV = ', nV, ', xdim = ', xdim
+       if (extended) write(6,'(2x,a,i0,a,i0)') 'extended method: CV slots = ', ncv, &
+            ', xdim_tot = ', xdim_tot
        write(6,'(2x,a,i0,a,i0)') 'SOMOs (MO indices): ', iO1, ', ', iO2
        write(6,'(2x,a,f8.4)') 'HF exchange fraction: ', chf
     endif
@@ -104,7 +123,30 @@ contains
   end subroutine mrsf_int_initialise
 
 !######################################################################
-! mrsf_get_dims
+! mrsf_ext_initialise: extended method data (after mrsf_int_initialise
+! and, if the kernel is used, after the grid initialisation)
+!   fdft1(nmo,nmo): closed-shell KS matrix of G in the MO basis
+!######################################################################
+  subroutine mrsf_ext_initialise(nmo1, fdft1, ccp1, use_kernel1, erifile1) &
+       bind(c, name='mrsf_ext_initialise')
+
+    integer(is), intent(in)            :: nmo1
+    real(dp), intent(in)               :: fdft1(nmo1,nmo1)
+    real(dp), intent(in)               :: ccp1
+    logical(c_bool), intent(in)        :: use_kernel1
+    character(kind=c_char), intent(in) :: erifile1(*)
+    character(len=255)                 :: erifile
+
+    if (nmo1 /= nmo) call mrsf_error('mrsf_ext_initialise: inconsistent nmo')
+    if (.not. extended) call mrsf_error('mrsf_ext_initialise: mrsf_set_extended not set')
+    call c2fstr(erifile1, erifile)
+    if (.not. allocated(Bcv)) call load_bcv_pass(erifile)
+    call ext_initialise(fdft1, ccp1, logical(use_kernel1))
+
+  end subroutine mrsf_ext_initialise
+
+!######################################################################
+! mrsf_get_dims: xdim1 is the full vector length (xdim_tot)
 !######################################################################
   subroutine mrsf_get_dims(nocca1, nvirb1, xdim1, naux1) bind(c, name='mrsf_get_dims')
 
@@ -112,10 +154,22 @@ contains
 
     nocca1 = nocca
     nvirb1 = nvirb
-    xdim1  = xdim
+    xdim1  = xdim_tot
     naux1  = naux
 
   end subroutine mrsf_get_dims
+
+!######################################################################
+! mrsf_get_ext_dims: column count and number of CV slots
+!######################################################################
+  subroutine mrsf_get_ext_dims(ncol1, ncv1) bind(c, name='mrsf_get_ext_dims')
+
+    integer(is), intent(out) :: ncol1, ncv1
+
+    ncol1 = ncol
+    ncv1  = ncv
+
+  end subroutine mrsf_get_ext_dims
 
 !######################################################################
 ! mrsf_diag: Davidson diagonalisation for one (irrep, mult) block
@@ -130,8 +184,9 @@ contains
     integer(is), intent(out)   :: niter1, iconv1
     real(dp)                   :: t0
 
-    if (xdim1 /= xdim) call mrsf_error('mrsf_diag: inconsistent xdim')
+    if (xdim1 /= xdim_tot) call mrsf_error('mrsf_diag: inconsistent xdim')
     if (imult1 /= 1 .and. imult1 /= 3) call mrsf_error('mrsf_diag: mult must be 1 or 3')
+    if (extended .and. .not. ext_ready) call mrsf_error('mrsf_diag: mrsf_ext_initialise not called')
 
     t0 = wall_time()
     call davidson_solve(imult1, irrep1, nroots1, nextra1, maxvec1, maxiter1, tol1, &
@@ -149,7 +204,8 @@ contains
     real(dp), intent(in)    :: x1(xdim1,nvec1)
     real(dp), intent(out)   :: ax1(xdim1,nvec1)
 
-    if (xdim1 /= xdim) call mrsf_error('mrsf_sigma: inconsistent xdim')
+    if (xdim1 /= xdim_tot) call mrsf_error('mrsf_sigma: inconsistent xdim')
+    if (extended .and. .not. ext_ready) call mrsf_error('mrsf_sigma: mrsf_ext_initialise not called')
     call sigma_batch(nvec1, imult1, irrep1, x1, ax1)
 
   end subroutine mrsf_sigma_c
@@ -162,18 +218,19 @@ contains
     integer(is), intent(in) :: imult1, xdim1
     real(dp), intent(out)   :: d1(xdim1)
 
-    if (xdim1 /= xdim) call mrsf_error('mrsf_diagonal: inconsistent xdim')
+    if (xdim1 /= xdim_tot) call mrsf_error('mrsf_diagonal: inconsistent xdim')
     call diagonal(imult1, d1)
 
   end subroutine mrsf_diagonal
 
 !######################################################################
-! mrsf_density: state 1-RDMs (spin-summed, MO basis)
+! mrsf_density: state 1-RDMs (spin-summed, MO basis); ncol1 = nocca
+! (standard) or nocca + nC (extended); arrays passed by address
 !######################################################################
-  subroutine mrsf_density_c(nmo1, occ1, imult1, xdim1, nroots1, xvec1, dmat1) &
+  subroutine mrsf_density_c(nmo1, occ1, imult1, ncol1, xdim1, nroots1, xvec1, dmat1) &
        bind(c, name='mrsf_density')
 
-    integer(is), intent(in) :: nmo1, imult1, xdim1, nroots1
+    integer(is), intent(in) :: nmo1, imult1, ncol1, xdim1, nroots1
     real(dp), intent(in)    :: occ1(nmo1), xvec1(xdim1,nroots1)
     real(dp), intent(out)   :: dmat1(nmo1,nmo1,nroots1)
     integer(is), allocatable :: ipairs(:,:)
@@ -183,8 +240,8 @@ contains
     do k = 1, nroots1
        ipairs(:,k) = k
     enddo
-    call tdm_pairs(nmo1, occ1, imult1, xdim1, nroots1, nroots1, nroots1, ipairs, &
-         xvec1, xvec1, dmat1, .true.)
+    call tdm_pairs(nmo1, occ1, imult1, ncol1, xdim1, nroots1, nroots1, nroots1, ipairs, &
+         xvec1, xvec1, dmat1)
     deallocate(ipairs)
 
   end subroutine mrsf_density_c
@@ -192,17 +249,16 @@ contains
 !######################################################################
 ! mrsf_tdm: 1-TDMs <bra|E_pq|ket> for pairs of states
 !######################################################################
-  subroutine mrsf_tdm(nmo1, occ1, imult1, xdim1, npairs1, nb1, nk1, ipairs1, xb1, xk1, &
+  subroutine mrsf_tdm(nmo1, occ1, imult1, ncol1, xdim1, npairs1, nb1, nk1, ipairs1, xb1, xk1, &
        rho1) bind(c, name='mrsf_tdm')
 
-    integer(is), intent(in) :: nmo1, imult1, xdim1, npairs1, nb1, nk1
+    integer(is), intent(in) :: nmo1, imult1, ncol1, xdim1, npairs1, nb1, nk1
     real(dp), intent(in)    :: occ1(nmo1)
     integer(is), intent(in) :: ipairs1(2,npairs1)
     real(dp), intent(in)    :: xb1(xdim1,nb1), xk1(xdim1,nk1)
     real(dp), intent(out)   :: rho1(nmo1,nmo1,npairs1)
 
-    call tdm_pairs(nmo1, occ1, imult1, xdim1, npairs1, nb1, nk1, ipairs1, xb1, xk1, &
-         rho1, .false.)
+    call tdm_pairs(nmo1, occ1, imult1, ncol1, xdim1, npairs1, nb1, nk1, ipairs1, xb1, xk1, rho1)
 
   end subroutine mrsf_tdm
 
@@ -238,6 +294,7 @@ contains
     if (allocated(slot_irrep)) deallocate(slot_irrep)
     if (allocated(FaHH)) deallocate(FaHH)
     if (allocated(FbPP)) deallocate(FbPP)
+    call ext_free()
     init_done = .false.
 
   end subroutine free_orbital_data
@@ -247,6 +304,7 @@ contains
     call report_timings()
     call free_ints()
     call free_orbital_data()
+    extended = .false.
 
   end subroutine mrsf_finalise_f
 
@@ -262,22 +320,54 @@ contains
                ' s (', nsigma_calls, ' calls, ', nsigma_vecs, ' vectors)'
           write(6,'(2x,a,f10.2,a)') '  exchange term    : ', time_exch, ' s'
           if (time_exch > 0.0_dp) then
-             gflop = 2.0_dp * real(naux,dp) * real(nvirb,dp) * real(nocca,dp) &
+             ! sweep: 2 naux nvirb^2 ncol + step 2: 2 naux nvirb nocca ncol per vector
+             gflop = 2.0_dp * real(naux,dp) * real(nvirb,dp) * real(ncol,dp) &
                   * real(nvirb + nocca,dp) * real(nsigma_vecs,dp) / 1.0e9_dp
              write(6,'(2x,a,f10.1,a,f10.2,a)') '  exchange kernel  : ', gflop, &
                   ' GFLOP, ', gflop / time_exch, ' GFLOP/s'
           endif
+          if (extended) then
+             write(6,'(2x,a,f10.2,a)') '  extended terms   : ', time_ext, ' s (Coulomb pass, couplings)'
+             if (nxcs_vecs > 0) then
+                gflop = (2.0_dp*real(nao_g_report(),dp)*real(nC,dp)*real(ncomp_report(),dp) &
+                     + 4.0_dp*real(nC,dp)*real(nao_g_report(),dp)) * real(ngrid_report(),dp) &
+                     * real(nxcs_vecs,dp) / 1.0e9_dp
+                write(6,'(2x,a,f10.2,a,i0,a,f10.1,a,f10.2,a)') '  CV kernel (grid) : ', time_xcs, &
+                     ' s (', nxcs_vecs, ' vectors, ', gflop, ' GFLOP dgemm, ', gflop/time_xcs, ' GFLOP/s)'
+             endif
+          endif
        endif
-       if (nxc_calls > 0) write(6,'(2x,a,f10.2,a,i0,a,i0,a)') 'xc kernel (grid)   : ', time_xc, &
-            ' s (', nxc_calls, ' calls, ', nxc_vecs, ' vectors)'
+       if (nxc_calls > 0 .and. .not. extended) write(6,'(2x,a,f10.2,a,i0,a,i0,a)') &
+            'xc kernel (grid)   : ', time_xc, ' s (', nxc_calls, ' calls, ', nxc_vecs, ' vectors)'
        if (nprobe_calls > 0) write(6,'(2x,a,f10.2,a,i0,a)') 'xc probe (grid)    : ', time_probe, &
             ' s (', nprobe_calls, ' calls)'
     endif
 
     time_load = 0.0_dp; time_sigma = 0.0_dp; time_exch = 0.0_dp
+    time_ext = 0.0_dp; time_xcs = 0.0_dp; nxcs_vecs = 0
     nsigma_calls = 0; nsigma_vecs = 0
     time_xc = 0.0_dp; nxc_calls = 0; nxc_vecs = 0; time_probe = 0.0_dp; nprobe_calls = 0
 
   end subroutine report_timings
+
+  ! grid dimensions for the kernel flop count (kept out of the use list
+  ! of mrsf_xcgrid to avoid name clashes)
+  function nao_g_report() result(n)
+    use mrsf_xcgrid, only: nao_g
+    integer(is) :: n
+    n = nao_g
+  end function nao_g_report
+
+  function ncomp_report() result(n)
+    use mrsf_xcgrid, only: ncomp
+    integer(is) :: n
+    n = ncomp
+  end function ncomp_report
+
+  function ngrid_report() result(n)
+    use mrsf_xcgrid, only: ngrid
+    integer(is) :: n
+    n = ngrid
+  end function ngrid_report
 
 end module mrsf_interface

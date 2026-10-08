@@ -47,6 +47,7 @@ module mrsf_xcgrid
   real(dp), allocatable    :: psiH(:)              ! hole MOs on the grid
   real(dp), allocatable    :: wgt(:)               ! (ngrid)
   real(dp), allocatable    :: fxcw(:,:,:,:,:)      ! (ndc,2,ndc,2,ngrid): w * fxc at (y,t,x,s,g)
+  real(dp), allocatable    :: fxcw_cs(:,:,:)       ! (ndc,ndc,ngrid): w * (f_aa + f_ab) (closed-shell mode)
   real(dp), allocatable    :: vxc(:,:,:)           ! (ngrid, ndc, 2)
   real(dp), allocatable    :: CHg(:,:), CPg(:,:)   ! (nao, nocca), (nao, nvirb)
   logical                  :: xc_ready = .false., ao_cached = .false.
@@ -62,6 +63,7 @@ module mrsf_xcgrid
   integer(is), parameter   :: d2idx(3,3) = reshape((/5,6,7, 6,8,9, 7,9,10/), (/3,3/))
   ! timings
   real(dp)                 :: time_xc = 0.0_dp, time_probe = 0.0_dp
+  real(dp)                 :: tcs(5) = 0.0_dp   ! closed-shell kernel: psiL, rho+wv, aow, projections, final
   integer(is)              :: nxc_calls = 0, nxc_vecs = 0, nprobe_calls = 0
   real(dp)                 :: tpart(6) = 0.0_dp   ! kernel: psi, rho, wv, aow, projection, misc
 
@@ -165,6 +167,7 @@ contains
     if (allocated(gbeg)) deallocate(gbeg, gend, aoff, poff)
     if (allocated(wgt)) deallocate(wgt)
     if (allocated(fxcw)) deallocate(fxcw)
+    if (allocated(fxcw_cs)) deallocate(fxcw_cs)
     if (allocated(vxc)) deallocate(vxc)
     if (allocated(aoc)) deallocate(aoc)
     if (allocated(psiH)) deallocate(psiH)
@@ -625,6 +628,149 @@ contains
   end subroutine probe_reduce
 
 !######################################################################
+! xc_closed_shell_init: pre-summed spin-free kernel array of the
+! closed-shell mode, fxcw_cs(y,x,g) = w (f_aa + f_ab)(y,x)
+!######################################################################
+  subroutine xc_closed_shell_init()
+
+    integer(is) :: g, x, y
+
+    if (.not. xc_ready) call mrsf_error('xc_closed_shell_init: grid not initialised')
+    if (allocated(fxcw_cs)) deallocate(fxcw_cs)
+    allocate(fxcw_cs(ndc,ndc,ngrid))
+    !$omp parallel do private(x,y)
+    do g = 1, ngrid
+       do x = 1, ndc
+          do y = 1, ndc
+             fxcw_cs(y,x,g) = fxcw(y,1,x,1,g) + fxcw(y,1,x,2,g)
+          enddo
+       enddo
+    enddo
+    !$omp end parallel do
+
+  end subroutine xc_closed_shell_init
+
+!######################################################################
+! xc_kernel_cv: closed-shell kernel of the extended method on a batch
+! of CV trial amplitudes.  X(nvirb,ncol,nvec) holds the vectors; the
+! CV columns nocca+1..ncol, rows 3..nvirb, are Y(b,j) (b in V, j in C).
+! Trial density rho_t = 2 sum_{jb} Y_bj phi_j phi_b = L R^T + R L^T with
+! L = C_V Y, R = C_C (the first nC cached hole MOs); with both spin
+! densities equal to rho_t the alpha potential is 2 (f_aa + f_ab) *
+! (.|jb) Y, so L is taken as C_V Y / 2 and
+!   Vcv(j,b,v) = (jb| f_aa + f_ab |ld) Y_ld.
+! Loop order block-outer, vector-inner: each cached AO block is read
+! once per batch; all elementwise work is on unit-stride grid vectors.
+!######################################################################
+  subroutine xc_kernel_cv(nvec, X, Vcv)
+
+    integer(is), intent(in) :: nvec
+    real(dp), intent(in)    :: X(nvirb,ncol,nvec)
+    real(dp), intent(out)   :: Vcv(nC,nV,nvec)
+
+    real(dp), allocatable :: Lall(:,:,:), Macc(:,:,:)
+    real(dp), allocatable :: psiL(:,:,:), rho1(:,:), wv(:,:), aow(:,:), aowC(:,:)
+    integer(is)           :: v, ib, nb, g0, c, g, gg, ix, iy, mu, jc, nk
+    integer(i8)           :: ao0, ps0
+    real(dp)              :: acc, t0, t1
+
+    if (.not. xc_ready) call mrsf_error('xc_kernel_cv: grid not initialised')
+    if (.not. ao_cached) call mrsf_error('xc_kernel_cv: AO values not cached')
+    if (.not. allocated(fxcw_cs)) call mrsf_error('xc_kernel_cv: closed-shell kernel not initialised')
+    t0 = wall_time()
+
+    ! factors L_v = C_V Y_v / 2 for all vectors, (nao, nC, nvec)
+    nk = nC*nvec
+    allocate(Lall(nao_g,nC,nvec), Macc(nC,nao_g,nvec))
+    do v = 1, nvec
+       call dgemm('N','N', nao_g, nC, nV, 0.5_dp, CPg(1,3), nao_g, X(3,nocca+1,v), nvirb, &
+            0.0_dp, Lall(1,1,v), nao_g)
+    enddo
+    Macc = 0.0_dp
+
+    do ib = 1, nblocks
+       nb  = gend(ib) - gbeg(ib) + 1
+       g0  = gbeg(ib)
+       ao0 = aoff(ib)
+       ps0 = poff(ib)
+       allocate(psiL(nb,nk,ncomp), rho1(nb,ndc), wv(nb,ndc), aow(nb,nao_g), aowC(nC,nb))
+       t1 = wall_time()
+       ! factor values on the block, all vectors at once
+       do c = 1, ncomp
+          call dgemm('N','N', nb, nk, nao_g, 1.0_dp, aoc(ao0 + 1 + int(nb,i8)*int(nao_g,i8)*int(c-1,i8)), nb, &
+               Lall, nao_g, 0.0_dp, psiL(1,1,c), nb)
+       enddo
+       tcs(1) = tcs(1) + wall_time() - t1
+       do v = 1, nvec
+          t1 = wall_time()
+          jc = nC*(v-1) + 1
+          ! trial density from the factors and the cached core MOs
+          call block_rho(nb, nC, psiL(1,jc,1), nb*nk, psiH(ps0+1), nb*nocca, rho1)
+          ! weighted kernel potential wv(g,y) = w sum_x rho(g,x) (f_aa+f_ab)(y,x)
+          !$omp parallel do private(gg,iy,ix,acc)
+          do g = 1, nb
+             gg = g0 + g - 1
+             do iy = 1, ndc
+                acc = 0.0_dp
+                do ix = 1, ndc
+                   acc = acc + rho1(g,ix)*fxcw_cs(iy,ix,gg)
+                enddo
+                wv(g,iy) = acc
+             enddo
+          enddo
+          !$omp end parallel do
+          tcs(2) = tcs(2) + wall_time() - t1
+          t1 = wall_time()
+          call make_aow1(nb, aoc(ao0+1), wv, aow)
+          tcs(3) = tcs(3) + wall_time() - t1
+          t1 = wall_time()
+          ! M_C += psi_C^T aow + (C_C^T aow^T) phi
+          call dgemm('T','N', nC, nao_g, nb, 1.0_dp, psiH(ps0+1), nb, aow, nb, &
+               1.0_dp, Macc(1,1,v), nC)
+          call dgemm('T','T', nC, nb, nao_g, 1.0_dp, CHg, nao_g, aow, nb, 0.0_dp, aowC, nC)
+          call dgemm('N','N', nC, nao_g, nb, 1.0_dp, aowC, nC, aoc(ao0+1), nb, &
+               1.0_dp, Macc(1,1,v), nC)
+          tcs(4) = tcs(4) + wall_time() - t1
+       enddo
+       deallocate(psiL, rho1, wv, aow, aowC)
+    enddo
+
+    t1 = wall_time()
+    do v = 1, nvec
+       call dgemm('N','N', nC, nV, nao_g, 1.0_dp, Macc(1,1,v), nC, CPg(1,3), nao_g, &
+            0.0_dp, Vcv(1,1,v), nC)
+    enddo
+    tcs(5) = tcs(5) + wall_time() - t1
+    deallocate(Lall, Macc)
+    time_xc = time_xc + wall_time() - t0
+    nxc_calls = nxc_calls + 1
+    nxc_vecs = nxc_vecs + nvec
+
+  end subroutine xc_kernel_cv
+
+!######################################################################
+! make_aow1: aow(:,mu) = wv0/2 phi + sum_c wv_c d_c phi (one spin)
+!######################################################################
+  subroutine make_aow1(nb, ao, wv, aow)
+
+    integer(is), intent(in) :: nb
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), wv(nb,ndc)
+    real(dp), intent(out)   :: aow(nb,nao_g)
+
+    integer(is) :: mu, c
+
+    !$omp parallel do private(c)
+    do mu = 1, nao_g
+       aow(:,mu) = 0.5_dp*wv(:,1)*ao(:,mu,1)
+       do c = 2, ncomp
+          aow(:,mu) = aow(:,mu) + wv(:,c)*ao(:,mu,c)
+       enddo
+    enddo
+    !$omp end parallel do
+
+  end subroutine make_aow1
+
+!######################################################################
 ! xc_timings: print the kernel sub-step timers (diagnostics)
 !######################################################################
   subroutine xc_timings()
@@ -638,6 +784,10 @@ contains
     write(6,'(2x,a,f10.3)') 'other                  : ', tpart(6)
     write(6,'(2x,a,f10.3,a,i0,a)') 'kernel total           : ', time_xc, ' (', nxc_calls, ' calls)'
     write(6,'(2x,a,f10.3,a,i0,a)') 'probe total            : ', time_probe, ' (', nprobe_calls, ' calls)'
+    if (sum(tcs) > 0.0_dp) then
+       write(6,'(2x,a)') 'closed-shell CV kernel (s): factor values, densities+potentials, AO products, projections, final'
+       write(6,'(2x,5f10.3)') tcs
+    endif
     flush(6)
 
   end subroutine xc_timings

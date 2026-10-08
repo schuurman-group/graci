@@ -1,6 +1,13 @@
 !**********************************************************************
 ! mrsf_sigma: the MRSF-TDDFT (TDA) sigma vector
 !   sigma = U^T [ Fb X~ - X~ Fa - c (ij|ab) X~ ] + pairing(x)
+! and, for the extended method, the CV columns
+!   sigma_cv = F' Y - Y F' - c (jl|bd) Y + [2 (jb|ld) Y + K^xc Y] + A_G Y
+!            + C^T x,   sigma += C y
+! The exchange sweep runs once over the paired planes for all columns
+! (MRSF and CV) of the batch; its step 2 on the CV columns with all
+! hole columns of B^Q_{HH} delivers the CV exchange term and the
+! exchange-type coupling terms (see mrsf_extended).
 !**********************************************************************
 module mrsf_sigma
 
@@ -8,6 +15,7 @@ module mrsf_sigma
   use mrsf_global
   use mrsf_io
   use mrsf_space
+  use mrsf_extended
 
   implicit none
 
@@ -23,7 +31,7 @@ contains
     if (nvec > nvmax) then
        if (allocated(Twork)) deallocate(Twork)
        nvmax = nvec
-       allocate(Twork(nvirb,nQ,nocca,nvmax), source=0.0_dp)
+       allocate(Twork(nvirb,nQ,ncol,nvmax), source=0.0_dp)
     endif
     if (store_sp) then
        if (.not. allocated(plane_scr)) allocate(plane_scr(nvirb,nvirb))
@@ -39,8 +47,8 @@ contains
   subroutine sigma_batch(nvec, mult, irrep, x, ax)
 
     integer(is), intent(in) :: nvec, mult, irrep
-    real(dp), intent(in)    :: x(xdim,nvec)
-    real(dp), intent(out)   :: ax(xdim,nvec)
+    real(dp), intent(in)    :: x(xdim_tot,nvec)
+    real(dp), intent(out)   :: ax(xdim_tot,nvec)
     real(dp)                :: t0
 
     if (.not. ints_loaded) call mrsf_error('integrals not loaded')
@@ -55,30 +63,54 @@ contains
   end subroutine sigma_batch
 
 !######################################################################
-! sigma_core: X(nvirb,nocca,nvec) compressed -> S(nvirb,nocca,nvec)
+! sigma_core: X(nvirb,ncol,nvec) compressed -> S(nvirb,ncol,nvec)
 ! compressed (masks not applied)
 !######################################################################
   subroutine sigma_core(nvec, mult, X, S)
 
     integer(is), intent(in) :: nvec, mult
-    real(dp), intent(in)    :: X(nvirb,nocca,nvec)
-    real(dp), intent(out)   :: S(nvirb,nocca,nvec)
-    real(dp), allocatable   :: Xt(:,:,:)
-    integer(is)             :: v
+    real(dp), intent(in)    :: X(nvirb,ncol,nvec)
+    real(dp), intent(out)   :: S(nvirb,ncol,nvec)
+    real(dp), allocatable   :: Xt(:,:,:), Scv(:,:,:)
+    integer(is)             :: v, cv0
 
-    allocate(Xt(nvirb,nocca,nvec))
+    allocate(Xt(nvirb,ncol,nvec))
     call expand(mult, nvec, X, Xt)
+    if (extended) call set_coefficients(mult)
 
-    ! Fock terms: S = Fb_PP X~ - X~ Fa_HH
-    call dgemm('N','N', nvirb, nocca*nvec, nvirb, 1.0_dp, FbPP, nvirb, Xt, nvirb, &
-         0.0_dp, S, nvirb)
+    ! Fock terms: S = Fb_PP X~ - X~ Fa_HH (MRSF columns)
+    if (ncol == nocca) then
+       call dgemm('N','N', nvirb, nocca*nvec, nvirb, 1.0_dp, FbPP, nvirb, Xt, nvirb, &
+            0.0_dp, S, nvirb)
+    else
+       do v = 1, nvec
+          call dgemm('N','N', nvirb, nocca, nvirb, 1.0_dp, FbPP, nvirb, Xt(1,1,v), nvirb, &
+               0.0_dp, S(1,1,v), nvirb)
+       enddo
+    endif
     do v = 1, nvec
        call dgemm('N','N', nvirb, nocca, nocca, -1.0_dp, Xt(1,1,v), nvirb, FaHH, nocca, &
             1.0_dp, S(1,1,v), nvirb)
     enddo
 
-    ! exchange term: S -= c (ij|ab) X~
-    call exchange_contract(nvec, Xt, S)
+    ! CV columns: F'_VV Y - Y F'_CC
+    if (extended) then
+       cv0 = nocca + 1
+       do v = 1, nvec
+          call dgemm('N','N', nvirb, nC, nvirb, 1.0_dp, Fp_emb, nvirb, Xt(1,cv0,v), nvirb, &
+               0.0_dp, S(1,cv0,v), nvirb)
+          call dgemm('N','N', nvirb, nC, nC, -1.0_dp, Xt(1,cv0,v), nvirb, Fp_cc, nC, &
+               1.0_dp, S(1,cv0,v), nvirb)
+       enddo
+       allocate(Scv(nvirb,nocca,nvec), source=0.0_dp)
+    endif
+
+    ! exchange term: S -= c (ij|ab) X~ (and the CV sweep output Scv)
+    if (extended) then
+       call exchange_contract(nvec, Xt, S, X, Scv)
+    else
+       call exchange_contract(nvec, Xt, S)
+    endif
 
     ! fold back to the compressed representation
     call fold(mult, nvec, S)
@@ -86,30 +118,44 @@ contains
     ! pairing-strength couplings (compressed amplitudes in and out)
     call pairing_terms(mult, nvec, X, S)
 
+    ! extended terms: CV Coulomb/shift/kernel, couplings in both directions
+    if (extended) then
+       call ext_terms(nvec, mult, X, Xt, S, Scv)
+       deallocate(Scv)
+    endif
+
     deallocate(Xt)
 
   end subroutine sigma_core
 
 !######################################################################
-! exchange_contract: S(a,i,v) -= c sum_{jb} (ij|ab) Xt(b,j,v)
-! Paired-plane path: per plane two dsymm calls into
-! T(nvirb,nQ,nocca,nvec), then per vector one dgemm with the Q-blocked
-! hole-hole integrals.
+! exchange_contract: S(a,i,v) -= c sum_{jb} (ij|ab) Xt(b,j,v) over the
+! MRSF columns.  Paired-plane path: per plane two dsymm calls into
+! T(nvirb,nQ,ncol,nvec) for all columns of the batch, then per vector
+! one dgemm with the Q-blocked hole-hole integrals.  With the extended
+! method (X, Scv present) the CV columns of T are contracted with all
+! hole columns of B^Q_{HH} into Scv (unscaled), and the exchange-type
+! C^T x terms of the block are accumulated (ext_block_terms).
 !######################################################################
-  subroutine exchange_contract(nvec, Xt, S)
+  subroutine exchange_contract(nvec, Xt, S, X, Scv)
 
-    integer(is), intent(in) :: nvec
-    real(dp), intent(in)    :: Xt(nvirb,nocca,nvec)
-    real(dp), intent(inout) :: S(nvirb,nocca,nvec)
+    integer(is), intent(in)           :: nvec
+    real(dp), intent(in)              :: Xt(nvirb,ncol,nvec)
+    real(dp), intent(inout)           :: S(nvirb,ncol,nvec)
+    real(dp), intent(in), optional    :: X(nvirb,ncol,nvec)
+    real(dp), intent(inout), optional :: Scv(nvirb,nocca,nvec)
 
-    integer(is)           :: blk, Q0, Ql, Q, kk, k, v, j, a, ldT
+    integer(is)           :: blk, Q0, Ql, Q, kk, k, v, ldT, ncols
     real(dp), allocatable :: dd(:)
     real(dp)              :: t0
+    logical               :: ext
 
     t0 = wall_time()
     call ensure_work(nvec)
     allocate(dd(nvirb))
-    ldT = nvirb * nQ
+    ldT   = nvirb * nQ
+    ncols = ncol * nvec
+    ext   = present(Scv)
 
     do blk = 1, nblk
        Q0 = (blk-1)*nQ
@@ -121,10 +167,10 @@ contains
              if (Q > naux) exit
              if (store_sp) then
                 plane_scr = real(Bvv_sp(:,:,Q), dp)
-                call dgemm('N','N', nvirb, nocca*nvec, nvirb, 1.0_dp, plane_scr, nvirb, &
+                call dgemm('N','N', nvirb, ncols, nvirb, 1.0_dp, plane_scr, nvirb, &
                      Xt, nvirb, 0.0_dp, Twork(1,Ql,1,1), ldT)
              else
-                call dgemm('N','N', nvirb, nocca*nvec, nvirb, 1.0_dp, Bvv(1,1,Q), nvirb, &
+                call dgemm('N','N', nvirb, ncols, nvirb, 1.0_dp, Bvv(1,1,Q), nvirb, &
                      Xt, nvirb, 0.0_dp, Twork(1,Ql,1,1), ldT)
              endif
           enddo
@@ -136,9 +182,9 @@ contains
              Ql = 2*kk - 1
              if (store_sp) then
                 plane_scr = real(Bvv_sp(:,:,k), dp)
-                call plane_apply(nvec, plane_scr, Xt, Q, Ql, ldT, dd)
+                call plane_apply(ncols, plane_scr, Xt, Q, Ql, ldT, dd)
              else
-                call plane_apply(nvec, Bvv(1,1,k), Xt, Q, Ql, ldT, dd)
+                call plane_apply(ncols, Bvv(1,1,k), Xt, Q, Ql, ldT, dd)
              endif
           enddo
        endif
@@ -156,6 +202,17 @@ contains
                   Boo(1,1,1,blk), nQ*nocca, 1.0_dp, S(1,1,v), nvirb)
           enddo
        endif
+
+       ! CV columns: Scv(a,i,v) += sum_{Q, j in C} T(a,Q,nocca+j,v) B^Q_ji
+       ! (all holes i; the core-core sub-block of Boo is addressed through
+       ! K = nQ*nC rows and ldb = nQ*nocca)
+       if (ext) then
+          do v = 1, nvec
+             call dgemm('N','N', nvirb, nocca, nQ*nC, 1.0_dp, Twork(1,1,nocca+1,v), nvirb, &
+                  Boo(1,1,1,blk), nQ*nocca, 1.0_dp, Scv(1,1,v), nvirb)
+          enddo
+          call ext_block_terms(blk, nvec, X, S)
+       endif
     enddo
 
     deallocate(dd)
@@ -165,35 +222,48 @@ contains
 
 !######################################################################
 ! plane_apply: the two dsymm calls (lower -> Q, upper -> Q+1) for one
-! paired plane, plus the diagonal correction of the upper plane
+! paired plane on ncols columns Xt(nvirb,ncols), plus the diagonal
+! correction of the upper plane
 !######################################################################
-  subroutine plane_apply(nvec, plane, Xt, Q, Ql, ldT, dd)
+  subroutine plane_apply(ncols, plane, Xt, Q, Ql, ldT, dd)
 
-    integer(is), intent(in) :: nvec, Q, Ql, ldT
+    integer(is), intent(in) :: ncols, Q, Ql, ldT
     real(dp), intent(in)    :: plane(nvirb,nvirb)
-    real(dp), intent(in)    :: Xt(nvirb,nocca,nvec)
+    real(dp), intent(in)    :: Xt(nvirb,ncols)
     real(dp), intent(inout) :: dd(nvirb)
-    integer(is)             :: a, j, v
+    integer(is)             :: a
 
-    call dsymm('L','L', nvirb, nocca*nvec, 1.0_dp, plane, nvirb, Xt, nvirb, &
+    call dsymm('L','L', nvirb, ncols, 1.0_dp, plane, nvirb, Xt, nvirb, &
          0.0_dp, Twork(1,Ql,1,1), ldT)
 
     if (Q + 1 <= naux) then
-       call dsymm('L','U', nvirb, nocca*nvec, 1.0_dp, plane, nvirb, Xt, nvirb, &
+       call dsymm('L','U', nvirb, ncols, 1.0_dp, plane, nvirb, Xt, nvirb, &
             0.0_dp, Twork(1,Ql+1,1,1), ldT)
        do a = 1, nvirb
           dd(a) = Dall(Q+1,Pmap(a)) - Dall(Q,Pmap(a))
        enddo
-       !$omp parallel do collapse(2) private(v, j)
-       do v = 1, nvec
-          do j = 1, nocca
-             Twork(:,Ql+1,j,v) = Twork(:,Ql+1,j,v) + dd(:) * Xt(:,j,v)
-          enddo
-       enddo
-       !$omp end parallel do
+       call diag_correct(nvirb, nQ, ncols, Twork, Ql+1, dd, Xt)
     endif
 
   end subroutine plane_apply
+
+!######################################################################
+! diag_correct: T(:,Ql,c) += dd * Xt(:,c) for all columns c
+!######################################################################
+  subroutine diag_correct(n1, n2, ncols, T, Ql, dd, Xt)
+
+    integer(is), intent(in) :: n1, n2, ncols, Ql
+    real(dp), intent(inout) :: T(n1,n2,ncols)
+    real(dp), intent(in)    :: dd(n1), Xt(n1,ncols)
+    integer(is)             :: c
+
+    !$omp parallel do private(c)
+    do c = 1, ncols
+       T(:,Ql,c) = T(:,Ql,c) + dd(:) * Xt(:,c)
+    enddo
+    !$omp end parallel do
+
+  end subroutine diag_correct
 
 !######################################################################
 ! pairing_terms: spin-pairing couplings between the CO and OV
@@ -202,8 +272,8 @@ contains
   subroutine pairing_terms(mult, nvec, X, S)
 
     integer(is), intent(in) :: mult, nvec
-    real(dp), intent(in)    :: X(nvirb,nocca,nvec)
-    real(dp), intent(inout) :: S(nvirb,nocca,nvec)
+    real(dp), intent(in)    :: X(nvirb,ncol,nvec)
+    real(dp), intent(inout) :: S(nvirb,ncol,nvec)
 
     real(dp), allocatable :: tC1(:,:), tC2(:,:), oC1(:,:), oC2(:,:), oV1(:,:), oV2(:,:)
     real(dp)              :: sgn, kc, ko, kv
@@ -229,8 +299,8 @@ contains
     ! core -> O1/O2 outputs
     if (nC > 0) then
        if (nV > 0) then
-          call dgemm('N','N', nC, nvec, nV,  kv, Hp, nC, X(3,hO2,1), xdim, 0.0_dp, oC1, nC)
-          call dgemm('N','N', nC, nvec, nV, -kv, Hp, nC, X(3,hO1,1), xdim, 0.0_dp, oC2, nC)
+          call dgemm('N','N', nC, nvec, nV,  kv, Hp, nC, X(3,hO2,1), xdim_tot, 0.0_dp, oC1, nC)
+          call dgemm('N','N', nC, nvec, nV, -kv, Hp, nC, X(3,hO1,1), xdim_tot, 0.0_dp, oC2, nC)
        endif
        call dgemm('N','N', nC, nvec, nC,  kc, Gp(1,1,2,2), nC, tC1, nC, 1.0_dp, oC1, nC)
        call dgemm('N','N', nC, nvec, nC, -kc, Gp(1,1,1,2), nC, tC2, nC, 1.0_dp, oC1, nC)
@@ -244,10 +314,10 @@ contains
           call dgemm('T','N', nV, nvec, nC, -kv, Hp, nC, tC2, nC, 0.0_dp, oV1, nV)
           call dgemm('T','N', nV, nvec, nC,  kv, Hp, nC, tC1, nC, 0.0_dp, oV2, nV)
        endif
-       call dgemm('N','N', nV, nvec, nV,  ko, Mp(1,1,2,2), nV, X(3,hO1,1), xdim, 1.0_dp, oV1, nV)
-       call dgemm('N','N', nV, nvec, nV, -ko, Mp(1,1,1,2), nV, X(3,hO2,1), xdim, 1.0_dp, oV1, nV)
-       call dgemm('N','N', nV, nvec, nV,  ko, Mp(1,1,1,1), nV, X(3,hO2,1), xdim, 1.0_dp, oV2, nV)
-       call dgemm('N','N', nV, nvec, nV, -ko, Mp(1,1,2,1), nV, X(3,hO1,1), xdim, 1.0_dp, oV2, nV)
+       call dgemm('N','N', nV, nvec, nV,  ko, Mp(1,1,2,2), nV, X(3,hO1,1), xdim_tot, 1.0_dp, oV1, nV)
+       call dgemm('N','N', nV, nvec, nV, -ko, Mp(1,1,1,2), nV, X(3,hO2,1), xdim_tot, 1.0_dp, oV1, nV)
+       call dgemm('N','N', nV, nvec, nV,  ko, Mp(1,1,1,1), nV, X(3,hO2,1), xdim_tot, 1.0_dp, oV2, nV)
+       call dgemm('N','N', nV, nvec, nV, -ko, Mp(1,1,2,1), nV, X(3,hO1,1), xdim_tot, 1.0_dp, oV2, nV)
     endif
 
     do v = 1, nvec
@@ -268,7 +338,7 @@ contains
   subroutine diagonal(mult, d)
 
     integer(is), intent(in) :: mult
-    real(dp), intent(out)   :: d(nvirb,nocca)
+    real(dp), intent(out)   :: d(nvirb,ncol)
     real(dp)                :: s, kc, ko
     integer(is)             :: i, a, hO1, hO2
 
@@ -280,7 +350,7 @@ contains
     hO1 = nC + 1
     hO2 = nC + 2
 
-    d = diag0
+    d(:,1:nocca) = diag0
     do i = 1, nC
        d(1,i) = d(1,i) + kc * Gp(i,i,2,2)
        d(2,i) = d(2,i) + kc * Gp(i,i,1,1)
@@ -299,6 +369,9 @@ contains
        d(1,hO2) = 1.0e20_dp
        d(2,hO1) = 1.0e20_dp
     endif
+
+    ! CV columns
+    if (extended) call ext_diagonal(mult, d)
 
   end subroutine diagonal
 

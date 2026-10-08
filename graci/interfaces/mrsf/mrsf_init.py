@@ -46,6 +46,34 @@ def init_ints(ci_method, eri_file):
     return
 
 #
+def set_extended(flag):
+    """select the extended (EMRSF) response space; must precede init()"""
+
+    libs.lib_func('mrsf_set_extended', (bool(flag),))
+
+    return
+
+#
+def init_ext(ci_method, fdft_mo, eri_file):
+    """extended-method data: fdft_mo (nmo, nmo) closed-shell KS matrix of
+    the configuration G in the MO basis, coupling scale ci_method.ccp_eff,
+    kernel flag ci_method.use_kernel; after init_ints() and, when the
+    kernel is used, after the grid initialisation (mrsf_xc.XCGrid)"""
+
+    nmo = int(ci_method.nmo)
+    fdft = np.asfortranarray(np.asarray(fdft_mo, dtype=float).reshape(nmo, nmo))
+    args = (nmo, fdft, float(ci_method.ccp_eff), bool(ci_method.use_kernel), eri_file)
+    libs.lib_func('mrsf_ext_initialise', args)
+
+    return
+
+#
+def ext_dims():
+    """returns (ncol, ncv): columns of the response vector and CV slots"""
+
+    return libs.lib_func('mrsf_get_ext_dims', (0, 0))
+
+#
 def dims():
     """returns (nocca, nvirb, xdim, naux)"""
 

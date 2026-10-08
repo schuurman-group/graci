@@ -8,6 +8,12 @@
 ! Amplitudes X(a,i), a in P (local index), i in H (local index),
 ! packed index ia = a + nvirb*(i-1).  Local positions of the SOMOs:
 !   particle: pO1=1, pO2=2;   hole: hO1=nC+1, hO2=nC+2
+!
+! Extended MRSF-TDDFT (EMRSF): the vector gains nC further columns, the
+! core-to-virtual amplitudes y(a,i), a in P (SOMO rows masked), i in C,
+! of the closed-shell configuration G = |C Cbar O1 O1bar|; a vector is
+! the (nvirb x ncol) matrix [x | y], ncol = nocca + nC, xdim_tot =
+! nvirb*ncol (xdim = nvirb*nocca remains the MRSF part).
 !**********************************************************************
 module mrsf_global
 
@@ -19,6 +25,7 @@ module mrsf_global
   ! dimensions
   integer(is) :: nmo = 0, nel = 0, imult_ref = 3
   integer(is) :: nocca = 0, nC = 0, nV = 0, nvirb = 0, xdim = 0
+  integer(is) :: ncol = 0, xdim_tot = 0, ncv = 0
   integer(is) :: naux = 0, nplane = 0, nQ = 0, nblk = 0, npblk = 0
   integer(is) :: nirrep = 1, ipg = 1
   integer(is) :: iO1 = 0, iO2 = 0
@@ -29,6 +36,8 @@ module mrsf_global
   logical     :: ints_loaded = .false.
   logical     :: store_sp = .false.
   logical     :: vv_full = .false.
+  logical     :: extended = .false.     ! EMRSF: CV columns present
+  logical     :: ext_ready = .false.    ! ext_initialise done
 
   character(len=255) :: label = ''
 
@@ -37,13 +46,15 @@ module mrsf_global
   real(dp)    :: spc(3) = 1.0_dp     ! kappa_coco, kappa_ovov, kappa_coov
   real(dp)    :: escf = 0.0_dp
   real(dp)    :: mem_budget = 1.0e9_dp
+  real(dp)    :: ccp = 1.0_dp        ! EMRSF coupling scale c_cp
+  logical     :: use_kernel = .false.! EMRSF: XC kernel in the singlet CV block
 
   ! orbital data
   real(dp), allocatable    :: occ(:), moen(:)
   integer(is), allocatable :: mosym(:)
   integer(is), allocatable :: Hmap(:), Pmap(:)   ! local -> MO index
   integer(is), allocatable :: Hinv(:), Pinv(:)   ! MO -> local index (0: none)
-  integer(is), allocatable :: slot_irrep(:)      ! irrep of each packed slot
+  integer(is), allocatable :: slot_irrep(:)      ! irrep of each packed slot (xdim_tot)
   real(dp), allocatable    :: FaHH(:,:), FbPP(:,:)
 
   ! three-index integrals
@@ -54,6 +65,7 @@ module mrsf_global
   real(sp), allocatable    :: Boo_sp(:,:,:,:)
   real(dp), allocatable    :: Bco(:,:,:)      ! (naux,nC,2)
   real(dp), allocatable    :: Bvo(:,:,:)      ! (naux,nV,2)
+  real(dp), allocatable    :: Bcv(:,:,:)      ! (nvirb,nC,naux) B^Q_{a,i}, a in P, i in C (EMRSF)
 
   ! pairing-strength integral blocks
   real(dp), allocatable    :: Gp(:,:,:,:)     ! (nC,nC,2,2)  (i O_x|j O_y)
@@ -65,8 +77,20 @@ module mrsf_global
   ! multiplicity-independent part of the diagonal
   real(dp), allocatable    :: diag0(:,:)      ! (nvirb,nocca)
 
+  ! EMRSF data (ext_initialise)
+  real(dp), allocatable    :: Fp_emb(:,:)     ! (nvirb,nvirb) F'_VV embedded (SOMO rows/cols 0)
+  real(dp), allocatable    :: Fp_cc(:,:)      ! (nC,nC) F'_CC
+  real(dp), allocatable    :: Fcv(:,:)        ! (nV,nC) F^DFT_{b j}
+  real(dp), allocatable    :: fO2V(:)         ! (nV) F^DFT_{O2 b}
+  real(dp), allocatable    :: fCO1(:)         ! (nC) F^DFT_{j O1}
+  real(dp), allocatable    :: w1(:)           ! (nV) (O2O1|O2 b)
+  real(dp), allocatable    :: w2(:)           ! (nC) (jO1|O2O1)
+  real(dp), allocatable    :: Bo12(:)         ! (naux) B^Q_{O1 O2}
+  real(dp), allocatable    :: diag_cv(:,:)    ! (nvirb,nC) CV diagonal without the shift
+  real(dp)                 :: A_G = 0.0_dp    ! shift of the CV block
+
   ! work arrays
-  real(dp), allocatable    :: Twork(:,:,:,:)  ! (nvirb,nQ,nocca,nvmax)
+  real(dp), allocatable    :: Twork(:,:,:,:)  ! (nvirb,nQ,ncol,nvmax)
   real(dp), allocatable    :: plane_scr(:,:)  ! (nvirb,nvirb)
   real(dp), allocatable    :: Boo_scr(:,:,:)  ! (nQ,nocca,nocca)
   integer(is)              :: nvmax = 0
@@ -78,6 +102,7 @@ module mrsf_global
 
   ! timings and counters
   real(dp)    :: time_load = 0.0_dp, time_sigma = 0.0_dp, time_exch = 0.0_dp
-  integer(is) :: nsigma_calls = 0, nsigma_vecs = 0
+  real(dp)    :: time_ext = 0.0_dp, time_xcs = 0.0_dp
+  integer(is) :: nsigma_calls = 0, nsigma_vecs = 0, nxcs_vecs = 0
 
 end module mrsf_global

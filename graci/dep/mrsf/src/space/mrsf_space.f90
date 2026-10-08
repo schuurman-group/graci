@@ -61,7 +61,8 @@ contains
   end subroutine classify_orbitals
 
 !######################################################################
-! setup_space: fills the module-level orbital maps and slot irreps
+! setup_space: fills the module-level orbital maps and slot irreps;
+! with the extended method the vector has ncol = nocca + nC columns
 !######################################################################
   subroutine setup_space()
 
@@ -73,6 +74,14 @@ contains
     nocca = nC + 2
     nvirb = nV + 2
     xdim  = nocca * nvirb
+    if (extended) then
+       ncol = nocca + nC
+       ncv  = nvirb * nC
+    else
+       ncol = nocca
+       ncv  = 0
+    endif
+    xdim_tot = nvirb * ncol
 
     if (allocated(Hinv)) deallocate(Hinv)
     if (allocated(Pinv)) deallocate(Pinv)
@@ -89,14 +98,21 @@ contains
     ! open-shell triplet reference, Gamma(O1) x Gamma(O2), times
     ! Gamma(i) x Gamma(a) (abelian groups: products are XORs of the
     ! PySCF irrep ids). The reference factor is what distinguishes
-    ! this from the closed-shell-reference rule used in bitci.
+    ! this from the closed-shell-reference rule used in bitci. The CV
+    ! columns of the extended method are excitations of the closed-shell
+    ! configuration G (totally symmetric): irrep = Gamma(i) x Gamma(a).
     ref_irrep = ieor(mosym(iO1), mosym(iO2))
     if (allocated(slot_irrep)) deallocate(slot_irrep)
-    allocate(slot_irrep(xdim))
+    allocate(slot_irrep(xdim_tot))
     do i = 1, nocca
        do a = 1, nvirb
           slot_irrep(a + nvirb*(i-1)) = &
                ieor(ref_irrep, ieor(mosym(Pmap(a)), mosym(Hmap(i))))
+       enddo
+    enddo
+    do i = nocca+1, ncol
+       do a = 1, nvirb
+          slot_irrep(a + nvirb*(i-1)) = ieor(mosym(Pmap(a)), mosym(Hmap(i-nocca)))
        enddo
     enddo
     nirrep = 1
@@ -108,7 +124,8 @@ contains
 
 !######################################################################
 ! slot_masked: .true. if the packed slot (a,i) is redundant for the
-! given target multiplicity (local indices)
+! given target multiplicity (local indices; i > nocca: CV columns, whose
+! SOMO rows are always masked)
 !######################################################################
   pure function slot_masked(mult, a, i) result(masked)
 
@@ -116,6 +133,10 @@ contains
     logical                 :: masked
 
     masked = .false.
+    if (i > nocca) then
+       if (a <= 2) masked = .true.
+       return
+    endif
     if (a == 2 .and. i == nC+2) masked = .true.
     if (mult == 3) then
        if (a == 1 .and. i == nC+2) masked = .true.
@@ -140,13 +161,14 @@ contains
   end function slot_active
 
 !######################################################################
-! expand: compressed amplitudes X(nvirb,nocca,nvec) -> expanded Xt = U x
+! expand: compressed amplitudes X(nvirb,ncol,nvec) -> expanded Xt = U x
+! (the CV columns are copied unchanged)
 !######################################################################
   subroutine expand(mult, nvec, X, Xt)
 
     integer(is), intent(in) :: mult, nvec
-    real(dp), intent(in)    :: X(nvirb,nocca,nvec)
-    real(dp), intent(out)   :: Xt(nvirb,nocca,nvec)
+    real(dp), intent(in)    :: X(nvirb,ncol,nvec)
+    real(dp), intent(out)   :: Xt(nvirb,ncol,nvec)
     integer(is)             :: v, hO1, hO2
     real(dp)                :: xoo
 
@@ -172,12 +194,12 @@ contains
 
 !######################################################################
 ! fold: expanded sigma St -> compressed sigma (U^T St), in place;
-! the redundant slots are zeroed
+! the redundant slots are zeroed (MRSF columns only)
 !######################################################################
   subroutine fold(mult, nvec, St)
 
     integer(is), intent(in) :: mult, nvec
-    real(dp), intent(inout) :: St(nvirb,nocca,nvec)
+    real(dp), intent(inout) :: St(nvirb,ncol,nvec)
     integer(is)             :: v, hO1, hO2
     real(dp)                :: s11, s22
 
@@ -206,23 +228,28 @@ contains
   subroutine apply_mask(mult, irrep, nvec, S)
 
     integer(is), intent(in) :: mult, irrep, nvec
-    real(dp), intent(inout) :: S(xdim,nvec)
-    integer(is)             :: ia, v, hO1, hO2
+    real(dp), intent(inout) :: S(nvirb,ncol,nvec)
+    integer(is)             :: i, a, v, hO1, hO2
 
     hO1 = nC + 1
     hO2 = nC + 2
 
-    S(2 + nvirb*(hO2-1), :) = 0.0_dp
+    S(2,hO2,:) = 0.0_dp
     if (mult == 3) then
-       S(1 + nvirb*(hO2-1), :) = 0.0_dp
-       S(2 + nvirb*(hO1-1), :) = 0.0_dp
+       S(1,hO2,:) = 0.0_dp
+       S(2,hO1,:) = 0.0_dp
+    endif
+    if (ncol > nocca) then
+       S(1:2,nocca+1:ncol,:) = 0.0_dp
     endif
 
     if (irrep >= 0) then
-       !$omp parallel do private(ia, v)
+       !$omp parallel do private(i, a, v)
        do v = 1, nvec
-          do ia = 1, xdim
-             if (slot_irrep(ia) /= irrep) S(ia,v) = 0.0_dp
+          do i = 1, ncol
+             do a = 1, nvirb
+                if (slot_irrep(a + nvirb*(i-1)) /= irrep) S(a,i,v) = 0.0_dp
+             enddo
           enddo
        enddo
        !$omp end parallel do
