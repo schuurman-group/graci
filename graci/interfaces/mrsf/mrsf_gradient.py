@@ -26,6 +26,7 @@ import graci.interfaces.mrsf.mrsf_init as mrsf_init
 import graci.interfaces.mrsf.mrsf_grad as mrsf_grad
 import graci.interfaces.mrsf.mrsf_dfgrad as mrsf_dfgrad
 import graci.interfaces.mrsf.mrsf_xc as mrsf_xc
+import graci.interfaces.mrsf.mrsf_hessian as mrsf_hessian
 
 SQ2 = np.sqrt(2.0)
 
@@ -134,18 +135,22 @@ class GradientDriver:
         fock_mo = [self.fa, self.fb]
         mrsf_init.init(ci, fock_mo)
         mrsf_init.init_ints(ci, ci.eri_file())
-        ierr = mrsf_grad.grad_init(ci.eri_file())
-        if ierr != 0:
-            sys.exit('mrsf_grad_init failed with error code %d' % ierr)
+        # Z-vector operator = orbital Hessian of the reference (hole-particle
+        # DF block, Fock couplings and diagonal in the library; the XC
+        # kernel on the grid, where the library grid module caches the AO
+        # values, weights and libxc derivatives once)
+        try:
+            self.hess = mrsf_hessian.RoksHessian(mf, C, occ, self.fa, self.fb, self.x_ref,
+                                                 ci.eri_file(), self.dims, grad_obj.mem_budget)
+        except RuntimeError as err:
+            sys.exit(str(err))
+        if self.hess.lz != self.lzdim:
+            sys.exit('MRSF gradients: inconsistent rotation space')
         self.Bso = mrsf_grad.bso(self.naux, self.nmo)
-        # Z-vector operator data (rotation space, Fock couplings, diagonal)
-        self.hdiag = mrsf_grad.zvec_setup(self.nao, self.lzdim, self.fa, self.fb)
-        # XC kernel on the grid: the library grid module caches the AO
-        # values, weights and libxc derivatives once
+        self.hdiag = self.hess.diag()
         if self.is_dft:
             self.ni = mf._numint
-            self.xcgrid = mrsf_xc.XCGrid(mf, C, self.occ_a, self.occ_b, C[:, self.H], C[:, self.P],
-                                         self.dims, grad_obj.mem_budget)
+            self.xcgrid = self.hess.xcgrid
         # one-electron derivative integrals and the reference pieces that do
         # not go through the DF families: nuclear repulsion, the reference
         # densities, W_ref = sum_s D^s F^s D^s and the reference XC gradient
@@ -391,17 +396,9 @@ class GradientDriver:
     # Z-vector: operator and solvers
     # ------------------------------------------------------------------
     def hessian_apply(self, zmat):
-        """H z for a batch of vectors zmat (lzdim, nvec): two-electron part,
-        Fock couplings and assembly in the library; the XC kernel of the
-        trial densities (R = C_H cached on the grid) through the grid module"""
-        zF = mrsf_grad.farr(zmat)
-        nvec = zF.shape[1]
-        if self.is_dft:
-            Lf = mrsf_grad.zvec_factors(zF, self.nao, self.nocca)
-            VHP, _ = self.xcgrid.kernel(Lf, Lf, np.ones((2, nvec), dtype=np.int32), True, False)
-        else:
-            VHP = mrsf_grad.fzeros(self.nocca, self.nvirb, 2, nvec)
-        return mrsf_grad.zvec_hessian(self.x_ref, zF, VHP, self.is_dft, self.lzdim)
+        """H z for a batch of vectors zmat (lzdim, nvec): the orbital Hessian
+        of the reference (mrsf_hessian.RoksHessian)"""
+        return self.hess.apply(zmat)
 
     def hessian_diag(self):
         return self.hdiag
@@ -667,8 +664,5 @@ class GradientDriver:
         return self._xc_probe_contract(f1vo, vxc1, P_list)
 
     def finalise(self):
-        if self.is_dft:
-            self.xcgrid.free()
-        mrsf_grad.zvec_free()
         mrsf_grad.aograd_free()
-        mrsf_grad.grad_free()
+        self.hess.free()

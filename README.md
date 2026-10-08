@@ -87,6 +87,28 @@ natural orbitals and moments are produced as for DFT/MRCI, and the
 multiplicity (see examples/h2o_mrsf). Range-separated functionals and
 spin-orbit coupling are not yet supported.
 
+The ROKS triplet SCF can converge to a saddle point of the triplet energy,
+for example when the frontier orbitals are degenerate (benzene). The
+MRSF states then belong to the wrong reference, and a state can be missing
+altogether. `stability = True` in the `$mrsftddft` section checks the
+internal stability of the reference before the response calculation. It
+finds the lowest eigenvalues of the ROKS orbital Hessian (exact second
+derivative of the reference energy with respect to the C->O, C->V and O->V
+orbital rotations, as used by the MRSF gradients), with a Davidson solver
+in the MRSF library. An unstable reference is followed: the orbitals are
+rotated along the unstable direction (line search on the reference
+energy), the SCF is re-run from them, the integrals are transformed again
+and the check is repeated. The re-optimised `$scf` object is shared with
+the sections that run afterwards; sections that ran before used the
+previous reference. With symmetry, only totally symmetric rotations are
+considered. The check is much cheaper than the PySCF analysis behind
+`chk_stable` in `$scf` (benzene/aug-cc-pVTZ: 5-15 s per check against
+about 7 minutes). It caches the AO values on the grid when `mem_budget`
+allows (8*4*ngrid*(nao+nocc) bytes for GGA functionals), otherwise it
+streams them. It is off by default: in scans or dynamics a jump to a
+different triplet solution makes the potential energy surfaces
+discontinuous.
+
 Extended MRSF-TDDFT (EMRSF-TDDFT, Oh, Kim, Jung, Choi and Lee, ChemRxiv
 2026, doi 10.26434/chemrxiv.15000818) adds the core-to-virtual (CV)
 configurations of the closed-shell configuration G = |C O1^2| (the

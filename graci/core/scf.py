@@ -521,7 +521,14 @@ class Scf:
         global _pyscf_cache
         key = (self.label, id(self))
         if key in _pyscf_cache:
-            return _pyscf_cache[key]
+            # the orbitals may have been re-optimised since the object was
+            # cached (MRSF stability check)
+            mf = _pyscf_cache[key]
+            mf.mo_coeff  = self.orbs
+            mf.mo_occ    = self.orb_occ
+            mf.mo_energy = self.orb_ener
+            mf.e_tot     = self.energy
+            return mf
         pymol = self.mol.pymol()
         pymol.verbose = 0
         try:
@@ -579,6 +586,12 @@ class Scf:
         mo_occb = occ0 - mo_occa
         dm      = scf.uhf.make_rdm1([mo_coeff, mo_coeff],
                                     [mo_occa, mo_occb])
+
+        # open-shell (ROHF/ROKS) targets need the alpha and beta
+        # densities: PySCF requires the same density layout in all
+        # SCF iterations
+        if self.mol.mult != 1:
+            return np.array(dm)
 
         return dm[0] + dm[1]
 

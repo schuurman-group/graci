@@ -14,6 +14,7 @@ import graci.interfaces.mrsf.mrsf_init as mrsf_init
 import graci.interfaces.mrsf.mrsf_diag as mrsf_diag
 import graci.interfaces.mrsf.mrsf_density as mrsf_density
 import graci.interfaces.mrsf.mrsf_overlap as mrsf_overlap
+import graci.interfaces.mrsf.mrsf_stability as mrsf_stability
 
 class Mrsftddft(cimethod.Cimethod):
     """Class constructor for MRSF-TDDFT objects"""
@@ -54,6 +55,9 @@ class Mrsftddft(cimethod.Cimethod):
         self.extended       = False
         # EMRSF coupling scale c_cp (None: the fraction of HF exchange)
         self.ccp            = None
+        # internal stability check of the ROKS triplet reference (an
+        # unstable reference is re-optimised along the unstable direction)
+        self.stability      = False
 
         # computed quantities
         # reference occupation vector (first nmo MOs)
@@ -136,6 +140,15 @@ class Mrsftddft(cimethod.Cimethod):
 
         # fraction of HF exchange and spin-pair couplings
         self.set_exchange()
+
+        # optional internal stability check of the reference: an unstable
+        # reference is re-optimised in place (shared Scf object) and the
+        # integrals are transformed again
+        if self.stability:
+            mrsf_stability.ensure_stable(self, mo_ints)
+            fock_ao = self.scf.fock_ao
+            fock_mo = np.array([self.mos.T @ fock_ao[0] @ self.mos,
+                                self.mos.T @ fock_ao[1] @ self.mos])
 
         # initialise the library and load the integrals
         mrsf_init.set_extended(self.extended)
