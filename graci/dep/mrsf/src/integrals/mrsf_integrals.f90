@@ -15,6 +15,7 @@ module mrsf_integrals
 
   use mrsf_constants
   use mrsf_global
+  use mrsf_etensor
   use mrsf_io
   use mrsf_space
 
@@ -43,6 +44,24 @@ contains
 
     if (.not. init_done) call mrsf_error('mrsf_initialise must be called first')
 
+    ! exchange term: explicit tensor or DF sweep
+    select case (exchange_mode)
+    case (1)
+       use_etensor = .true.
+    case (2)
+       use_etensor = .false.
+    case default
+       use_etensor = (etensor_bytes() <= budget_bytes)
+    end select
+    if (verbose) then
+       if (use_etensor) then
+          write(6,'(/,2x,a,f8.3,a)') 'exchange term: explicit (ij|ab) tensor (', &
+               etensor_bytes()/1.0e9_dp, ' GB)'
+       else
+          write(6,'(/,2x,a)') 'exchange term: DF plane sweep'
+       endif
+    endif
+
     ! reuse the loaded integrals if the key (file, precision, storage,
     ! orbital classes) is unchanged: only the Fock-dependent diagonal
     ! has to be rebuilt (and the CV block loaded if newly needed)
@@ -50,6 +69,12 @@ contains
        if (verbose) write(6,'(/,2x,a)') 'MRSF integrals already loaded: reusing them'
        call build_diag0()
        if (extended .and. .not. allocated(Bcv)) call load_bcv_pass(fname)
+       if (use_etensor) then
+          if (.not. etensor_ready .or. etensor_nfc /= nfc .or. &
+               (extended .and. .not. allocated(Eo2))) call etensor_build()
+       else if (etensor_ready) then
+          call etensor_free()
+       endif
        return
     endif
 
@@ -161,6 +186,7 @@ contains
     if (allocated(loaded_occ)) deallocate(loaded_occ)
     allocate(loaded_occ(nmo))
     loaded_occ  = occ
+    if (use_etensor) call etensor_build()
     time_load = wall_time() - t0
     if (verbose) write(6,'(2x,a,f10.2,a)') 'integral ingestion time: ', time_load, ' s'
 
@@ -461,6 +487,7 @@ contains
     if (allocated(plane_scr)) deallocate(plane_scr)
     if (allocated(Boo_scr)) deallocate(Boo_scr)
     if (allocated(loaded_occ)) deallocate(loaded_occ)
+    call etensor_free()
     loaded_file = ''
     nvmax = 0
     ints_loaded = .false.

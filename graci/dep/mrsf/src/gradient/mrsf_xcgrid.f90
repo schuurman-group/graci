@@ -668,10 +668,10 @@ contains
     real(dp), intent(in)    :: X(nvirb,ncol,nvec)
     real(dp), intent(out)   :: Vcv(nC,nV,nvec)
 
-    real(dp), allocatable :: Lall(:,:,:), Macc(:,:,:)
+    real(dp), allocatable :: Lall(:,:,:), Macc(:,:,:), psiC(:,:,:), CCact(:,:), Yact(:,:), Vact(:,:,:)
     real(dp), allocatable :: psiL(:,:,:), rho1(:,:), wv(:,:), aow(:,:), aowC(:,:)
-    integer(is)           :: v, ib, nb, g0, c, g, gg, ix, iy, mu, jc, nk
-    integer(i8)           :: ao0, ps0
+    integer(is)           :: v, ib, nb, g0, c, g, gg, ix, iy, mu, jc, nk, jj, nca
+    integer(i8)           :: ao0, ps0, po
     real(dp)              :: acc, t0, t1
 
     if (.not. xc_ready) call mrsf_error('xc_kernel_cv: grid not initialised')
@@ -679,11 +679,19 @@ contains
     if (.not. allocated(fxcw_cs)) call mrsf_error('xc_kernel_cv: closed-shell kernel not initialised')
     t0 = wall_time()
 
-    ! factors L_v = C_V Y_v / 2 for all vectors, (nao, nC, nvec)
-    nk = nC*nvec
-    allocate(Lall(nao_g,nC,nvec), Macc(nC,nao_g,nvec))
+    ! active core columns only (frozen-core holes carry no CV amplitudes)
+    nca = nC_act
+    nk  = nca*nvec
+    allocate(Lall(nao_g,nca,nvec), Macc(nca,nao_g,nvec), CCact(nao_g,nca), Yact(nV,nca))
+    do jj = 1, nca
+       CCact(:,jj) = CHg(:,cact(jj))
+    enddo
+    ! factors L_v = C_V Y_v / 2 for all vectors, (nao, nC_act, nvec)
     do v = 1, nvec
-       call dgemm('N','N', nao_g, nC, nV, 0.5_dp, CPg(1,3), nao_g, X(3,nocca+1,v), nvirb, &
+       do jj = 1, nca
+          Yact(:,jj) = X(3:nvirb,nocca+cact(jj),v)
+       enddo
+       call dgemm('N','N', nao_g, nca, nV, 0.5_dp, CPg(1,3), nao_g, Yact, nV, &
             0.0_dp, Lall(1,1,v), nao_g)
     enddo
     Macc = 0.0_dp
@@ -693,7 +701,15 @@ contains
        g0  = gbeg(ib)
        ao0 = aoff(ib)
        ps0 = poff(ib)
-       allocate(psiL(nb,nk,ncomp), rho1(nb,ndc), wv(nb,ndc), aow(nb,nao_g), aowC(nC,nb))
+       allocate(psiL(nb,nk,ncomp), rho1(nb,ndc), wv(nb,ndc), aow(nb,nao_g), aowC(nca,nb), &
+            psiC(nb,nca,ncomp))
+       ! active core MO values of the block, gathered from the cached hole MOs
+       do c = 1, ncomp
+          do jj = 1, nca
+             po = ps0 + int(nb,i8)*int(cact(jj)-1,i8) + int(nb,i8)*int(nocca,i8)*int(c-1,i8)
+             psiC(1:nb,jj,c) = psiH(po+1:po+nb)
+          enddo
+       enddo
        t1 = wall_time()
        ! factor values on the block, all vectors at once
        do c = 1, ncomp
@@ -703,9 +719,9 @@ contains
        tcs(1) = tcs(1) + wall_time() - t1
        do v = 1, nvec
           t1 = wall_time()
-          jc = nC*(v-1) + 1
-          ! trial density from the factors and the cached core MOs
-          call block_rho(nb, nC, psiL(1,jc,1), nb*nk, psiH(ps0+1), nb*nocca, rho1)
+          jc = nca*(v-1) + 1
+          ! trial density from the factors and the active core MOs
+          call block_rho(nb, nca, psiL(1,jc,1), nb*nk, psiC, nb*nca, rho1)
           ! weighted kernel potential wv(g,y) = w sum_x rho(g,x) (f_aa+f_ab)(y,x)
           !$omp parallel do private(gg,iy,ix,acc)
           do g = 1, nb
@@ -725,23 +741,28 @@ contains
           tcs(3) = tcs(3) + wall_time() - t1
           t1 = wall_time()
           ! M_C += psi_C^T aow + (C_C^T aow^T) phi
-          call dgemm('T','N', nC, nao_g, nb, 1.0_dp, psiH(ps0+1), nb, aow, nb, &
-               1.0_dp, Macc(1,1,v), nC)
-          call dgemm('T','T', nC, nb, nao_g, 1.0_dp, CHg, nao_g, aow, nb, 0.0_dp, aowC, nC)
-          call dgemm('N','N', nC, nao_g, nb, 1.0_dp, aowC, nC, aoc(ao0+1), nb, &
-               1.0_dp, Macc(1,1,v), nC)
+          call dgemm('T','N', nca, nao_g, nb, 1.0_dp, psiC, nb, aow, nb, &
+               1.0_dp, Macc(1,1,v), nca)
+          call dgemm('T','T', nca, nb, nao_g, 1.0_dp, CCact, nao_g, aow, nb, 0.0_dp, aowC, nca)
+          call dgemm('N','N', nca, nao_g, nb, 1.0_dp, aowC, nca, aoc(ao0+1), nb, &
+               1.0_dp, Macc(1,1,v), nca)
           tcs(4) = tcs(4) + wall_time() - t1
        enddo
-       deallocate(psiL, rho1, wv, aow, aowC)
+       deallocate(psiL, rho1, wv, aow, aowC, psiC)
     enddo
 
     t1 = wall_time()
+    allocate(Vact(nca,nV,nvec))
+    Vcv = 0.0_dp
     do v = 1, nvec
-       call dgemm('N','N', nC, nV, nao_g, 1.0_dp, Macc(1,1,v), nC, CPg(1,3), nao_g, &
-            0.0_dp, Vcv(1,1,v), nC)
+       call dgemm('N','N', nca, nV, nao_g, 1.0_dp, Macc(1,1,v), nca, CPg(1,3), nao_g, &
+            0.0_dp, Vact(1,1,v), nca)
+       do jj = 1, nca
+          Vcv(cact(jj),:,v) = Vact(jj,:,v)
+       enddo
     enddo
     tcs(5) = tcs(5) + wall_time() - t1
-    deallocate(Lall, Macc)
+    deallocate(Lall, Macc, CCact, Yact, Vact)
     time_xc = time_xc + wall_time() - t0
     nxc_calls = nxc_calls + 1
     nxc_vecs = nxc_vecs + nvec

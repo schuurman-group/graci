@@ -16,6 +16,7 @@ module mrsf_sigma
   use mrsf_io
   use mrsf_space
   use mrsf_extended
+  use mrsf_etensor
 
   implicit none
 
@@ -105,8 +106,15 @@ contains
        allocate(Scv(nvirb,nocca,nvec), source=0.0_dp)
     endif
 
-    ! exchange term: S -= c (ij|ab) X~ (and the CV sweep output Scv)
-    if (extended) then
+    ! exchange term: S -= c (ij|ab) X~ (and the CV sweep output Scv),
+    ! from the explicit tensor or the DF plane sweep
+    if (use_etensor .and. etensor_ready) then
+       if (extended) then
+          call etensor_contract(nvec, Xt, S, ccp*cK4, ccp*cK1, X, Scv)
+       else
+          call etensor_contract(nvec, Xt, S, 0.0_dp, 0.0_dp)
+       endif
+    else if (extended) then
        call exchange_contract(nvec, Xt, S, X, Scv)
     else
        call exchange_contract(nvec, Xt, S)
@@ -372,6 +380,16 @@ contains
 
     ! CV columns
     if (extended) call ext_diagonal(mult, d)
+
+    ! frozen-core slots
+    if (nfc > 0) then
+       do i = 1, nC
+          if (frozen_hole(i)) then
+             d(:,i) = 1.0e20_dp
+             if (extended) d(:,nocca+i) = 1.0e20_dp
+          endif
+       enddo
+    endif
 
   end subroutine diagonal
 

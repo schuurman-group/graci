@@ -306,6 +306,10 @@ def print_mrsftddft_states(ci_method):
                       +', nvirt(beta) = '+str(ci_method.nvirb)
                       +', dimension = '+str(ci_method.xdim)
                       +', naux = '+str(ci_method.naux)+'\n')
+        nfc = int(getattr(ci_method, 'frozen_core', 0) or 0)
+        if nfc > 0:
+            outfile.write(' Frozen core: '+str(nfc)+' doubly occupied MOs '
+                          'excluded from the response space\n')
         if extended:
             outfile.write(' Extended MRSF-TDDFT: '+str(ci_method.ncv)
                           +' core-to-virtual configurations of the closed-shell '

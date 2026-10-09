@@ -77,6 +77,9 @@ class Mrsfgradient:
         if getattr(ci, 'extended', False):
             sys.exit('$mrsfgradient: gradients are not yet available for the '
                      'extended MRSF-TDDFT method')
+        if int(getattr(ci, 'frozen_core', 0) or 0) > 0:
+            sys.exit('$mrsfgradient: gradients are not yet available with a '
+                     'frozen core (frozen_core > 0)')
         self.ci = ci
 
         output.print_mrsfgradient_header(self.label)

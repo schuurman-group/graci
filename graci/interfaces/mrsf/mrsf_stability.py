@@ -178,7 +178,9 @@ def ensure_stable(ci, mo_ints):
         fock_mo = np.array([ci.mos.T @ scf.fock_ao[0] @ ci.mos,
                             ci.mos.T @ scf.fock_ao[1] @ ci.mos])
         mrsf_init.set_extended(False)
+        mrsf_init.set_frozen_core(0)
         mrsf_init.init(ci, fock_mo)
+        mrsf_init.set_exchange(getattr(ci, 'exchange', 'auto'))
         mrsf_init.init_ints(ci, ci.eri_file())
         ci.nocca, ci.nvirb, ci.xdim, ci.naux = [int(x) for x in mrsf_init.dims()]
         mf = scf.pyscf_obj()

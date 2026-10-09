@@ -86,6 +86,33 @@ natural orbitals and moments are produced as for DFT/MRCI, and the
 `$transition` section works between two `$mrsftddft` objects of the same
 multiplicity (see examples/h2o_mrsf). Range-separated functionals and
 spin-orbit coupling are not yet supported.
+`frozen_core = n` excludes the n lowest doubly occupied MOs (by orbital
+energy) from the response space: their hole configurations and, in the
+extended method, their core-to-virtual configurations are dropped. The
+default is the chemical core of the molecule (one MO per Li-Ne atom,
+five per Na-Ar atom, ...); `frozen_core = 0` keeps the full core. The
+effect on valence excitation energies is of the order of 1 meV
+(pyrazine/aug-cc-pVTZ: at most 0.6 meV), and the exchange tensor and the
+CV kernel shrink with the number of active holes. Gradients are not yet
+available with a frozen core: the driver switches the frozen-core default
+off for every `$mrsftddft` section that a `$mrsfgradient` section refers
+to (an explicit `frozen_core > 0` with gradients is an error).
+`exchange` selects how the exchange term of the sigma vectors is
+evaluated: `tensor` pre-contracts the (ij|ab) integrals of the active
+hole pairs into symmetric virtual-virtual matrices once per geometry
+(memory 8 nocc(nocc+1)/4 nvirt^2 bytes, a quarter of the ordered
+layout; pyrazine/aug-cc-pVTZ with a frozen core 0.07 GB) and applies
+them with dsymm, about 40 times fewer floating-point operations per
+vector than the density-fitted plane sweep (`df`); `auto` (default)
+takes the tensor whenever it fits `mem_budget`. The results are
+identical to machine precision.
+`precond = inner` (default) replaces the diagonal preconditioner of the
+Davidson solver by Jacobi-Davidson correction equations solved with
+`inner_iter` (6) MINRES steps on the kernel-free operator; it is active
+for singlets of the extended method with the XC kernel, where one exact
+sigma vector costs many kernel-free ones, and halves the number of
+kernel evaluations at unchanged energies. `precond = diag` restores the
+diagonal preconditioner.
 
 The ROKS triplet SCF can converge to a saddle point of the triplet energy,
 for example when the frontier orbitals are degenerate (benzene). The

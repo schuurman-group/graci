@@ -66,7 +66,8 @@ contains
 !######################################################################
   subroutine setup_space()
 
-    integer(is) :: a, i, p, ref_irrep
+    integer(is) :: a, i, p, k, kmin, ref_irrep
+    real(dp)    :: emin
 
     if (allocated(Hmap)) deallocate(Hmap)
     if (allocated(Pmap)) deallocate(Pmap)
@@ -93,6 +94,40 @@ contains
     do a = 1, nvirb
        Pinv(Pmap(a)) = a
     enddo
+
+    ! frozen core: the nfc lowest doubly occupied MOs (by orbital energy)
+    ! are excluded from the hole set of the response; their slots (MRSF
+    ! holes and, in the extended method, the CV columns) are masked
+    if (allocated(frozen_hole)) deallocate(frozen_hole)
+    if (allocated(hact)) deallocate(hact)
+    if (allocated(cact)) deallocate(cact)
+    if (nfc_req < 0 .or. nfc_req >= nC) call mrsf_error('frozen_core must be '&
+         //'>= 0 and smaller than the number of doubly occupied MOs')
+    nfc = nfc_req
+    allocate(frozen_hole(nocca))
+    frozen_hole = .false.
+    do k = 1, nfc
+       kmin = 0
+       emin = huge(1.0_dp)
+       do i = 1, nC
+          if (.not. frozen_hole(i) .and. moen(Hmap(i)) < emin) then
+             emin = moen(Hmap(i))
+             kmin = i
+          endif
+       enddo
+       frozen_hole(kmin) = .true.
+    enddo
+    nocca_act = nocca - nfc
+    nC_act    = nC - nfc
+    allocate(hact(nocca_act), cact(max(nC_act,1)))
+    k = 0
+    do i = 1, nocca
+       if (.not. frozen_hole(i)) then
+          k = k + 1
+          hact(k) = i
+       endif
+    enddo
+    cact(1:nC_act) = hact(1:nC_act)
 
     ! irrep of a spin-flipped configuration i -> a: the irrep of the
     ! open-shell triplet reference, Gamma(O1) x Gamma(O2), times
@@ -135,7 +170,11 @@ contains
     masked = .false.
     if (i > nocca) then
        if (a <= 2) masked = .true.
+       if (frozen_hole(i-nocca)) masked = .true.
        return
+    endif
+    if (i <= nC) then
+       if (frozen_hole(i)) masked = .true.
     endif
     if (a == 2 .and. i == nC+2) masked = .true.
     if (mult == 3) then
@@ -241,6 +280,14 @@ contains
     endif
     if (ncol > nocca) then
        S(1:2,nocca+1:ncol,:) = 0.0_dp
+    endif
+    if (nfc > 0) then
+       do i = 1, nC
+          if (frozen_hole(i)) then
+             S(:,i,:) = 0.0_dp
+             if (ncol > nocca) S(:,nocca+i,:) = 0.0_dp
+          endif
+       enddo
     endif
 
     if (irrep >= 0) then

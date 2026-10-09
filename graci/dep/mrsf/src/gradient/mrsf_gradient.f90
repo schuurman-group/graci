@@ -20,6 +20,7 @@ module mrsf_gradient
   use mrsf_io
   use mrsf_space
   use mrsf_sigma, only: ensure_work, plane_apply
+  use mrsf_etensor, only: etensor_kx, etensor_ready, etensor_nfc
 
   implicit none
 
@@ -157,6 +158,10 @@ contains
     integer(is)           :: blk, Q0, Ql, Q, kk, k, v, ldT
     real(dp), allocatable :: dd(:)
 
+    if (use_etensor .and. etensor_ready .and. etensor_nfc == 0) then
+       call etensor_kx(nvec, scale, Z, S)
+       return
+    endif
     call ensure_work(nvec)
     allocate(dd(nvirb))
     ldT = nvirb * nQ

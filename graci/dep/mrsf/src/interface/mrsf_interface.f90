@@ -13,6 +13,7 @@ module mrsf_interface
   use mrsf_extended
   use mrsf_xcgrid, only: time_xc, nxc_calls, nxc_vecs, time_probe, nprobe_calls
   use mrsf_davidson
+  use mrsf_etensor
   use mrsf_density
 
   implicit none
@@ -30,6 +31,31 @@ contains
     extended = logical(flag1)
 
   end subroutine mrsf_set_extended
+
+!######################################################################
+! mrsf_set_frozen_core: number of doubly occupied MOs (the lowest by
+! orbital energy) excluded from the response space (must precede
+! mrsf_initialise)
+!######################################################################
+  subroutine mrsf_set_frozen_core(nfc1) bind(c, name='mrsf_set_frozen_core')
+
+    integer(is), intent(in) :: nfc1
+
+    nfc_req = nfc1
+
+  end subroutine mrsf_set_frozen_core
+
+!######################################################################
+! mrsf_set_exchange: 0 auto (explicit tensor when it fits mem_budget),
+! 1 explicit (ij|ab) tensor, 2 DF plane sweep (before mrsf_int_initialise)
+!######################################################################
+  subroutine mrsf_set_exchange(mode1) bind(c, name='mrsf_set_exchange')
+
+    integer(is), intent(in) :: mode1
+
+    exchange_mode = mode1
+
+  end subroutine mrsf_set_exchange
 
 !######################################################################
 ! mrsf_initialise
@@ -96,6 +122,8 @@ contains
             ', xdim_tot = ', xdim_tot
        write(6,'(2x,a,i0,a,i0)') 'SOMOs (MO indices): ', iO1, ', ', iO2
        write(6,'(2x,a,f8.4)') 'HF exchange fraction: ', chf
+       if (nfc > 0) write(6,'(2x,a,i0,a,i0,a)') 'frozen core: ', nfc, &
+            ' doubly occupied MOs excluded (', nocca_act, ' active holes)'
     endif
 
   end subroutine mrsf_initialise
@@ -175,9 +203,10 @@ contains
 ! mrsf_diag: Davidson diagonalisation for one (irrep, mult) block
 !######################################################################
   subroutine mrsf_diag(irrep1, imult1, nroots1, nextra1, maxvec1, maxiter1, tol1, &
-       xdim1, ener1, xvec1, niter1, iconv1) bind(c, name='mrsf_diag')
+       precond1, inner1, xdim1, ener1, xvec1, niter1, iconv1) bind(c, name='mrsf_diag')
 
     integer(is), intent(in)    :: irrep1, imult1, nextra1, maxvec1, maxiter1, xdim1
+    integer(is), intent(in)    :: precond1, inner1
     integer(is), intent(inout) :: nroots1
     real(dp), intent(in)       :: tol1
     real(dp), intent(out)      :: ener1(*), xvec1(*)
@@ -187,10 +216,11 @@ contains
     if (xdim1 /= xdim_tot) call mrsf_error('mrsf_diag: inconsistent xdim')
     if (imult1 /= 1 .and. imult1 /= 3) call mrsf_error('mrsf_diag: mult must be 1 or 3')
     if (extended .and. .not. ext_ready) call mrsf_error('mrsf_diag: mrsf_ext_initialise not called')
+    if (precond1 /= 1 .and. precond1 /= 2) call mrsf_error('mrsf_diag: precond must be 1 or 2')
 
     t0 = wall_time()
     call davidson_solve(imult1, irrep1, nroots1, nextra1, maxvec1, maxiter1, tol1, &
-         ener1, xvec1, niter1, iconv1)
+         precond1, max(inner1, 1_is), ener1, xvec1, niter1, iconv1)
     if (verbose) write(6,'(2x,a,f10.2,a,/)') 'Davidson time: ', wall_time()-t0, ' s'
 
   end subroutine mrsf_diag
@@ -294,6 +324,10 @@ contains
     if (allocated(slot_irrep)) deallocate(slot_irrep)
     if (allocated(FaHH)) deallocate(FaHH)
     if (allocated(FbPP)) deallocate(FbPP)
+    if (allocated(frozen_hole)) deallocate(frozen_hole)
+    if (allocated(hact)) deallocate(hact)
+    if (allocated(cact)) deallocate(cact)
+    nfc = 0
     call ext_free()
     init_done = .false.
 
@@ -305,6 +339,7 @@ contains
     call free_ints()
     call free_orbital_data()
     extended = .false.
+    nfc_req = 0
 
   end subroutine mrsf_finalise_f
 
@@ -318,6 +353,8 @@ contains
           write(6,'(2x,a,f10.2,a)') 'integral ingestion : ', time_load, ' s'
           write(6,'(2x,a,f10.2,a,i0,a,i0,a)') 'sigma vectors      : ', time_sigma, &
                ' s (', nsigma_calls, ' calls, ', nsigma_vecs, ' vectors)'
+          if (ninner_vecs > 0) write(6,'(2x,a,f10.2,a,i0,a)') 'inner corrections  : ', &
+               time_inner, ' s (', ninner_vecs, ' kernel-free vectors)'
           write(6,'(2x,a,f10.2,a)') '  exchange term    : ', time_exch, ' s'
           if (time_exch > 0.0_dp) then
              ! sweep: 2 naux nvirb^2 ncol + step 2: 2 naux nvirb nocca ncol per vector
@@ -326,11 +363,17 @@ contains
              write(6,'(2x,a,f10.1,a,f10.2,a)') '  exchange kernel  : ', gflop, &
                   ' GFLOP, ', gflop / time_exch, ' GFLOP/s'
           endif
+          if (netens_vecs > 0) then
+             write(6,'(2x,a,f10.2,a,f10.2,a,i0,a,f10.1,a,f10.2,a)') '  exchange tensor  : build ', &
+                  time_ebuild, ' s, sigma ', time_etens, ' s (', netens_vecs, ' vectors, ', &
+                  flop_etens/1.0e9_dp, ' GFLOP, ', flop_etens/1.0e9_dp/max(time_etens,1.0e-12_dp), ' GFLOP/s)'
+          endif
           if (extended) then
              write(6,'(2x,a,f10.2,a)') '  extended terms   : ', time_ext, ' s (Coulomb pass, couplings)'
              if (nxcs_vecs > 0) then
-                gflop = (2.0_dp*real(nao_g_report(),dp)*real(nC,dp)*real(ncomp_report(),dp) &
-                     + 4.0_dp*real(nC,dp)*real(nao_g_report(),dp)) * real(ngrid_report(),dp) &
+                ! psiL (2 nao nC_act ncomp) + three projection dgemms (6 nC_act nao) per point
+                gflop = (2.0_dp*real(nao_g_report(),dp)*real(nC_act,dp)*real(ncomp_report(),dp) &
+                     + 6.0_dp*real(nC_act,dp)*real(nao_g_report(),dp)) * real(ngrid_report(),dp) &
                      * real(nxcs_vecs,dp) / 1.0e9_dp
                 write(6,'(2x,a,f10.2,a,i0,a,f10.1,a,f10.2,a)') '  CV kernel (grid) : ', time_xcs, &
                      ' s (', nxcs_vecs, ' vectors, ', gflop, ' GFLOP dgemm, ', gflop/time_xcs, ' GFLOP/s)'
@@ -346,6 +389,8 @@ contains
     time_load = 0.0_dp; time_sigma = 0.0_dp; time_exch = 0.0_dp
     time_ext = 0.0_dp; time_xcs = 0.0_dp; nxcs_vecs = 0
     nsigma_calls = 0; nsigma_vecs = 0
+    time_ebuild = 0.0_dp; time_etens = 0.0_dp; flop_etens = 0.0_dp; netens_vecs = 0
+    time_inner = 0.0_dp; ninner_vecs = 0
     time_xc = 0.0_dp; nxc_calls = 0; nxc_vecs = 0; time_probe = 0.0_dp; nprobe_calls = 0
 
   end subroutine report_timings

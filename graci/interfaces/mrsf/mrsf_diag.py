@@ -28,12 +28,16 @@ def diag(ci_method, irrep):
     maxvec = int(ci_method.diag_maxvec) * (nroots + nextra)
     maxit  = int(ci_method.diag_iter)
     tol    = float(ci_method.diag_tol)
+    # correction equations: 1 = diagonal preconditioner, 2 = Jacobi-Davidson
+    # with the kernel-free operator (singlets with the CV kernel only)
+    precond = {'diag': 1, 'inner': 2}[str(ci_method.precond).lower()]
+    inner   = int(ci_method.inner_iter)
 
     ener = np.zeros(nroots, dtype=float)
     xvec = np.zeros(xdim*nroots, dtype=float)
 
-    args = (irrep, mult, nroots, nextra, maxvec, maxit, tol, xdim,
-            ener, xvec, 0, 0)
+    args = (irrep, mult, nroots, nextra, maxvec, maxit, tol, precond, inner,
+            xdim, ener, xvec, 0, 0)
     nroots_out, ener, xvec, niter, iconv = libs.lib_func('mrsf_diag', args)
 
     nroots_out = int(nroots_out)

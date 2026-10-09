@@ -38,6 +38,14 @@ module mrsf_global
   logical     :: vv_full = .false.
   logical     :: extended = .false.     ! EMRSF: CV columns present
   logical     :: ext_ready = .false.    ! ext_initialise done
+  ! frozen core: nfc doubly occupied MOs (the lowest by orbital energy)
+  ! excluded from the hole set of the response space; their slots are
+  ! masked. nfc_req is set before mrsf_initialise (mrsf_set_frozen_core)
+  integer(is) :: nfc_req = 0, nfc = 0, nocca_act = 0, nC_act = 0
+  ! exchange term: explicit (ij|ab) tensor (mrsf_etensor) or DF plane sweep;
+  ! exchange_mode 0 = auto (tensor when it fits mem_budget), 1 = tensor, 2 = df
+  integer(is) :: exchange_mode = 0
+  logical     :: use_etensor = .false.
 
   character(len=255) :: label = ''
 
@@ -55,6 +63,8 @@ module mrsf_global
   integer(is), allocatable :: Hmap(:), Pmap(:)   ! local -> MO index
   integer(is), allocatable :: Hinv(:), Pinv(:)   ! MO -> local index (0: none)
   integer(is), allocatable :: slot_irrep(:)      ! irrep of each packed slot (xdim_tot)
+  logical, allocatable     :: frozen_hole(:)     ! (nocca) hole excluded from the response
+  integer(is), allocatable :: hact(:), cact(:)   ! active hole / core local indices
   real(dp), allocatable    :: FaHH(:,:), FbPP(:,:)
 
   ! three-index integrals
@@ -102,7 +112,7 @@ module mrsf_global
 
   ! timings and counters
   real(dp)    :: time_load = 0.0_dp, time_sigma = 0.0_dp, time_exch = 0.0_dp
-  real(dp)    :: time_ext = 0.0_dp, time_xcs = 0.0_dp
-  integer(is) :: nsigma_calls = 0, nsigma_vecs = 0, nxcs_vecs = 0
+  real(dp)    :: time_ext = 0.0_dp, time_xcs = 0.0_dp, time_inner = 0.0_dp
+  integer(is) :: nsigma_calls = 0, nsigma_vecs = 0, nxcs_vecs = 0, ninner_vecs = 0
 
 end module mrsf_global

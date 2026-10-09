@@ -133,7 +133,9 @@ class GradientDriver:
         self.Lchol = scipy.linalg.cholesky(self.auxmol.intor('int2c2e', hermi=1), lower=True)
         # library: make sure the integrals of this CI object are loaded
         fock_mo = [self.fa, self.fb]
+        mrsf_init.set_frozen_core(0)
         mrsf_init.init(ci, fock_mo)
+        mrsf_init.set_exchange(getattr(ci, 'exchange', 'auto'))
         mrsf_init.init_ints(ci, ci.eri_file())
         # Z-vector operator = orbital Hessian of the reference (hole-particle
         # DF block, Fock couplings and diagonal in the library; the XC

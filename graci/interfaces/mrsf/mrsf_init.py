@@ -54,6 +54,26 @@ def set_extended(flag):
     return
 
 #
+def set_frozen_core(nfc):
+    """number of doubly occupied MOs (the lowest by orbital energy)
+    excluded from the response space; must precede init()"""
+
+    libs.lib_func('mrsf_set_frozen_core', (int(nfc),))
+
+    return
+
+#
+def set_exchange(mode):
+    """exchange term of the sigma vectors: 'auto' (explicit (ij|ab) tensor
+    when it fits mem_budget, else the DF plane sweep), 'tensor', 'df';
+    must precede init_ints()"""
+
+    m = {'auto': 0, 'tensor': 1, 'df': 2}[str(mode).lower()]
+    libs.lib_func('mrsf_set_exchange', (m,))
+
+    return
+
+#
 def init_ext(ci_method, fdft_mo, eri_file):
     """extended-method data: fdft_mo (nmo, nmo) closed-shell KS matrix of
     the configuration G in the MO basis, coupling scale ci_method.ccp_eff,

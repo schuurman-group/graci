@@ -42,6 +42,9 @@ module mrsf_extended
   ! coupling coefficients of the current multiplicity
   real(dp) :: cJ1, cK1, cF1, cW2, cW3, cJ4, cK4, cF4, cA5, cB5, cK6, cJ6, cG
   integer(is) :: coef_mult = 0
+  ! kernel-free operator A0 for the inner correction equations of the
+  ! Davidson solver (set around the inner sigma batches)
+  logical :: kernel_off = .false.
 
 contains
 
@@ -421,7 +424,7 @@ contains
     ! XC kernel of the singlet CV block (closed-shell kernel at the G
     ! density): (jb| f_aa + f_ab |ld) y_ld, all vectors in one pass
     ! ---------------------------------------------------------------
-    if (mult == 1 .and. use_kernel) then
+    if (mult == 1 .and. use_kernel .and. .not. kernel_off) then
        t0 = wall_time()
        allocate(Vcv(nC,nV,nvec))
        call xc_kernel_cv(nvec, X, Vcv)

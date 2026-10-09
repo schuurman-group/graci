@@ -58,6 +58,22 @@ class Mrsftddft(cimethod.Cimethod):
         # internal stability check of the ROKS triplet reference (an
         # unstable reference is re-optimised along the unstable direction)
         self.stability      = False
+        # frozen core: number of doubly occupied MOs (the lowest by orbital
+        # energy) excluded from the hole set of the response space; None
+        # (default) = the chemical core of the molecule, 0 = none
+        self.frozen_core    = None
+        # set by the driver when a $mrsfgradient section refers to this
+        # section (frozen-core gradients are not yet available)
+        self.frozen_core_forced = False
+        # exchange term of the sigma vectors: 'auto' (explicit (ij|ab)
+        # tensor when it fits mem_budget, else the DF sweep), 'tensor', 'df'
+        self.exchange       = 'auto'
+        # Davidson correction equations: 'inner' = Jacobi-Davidson
+        # corrections solved with the kernel-free operator (active for
+        # singlets with the CV kernel), 'diag' = diagonal preconditioner
+        self.precond        = 'inner'
+        # MINRES steps per inner correction equation
+        self.inner_iter     = 6
 
         # computed quantities
         # reference occupation vector (first nmo MOs)
@@ -130,6 +146,11 @@ class Mrsftddft(cimethod.Cimethod):
         if self.verbose:
             output.print_mrsftddft_header(self.label)
             output.print_coords(self.scf.mol.crds, self.scf.mol.asym)
+            if self.frozen_core_forced:
+                output.print_message('  frozen core switched off for this '
+                                     'section: a $mrsfgradient section refers '
+                                     'to it (frozen-core gradients are not yet '
+                                     'available)')
 
         # spin Fock matrices in the MO basis of self.mos
         fock_ao = self.scf.fock_ao
@@ -152,7 +173,9 @@ class Mrsftddft(cimethod.Cimethod):
 
         # initialise the library and load the integrals
         mrsf_init.set_extended(self.extended)
+        mrsf_init.set_frozen_core(self.frozen_core)
         mrsf_init.init(self, fock_mo)
+        mrsf_init.set_exchange(self.exchange)
         mrsf_init.init_ints(self, self.eri_file())
         self.nocca, self.nvirb, self.xdim, self.naux = \
             [int(x) for x in mrsf_init.dims()]
@@ -308,6 +331,19 @@ class Mrsftddft(cimethod.Cimethod):
             sys.exit('\n ERROR: the MRSF-TDDFT reference must have exactly '
                      'two singly occupied MOs within the MO space')
 
+        ndocc = int(np.sum(np.abs(self.occ_ref - 2.) < 1.e-6))
+        if self.frozen_core is None:
+            # default: the chemical core (1 per Li-Ne atom, 5 per Na-Ar, ...)
+            from pyscf.data import elements
+            self.frozen_core = min(int(elements.chemcore(self.scf.mol.mol_obj)),
+                                   max(ndocc - 1, 0))
+        self.frozen_core = int(self.frozen_core)
+        if self.frozen_core_forced and self.frozen_core > 0:
+            self.frozen_core = 0
+        if self.frozen_core < 0 or self.frozen_core >= ndocc:
+            sys.exit('\n ERROR: frozen_core must be >= 0 and smaller than the '
+                     'number of doubly occupied MOs ('+str(ndocc)+')')
+
         nirr = self.scf.mol.n_irrep()
         if self.nstates is None:
             sys.exit('\n ERROR: nstates must be given in the mrsftddft section')
@@ -320,6 +356,15 @@ class Mrsftddft(cimethod.Cimethod):
             sys.exit('\n ERROR: precision must be single or double')
         if self.vv_storage not in ('paired', 'full'):
             sys.exit('\n ERROR: vv_storage must be paired or full')
+        self.exchange = str(self.exchange).lower()
+        if self.exchange not in ('auto', 'tensor', 'df'):
+            sys.exit('\n ERROR: exchange must be auto, tensor or df')
+        self.precond = str(self.precond).lower()
+        if self.precond not in ('diag', 'inner'):
+            sys.exit('\n ERROR: precond must be diag or inner')
+        self.inner_iter = int(self.inner_iter)
+        if self.inner_iter < 1:
+            sys.exit('\n ERROR: inner_iter must be at least 1')
         if self.extended and self.precision != 'double':
             sys.exit('\n ERROR: the extended MRSF-TDDFT method requires '
                      'precision = double')
