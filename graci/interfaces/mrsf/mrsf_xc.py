@@ -22,6 +22,7 @@ class XCGrid:
         are re-evaluated block by block at every kernel call."""
         self.mf, self.mol, self.ni = mf, mf.mol, mf._numint
         self.time_kernel, self.ncalls_kernel, self.time_probe = 0.0, 0, 0.0
+        self.g_kernel = False
         self.dims = dims
         nocca, nvirb, naux = dims
         self.nao = C.shape[0]
@@ -99,26 +100,73 @@ class XCGrid:
         self.ncalls_kernel += 1
         return VHP, VHH
 
-    def probe(self, Lfac, Rfac, rch):
+    def probe(self, Lfac, Rfac, rch, gfac=None):
         """XC probe terms of the gradient on the fixed grid for the state
         densities P^s_v = L R^T + R L^T, Lfac/Rfac (nao, k, 2, nst), rch as
         in kernel(): returns t (nao, 3, nst+1) with entry 0 the reference
         (vxc, D) term and entry v+1 the (vxc, P_v) + (f_xc[P_v], D) term of
         state v; the gradient contributions are -2 sum_{mu in A} t_x(mu).
-        The AO values with the derivatives needed are streamed from PySCF."""
+        gfac = (LM, RM, LS) registers, for the extended method, the
+        G-density terms per state (see gprobe terms in the library) and the
+        result is then (t, tG) with tG (nao, 3, nst). The AO values with the
+        derivatives needed are streamed from PySCF."""
         t0 = time.time()
         Lfac = np.asfortranarray(Lfac, dtype=np.float64)
         Rfac = np.asfortranarray(Rfac, dtype=np.float64)
         nao, k, two, nst = Lfac.shape
         rch = np.asarray(np.reshape(rch, (2, nst)), dtype=np.int32).flatten(order='F')
         libs.lib_func('mrsf_xc_probe_begin', (nst, k, Lfac, Rfac, rch))
+        if gfac is not None:
+            LM, RM, LS = [np.asfortranarray(a, dtype=np.float64) for a in gfac]
+            kM, kS = LM.shape[1], LS.shape[1]
+            libs.lib_func('mrsf_xc_gprobe_set', (nst, kM, LM, RM, kS, LS))
         for ib in range(self.nblocks):
             aoF = self.eval_block(ib, deriv=self.ao_deriv + 1)
             libs.lib_func('mrsf_xc_probe_block', (ib + 1, int(aoF.shape[2]), aoF))
+        tG = None
+        if gfac is not None:
+            tG = mrsf_grad.fzeros(nao, 3, nst)
+            libs.lib_func('mrsf_xc_gprobe_get', (tG,))
         t = mrsf_grad.fzeros(nao, 3, nst + 1)
         libs.lib_func('mrsf_xc_probe_end', (t,))
         self.time_probe += time.time() - t0
+        if gfac is not None:
+            return t, tG
         return t
+
+    def set_g_kernel(self, C, occG, with_kxc):
+        """closed-shell kernel set at the density of the configuration G of
+        the extended method (occG: occupations 2 on the G orbitals), in
+        PySCF's spin-0 convention (derivatives of the total density; trial
+        densities spin-summed): v_xc, f_xc and, when with_kxc, k_xc"""
+        xc, ni, mol, grids = self.mf.xc, self.ni, self.mol, self.mf.grids
+        nv, ngrid = self.ncomp, self.ngrid
+        rho, vxc, fxc = ni.cache_xc_kernel(mol, grids, xc, C, occG, spin=0)
+        vxc = np.ascontiguousarray(np.asarray(vxc).reshape(nv, ngrid))
+        fxc = np.ascontiguousarray(np.asarray(fxc).reshape(nv, nv, ngrid))
+        if with_kxc:
+            xctype = ni._xc_type(xc)
+            kxc = ni.eval_xc_eff(xc, rho, deriv=3, xctype=xctype)[3]
+            kxc = np.ascontiguousarray(np.asarray(kxc).reshape(nv, nv, nv, ngrid))
+        else:
+            kxc = np.zeros((nv, nv, nv, 1))
+        libs.lib_func('mrsf_xc_g_set', (int(ngrid), nv, vxc.T, fxc.T, np.asfortranarray(kxc.T), bool(with_kxc)))
+        self.g_kernel = True
+
+    def potential_g(self, LM, RM, LS):
+        """G-density kernel potentials of the extended method: returns
+        (MM, MK, V1) with MM, MK (nocca, nao) the hole-MO projections of
+        v[f rho(M)] and v[k rho(D_s)^2] (V(H, all) = MM C) and V1 (nao, nao)
+        the AO matrix of v[f rho(D_s)]; M = LM RM^T + RM LM^T, D_s =
+        LS C_C^T + C_C LS^T (LS has one column per doubly occupied MO)"""
+        nocca = self.dims[0]
+        LM = np.asfortranarray(LM, dtype=np.float64); RM = np.asfortranarray(RM, dtype=np.float64)
+        LS = np.asfortranarray(LS, dtype=np.float64)
+        kM, kS = LM.shape[1], LS.shape[1]
+        MM = mrsf_grad.fzeros(nocca, self.nao); MK = mrsf_grad.fzeros(nocca, self.nao)
+        V1 = mrsf_grad.fzeros(self.nao, self.nao)
+        libs.lib_func('mrsf_xc_g_potential', (kM, LM, RM, kS, LS, MM, MK, V1))
+        return MM, MK, V1
 
     def print_timings(self):
         """library-side timers of the grid kernel (diagnostics)"""

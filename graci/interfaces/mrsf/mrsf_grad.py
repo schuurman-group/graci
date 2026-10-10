@@ -77,8 +77,65 @@ def jblocks(jq, dims):
     return JHH, JHP, JPP
 
 
-def state(cx, Xt, dims):
-    """per-state exchange-channel pass; returns a dict of the outputs"""
+def dq(occ, naux):
+    """Coulomb vector of a diagonal MO density, dq(Q) = sum_p B^Q_pp occ_p"""
+    out = fzeros(naux)
+    libs.lib_func('mrsf_grad_dq', (farr(occ), out))
+    return out
+
+
+def booq(dims):
+    """copy of the hole-hole DF block B^Q_hh' (nocca, nocca, naux)"""
+    nocca, nvirb, naux = dims
+    out = fzeros(nocca, nocca, naux)
+    libs.lib_func('mrsf_grad_booq', (out,))
+    return out
+
+
+def jq_of(Ahh, Ahp, dims):
+    """Coulomb vectors sum_hh' B^Q_hh' Ahh + sum_hp B^Q_hp Ahp(p,h) of nvec
+    (hole-hole, particle-hole) MO matrix pairs; None stands for zero"""
+    nocca, nvirb, naux = dims
+    if Ahh is None:
+        nvec = Ahp.shape[2] if np.asarray(Ahp).ndim == 3 else 1
+    else:
+        nvec = Ahh.shape[2] if np.asarray(Ahh).ndim == 3 else 1
+    Ahh_ = fzeros(nocca, nocca, nvec) if Ahh is None else farr(np.asarray(Ahh).reshape(nocca, nocca, nvec, order='F'))
+    Ahp_ = fzeros(nvirb, nocca, nvec) if Ahp is None else farr(np.asarray(Ahp).reshape(nvirb, nocca, nvec, order='F'))
+    out = fzeros(naux, nvec)
+    libs.lib_func('mrsf_grad_jq', (nvec, Ahh_, Ahp_, out))
+    return out
+
+
+def bvec(U, cls, nmo, naux):
+    """out(Q, t, v) = sum_{q in class} B^Q_{t q} U(q, v) for all MOs t;
+    cls = 'core' (q over the doubly occupied MOs, local order) or 'virt'
+    (q over the virtuals, local order)"""
+    U = np.asarray(U, dtype=float)
+    if U.ndim == 1:
+        U = U[:, None]
+    nv = U.shape[1]
+    out = fzeros(naux, nmo, nv)
+    libs.lib_func('mrsf_grad_bvec', (nv, {'core': 1, 'virt': 2}[cls], farr(U), out))
+    return out
+
+
+def bdot(W, cls, nmo, naux):
+    """out(t, w) = sum_Q sum_{s in class} B^Q_{t s} W(s, Q, w) for all MOs t
+    (W: (ncls, naux[, nw]) Q-dependent vectors on the core or the virtuals)"""
+    W = np.asarray(W, dtype=float)
+    if W.ndim == 2:
+        W = W[:, :, None]
+    nw = W.shape[2]
+    out = fzeros(nmo, nw)
+    libs.lib_func('mrsf_grad_bdot', (nw, {'core': 1, 'virt': 2}[cls], farr(W), out))
+    return out
+
+
+def state(cx, Xt, dims, dqf):
+    """per-state exchange-channel pass; dqf is the Coulomb vector of the
+    mean-field density paired with X~ X~^T in the families (the reference
+    density for MRSF); returns a dict of the outputs"""
     nocca, nvirb, naux = dims
     out = {'LaH': fzeros(nocca, nocca), 'LaP': fzeros(nvirb, nocca),
            'LbH': fzeros(nocca, nvirb), 'LbP': fzeros(nvirb, nvirb),
@@ -87,7 +144,7 @@ def state(cx, Xt, dims):
            'gpp': fzeros(naux, naux), 'KbT_HP': fzeros(nocca, nvirb),
            'KbT_HH': fzeros(nocca, nocca), 'jT': fzeros(naux), 'dq': fzeros(naux)}
     keys = ['LaH', 'LaP', 'LbH', 'LbP', 'Ghh', 'Fhp', 'Yf', 'Sq', 'gpp', 'KbT_HP', 'KbT_HH', 'jT', 'dq']
-    libs.lib_func('mrsf_grad_state', (float(cx), farr(Xt)) + tuple(out[k] for k in keys))
+    libs.lib_func('mrsf_grad_state', (float(cx), farr(dqf), farr(Xt)) + tuple(out[k] for k in keys))
     return out
 
 

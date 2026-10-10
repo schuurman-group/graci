@@ -51,18 +51,50 @@ contains
     call jblocks(nvec1, jq1, JHH1, JHP1, JPP1)
   end subroutine mrsf_jblocks_c
 
-  subroutine mrsf_grad_state_c(cx1, Xt1, LaH1, LaP1, LbH1, LbP1, Ghh1, Fhp1, Yf1, &
+  subroutine mrsf_grad_state_c(cx1, dqf1, Xt1, LaH1, LaP1, LbH1, LbP1, Ghh1, Fhp1, Yf1, &
        Sq1, gpp1, KbTHP1, KbTHH1, jT1, dq1) bind(c, name='mrsf_grad_state')
-    real(dp), intent(in)  :: cx1, Xt1(nvirb,nocca)
+    real(dp), intent(in)  :: cx1, dqf1(naux), Xt1(nvirb,nocca)
     real(dp), intent(out) :: dq1(naux)
     real(dp), intent(out) :: LaH1(nocca,nocca), LaP1(nvirb,nocca), LbH1(nocca,nvirb), &
                              LbP1(nvirb,nvirb)
     real(dp), intent(out) :: Ghh1(nocca,nocca,naux), Fhp1(nocca,nvirb,naux), &
                              Yf1(nvirb,nocca,naux), Sq1(nocca,nocca,naux), gpp1(naux,naux)
     real(dp), intent(out) :: KbTHP1(nocca,nvirb), KbTHH1(nocca,nocca), jT1(naux)
-    call grad_state(cx1, Xt1, LaH1, LaP1, LbH1, LbP1, Ghh1, Fhp1, Yf1, Sq1, gpp1, &
+    call grad_state(cx1, dqf1, Xt1, LaH1, LaP1, LbH1, LbP1, Ghh1, Fhp1, Yf1, Sq1, gpp1, &
          KbTHP1, KbTHH1, jT1, dq1)
   end subroutine mrsf_grad_state_c
+
+  subroutine mrsf_grad_dq_c(occ1, dq1) bind(c, name='mrsf_grad_dq')
+    real(dp), intent(in)  :: occ1(nmo)
+    real(dp), intent(out) :: dq1(naux)
+    call grad_dq(occ1, dq1)
+  end subroutine mrsf_grad_dq_c
+
+  subroutine mrsf_grad_booq_c(B1) bind(c, name='mrsf_grad_booq')
+    real(dp), intent(out) :: B1(nocca,nocca,naux)
+    call grad_booq(B1)
+  end subroutine mrsf_grad_booq_c
+
+  subroutine mrsf_grad_jq_c(nvec1, Ahh1, Ahp1, jq1) bind(c, name='mrsf_grad_jq')
+    integer(is), intent(in) :: nvec1
+    real(dp), intent(in)    :: Ahh1(nocca,nocca,nvec1), Ahp1(nvirb,nocca,nvec1)
+    real(dp), intent(out)   :: jq1(naux,nvec1)
+    call grad_jq(nvec1, Ahh1, Ahp1, jq1)
+  end subroutine mrsf_grad_jq_c
+
+  subroutine mrsf_grad_bvec_c(nv1, cls1, U1, out1) bind(c, name='mrsf_grad_bvec')
+    integer(is), intent(in) :: nv1, cls1
+    real(dp), intent(in)    :: U1(*)
+    real(dp), intent(out)   :: out1(naux,nmo,nv1)
+    call grad_bvec(nv1, cls1, U1, out1)
+  end subroutine mrsf_grad_bvec_c
+
+  subroutine mrsf_grad_bdot_c(nw1, cls1, W1, out1) bind(c, name='mrsf_grad_bdot')
+    integer(is), intent(in) :: nw1, cls1
+    real(dp), intent(in)    :: W1(*)
+    real(dp), intent(out)   :: out1(nmo,nw1)
+    call grad_bdot(nw1, cls1, W1, out1)
+  end subroutine mrsf_grad_bdot_c
 
   subroutine mrsf_grad_finish_c(cx1, dq1, jT1, Ta1, Xt1, Za1, Zb1, Sq1, occH1, Ghh1, Fhp1, &
        gpp1, g1, pq1) bind(c, name='mrsf_grad_finish')

@@ -82,7 +82,9 @@ def init_ext(ci_method, fdft_mo, eri_file):
 
     nmo = int(ci_method.nmo)
     fdft = np.asfortranarray(np.asarray(fdft_mo, dtype=float).reshape(nmo, nmo))
-    args = (nmo, fdft, float(ci_method.ccp_eff), bool(ci_method.use_kernel), eri_file)
+    # F' correction: 1 = diagonal (published), 2 = covariant (Part XII)
+    fprime = {'diagonal': 1, 'covariant': 2}[str(getattr(ci_method, 'fprime', 'covariant')).lower()]
+    args = (nmo, fdft, float(ci_method.ccp_eff), bool(ci_method.use_kernel), fprime, eri_file)
     libs.lib_func('mrsf_ext_initialise', args)
 
     return

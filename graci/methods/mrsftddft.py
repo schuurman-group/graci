@@ -16,6 +16,31 @@ import graci.interfaces.mrsf.mrsf_density as mrsf_density
 import graci.interfaces.mrsf.mrsf_overlap as mrsf_overlap
 import graci.interfaces.mrsf.mrsf_stability as mrsf_stability
 
+def closed_shell_fock(scf, mf, C, gidx):
+    """closed-shell KS (or HF) matrix of the configuration G = |C O1^2|
+    (orbitals gidx doubly occupied) evaluated with the triplet orbitals C
+    (eq. 17 of Oh et al.): returns (F_AO, F_MO). The same functional,
+    grid and density fitting as the SCF object of the reference."""
+    from pyscf import scf as pyscf_scf, dft as pyscf_dft
+    D_G = 2.0 * C[:, gidx] @ C[:, gidx].T
+    xc = str(scf.xc).lower()
+    pymol = mf.mol
+    if xc == 'hf':
+        ks = pyscf_scf.ROHF(pymol)
+    else:
+        ks = pyscf_dft.ROKS(pymol)
+        ks.xc = mf.xc
+        ks.grids = mf.grids
+    if scf.mol.use_df:
+        ks = ks.density_fit(auxbasis=scf.mol.ri_basis)
+    # an ROHF/ROKS object with a total density gives the closed-shell
+    # Fock matrix of that density (alpha and beta Fock matrices equal)
+    f = ks.get_fock(dm=D_G)
+    fa = getattr(f, 'focka', None)
+    f_ao = np.asarray(f) if fa is None else np.asarray(fa)
+    return f_ao, C.T @ f_ao @ C
+
+
 class Mrsftddft(cimethod.Cimethod):
     """Class constructor for MRSF-TDDFT objects"""
     def __init__(self, ci_obj=None):
@@ -55,6 +80,11 @@ class Mrsftddft(cimethod.Cimethod):
         self.extended       = False
         # EMRSF coupling scale c_cp (None: the fraction of HF exchange)
         self.ccp            = None
+        # EMRSF F' correction: 'covariant' (default: full VV and CC blocks
+        # of (1 - c_H)(J[D_O2] - J[D_O1]), invariant under core-core and
+        # virtual-virtual rotations) or 'diagonal' (the published form,
+        # energies only)
+        self.fprime         = 'covariant'
         # internal stability check of the ROKS triplet reference (an
         # unstable reference is re-optimised along the unstable direction)
         self.stability      = False
@@ -62,9 +92,6 @@ class Mrsftddft(cimethod.Cimethod):
         # energy) excluded from the hole set of the response space; None
         # (default) = the chemical core of the molecule, 0 = none
         self.frozen_core    = None
-        # set by the driver when a $mrsfgradient section refers to this
-        # section (frozen-core gradients are not yet available)
-        self.frozen_core_forced = False
         # exchange term of the sigma vectors: 'auto' (explicit (ij|ab)
         # tensor when it fits mem_budget, else the DF sweep), 'tensor', 'df'
         self.exchange       = 'auto'
@@ -146,11 +173,6 @@ class Mrsftddft(cimethod.Cimethod):
         if self.verbose:
             output.print_mrsftddft_header(self.label)
             output.print_coords(self.scf.mol.crds, self.scf.mol.asym)
-            if self.frozen_core_forced:
-                output.print_message('  frozen core switched off for this '
-                                     'section: a $mrsfgradient section refers '
-                                     'to it (frozen-core gradients are not yet '
-                                     'available)')
 
         # spin Fock matrices in the MO basis of self.mos
         fock_ao = self.scf.fock_ao
@@ -271,7 +293,6 @@ class Mrsftddft(cimethod.Cimethod):
         (eq. 17 of Oh et al.), in the MO basis, and the grid-kernel cache
         of the singlet CV block (None when no kernel is needed)
         """
-        from pyscf import scf as pyscf_scf, dft as pyscf_dft
         import graci.interfaces.mrsf.mrsf_xc as mrsf_xc
 
         mf   = self.scf.pyscf_obj()
@@ -279,23 +300,8 @@ class Mrsftddft(cimethod.Cimethod):
         hmap, pmap = self.orbital_classes()
         nc   = len(hmap) - 2
         gidx = list(hmap[:nc]) + [int(hmap[nc])]
-        D_G  = 2.0 * C[:, gidx] @ C[:, gidx].T
         xc   = str(self.scf.xc).lower()
-        pymol = mf.mol
-        if xc == 'hf':
-            ks = pyscf_scf.ROHF(pymol)
-        else:
-            ks = pyscf_dft.ROKS(pymol)
-            ks.xc = mf.xc
-            ks.grids = mf.grids
-        if self.scf.mol.use_df:
-            ks = ks.density_fit(auxbasis=self.scf.mol.ri_basis)
-        # an ROHF/ROKS object with a total density gives the closed-shell
-        # Fock matrix of that density (alpha and beta Fock matrices equal)
-        f  = ks.get_fock(dm=D_G)
-        fa = getattr(f, 'focka', None)
-        fdft_ao = np.asarray(f) if fa is None else np.asarray(fa)
-        fdft_mo = C.T @ fdft_ao @ C
+        fdft_mo = closed_shell_fock(self.scf, mf, C, gidx)[1]
 
         self.use_kernel = bool(self.mult == 1 and xc != 'hf')
         xcgrid = None
@@ -339,8 +345,6 @@ class Mrsftddft(cimethod.Cimethod):
             self.frozen_core = min(int(elements.chemcore(self.scf.mol.mol_obj)),
                                    max(ndocc - 1, 0))
         self.frozen_core = int(self.frozen_core)
-        if self.frozen_core_forced and self.frozen_core > 0:
-            self.frozen_core = 0
         if self.frozen_core < 0 or self.frozen_core >= ndocc:
             sys.exit('\n ERROR: frozen_core must be >= 0 and smaller than the '
                      'number of doubly occupied MOs ('+str(ndocc)+')')
@@ -369,6 +373,9 @@ class Mrsftddft(cimethod.Cimethod):
         if self.extended and self.precision != 'double':
             sys.exit('\n ERROR: the extended MRSF-TDDFT method requires '
                      'precision = double')
+        self.fprime = str(self.fprime).lower()
+        if self.fprime not in ('diagonal', 'covariant'):
+            sys.exit('\n ERROR: fprime must be diagonal or covariant')
 
         return
 

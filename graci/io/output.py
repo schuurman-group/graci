@@ -581,6 +581,17 @@ def print_mrsfgradient_results(grad_obj, states, res):
                       '{:16.10f}'.format(ci.scf.energy)+' Ha')
         outfile.write('\n Z-vector solver: '+str(grad_obj.zvec_solver)+
                       ', tolerance '+'{:.1e}'.format(grad_obj.zvec_tol))
+        nfc = int(getattr(ci, 'frozen_core', 0) or 0)
+        if nfc > 0:
+            outfile.write('\n Frozen core: '+str(nfc)+' doubly occupied MOs; canonical '
+                          'multipliers of the frozen-active core rotations, max |zeta| per state: '+
+                          ' '.join('{:.2e}'.format(v) for v in res.get('zeta_max', [])))
+        if res.get('somo_gap', None) is not None:
+            outfile.write('\n Extended method: SOMO gap {:.4f} Ha{:s}; canonical multiplier of the '
+                          'O1-O2 rotation, zeta_12 per state: '.format(
+                              float(res['somo_gap']),
+                              '  (WARNING: small gap, zeta_12 ~ 1/gap)' if res['somo_gap'] < 1.0e-2 else '')+
+                          ' '.join('{:.2e}'.format(v) for v in res.get('zeta_12', [])))
         t = res['times']
         outfile.write('\n Timings (s): reference gradient {:.2f}, '
                       'RHS {:.2f}, Z-vector {:.2f}, families {:.2f}, '

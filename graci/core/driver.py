@@ -77,17 +77,11 @@ class Driver:
            or len(grad_objs) > 0:
             libs.lib_load('mrsf')
 
-        # gradient sections need the MRSF integrals to stay loaded, and
-        # the full core in the response space (frozen-core gradients are
-        # not yet available): the frozen-core default is switched off for
-        # the sections they refer to
+        # gradient sections need the MRSF integrals to stay loaded
         if len(grad_objs) > 0:
             for ci_obj in ci_objs:
                 if type(ci_obj).__name__ == 'Mrsftddft':
                     ci_obj.keep_ints = True
-                    if ci_obj.frozen_core is None:
-                        ci_obj.frozen_core = 0
-                        ci_obj.frozen_core_forced = True
 
         # Generate PySCF objects 
         # ----------------------------------------------------

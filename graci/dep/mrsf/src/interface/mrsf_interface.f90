@@ -155,13 +155,14 @@ contains
 ! and, if the kernel is used, after the grid initialisation)
 !   fdft1(nmo,nmo): closed-shell KS matrix of G in the MO basis
 !######################################################################
-  subroutine mrsf_ext_initialise(nmo1, fdft1, ccp1, use_kernel1, erifile1) &
+  subroutine mrsf_ext_initialise(nmo1, fdft1, ccp1, use_kernel1, fprime1, erifile1) &
        bind(c, name='mrsf_ext_initialise')
 
     integer(is), intent(in)            :: nmo1
     real(dp), intent(in)               :: fdft1(nmo1,nmo1)
     real(dp), intent(in)               :: ccp1
     logical(c_bool), intent(in)        :: use_kernel1
+    integer(is), intent(in)            :: fprime1
     character(kind=c_char), intent(in) :: erifile1(*)
     character(len=255)                 :: erifile
 
@@ -169,7 +170,7 @@ contains
     if (.not. extended) call mrsf_error('mrsf_ext_initialise: mrsf_set_extended not set')
     call c2fstr(erifile1, erifile)
     if (.not. allocated(Bcv)) call load_bcv_pass(erifile)
-    call ext_initialise(fdft1, ccp1, logical(use_kernel1))
+    call ext_initialise(fdft1, ccp1, logical(use_kernel1), fprime1)
 
   end subroutine mrsf_ext_initialise
 

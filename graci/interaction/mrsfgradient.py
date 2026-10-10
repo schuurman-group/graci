@@ -49,6 +49,12 @@ class Mrsfgradient:
         # Z-vector iterations and residual norms
         self.zvec_niter    = None
         self.zvec_resid    = None
+        # largest canonical multiplier of the frozen-core rotations per state
+        self.zeta_max      = None
+        # extended method: canonical multiplier of the O1-O2 rotation per
+        # state and the SOMO gap (Hartree) it is divided by
+        self.zeta_12       = None
+        self.somo_gap      = None
         # timings of the stages
         self.times         = None
         # 0-based adiabatic indices of the differentiated states
@@ -74,12 +80,6 @@ class Mrsfgradient:
 
         if type(ci).__name__ != 'Mrsftddft':
             sys.exit('$mrsfgradient: mrsf_label must refer to an $mrsftddft section')
-        if getattr(ci, 'extended', False):
-            sys.exit('$mrsfgradient: gradients are not yet available for the '
-                     'extended MRSF-TDDFT method')
-        if int(getattr(ci, 'frozen_core', 0) or 0) > 0:
-            sys.exit('$mrsfgradient: gradients are not yet available with a '
-                     'frozen core (frozen_core > 0)')
         self.ci = ci
 
         output.print_mrsfgradient_header(self.label)
@@ -95,7 +95,11 @@ class Mrsfgradient:
                     sys.exit('$mrsfgradient: state %d does not exist (the %s section has %d states)'
                              % (st + 1, ci.label, nst_avail))
 
-        driver = mrsf_gradient.GradientDriver(ci, self)
+        if getattr(ci, 'extended', False):
+            import graci.interfaces.mrsf.mrsf_egradient as mrsf_egradient
+            driver = mrsf_egradient.EMRSFGradientDriver(ci, self)
+        else:
+            driver = mrsf_gradient.GradientDriver(ci, self)
         res = driver.run(states)
         driver.finalise()
 
@@ -105,6 +109,9 @@ class Mrsfgradient:
         self.state_syms  = [ci.scf.mol.irreplbl[ci.state_sym(st)[0]] for st in states]
         self.zvec_niter  = np.array(res['zvec_niter'])
         self.zvec_resid  = np.array(res['zvec_resid'])
+        self.zeta_max    = np.array(res.get('zeta_max', []))
+        self.zeta_12     = np.array(res.get('zeta_12', []))
+        self.somo_gap    = res.get('somo_gap', None)
         self.times       = res['times']
         self.state_list  = np.array(states)
 

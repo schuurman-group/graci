@@ -45,6 +45,9 @@ module mrsf_extended
   ! kernel-free operator A0 for the inner correction equations of the
   ! Davidson solver (set around the inner sigma batches)
   logical :: kernel_off = .false.
+  ! F' correction: 1 = diagonal (published), 2 = covariant VV and CC blocks
+  ! of (1 - c_H)(J[D_O2] - J[D_O1]) (Part XII)
+  integer(is) :: fprime_mode = 1
 
 contains
 
@@ -52,13 +55,14 @@ contains
 ! ext_initialise: F', shift, diagonal, SOMO-integral vectors
 !   fdft(nmo,nmo): F^DFT in the MO basis
 !######################################################################
-  subroutine ext_initialise(fdft, ccp1, use_kernel1)
+  subroutine ext_initialise(fdft, ccp1, use_kernel1, fprime1)
 
-    real(dp), intent(in) :: fdft(nmo,nmo)
-    real(dp), intent(in) :: ccp1
-    logical, intent(in)  :: use_kernel1
+    real(dp), intent(in)    :: fdft(nmo,nmo)
+    real(dp), intent(in)    :: ccp1
+    logical, intent(in)     :: use_kernel1
+    integer(is), intent(in) :: fprime1
 
-    real(dp), allocatable :: corr(:), dO1(:), dO2(:), Dpart(:,:)
+    real(dp), allocatable :: corr(:), dO1(:), dO2(:), Dpart(:,:), dQ(:), Jvv(:,:), Jcc(:,:)
     integer(is)           :: p, a, j, b, blk, Ql, Q
     real(dp)              :: o2o2o1o1
 
@@ -84,6 +88,14 @@ contains
     call dgemv('T', naux, nmo, -1.0_dp, Dall, naux, dO1, 1, 1.0_dp, corr, 1)
     corr = (1.0_dp - chf) * corr
     o2o2o1o1 = dot_product(dO2, dO1)
+    if (fprime1 /= 1 .and. fprime1 /= 2) call mrsf_error('ext_initialise: fprime must be 1 or 2')
+    fprime_mode = fprime1
+    if (fprime_mode == 2) then
+       if (store_sp) call mrsf_error('ext_initialise: the covariant F'' needs double-precision integrals')
+       allocate(dQ(naux), Jvv(nvirb,nvirb), Jcc(max(nC,1_is),max(nC,1_is)))
+       dQ = (1.0_dp - chf) * (dO2 - dO1)
+       call ext_coulomb_blocks(dQ, Jvv, Jcc)
+    endif
 
     ! F' blocks (V x V embedded in the particle layout, C x C)
     allocate(Fp_emb(nvirb,nvirb), source=0.0_dp)
@@ -91,15 +103,18 @@ contains
     do b = 3, nvirb
        do a = 3, nvirb
           Fp_emb(a,b) = fdft(Pmap(a),Pmap(b))
+          if (fprime_mode == 2) Fp_emb(a,b) = Fp_emb(a,b) + Jvv(a,b)
        enddo
-       Fp_emb(b,b) = Fp_emb(b,b) + corr(Pmap(b))
+       if (fprime_mode == 1) Fp_emb(b,b) = Fp_emb(b,b) + corr(Pmap(b))
     enddo
     do j = 1, nC
        do p = 1, nC
           Fp_cc(p,j) = fdft(Hmap(p),Hmap(j))
+          if (fprime_mode == 2) Fp_cc(p,j) = Fp_cc(p,j) + Jcc(p,j)
        enddo
-       Fp_cc(j,j) = Fp_cc(j,j) + corr(Hmap(j))
+       if (fprime_mode == 1) Fp_cc(j,j) = Fp_cc(j,j) + corr(Hmap(j))
     enddo
+    if (allocated(dQ)) deallocate(dQ, Jvv, Jcc)
 
     ! Fock-type coupling vectors / block
     allocate(Fcv(max(nV,1_is),max(nC,1_is)), fO2V(max(nV,1_is)), fCO1(max(nC,1_is)))
@@ -156,9 +171,65 @@ contains
        write(6,'(/,2x,a)') 'Extended MRSF-TDDFT initialised'
        write(6,'(2x,a,i0,a,i0,a,f8.4,a,f12.6,a,l1)') 'CV columns = ', nC, ', xdim_tot = ', &
             xdim_tot, ', c_cp = ', ccp, ', A_G = ', A_G, ' Ha, kernel = ', use_kernel
+       if (fprime_mode == 2) then
+          write(6,'(2x,a)') "F' correction: covariant (full VV and CC blocks)"
+       else
+          write(6,'(2x,a)') "F' correction: diagonal (published form)"
+       endif
     endif
 
   end subroutine ext_initialise
+
+!######################################################################
+! ext_coulomb_blocks: Jvv(a,b) = sum_Q B^Q_ab jq(Q) (a, b in P) and
+! Jcc(p,j) = sum_Q B^Q_pj jq(Q) (p, j in C) from the resident blocks
+! (paired or full planes, Q-blocked Boo); double precision only
+!######################################################################
+  subroutine ext_coulomb_blocks(jq, Jvv, Jcc)
+
+    real(dp), intent(in)  :: jq(naux)
+    real(dp), intent(out) :: Jvv(nvirb,nvirb)
+    real(dp), intent(out) :: Jcc(:,:)
+    real(dp), allocatable :: Jlow(:,:), Jup(:,:)
+    integer(is)           :: k, Q, a, b, blk, Ql, p, j
+
+    Jvv = 0.0_dp
+    if (vv_full) then
+       do Q = 1, naux
+          Jvv = Jvv + jq(Q) * Bvv(:,:,Q)
+       enddo
+    else
+       ! plane k: B^{2k-1} in the lower triangle (incl. the diagonal),
+       ! B^{2k} in the strict upper triangle
+       allocate(Jlow(nvirb,nvirb), Jup(nvirb,nvirb), source=0.0_dp)
+       do k = 1, nplane
+          Jlow = Jlow + jq(2*k-1) * Bvv(:,:,k)
+          if (2*k <= naux) Jup = Jup + jq(2*k) * Bvv(:,:,k)
+       enddo
+       do b = 1, nvirb
+          do a = b+1, nvirb
+             Jvv(a,b) = Jlow(a,b) + Jup(b,a)
+             Jvv(b,a) = Jvv(a,b)
+          enddo
+       enddo
+       deallocate(Jlow, Jup)
+    endif
+    ! diagonal from the stored diagonals (both parities)
+    do a = 1, nvirb
+       Jvv(a,a) = dot_product(Dall(:,Pmap(a)), jq)
+    enddo
+    Jcc = 0.0_dp
+    do Q = 1, naux
+       blk = (Q-1)/nQ + 1
+       Ql  = Q - (blk-1)*nQ
+       do j = 1, nC
+          do p = 1, nC
+             Jcc(p,j) = Jcc(p,j) + jq(Q) * Boo(Ql,p,j,blk)
+          enddo
+       enddo
+    enddo
+
+  end subroutine ext_coulomb_blocks
 
 !######################################################################
 ! ext_free

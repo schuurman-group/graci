@@ -73,6 +73,35 @@ contains
     call xc_probe_end(t1)
   end subroutine mrsf_xc_probe_end_c
 
+  subroutine mrsf_xc_g_set_c(ngrid1, nv1, vxc1, fxc1, kxc1, havek1) bind(c, name='mrsf_xc_g_set')
+    integer(is), intent(in)     :: ngrid1, nv1
+    real(dp), intent(in)        :: vxc1(ngrid1,nv1), fxc1(ngrid1,nv1,nv1), kxc1(*)
+    logical(c_bool), intent(in) :: havek1
+    call xc_g_set(ngrid1, nv1, vxc1, fxc1, kxc1, logical(havek1))
+  end subroutine mrsf_xc_g_set_c
+
+  subroutine mrsf_xc_g_free_c() bind(c, name='mrsf_xc_g_free')
+    call xc_g_free()
+  end subroutine mrsf_xc_g_free_c
+
+  subroutine mrsf_xc_g_potential_c(kM1, LM1, RM1, kS1, LS1, MM1, MK1, V11) bind(c, name='mrsf_xc_g_potential')
+    integer(is), intent(in) :: kM1, kS1
+    real(dp), intent(in)    :: LM1(nao_g,kM1), RM1(nao_g,kM1), LS1(nao_g,kS1)
+    real(dp), intent(out)   :: MM1(nocca,nao_g), MK1(nocca,nao_g), V11(nao_g,nao_g)
+    call xc_g_potential(kM1, LM1, RM1, kS1, LS1, MM1, MK1, V11)
+  end subroutine mrsf_xc_g_potential_c
+
+  subroutine mrsf_xc_gprobe_set_c(nst1, kM1, LM1, RM1, kS1, LS1) bind(c, name='mrsf_xc_gprobe_set')
+    integer(is), intent(in) :: nst1, kM1, kS1
+    real(dp), intent(in)    :: LM1(nao_g,kM1,nst1), RM1(nao_g,kM1,nst1), LS1(nao_g,kS1,nst1)
+    call xc_gprobe_set(nst1, kM1, LM1, RM1, kS1, LS1)
+  end subroutine mrsf_xc_gprobe_set_c
+
+  subroutine mrsf_xc_gprobe_get_c(tG1) bind(c, name='mrsf_xc_gprobe_get')
+    real(dp), intent(out) :: tG1(nao_g,3,nstg)
+    call xc_gprobe_get(tG1)
+  end subroutine mrsf_xc_gprobe_get_c
+
   subroutine mrsf_xc_timings_c() bind(c, name='mrsf_xc_timings')
     call xc_timings()
   end subroutine mrsf_xc_timings_c

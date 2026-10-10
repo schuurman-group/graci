@@ -155,7 +155,7 @@ contains
     real(dp), intent(in)    :: Z(nvirb,nocca,nvec)
     real(dp), intent(inout) :: S(nvirb,nocca,nvec)
 
-    integer(is)           :: blk, Q0, Ql, Q, kk, k, v, ldT
+    integer(is)           :: blk, Q0, Ql, Q, kk, k, v, ldT, c0, j0, w0
     real(dp), allocatable :: dd(:)
 
     if (use_etensor .and. etensor_ready .and. etensor_nfc == 0) then
@@ -183,8 +183,15 @@ contains
              call plane_apply(nocca*nvec, Bvv(1,1,k), Z, Q, Ql, ldT, dd)
           enddo
        endif
+       ! step 1 wrote the nocca*nvec columns contiguously (flat column index
+       ! over the last two dimensions of Twork, whose third extent is ncol,
+       ! not nocca, in an extended-method session): vector v starts at the
+       ! flat column nocca*(v-1)+1
        do v = 1, nvec
-          call dgemm('N','N', nvirb, nocca, nQ*nocca, scale, Twork(1,1,1,v), nvirb, &
+          c0 = nocca*(v-1)
+          j0 = mod(c0, ncol) + 1
+          w0 = c0/ncol + 1
+          call dgemm('N','N', nvirb, nocca, nQ*nocca, scale, Twork(1,1,j0,w0), nvirb, &
                Boo(1,1,1,blk), nQ*nocca, 1.0_dp, S(1,1,v), nvirb)
        enddo
     enddo
@@ -402,15 +409,17 @@ contains
 !   T^Q = B^Q_PP X~,  U^Q = X~^T T^Q,  Y^Q = X~ B^Q_HH,  S^Q = B^Q_HP X~
 !   LaH = -2cx sum_Q B^Q_HH U^Q,   LaP = -2cx sum_Q (B^Q_HP)^T U^Q
 !   LbH = -2cx sum_Q S^Q (Y^Q)^T,  LbP = -2cx sum_Q T^Q (Y^Q)^T
-!   Ghh^Q = -cx/2 U^Q,  Yf^Q = -cx/4 Y^Q + dq(Q)/4 X~
+!   Ghh^Q = -cx/2 U^Q,  Yf^Q = -cx/4 Y^Q + dqf(Q)/4 X~
+!   (dqf: Coulomb vector of the density whose J pair with X~X~^T enters the
+!   families, the reference d^Q for MRSF; dq returns the reference d^Q)
 !   gpp(Q,Q') = 2 sum_aj T^Q_aj Yf^Q'_aj
 !   KbT_HP = sum_Q S^Q (T^Q)^T,  KbT_HH = sum_Q S^Q (S^Q)^T   (K[X~X~^T] blocks)
 !   jT(Q) = sum_aj T^Q_aj X~_aj                                (Coulomb vector of X~X~^T)
 !######################################################################
-  subroutine grad_state(cx, Xt, LaH, LaP, LbH, LbP, Ghh, Fhp, Yf, Sq, gpp, &
+  subroutine grad_state(cx, dqf, Xt, LaH, LaP, LbH, LbP, Ghh, Fhp, Yf, Sq, gpp, &
        KbT_HP, KbT_HH, jT, dq)
 
-    real(dp), intent(in)  :: cx, Xt(nvirb,nocca)
+    real(dp), intent(in)  :: cx, dqf(naux), Xt(nvirb,nocca)
     real(dp), intent(out) :: dq(naux)
     real(dp), intent(out) :: LaH(nocca,nocca), LaP(nvirb,nocca), LbH(nocca,nvirb), &
                              LbP(nvirb,nvirb)
@@ -439,7 +448,7 @@ contains
     call dgemm('N','N', nvirb, nocca*naux, nocca, 1.0_dp, Xt, nvirb, BooQ, nocca, &
          0.0_dp, Yw, nvirb)
     do Q = 1, naux
-       Yf(:,:,Q) = -0.25_dp*cx*Yw(:,:,Q) + 0.25_dp*dq(Q)*Xt
+       Yf(:,:,Q) = -0.25_dp*cx*Yw(:,:,Q) + 0.25_dp*dqf(Q)*Xt
     enddo
     ! S^Q = B^Q_HP X~
     do Q = 1, naux
@@ -609,5 +618,239 @@ contains
          0.0_dp, g, naux)
 
   end subroutine grad_reffam
+
+!######################################################################
+! grad_dq: Coulomb vector of a diagonal MO density, dq(Q) = sum_p B^Q_pp occ_p
+!######################################################################
+  subroutine grad_dq(occ1, dq)
+
+    real(dp), intent(in)  :: occ1(nmo)
+    real(dp), intent(out) :: dq(naux)
+
+    call dgemv('N', naux, nmo, 1.0_dp, Dall, naux, occ1, 1_is, 0.0_dp, dq, 1_is)
+
+  end subroutine grad_dq
+
+!######################################################################
+! grad_booq: copy of the hole-hole block B^Q_hh' (nocca, nocca, naux)
+!######################################################################
+  subroutine grad_booq(B)
+
+    real(dp), intent(out) :: B(nocca,nocca,naux)
+
+    if (.not. grad_ready) call mrsf_error('grad_booq: gradient blocks not initialised')
+    B = BooQ
+
+  end subroutine grad_booq
+
+!######################################################################
+! grad_jq: Coulomb vectors jq(Q,v) = sum_hh' B^Q_hh' Ahh(h,h',v)
+!                                   + sum_hp B^Q_hp Ahp(p,h,v)
+! (hole-hole and particle-hole MO matrices in the local orders; no
+! symmetrisation: a symmetric density with HP + PH blocks needs 2 Ahp)
+!######################################################################
+  subroutine grad_jq(nvec, Ahh, Ahp, jq)
+
+    integer(is), intent(in) :: nvec
+    real(dp), intent(in)    :: Ahh(nocca,nocca,nvec), Ahp(nvirb,nocca,nvec)
+    real(dp), intent(out)   :: jq(naux,nvec)
+
+    real(dp), allocatable   :: AhpT(:,:,:)
+    integer(is)             :: v
+
+    if (.not. grad_ready) call mrsf_error('grad_jq: gradient blocks not initialised')
+    allocate(AhpT(nocca,nvirb,nvec))
+    do v = 1, nvec
+       AhpT(:,:,v) = transpose(Ahp(:,:,v))
+    enddo
+    call dgemm('T','N', naux, nvec, nocca*nocca, 1.0_dp, BooQ, nocca*nocca, Ahh, nocca*nocca, &
+         0.0_dp, jq, naux)
+    call dgemm('T','N', naux, nvec, nocca*nvirb, 1.0_dp, Bhp, nocca*nvirb, AhpT, nocca*nvirb, &
+         1.0_dp, jq, naux)
+    deallocate(AhpT)
+
+  end subroutine grad_jq
+
+!######################################################################
+! grad_bvec: out(Q, t, v) = sum_{q in cls} B^Q_{t q} U(q, v) for all MOs t
+!   cls = 1: q runs over the doubly occupied MOs (local hole order 1..nC)
+!   cls = 2: q runs over the virtuals (local particle order 3..nvirb)
+! one pass over BooQ / Bhp, and for cls = 2 one sweep over the vir-vir
+! planes (dsymm with nv columns per plane)
+!######################################################################
+  subroutine grad_bvec(nvu, cls, U, out)
+
+    integer(is), intent(in) :: nvu, cls
+    real(dp), intent(in)    :: U(*)
+    real(dp), intent(out)   :: out(naux,nmo,nvu)
+
+    integer(is)           :: Q, h, a, v, k, ncl
+    real(dp), allocatable :: Uemb(:,:), W(:,:), T1(:,:), T2(:,:)
+
+    if (.not. grad_ready) call mrsf_error('grad_bvec: gradient blocks not initialised')
+    out = 0.0_dp
+    if (cls == 1) then
+       ncl = nC
+       if (ncl == 0) return
+       allocate(W(nocca,nvu), T1(nvirb,nvu))
+       do Q = 1, naux
+          ! t in H: sum_q BooQ(h, q, Q) U(q, v)
+          call dgemm('N','N', nocca, nvu, ncl, 1.0_dp, BooQ(1,1,Q), nocca, U, ncl, 0.0_dp, W, nocca)
+          ! t in V: sum_q Bhp(q, a, Q) U(q, v)
+          call dgemm('T','N', nvirb, nvu, ncl, 1.0_dp, Bhp(1,1,Q), nocca, U, ncl, 0.0_dp, T1, nvirb)
+          do v = 1, nvu
+             do h = 1, nocca
+                out(Q,Hmap(h),v) = W(h,v)
+             enddo
+             do a = 3, nvirb
+                out(Q,Pmap(a),v) = T1(a,v)
+             enddo
+          enddo
+       enddo
+       deallocate(W, T1)
+    else if (cls == 2) then
+       ncl = nV
+       if (ncl == 0) return
+       allocate(Uemb(nvirb,nvu), source=0.0_dp)
+       call copy_rows(ncl, nvu, U, Uemb)
+       allocate(W(nocca,nvu), T1(nvirb,nvu), T2(nvirb,nvu))
+       ! t in H: sum_a Bhp(h, a, Q) Uemb(a, v)
+       do Q = 1, naux
+          call dgemm('N','N', nocca, nvu, nvirb, 1.0_dp, Bhp(1,1,Q), nocca, Uemb, nvirb, 0.0_dp, W, nocca)
+          do v = 1, nvu
+             do h = 1, nocca
+                out(Q,Hmap(h),v) = W(h,v)
+             enddo
+          enddo
+       enddo
+       ! t in V: sum_a' B^Q_{a a'} Uemb(a', v) from the planes
+       if (vv_full) then
+          do Q = 1, naux
+             call dgemm('N','N', nvirb, nvu, nvirb, 1.0_dp, Bvv(1,1,Q), nvirb, Uemb, nvirb, &
+                  0.0_dp, T1, nvirb)
+             do v = 1, nvu
+                do a = 3, nvirb
+                   out(Q,Pmap(a),v) = T1(a,v)
+                enddo
+             enddo
+          enddo
+       else
+          do k = 1, nplane
+             Q = 2*k - 1
+             call dsymm('L','L', nvirb, nvu, 1.0_dp, Bvv(1,1,k), nvirb, Uemb, nvirb, 0.0_dp, T1, nvirb)
+             do v = 1, nvu
+                do a = 3, nvirb
+                   out(Q,Pmap(a),v) = T1(a,v)
+                enddo
+             enddo
+             if (Q + 1 <= naux) then
+                call dsymm('L','U', nvirb, nvu, 1.0_dp, Bvv(1,1,k), nvirb, Uemb, nvirb, 0.0_dp, T2, nvirb)
+                do v = 1, nvu
+                   do a = 3, nvirb
+                      out(Q+1,Pmap(a),v) = T2(a,v) + (Dall(Q+1,Pmap(a)) - Dall(Q,Pmap(a)))*Uemb(a,v)
+                   enddo
+                enddo
+             endif
+          enddo
+       endif
+       deallocate(Uemb, W, T1, T2)
+    else
+       call mrsf_error('grad_bvec: cls must be 1 (core) or 2 (virtual)')
+    endif
+
+  end subroutine grad_bvec
+
+!######################################################################
+! grad_bdot: out(t, w) = sum_Q sum_{s in cls} B^Q_{t s} W(s, Q, w) for all
+! MOs t (cls as in grad_bvec); for cls = 2 one sweep over the planes
+!######################################################################
+  subroutine grad_bdot(nw, cls, W, out)
+
+    integer(is), intent(in) :: nw, cls
+    real(dp), intent(in)    :: W(*)
+    real(dp), intent(out)   :: out(nmo,nw)
+
+    integer(is)           :: Q, h, a, v, k, ncl
+    real(dp), allocatable :: Wq(:,:), OH(:,:), OP(:,:), T1(:,:), T2(:,:)
+
+    if (.not. grad_ready) call mrsf_error('grad_bdot: gradient blocks not initialised')
+    out = 0.0_dp
+    ncl = merge(nC, nV, cls == 1)
+    if (cls /= 1 .and. cls /= 2) call mrsf_error('grad_bdot: cls must be 1 (core) or 2 (virtual)')
+    if (ncl == 0) return
+    allocate(OH(nocca,nw), OP(nvirb,nw), source=0.0_dp)
+    if (cls == 1) then
+       allocate(Wq(ncl,nw))
+       do Q = 1, naux
+          call gather_q(ncl, nw, Q, W, Wq)
+          call dgemm('N','N', nocca, nw, ncl, 1.0_dp, BooQ(1,1,Q), nocca, Wq, ncl, 1.0_dp, OH, nocca)
+          call dgemm('T','N', nvirb, nw, ncl, 1.0_dp, Bhp(1,1,Q), nocca, Wq, ncl, 1.0_dp, OP, nvirb)
+       enddo
+       deallocate(Wq)
+    else
+       allocate(Wq(nvirb,nw), source=0.0_dp)
+       allocate(T1(nvirb,nw), T2(nvirb,nw))
+       do Q = 1, naux
+          call gather_q_emb(ncl, nw, Q, W, Wq)
+          call dgemm('N','N', nocca, nw, nvirb, 1.0_dp, Bhp(1,1,Q), nocca, Wq, nvirb, 1.0_dp, OH, nocca)
+       enddo
+       if (vv_full) then
+          do Q = 1, naux
+             call gather_q_emb(ncl, nw, Q, W, Wq)
+             call dgemm('N','N', nvirb, nw, nvirb, 1.0_dp, Bvv(1,1,Q), nvirb, Wq, nvirb, 1.0_dp, OP, nvirb)
+          enddo
+       else
+          do k = 1, nplane
+             Q = 2*k - 1
+             call gather_q_emb(ncl, nw, Q, W, Wq)
+             call dsymm('L','L', nvirb, nw, 1.0_dp, Bvv(1,1,k), nvirb, Wq, nvirb, 1.0_dp, OP, nvirb)
+             if (Q + 1 <= naux) then
+                call gather_q_emb(ncl, nw, Q+1, W, Wq)
+                call dsymm('L','U', nvirb, nw, 1.0_dp, Bvv(1,1,k), nvirb, Wq, nvirb, 1.0_dp, OP, nvirb)
+                do v = 1, nw
+                   do a = 3, nvirb
+                      OP(a,v) = OP(a,v) + (Dall(Q+1,Pmap(a)) - Dall(Q,Pmap(a)))*Wq(a,v)
+                   enddo
+                enddo
+             endif
+          enddo
+       endif
+       deallocate(Wq, T1, T2)
+    endif
+    do v = 1, nw
+       do h = 1, nocca
+          out(Hmap(h),v) = OH(h,v)
+       enddo
+       do a = 3, nvirb
+          out(Pmap(a),v) = OP(a,v)
+       enddo
+    enddo
+    deallocate(OH, OP)
+
+  end subroutine grad_bdot
+
+  ! U(ncl, nv) -> rows 3..nvirb of Uemb(nvirb, nv)
+  subroutine copy_rows(ncl, nv, U, Uemb)
+    integer(is), intent(in) :: ncl, nv
+    real(dp), intent(in)    :: U(ncl,nv)
+    real(dp), intent(inout) :: Uemb(nvirb,nv)
+    Uemb(3:2+ncl,:) = U
+  end subroutine copy_rows
+
+  ! Wq(:, w) = W(:, Q, w)
+  subroutine gather_q(ncl, nw, Q, W, Wq)
+    integer(is), intent(in) :: ncl, nw, Q
+    real(dp), intent(in)    :: W(ncl,naux,nw)
+    real(dp), intent(out)   :: Wq(ncl,nw)
+    Wq = W(:,Q,:)
+  end subroutine gather_q
+
+  ! Wq(3:, w) = W(:, Q, w) (rows 1:2 stay zero)
+  subroutine gather_q_emb(ncl, nw, Q, W, Wq)
+    integer(is), intent(in) :: ncl, nw, Q
+    real(dp), intent(in)    :: W(ncl,naux,nw)
+    real(dp), intent(inout) :: Wq(nvirb,nw)
+    Wq(3:2+ncl,:) = W(:,Q,:)
+  end subroutine gather_q_emb
 
 end module mrsf_gradient

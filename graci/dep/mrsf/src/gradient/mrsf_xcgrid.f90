@@ -61,6 +61,20 @@ module mrsf_xcgrid
   real(dp), allocatable    :: fxcw(:,:,:,:,:)      ! (ndc,2,ndc,2,ngrid): w * fxc at (y,t,x,s,g)
   real(dp), allocatable    :: fxcw_cs(:,:,:)       ! (ndc,ndc,ngrid): w * (f_aa + f_ab) (closed-shell mode)
   real(dp), allocatable    :: vxc(:,:,:)           ! (ngrid, ndc, 2)
+  ! closed-shell kernel set at the density of the configuration G of the
+  ! extended method (EMRSF gradients): spin-0 derivatives of the total
+  ! density in PySCF's convention, w f^(0) and w k^(0), and the unweighted
+  ! v_xc; installed with xc_g_set after xc_init (same grid)
+  real(dp), allocatable    :: vxcG(:,:)             ! (ngrid, ndc)
+  real(dp), allocatable    :: fxcwG(:,:,:)          ! (ndc, ndc, ngrid) w f (y,x,g)
+  real(dp), allocatable    :: kxcwG(:,:,:,:)        ! (ndc, ndc, ndc, ngrid) w k (z,y,x,g)
+  logical                  :: g_ready = .false., g_have_kxc = .false.
+  ! G-probe factors registered for a probe pass (xc_gprobe_set)
+  integer(is)              :: kMg = 0, kSg = 0, nstg = 0
+  real(dp), allocatable    :: LMg(:,:,:), RMg(:,:,:), LSg(:,:,:)
+  real(dp), allocatable    :: taccG(:,:,:)          ! (nao, 3, nstg)
+  real(dp)                 :: time_xcg = 0.0_dp
+  integer(is)              :: nxcg_calls = 0
   real(dp), allocatable    :: CHg(:,:), CPg(:,:)   ! (nao, nocca), (nao, nvirb)
   logical                  :: xc_ready = .false., ao_cached = .false.
   ! evaluation in progress
@@ -184,6 +198,7 @@ contains
     if (allocated(aoc)) deallocate(aoc)
     if (allocated(psiH)) deallocate(psiH)
     if (allocated(CHg)) deallocate(CHg, CPg)
+    call xc_g_free()
     xc_ready = .false.; ao_cached = .false.
 
   end subroutine xc_free
@@ -193,7 +208,9 @@ contains
     if (allocated(Lcur)) deallocate(Lcur, Rcur, rch)
     if (allocated(Macc)) deallocate(Macc)
     if (allocated(tacc)) deallocate(tacc)
-    kcur = 0; nvcur = 0
+    if (allocated(LMg)) deallocate(LMg, RMg, LSg)
+    if (allocated(taccG)) deallocate(taccG)
+    kcur = 0; nvcur = 0; nstg = 0
 
   end subroutine xc_cleanup
 
@@ -713,6 +730,7 @@ contains
        enddo
        deallocate(psiL, psiR, rho1, wv1, aow1, aow2_1)
     endif
+    if (allocated(taccG)) call gprobe_block(nb, g0, nc2, ao, psiHb)
     deallocate(psiHb, wvR, aowR, aow2R, PhiD, Phi, Amat, tmpL, tmpR)
 
   end subroutine probe_block
@@ -1046,6 +1064,7 @@ contains
     write(6,'(2x,a,f10.3)') 'other                  : ', tpart(6)
     write(6,'(2x,a,f10.3,a,i0,a)') 'kernel total           : ', time_xc, ' (', nxc_calls, ' calls)'
     write(6,'(2x,a,f10.3,a,i0,a)') 'probe total            : ', time_probe, ' (', nprobe_calls, ' calls)'
+    if (nxcg_calls > 0) write(6,'(2x,a,f10.3,a,i0,a)') 'G-density potentials   : ', time_xcg, ' (', nxcg_calls, ' calls)'
     if (sum(tcs) > 0.0_dp) then
        write(6,'(2x,a)') 'closed-shell CV kernel (s): factor values, densities+potentials, AO products, projections, final'
        write(6,'(2x,5f10.3)') tcs
@@ -1053,5 +1072,418 @@ contains
     flush(6)
 
   end subroutine xc_timings
+
+!######################################################################
+! xc_g_set: closed-shell kernel set at the G density (PySCF spin-0
+! derivatives of the total density; transposed PySCF arrays
+! vxc1(ngrid,nv), fxc1(ngrid,nv,nv), kxc1(ngrid,nv,nv,nv)); the grid
+! weights are folded into the kernels. have_kxc = .false. (triplets,
+! HF) leaves the third derivatives out.
+!######################################################################
+  subroutine xc_g_set(ngrid1, nv1, vxc1, fxc1, kxc1, have_kxc)
+
+    integer(is), intent(in) :: ngrid1, nv1
+    real(dp), intent(in)    :: vxc1(ngrid1,nv1), fxc1(ngrid1,nv1,nv1), kxc1(*)
+    logical, intent(in)     :: have_kxc
+
+    integer(is) :: g, x, y
+
+    if (.not. xc_ready) call mrsf_error('xc_g_set: grid not initialised')
+    if (ngrid1 /= ngrid .or. nv1 /= ndc) call mrsf_error('xc_g_set: dimension mismatch')
+    call xc_g_free()
+    allocate(vxcG(ngrid,ndc), fxcwG(ndc,ndc,ngrid))
+    vxcG = vxc1
+    !$omp parallel do private(x,y)
+    do g = 1, ngrid
+       do x = 1, ndc
+          do y = 1, ndc
+             fxcwG(y,x,g) = wgt(g)*fxc1(g,y,x)
+          enddo
+       enddo
+    enddo
+    !$omp end parallel do
+    g_have_kxc = have_kxc
+    if (have_kxc) then
+       allocate(kxcwG(ndc,ndc,ndc,ngrid))
+       call fold_kxc(ngrid, ndc, kxc1, wgt, kxcwG)
+    endif
+    g_ready = .true.
+
+  end subroutine xc_g_set
+
+  subroutine fold_kxc(ng1, nv1, kxc1, w, out)
+
+    integer(is), intent(in) :: ng1, nv1
+    real(dp), intent(in)    :: kxc1(ng1,nv1,nv1,nv1), w(ng1)
+    real(dp), intent(out)   :: out(nv1,nv1,nv1,ng1)
+
+    integer(is) :: g, x, y, z
+
+    !$omp parallel do private(x,y,z)
+    do g = 1, ng1
+       do x = 1, nv1
+          do y = 1, nv1
+             do z = 1, nv1
+                out(z,y,x,g) = w(g)*kxc1(g,z,y,x)
+             enddo
+          enddo
+       enddo
+    enddo
+    !$omp end parallel do
+
+  end subroutine fold_kxc
+
+  subroutine xc_g_free()
+
+    if (allocated(vxcG)) deallocate(vxcG)
+    if (allocated(fxcwG)) deallocate(fxcwG)
+    if (allocated(kxcwG)) deallocate(kxcwG)
+    g_ready = .false.; g_have_kxc = .false.
+
+  end subroutine xc_g_free
+
+!######################################################################
+! g_wv_f: weighted kernel potential wv(g,y) = sum_x w f(y,x) rho(g,x)
+! g_wv_k: weighted third-derivative potential
+!         wv(g,z) = sum_{x,y} w k(z,y,x) rho(g,x) rho(g,y)
+! (one spin; rho are the components of the trial density on the block)
+!######################################################################
+  subroutine g_wv_f(nb, g0, rho, wv)
+
+    integer(is), intent(in) :: nb, g0
+    real(dp), intent(in)    :: rho(nb,ndc)
+    real(dp), intent(out)   :: wv(nb,ndc)
+
+    integer(is) :: g, gg, x, y
+    real(dp)    :: acc
+
+    do g = 1, nb
+       gg = g0 + g - 1
+       do y = 1, ndc
+          acc = 0.0_dp
+          do x = 1, ndc
+             acc = acc + fxcwG(y,x,gg)*rho(g,x)
+          enddo
+          wv(g,y) = acc
+       enddo
+    enddo
+
+  end subroutine g_wv_f
+
+  subroutine g_wv_k(nb, g0, rho, wv)
+
+    integer(is), intent(in) :: nb, g0
+    real(dp), intent(in)    :: rho(nb,ndc)
+    real(dp), intent(out)   :: wv(nb,ndc)
+
+    integer(is) :: g, gg, x, y, z
+    real(dp)    :: acc
+
+    if (.not. g_have_kxc) call mrsf_error('g_wv_k: third derivatives not installed')
+    do g = 1, nb
+       gg = g0 + g - 1
+       do z = 1, ndc
+          acc = 0.0_dp
+          do x = 1, ndc
+             do y = 1, ndc
+                acc = acc + kxcwG(z,y,x,gg)*rho(g,x)*rho(g,y)
+             enddo
+          enddo
+          wv(g,z) = acc
+       enddo
+    enddo
+
+  end subroutine g_wv_k
+
+!######################################################################
+! g_project: M(i,nu) += sum_g [ psi_i(g) aow(g,nu) + aowH_i(g) phi_nu(g) ]
+! for a weighted potential wv (one spin): aow into the first half of the
+! stacked right operand Bst (second half = phi, block constant), aowH
+! into the second half of the stacked left operand Ast (first half =
+! psi_H^T, block constant), one dgemm with K = 2 nb
+!######################################################################
+  subroutine g_project(nb, ao, psiHb, wv, Bst, Ast, Mth)
+
+    integer(is), intent(in) :: nb
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), psiHb(nb,nocca,ncomp), wv(nb,ndc)
+    real(dp), intent(inout) :: Bst(2*nb,nao_g), Ast(nocca,2*nb), Mth(nocca,nao_g)
+
+    integer(is) :: mu, c, g, i
+    real(dp)    :: acc
+
+    do mu = 1, nao_g
+       Bst(1:nb,mu) = 0.5_dp*wv(1:nb,1)*ao(1:nb,mu,1)
+       do c = 2, ncomp
+          Bst(1:nb,mu) = Bst(1:nb,mu) + wv(1:nb,c)*ao(1:nb,mu,c)
+       enddo
+    enddo
+    do g = 1, nb
+       do i = 1, nocca
+          acc = 0.5_dp*wv(g,1)*psiHb(g,i,1)
+          do c = 2, ncomp
+             acc = acc + wv(g,c)*psiHb(g,i,c)
+          enddo
+          Ast(i,nb+g) = acc
+       enddo
+    enddo
+    call dgemm('N','N', nocca, nao_g, 2*nb, 1.0_dp, Ast, nocca, Bst, 2*nb, 1.0_dp, Mth, nocca)
+
+  end subroutine g_project
+
+!######################################################################
+! xc_g_potential: kernel potentials at the G density for the EMRSF
+! gradient in one block-parallel pass over the cached AO blocks
+! (Phase-5 pattern: OpenMP over blocks, sequential MKL inside,
+! per-thread buffers and accumulators reduced once):
+!   MM(i,nu) = sum_g [psi_i aowM(nu) + aowH_i phi_nu],  wv_M = w f rho(M)
+!            (= the projection of v[f rho(M)] on the hole MOs: V_M(H, all) = MM C)
+!   MK(i,nu) = the same for wv_K = w k rho(D_s)^2      (v[k rho(D_s)^2] on H x all)
+!   V1(mu,nu) = sum_g [aowS(mu) phi_nu + phi_mu aowS(nu)],  wv_S = w f rho(D_s)
+!            (v[f rho(D_s)] as a full AO matrix)
+! with M = LM RM^T + RM LM^T (kM columns) and D_s = LS C_C^T + C_C LS^T
+! (kS = nocca - 2 columns; C_C = the doubly occupied MOs, cached on the
+! grid as the first columns of psiH).
+!######################################################################
+  subroutine xc_g_potential(kM, LM, RM, kS, LS, MM, MK, V1)
+
+    integer(is), intent(in) :: kM, kS
+    real(dp), intent(in)    :: LM(nao_g,kM), RM(nao_g,kM), LS(nao_g,kS)
+    real(dp), intent(out)   :: MM(nocca,nao_g), MK(nocca,nao_g), V1(nao_g,nao_g)
+
+    integer(is)           :: ib, nb, nbmax, nthr
+    integer(c_int)        :: prev
+    logical               :: par
+    real(dp)              :: t0
+    real(dp), allocatable :: psiLM(:), psiRM(:), psiLS(:), rhoM(:), rhoS(:), wv(:), Bst(:), Ast(:), aowS(:)
+    real(dp), allocatable :: MthM(:,:), MthK(:,:), Vth(:,:)
+
+    if (.not. g_ready) call mrsf_error('xc_g_potential: G kernel set not installed')
+    if (.not. ao_cached) call mrsf_error('xc_g_potential: the AO values must be cached (raise mem_budget)')
+    if (kS /= nocca - 2) call mrsf_error('xc_g_potential: kS must equal the number of doubly occupied MOs')
+    t0 = wall_time()
+    nbmax = 0
+    do ib = 1, nblocks
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
+    enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nblocks >= nthr)
+    MM = 0.0_dp; MK = 0.0_dp; V1 = 0.0_dp
+
+    !$omp parallel if(par) default(shared) private(ib, nb, prev, psiLM, psiRM, psiLS, rhoM, rhoS, wv, &
+    !$omp Bst, Ast, aowS, MthM, MthK, Vth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(psiLM(nbmax*kM*ncomp), psiRM(nbmax*kM*ncomp), psiLS(nbmax*kS*ncomp), rhoM(nbmax*ndc), &
+         rhoS(nbmax*ndc), wv(nbmax*ndc), Bst(2*nbmax*nao_g), Ast(nocca*2*nbmax), aowS(nbmax*nao_g), &
+         MthM(nocca,nao_g), MthK(nocca,nao_g), Vth(nao_g,nao_g))
+    MthM = 0.0_dp; MthK = 0.0_dp; Vth = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call gpot_block(nb, gbeg(ib), aoc(aoff(ib)+1), psiH(poff(ib)+1), kM, LM, RM, kS, LS, &
+            psiLM, psiRM, psiLS, rhoM, rhoS, wv, Bst, Ast, aowS, MthM, MthK, Vth)
+    enddo
+    !$omp end do
+    !$omp critical
+    MM = MM + MthM
+    MK = MK + MthK
+    V1 = V1 + Vth
+    !$omp end critical
+    deallocate(psiLM, psiRM, psiLS, rhoM, rhoS, wv, Bst, Ast, aowS, MthM, MthK, Vth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+    V1 = V1 + transpose(V1)
+    time_xcg = time_xcg + wall_time() - t0
+    nxcg_calls = nxcg_calls + 1
+
+  end subroutine xc_g_potential
+
+  subroutine gpot_block(nb, g0, ao, psiHb, kM, LM, RM, kS, LS, psiLM, psiRM, psiLS, rhoM, rhoS, &
+       wv, Bst, Ast, aowS, MthM, MthK, Vth)
+
+    integer(is), intent(in) :: nb, g0, kM, kS
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), psiHb(nb,nocca,ncomp)
+    real(dp), intent(in)    :: LM(nao_g,kM), RM(nao_g,kM), LS(nao_g,kS)
+    real(dp), intent(inout) :: psiLM(nb,kM,ncomp), psiRM(nb,kM,ncomp), psiLS(nb,kS,ncomp)
+    real(dp), intent(inout) :: rhoM(nb,ndc), rhoS(nb,ndc), wv(nb,ndc)
+    real(dp), intent(inout) :: Bst(2*nb,nao_g), Ast(nocca,2*nb), aowS(nb,nao_g)
+    real(dp), intent(inout) :: MthM(nocca,nao_g), MthK(nocca,nao_g), Vth(nao_g,nao_g)
+
+    integer(is) :: c, g, mu
+
+    ! block-constant halves of the stacked operands
+    do g = 1, nb
+       Ast(1:nocca,g) = psiHb(g,1:nocca,1)
+    enddo
+    do mu = 1, nao_g
+       Bst(nb+1:2*nb,mu) = ao(1:nb,mu,1)
+    enddo
+    ! factor values on the block
+    do c = 1, ncomp
+       call dgemm('N','N', nb, kM, nao_g, 1.0_dp, ao(1,1,c), nb, LM, nao_g, 0.0_dp, psiLM(1,1,c), nb)
+       call dgemm('N','N', nb, kM, nao_g, 1.0_dp, ao(1,1,c), nb, RM, nao_g, 0.0_dp, psiRM(1,1,c), nb)
+       call dgemm('N','N', nb, kS, nao_g, 1.0_dp, ao(1,1,c), nb, LS, nao_g, 0.0_dp, psiLS(1,1,c), nb)
+    enddo
+    call block_rho(nb, kM, psiLM, nb*kM, psiRM, nb*kM, rhoM)
+    call block_rho(nb, kS, psiLS, nb*kS, psiHb, nb*nocca, rhoS)
+    ! v[f rho(M)] on the hole MOs
+    call g_wv_f(nb, g0, rhoM, wv)
+    call g_project(nb, ao, psiHb, wv, Bst, Ast, MthM)
+    ! v[k rho(D_s)^2] on the hole MOs
+    if (g_have_kxc) then
+       call g_wv_k(nb, g0, rhoS, wv)
+       call g_project(nb, ao, psiHb, wv, Bst, Ast, MthK)
+    endif
+    ! v[f rho(D_s)] as a full AO matrix (symmetrised by the caller)
+    call g_wv_f(nb, g0, rhoS, wv)
+    do mu = 1, nao_g
+       aowS(1:nb,mu) = 0.5_dp*wv(1:nb,1)*ao(1:nb,mu,1)
+       do c = 2, ncomp
+          aowS(1:nb,mu) = aowS(1:nb,mu) + wv(1:nb,c)*ao(1:nb,mu,c)
+       enddo
+    enddo
+    call dgemm('T','N', nao_g, nao_g, nb, 1.0_dp, aowS, nb, ao(1,1,1), nb, 1.0_dp, Vth, nao_g)
+
+  end subroutine gpot_block
+
+!######################################################################
+! xc_gprobe_set: register, after xc_probe_begin, the EMRSF densities of
+! the probe pass: per state M = LM RM^T + RM LM^T (kM columns) and
+! D_s = LS C_C^T + C_C LS^T (kS = nocca - 2). The probe then also
+! accumulates, per state,
+!   taccG(:,:,v) = (vxc_G, M) + (f_G[M], D_G) + (f_G[D_s], D_s) + (k_G[D_s, D_s]/2, D_G)
+! with D_G = 2 C_G C_G^T (G = the first nocca - 1 hole MOs), in the same
+! per-AO form as the reference probe (dE/dR_{A,x} = -2 sum_{mu in A} t).
+!######################################################################
+  subroutine xc_gprobe_set(nst, kM, LM, RM, kS, LS)
+
+    integer(is), intent(in) :: nst, kM, kS
+    real(dp), intent(in)    :: LM(nao_g,kM,nst), RM(nao_g,kM,nst), LS(nao_g,kS,nst)
+
+    if (.not. g_ready) call mrsf_error('xc_gprobe_set: G kernel set not installed')
+    if (.not. allocated(tacc)) call mrsf_error('xc_gprobe_set: call xc_probe_begin first')
+    if (nst /= nvcur) call mrsf_error('xc_gprobe_set: state count differs from xc_probe_begin')
+    if (kS /= nocca - 2) call mrsf_error('xc_gprobe_set: kS must equal the number of doubly occupied MOs')
+    if (allocated(LMg)) deallocate(LMg, RMg, LSg)
+    if (allocated(taccG)) deallocate(taccG)
+    nstg = nst; kMg = kM; kSg = kS
+    allocate(LMg(nao_g,kM,nst), RMg(nao_g,kM,nst), LSg(nao_g,kS,nst), taccG(nao_g,3,nst))
+    LMg = LM; RMg = RM; LSg = LS
+    taccG = 0.0_dp
+
+  end subroutine xc_gprobe_set
+
+!######################################################################
+! xc_gprobe_get: the accumulated G-probe vectors (call before xc_probe_end)
+!######################################################################
+  subroutine xc_gprobe_get(tG)
+
+    real(dp), intent(out) :: tG(nao_g,3,nstg)
+
+    if (.not. allocated(taccG)) call mrsf_error('xc_gprobe_get: no G probe in progress')
+    tG = taccG
+
+  end subroutine xc_gprobe_get
+
+  subroutine gprobe_block(nb, g0, nc2, ao, psiHb)
+
+    integer(is), intent(in) :: nb, g0, nc2
+    real(dp), intent(in)    :: ao(nb,nao_g,nc2), psiHb(nb,nocca,ncomp)
+
+    integer(is) :: v, c, nGo
+    real(dp), allocatable :: wvG(:,:), aowG(:,:), aow2G(:,:,:), PhiG(:,:), Phi(:,:), Amat(:,:), tmp(:,:), tmp2(:,:)
+    real(dp), allocatable :: psiLM(:,:,:), psiRM(:,:,:), psiLS(:,:,:), rho(:,:), wv1(:,:), aow1(:,:), aow2_1(:,:,:)
+
+    nGo = nocca - 1
+    allocate(wvG(nb,ndc), aowG(nb,nao_g), aow2G(nb,nao_g,3))
+    do c = 1, ndc
+       wvG(:,c) = wgt(g0:g0+nb-1)*vxcG(g0:g0+nb-1,c)
+    enddo
+    call make_aow_1s(nb, nc2, ao, wvG, aowG, aow2G)
+    allocate(PhiG(nb,nao_g), Phi(nb,nao_g), Amat(nb,nao_g))
+    allocate(tmp(nb,max(kMg,nocca)), tmp2(nb,max(kMg,nocca)))
+    ! Phi_G = psi_G C_G^T
+    call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, psiHb, nb, CHg, nao_g, 0.0_dp, PhiG, nb)
+    allocate(psiLM(nb,kMg,ncomp), psiRM(nb,kMg,ncomp), psiLS(nb,kSg,ncomp), rho(nb,ndc), wv1(nb,ndc), &
+         aow1(nb,nao_g), aow2_1(nb,nao_g,3))
+    do v = 1, nstg
+       do c = 1, ncomp
+          call dgemm('N','N', nb, kMg, nao_g, 1.0_dp, ao(1,1,c), nb, LMg(1,1,v), nao_g, 0.0_dp, psiLM(1,1,c), nb)
+          call dgemm('N','N', nb, kMg, nao_g, 1.0_dp, ao(1,1,c), nb, RMg(1,1,v), nao_g, 0.0_dp, psiRM(1,1,c), nb)
+          call dgemm('N','N', nb, kSg, nao_g, 1.0_dp, ao(1,1,c), nb, LSg(1,1,v), nao_g, 0.0_dp, psiLS(1,1,c), nb)
+       enddo
+       ! (vxc_G, M): Phi = psiRM LM^T + psiLM RM^T, A = (aowG RM) LM^T + (aowG LM) RM^T
+       call dgemm('N','T', nb, nao_g, kMg, 1.0_dp, psiRM, nb, LMg(1,1,v), nao_g, 0.0_dp, Phi, nb)
+       call dgemm('N','T', nb, nao_g, kMg, 1.0_dp, psiLM, nb, RMg(1,1,v), nao_g, 1.0_dp, Phi, nb)
+       call dgemm('N','N', nb, kMg, nao_g, 1.0_dp, aowG, nb, RMg(1,1,v), nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','N', nb, kMg, nao_g, 1.0_dp, aowG, nb, LMg(1,1,v), nao_g, 0.0_dp, tmp2, nb)
+       call dgemm('N','T', nb, nao_g, kMg, 1.0_dp, tmp, nb, LMg(1,1,v), nao_g, 0.0_dp, Amat, nb)
+       call dgemm('N','T', nb, nao_g, kMg, 1.0_dp, tmp2, nb, RMg(1,1,v), nao_g, 1.0_dp, Amat, nb)
+       call probe_reduce(nb, nc2, ao, Amat, aow2G, Phi, taccG(1,1,v))
+       ! (f_G[M], D_G): D_G = 2 C_G C_G^T, Phi_G carries C_G C_G^T (factor 2)
+       call block_rho(nb, kMg, psiLM, nb*kMg, psiRM, nb*kMg, rho)
+       call g_wv_f(nb, g0, rho, wv1)
+       wv1 = 2.0_dp*wv1
+       call make_aow_1s(nb, nc2, ao, wv1, aow1, aow2_1)
+       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call probe_reduce(nb, nc2, ao, Amat, aow2_1, PhiG, taccG(1,1,v))
+       ! kernel terms of the singlet CV block only (installed with the third derivatives)
+       if (.not. g_have_kxc) cycle
+       ! (f_G[D_s], D_s): Phi = psi_C LS^T + psiLS C_C^T, A = (aow C_C) LS^T + (aow LS) C_C^T
+       call block_rho(nb, kSg, psiLS, nb*kSg, psiHb, nb*nocca, rho)
+       call g_wv_f(nb, g0, rho, wv1)
+       call make_aow_1s(nb, nc2, ao, wv1, aow1, aow2_1)
+       call dgemm('N','T', nb, nao_g, kSg, 1.0_dp, psiHb, nb, LSg(1,1,v), nao_g, 0.0_dp, Phi, nb)
+       call dgemm('N','T', nb, nao_g, kSg, 1.0_dp, psiLS, nb, CHg, nao_g, 1.0_dp, Phi, nb)
+       call dgemm('N','N', nb, kSg, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','N', nb, kSg, nao_g, 1.0_dp, aow1, nb, LSg(1,1,v), nao_g, 0.0_dp, tmp2, nb)
+       call dgemm('N','T', nb, nao_g, kSg, 1.0_dp, tmp, nb, LSg(1,1,v), nao_g, 0.0_dp, Amat, nb)
+       call dgemm('N','T', nb, nao_g, kSg, 1.0_dp, tmp2, nb, CHg, nao_g, 1.0_dp, Amat, nb)
+       call probe_reduce(nb, nc2, ao, Amat, aow2_1, Phi, taccG(1,1,v))
+       ! (k_G[D_s, D_s]/2, D_G) = (k_G[D_s, D_s], C_G C_G^T)
+       call g_wv_k(nb, g0, rho, wv1)
+       call make_aow_1s(nb, nc2, ao, wv1, aow1, aow2_1)
+       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call probe_reduce(nb, nc2, ao, Amat, aow2_1, PhiG, taccG(1,1,v))
+    enddo
+    deallocate(wvG, aowG, aow2G, PhiG, Phi, Amat, tmp, tmp2, psiLM, psiRM, psiLS, rho, wv1, aow1, aow2_1)
+
+  end subroutine gprobe_block
+
+!######################################################################
+! make_aow_1s: one-spin version of make_aow
+!######################################################################
+  subroutine make_aow_1s(nb, nc2, ao, wv, aow, aow2)
+
+    integer(is), intent(in) :: nb, nc2
+    real(dp), intent(in)    :: ao(nb,nao_g,nc2), wv(nb,ndc)
+    real(dp), intent(out)   :: aow(nb,nao_g), aow2(nb,nao_g,3)
+
+    integer(is) :: mu, c, x
+
+    !$omp parallel do private(c,x)
+    do mu = 1, nao_g
+       aow(:,mu) = 0.5_dp*wv(:,1)*ao(:,mu,1)
+       do c = 2, ncomp
+          aow(:,mu) = aow(:,mu) + wv(:,c)*ao(:,mu,c)
+       enddo
+       do x = 1, 3
+          aow2(:,mu,x) = 0.5_dp*wv(:,1)*ao(:,mu,1+x)
+          if (ncomp > 1) then
+             do c = 1, 3
+                aow2(:,mu,x) = aow2(:,mu,x) + wv(:,c+1)*ao(:,mu,d2idx(x,c))
+             enddo
+          endif
+       enddo
+    enddo
+    !$omp end parallel do
+
+  end subroutine make_aow_1s
 
 end module mrsf_xcgrid

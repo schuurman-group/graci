@@ -93,10 +93,12 @@ default is the chemical core of the molecule (one MO per Li-Ne atom,
 five per Na-Ar atom, ...); `frozen_core = 0` keeps the full core. The
 effect on valence excitation energies is of the order of 1 meV
 (pyrazine/aug-cc-pVTZ: at most 0.6 meV), and the exchange tensor and the
-CV kernel shrink with the number of active holes. Gradients are not yet
-available with a frozen core: the driver switches the frozen-core default
-off for every `$mrsftddft` section that a `$mrsfgradient` section refers
-to (an explicit `frozen_core > 0` with gradients is an error).
+CV kernel shrink with the number of active holes. Gradients support a
+frozen core: the energy then depends on rotations between frozen and
+active doubly occupied MOs, which the canonical condition of the ROKS
+orbitals fixes; the corresponding multipliers are explicit (no extra
+linear equations) and add a small term to the Z-vector right-hand side and
+to the relaxed and energy-weighted densities, at negligible cost.
 `exchange` selects how the exchange term of the sigma vectors is
 evaluated: `tensor` pre-contracts the (ij|ab) integrals of the active
 hole pairs into symmetric virtual-virtual matrices once per geometry
@@ -145,7 +147,16 @@ which stabilise charge-transfer states. It is selected with
 block between the MRSF and CV configurations (default: the fraction of
 HF exchange, as in the paper). The CV block uses the closed-shell KS
 matrix of G evaluated with the triplet orbitals, corrected on its
-diagonal by (1 - c_HF)[(pp|O2O2) - (pp|O1O1)], the shift A_G of the paper
+diagonal by (1 - c_HF)[(pp|O2O2) - (pp|O1O1)] in the paper. GRaCI uses by
+default the full core-core and virtual-virtual blocks of the same
+operator, (1 - c_HF)(J[O2 density] - J[O1 density]) (`fprime =
+covariant`): the same diagonal, but invariant under rotations among the
+core and among the virtual orbitals, so that the energy does not depend
+on how near-degenerate canonical orbitals mix and analytic gradients need
+no multipliers for those rotations. Compared with the paper's form
+(`fprime = diagonal`, energies only) it changes states dominated by MRSF
+configurations by a few meV and CV-dominated states by tens of meV
+(pyrazine/aug-cc-pVTZ: up to 63 meV). The CV block further contains the shift A_G of the paper
 and, for singlets, the XC kernel of the functional at the G density; the
 coupling block contains the exact Hamiltonian matrix elements between the
 MRSF and CV configuration state functions (the paper's eq. 8), scaled by
@@ -154,8 +165,9 @@ MRSF and CV configuration state functions (the paper's eq. 8), scaled by
 strengths through `$transition` between two extended objects of the same
 multiplicity) are available. The densities are the expectation values
 <Psi_I|E_pq|Psi_J> of the expansion in MRSF and CV configuration state
-functions, as for MRSF-TDDFT. Overlaps and gradients are not yet
-available for extended objects. The kernel needs the AO
+functions, as for MRSF-TDDFT. Analytic gradients are available (see
+the `$mrsfgradient` paragraph); overlaps are not yet available for
+extended objects. The kernel needs the AO
 values of the DFT grid cached in memory: `mem_budget` must cover
 8*ncomp*ngrid*(nao+nocc) bytes (about 1 GB for pyrazine/aug-cc-pVTZ at
 grid level 2; the run stops with the required value otherwise). The cost
@@ -193,6 +205,25 @@ reference part can include the grid response with
 Hartree/Bohr at the default grid level and vanishes with finer grids.
 Requirements: `precision = double`, the full MO space (`mo_cutoff` not
 truncating), global hybrid or HF functionals.
+Gradients of extended (EMRSF-TDDFT) states are computed by the same
+section when `mrsf_label` refers to an extended object (singlets and
+triplets, with or without a frozen core; see
+examples/h2o_mrsf_extended). The extended energy is not invariant to the
+rotation between the two SOMOs (the CV block is built on the closed-shell
+configuration with O1 doubly occupied), which the canonical condition of
+the ROKS orbitals fixes: the corresponding multiplier zeta_12 is explicit
+and inversely proportional to the SOMO gap (both are printed; a warning
+is issued below 0.01 Hartree, where the extended energy itself becomes
+ill-conditioned). The covariant F' correction (`fprime = covariant`, the
+default) is required: the published diagonal form is not invariant to
+core-core and virtual-virtual rotations, so its gradient would need a
+multiplier for every such pair. All extended terms (the closed-shell
+Fock matrix of the G configuration and its response, the CV Coulomb,
+exchange and kernel terms including the third functional derivative at
+the G density, the coupling-block terms and the F' correction) enter the
+Z-vector right-hand side, the relaxed densities and the derivative
+families; the Z-vector operator is unchanged. The cost per state is about
+1.3-1.5 times that of an MRSF-TDDFT gradient.
 
 Overlaps between MRSF-TDDFT states of two geometries (for nonadiabatic
 dynamics) are computed by the existing `$overlap` section when its

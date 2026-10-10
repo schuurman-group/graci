@@ -34,3 +34,19 @@ $transition section
  final_states   = [2:7]
  print_orbitals = True
 $end
+
+# analytic gradients of the extended states: S0, S1 and the lowest
+# triplet (the extended energy depends on the rotation between the two
+# SOMOs; the corresponding canonical multiplier zeta_12 is printed with
+# the SOMO gap)
+$mrsfgradient section
+ label      = grad_singlets
+ mrsf_label = singlets
+ states     = [1 2]
+$end
+
+$mrsfgradient section
+ label      = grad_triplets
+ mrsf_label = triplets
+ states     = [1]
+$end

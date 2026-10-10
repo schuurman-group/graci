@@ -12,6 +12,13 @@ Conventions (see the plan and ~/calculations/mrsf_dev/mrsf_grad_ref.py):
   relaxed density   P^s = T^s + p^{z,s},  p^{z,s}_pq = p^{z,s}_qp = (n^s_q - n^s_p) z_pq
   energy-weighted   W = 1/2 C (F^omega + F^z) C^T   (reference part inside PySCF's ROKS gradient)
   dE_I/dR = dE_ROKS/dR + sum h^R P + 2e(DF families) + XC probe - sum W S^R
+Frozen core: omega is not invariant under rotations between the frozen
+(k) and active (m) doubly occupied MOs; the canonical condition
+c_km = (f^a + f^b)_km = 0 fixes them with multipliers
+  zeta_km = -Q_km/h_km,  Q_km = F^omega_km - F^omega_mk,  h_km = (f^a + f^b)_kk - (f^a + f^b)_mm,
+which add F^zeta (generalised Fock of sum zeta c) to the Z-vector right-hand
+side and to W, and p^zeta = Zhat + Zhat^T (Zhat_km = zeta_km/2, both spins)
+to the relaxed densities.
 """
 import sys
 import time
@@ -120,6 +127,16 @@ class GradientDriver:
         self.Rp_loc = np.array([self.Ploc[p] for p in self.Rp])
         self.Rq_loc = np.array([self.Hloc[q] for q in self.Rq])
         self.Rq_isC = np.array([q in set(self.Cidx) for q in self.Rq])
+        # frozen core of the CI object (library rule: the nfc doubly occupied
+        # MOs lowest in orbital energy) and the canonical-condition pairs
+        self.nfc = int(getattr(ci, 'frozen_core', 0) or 0)
+        emo = np.asarray(ci.emo, float)[:self.nmo]
+        self.Cf = sorted(int(self.Cidx[h]) for h in np.argsort(emo[self.Cidx])[:self.nfc]) \
+            if self.nfc > 0 else []
+        self.Ca = [int(c) for c in self.Cidx if int(c) not in set(self.Cf)]
+        self.N = [(k, m) for k in self.Cf for m in self.Ca]
+        fsum = self.fa + self.fb
+        self.hN = np.array([fsum[k, k] - fsum[m, m] for (k, m) in self.N])
         # DF metric
         self.auxmol = mf.with_df.auxmol
         if self.auxmol is None:
@@ -133,6 +150,10 @@ class GradientDriver:
         self.Lchol = scipy.linalg.cholesky(self.auxmol.intor('int2c2e', hermi=1), lower=True)
         # library: make sure the integrals of this CI object are loaded
         fock_mo = [self.fa, self.fb]
+        # the gradient session of the library is a standard (non-extended)
+        # one with the full core: the amplitudes of the state are supplied
+        # from Python and the gradient kernels work on the MRSF layout
+        mrsf_init.set_extended(False)
         mrsf_init.set_frozen_core(0)
         mrsf_init.init(ci, fock_mo)
         mrsf_init.set_exchange(getattr(ci, 'exchange', 'auto'))
@@ -149,6 +170,7 @@ class GradientDriver:
         if self.hess.lz != self.lzdim:
             sys.exit('MRSF gradients: inconsistent rotation space')
         self.Bso = mrsf_grad.bso(self.naux, self.nmo)
+        self.dq_ref = mrsf_grad.dq(self.occ, self.naux)        # Coulomb vector of the reference density
         self.hdiag = self.hess.diag()
         if self.is_dft:
             self.ni = mf._numint
@@ -189,6 +211,10 @@ class GradientDriver:
         irr, st = self.ci.state_sym(istate)
         x = self.ci.amps['adiabatic'][irr][:, st]
         X = np.array(x.reshape(self.nvirb, self.nocca, order='F'))
+        if self.Cf:
+            fcols = [self.Hloc[k] for k in self.Cf]
+            if np.abs(X[:, fcols]).max() > 1e-12:
+                sys.exit('MRSF gradients: amplitudes on frozen holes (inconsistent frozen core)')
         pO1, pO2, hO1, hO2 = 0, 1, self.nC, self.nC + 1
         xoo = X[pO1, hO1]
         X[pO1, hO1] = xoo/SQ2
@@ -395,6 +421,64 @@ class GradientDriver:
         return F
 
     # ------------------------------------------------------------------
+    # canonical multipliers of the frozen core
+    # ------------------------------------------------------------------
+    def zeta(self, Fo):
+        """zeta_km = -Q_km/h_km on the frozen-active core pairs"""
+        if not self.N:
+            return np.zeros(0)
+        Q = np.array([Fo[k, m] - Fo[m, k] for (k, m) in self.N])
+        return -Q/self.hN
+
+    def zeta_density(self, zeta):
+        """p^zeta = Zhat + Zhat^T, Zhat_km = zeta_km/2 (MO, both spins)"""
+        p = np.zeros((self.nmo, self.nmo))
+        for (k, m), zt in zip(self.N, zeta):
+            p[k, m] += 0.5*zt
+            p[m, k] += 0.5*zt
+        return p
+
+    def gfock_zeta(self, zeta):
+        """generalised Fock of sum_km zeta_km (f^a + f^b)_km:
+        F = 2 sum_s [G^s[p] n^s + f^s p],  p = p^zeta (core-core, both spins),
+        G^a = G^b = J[2p] - x K[p] + f_xc^s[p, p]"""
+        p = self.zeta_density(zeta)
+        F = 2.0*(self.fa + self.fb) @ p
+        H, P, V = self.H, self.P, self.Vidx
+        p_loc = p[np.ix_(H, H)]
+        # gfock with D^a = p, D^b = 0: G^a = J[p] - x K[p], G^b = J[p]; their sum
+        # is the spin Fock response of D^a = D^b = p
+        Ghpa, Ghpb, Ghha, Ghhb = mrsf_grad.gfock(self.x_ref, self.dims, p_loc, None, None, None, True, True)
+        G = np.zeros((self.nmo, self.nmo))
+        G[np.ix_(H, H)] = Ghha[:, :, 0] + Ghhb[:, :, 0]
+        G[np.ix_(P, H)] = (Ghpa[:, :, 0] + Ghpb[:, :, 0]).T
+        Ga, Gb = G, G.copy()
+        if self.is_dft:
+            CH = self.C[:, H]
+            Lf = np.zeros((self.nao, self.nocca, 2, 1)); Rf = np.zeros((self.nao, self.nocca, 2, 1))
+            for s in (0, 1):
+                Lf[:, :, s, 0] = 0.5*(CH @ p_loc); Rf[:, :, s, 0] = CH
+            VHP, VHH = self.xcgrid.kernel(Lf, Rf, [[1], [1]], True, True)
+            Ga[np.ix_(H, H)] += VHH[:, :, 0, 0]; Ga[np.ix_(V, H)] += VHP[:, 2:, 0, 0].T
+            Gb[np.ix_(H, H)] += VHH[:, :, 1, 0]; Gb[np.ix_(V, H)] += VHP[:, 2:, 1, 0].T
+        F[:, H] += 2.0*Ga[:, H]
+        F[:, self.Cidx] += 2.0*Gb[:, self.Cidx]
+        return F
+
+    def zeta_exchange_fix(self, Ghh, p):
+        """the families are finished with T^a + 2 p (Coulomb of both spins and
+        alpha exchange of 2p, i.e. with D^a = 1_H); the beta exchange pair
+        (p, D^b = 1_C) only has core columns: add back x/2 (p B_{.,O} + h.c.)
+        (p is a hole-hole matrix: frozen-active core and O1-O2 pairs)"""
+        H = self.H
+        pHH = p[np.ix_(H, H)]
+        for x, o in enumerate(self.Oidx):
+            v = 0.5*self.x_ref*(pHH @ self.Bso[:, H, x].T)              # (nocca, naux)
+            ho = self.Hloc[o]
+            Ghh[:, ho, :] += v
+            Ghh[ho, :, :] += v
+
+    # ------------------------------------------------------------------
     # Z-vector: operator and solvers
     # ------------------------------------------------------------------
     def hessian_apply(self, zmat):
@@ -458,6 +542,62 @@ class GradientDriver:
                    'resid': resid}
 
     # ------------------------------------------------------------------
+    # per-state stages (the extended-method driver overrides these)
+    # ------------------------------------------------------------------
+    def exchange_pass(self, sd):
+        """exchange-channel pass of the state (the large families)"""
+        sd['st'] = mrsf_grad.state(self.x_resp, sd['Xt'], self.dims, self.dq_ref)
+
+    def prepare_state(self, ist):
+        """pass 1 of a state: amplitudes, exchange pass, generalised Fock,
+        canonical multipliers of the frozen core; returns the state dict"""
+        sd = {'ist': ist, 'Xt': self.expanded_amplitudes(ist)}
+        self.exchange_pass(sd)
+        sd['terms'] = self.spc_aux_vectors(sd['Xt'])
+        sd['Fo'] = self.gfock_omega(sd['Xt'], sd['st'], sd['terms'])
+        sd['zeta'] = self.zeta(sd['Fo'])
+        sd['Fzeta'] = self.gfock_zeta(sd['zeta']) if self.N else np.zeros((self.nmo, self.nmo))
+        return sd
+
+    def extra_families(self, sd):
+        """hook: additional family pieces (in place in sd['st']); returns
+        the list of extra particle-particle family entries of the state"""
+        return []
+
+    def finish_state(self, sd, z):
+        """pass 2 of a state: energy-weighted density, relaxed densities,
+        families and probe factors; returns (entries, W, (Pa_ao, Pb_ao), fac)"""
+        C = self.C
+        Xt, st, terms, Fo = sd['Xt'], sd['st'], sd['terms'], sd['Fo']
+        Fz = self.gfock_z(z)
+        W = 0.5*C @ _sym(Fo + Fz + sd['Fzeta']) @ C.T
+        Ta, Tb = self.T_densities(Xt)
+        pa, pb = self.pz_densities(z)
+        pzeta = self.zeta_density(sd['zeta'])
+        Pa, Pb = Ta + pa + pzeta, Tb + pb + pzeta
+        Za, Zb = self.z_to_local(z)
+        self.add_spc_to_families(st['Ghh'], st['Fhp'], terms)
+        Ta_fam = Ta[np.ix_(self.H, self.H)]
+        if self.N:
+            self.zeta_exchange_fix(st['Ghh'], pzeta)
+            Ta_fam = Ta_fam + 2.0*pzeta[np.ix_(self.H, self.H)]
+        extra = self.extra_families(sd)
+        g, pq = mrsf_grad.finish(self.x_ref, st, Ta_fam, Xt, Za, Zb, self.occH, self.dims)
+        entries = [{'Xt': Xt, 'Ghh': st['Ghh'], 'Fhp': st['Fhp'], 'Yf': st['Yf'], 'g': g}] + extra
+        fac = self.P_factors(Xt, Za, Zb, pzeta)
+        return entries, W, (C @ Pa @ C.T, C @ Pb @ C.T), fac
+
+    def probe_g_factors(self, sd):
+        """hook: factor pairs (LM, RM, LS) of the G-density probe terms of
+        the extended method; None for standard MRSF"""
+        return None
+
+    def extra_density(self, sd):
+        """hook: additional MO density contracted with the core-Hamiltonian
+        derivative (the extended method's F^G density M); None otherwise"""
+        return None
+
+    # ------------------------------------------------------------------
     # the gradient of a list of states
     # ------------------------------------------------------------------
     def run(self, states):
@@ -470,19 +610,15 @@ class GradientDriver:
         # kept, the (large) families are kept only when they fit the budget
         fam_bytes = 8.0*self.naux*(self.nocca*self.nocca + 2*self.nocca*self.nvirb + self.nocca*self.nocca)
         keep_fam = nst*fam_bytes <= 0.5*self.ci.mem_budget*1.0e9
-        Xts, terms_all, Fo_list, st_list = [], [], [], []
+        sds = []
         Rmat = np.zeros((self.lzdim, nst))
         for k, ist in enumerate(states):
-            Xt = self.expanded_amplitudes(ist)
-            st = mrsf_grad.state(self.x_resp, Xt, self.dims)
-            terms = self.spc_aux_vectors(Xt)
-            Fo = self.gfock_omega(Xt, st, terms)
-            Rmat[:, k] = self.rhs(Fo)
-            Xts.append(Xt); terms_all.append(terms); Fo_list.append(Fo)
-            st_list.append(st if keep_fam else None)
-            st_dq = np.array(st['dq'])
+            sd = self.prepare_state(ist)
+            Rmat[:, k] = self.rhs(sd['Fo'] + sd['Fzeta'])
+            st_dq = np.array(sd['st']['dq'])
             if not keep_fam:
-                del st
+                sd['st'] = None
+            sds.append(sd)
         times['rhs'] = time.time() - t0
         # Z-vectors for all states at once
         t0 = time.time()
@@ -497,25 +633,18 @@ class GradientDriver:
                                      (ist + 1, info['resid'][k]))
         # pass 2: families, energy-weighted density, AO assembly
         t0 = time.time()
-        fam_states, W_list, P_list, fac_list = [], [], [], []
+        fam_states, entry_state, W_list, P_list, fac_list, gfac_list, Mx_list = [], [], [], [], [], [], []
         for k, ist in enumerate(states):
-            Xt = Xts[k]
-            z = Z[:, k]
-            st = st_list[k] if st_list[k] is not None else mrsf_grad.state(self.x_resp, Xt, self.dims)
-            terms = terms_all[k]
-            Fo = Fo_list[k]
-            Fz = self.gfock_z(z)
-            W = 0.5*C @ _sym(Fo + Fz) @ C.T
-            Ta, Tb = self.T_densities(Xt)
-            pa, pb = self.pz_densities(z)
-            Pa, Pb = Ta + pa, Tb + pb
-            Za, Zb = self.z_to_local(z)
-            self.add_spc_to_families(st['Ghh'], st['Fhp'], terms)
-            g, pq = mrsf_grad.finish(self.x_ref, st, Ta[np.ix_(self.H, self.H)], Xt, Za, Zb, self.occH, self.dims)
-            fam_states.append({'Xt': Xt, 'Ghh': st['Ghh'], 'Fhp': st['Fhp'], 'Yf': st['Yf'], 'g': g})
-            W_list.append(W); P_list.append((C @ Pa @ C.T, C @ Pb @ C.T))
-            fac_list.append(self.P_factors(Xt, Za, Zb))
-            del st
+            sd = sds[k]
+            if sd['st'] is None:
+                self.exchange_pass(sd)
+            entries, W, P, fac = self.finish_state(sd, Z[:, k])
+            fam_states += entries
+            entry_state += [k]*len(entries)
+            W_list.append(W); P_list.append(P); fac_list.append(fac)
+            gfac_list.append(self.probe_g_factors(sd))
+            Mx_list.append(self.extra_density(sd))
+            sd['st'] = None
         times['families'] = time.time() - t0
         # reference two-electron families (first entry of the AO pass)
         Ghh_ref, g_ref = mrsf_grad.reffam(self.x_ref, st_dq, self.occH, self.dims)
@@ -523,15 +652,18 @@ class GradientDriver:
                               'Fhp': np.zeros((self.nocca, self.nvirb, self.naux), order='F'),
                               'Yf': np.zeros((self.nvirb, self.nocca, self.naux), order='F'), 'g': g_ref})
         t0 = time.time()
-        de2 = mrsf_dfgrad.df_grad_factorised(mol, self.auxmol, self.Lchol, C[:, self.H], C[:, self.P],
-                                             fam_states, max_memory=max(500, 1000*self.opt.mem_budget))
-        de2_ref, de2 = de2[0], de2[1:]
+        de2_all = mrsf_dfgrad.df_grad_factorised(mol, self.auxmol, self.Lchol, C[:, self.H], C[:, self.P],
+                                                 fam_states, max_memory=max(500, 1000*self.opt.mem_budget))
+        de2_ref = de2_all[0]
+        de2 = [np.zeros((mol.natm, 3)) for _ in range(nst)]
+        for e, k in enumerate(entry_state):
+            de2[k] += de2_all[e + 1]
         times['2e_ao'] = time.time() - t0
         # XC probe terms of the states and the fixed-grid reference XC
         # gradient in one pass over the grid
         t0 = time.time()
         if self.is_dft:
-            dexc_ref_probe, dexc_all = self.grad_xc_probe_multi(fac_list)
+            dexc_ref_probe, dexc_all = self.grad_xc_probe_multi(fac_list, gfac_list)
             if self.dexc_ref is None:
                 self.dexc_ref = dexc_ref_probe
         else:
@@ -548,6 +680,8 @@ class GradientDriver:
         for k in range(nst):
             Pa_ao, Pb_ao = P_list[k]
             Pt = Pa_ao + Pb_ao
+            if Mx_list[k] is not None:
+                Pt = Pt + C @ Mx_list[k] @ C.T
             de1 = np.zeros((mol.natm, 3))
             deS = np.zeros((mol.natm, 3))
             for A, (s0, s1, p0, p1) in enumerate(self.aoslices):
@@ -566,9 +700,18 @@ class GradientDriver:
             times['xc_calls'] = self.xcgrid.ncalls_kernel
             times['xc_probe'] = self.xcgrid.time_probe
             times['xc_cached'] = self.xcgrid.cache
+        # canonical multipliers: max |zeta| over the frozen-active core pairs per state and, for the
+        # extended method (last pair of N), the multiplier of the O1-O2 rotation
+        somo_gap = getattr(self, 'somo_gap', None)
+        nsp = 1 if somo_gap is not None else 0
+        zeta_max = np.array([np.abs(sd['zeta'][:len(sd['zeta'])-nsp]).max() if len(sd['zeta']) > nsp else 0.0
+                             for sd in sds])
+        zeta_12 = np.array([sd['zeta'][-1] for sd in sds]) if nsp else np.zeros(len(sds))
+        self.debug = {'sds': sds, 'Z': Z, 'W': W_list, 'P': P_list}
         return {'grad': grads, 'grad_ref': self.grad_ref, 'zvec_niter': info['niter'],
                 'zvec_resid': info['resid'], 'zvec_converged': info['converged'],
-                'parts': parts, 'times': times, 'P_ao': P_list}
+                'parts': parts, 'times': times, 'P_ao': P_list, 'zeta_max': zeta_max,
+                'zeta_12': zeta_12, 'somo_gap': somo_gap}
 
     def grad_xc_probe(self, Pa_ao, Pb_ao):
         """XC probe term of one state through PySCF's TD-UKS kernel routine
@@ -593,10 +736,11 @@ class GradientDriver:
             out.append(np.add.reduceat(t, aoslices, axis=1).T)
         return out
 
-    def P_factors(self, Xt, Za, Zb):
-        """relaxed densities P^s = T^s + p^{z,s} as AO factor pairs (L, R),
-        P = L R^T + R L^T with k = 2 nocca columns: alpha = [C_H Ta/2 | C_P Za]
-        against [C_H | C_H], beta = [C_P X~/2 | C_P Zb] against [C_P X~ | C_H]"""
+    def P_factors(self, Xt, Za, Zb, pzeta=None):
+        """relaxed densities P^s = T^s + p^{z,s} (+ p^zeta) as AO factor pairs
+        (L, R), P = L R^T + R L^T with k = 2 nocca columns: alpha = [C_H Ta/2 | C_P Za]
+        against [C_H | C_H], beta = [C_P X~/2 | C_P Zb] against [C_P X~ | C_H];
+        the core-core p^zeta adds C_H p/2 to the columns paired with C_H"""
         CH, CP = self.C[:, self.H], self.C[:, self.P]
         nao, nocca = self.nao, self.nocca
         L = np.zeros((nao, 2*nocca, 2)); R = np.zeros((nao, 2*nocca, 2))
@@ -605,20 +749,42 @@ class GradientDriver:
         CPX = CP @ Xt
         L[:, :nocca, 1] = 0.5*CPX;                 R[:, :nocca, 1] = CPX
         L[:, nocca:, 1] = CP @ Zb;                 R[:, nocca:, 1] = CH
+        if pzeta is not None and self.N:
+            add = 0.5*(CH @ pzeta[np.ix_(self.H, self.H)])
+            L[:, :nocca, 0] += add
+            L[:, nocca:, 1] += add
         return L, R
 
-    def grad_xc_probe_multi(self, fac_list):
+    def grad_xc_probe_multi(self, fac_list, gfac_list=None):
         """XC probe terms of all states and the reference XC gradient on the
         fixed grid through the library grid module; fac_list holds per state
-        the factor pairs (L, R) of P^s (P_factors). Returns (dexc_ref, [dexc_k])."""
+        the factor pairs (L, R) of P^s (P_factors), gfac_list the G-density
+        factor pairs (LM, RM, LS) of the extended method (or None entries).
+        Returns (dexc_ref, [dexc_k])."""
         nst = len(fac_list)
         k = fac_list[0][0].shape[1]
         Lf = np.empty((self.nao, k, 2, nst), order='F'); Rf = np.empty((self.nao, k, 2, nst), order='F')
         for v, (L, R) in enumerate(fac_list):
             Lf[:, :, :, v] = L; Rf[:, :, :, v] = R
-        t = self.xcgrid.probe(Lf, Rf, np.zeros((2, nst), dtype=np.int32))
+        gfac = None
+        if gfac_list is not None and any(gf is not None for gf in gfac_list):
+            kM = gfac_list[0][0].shape[1]; kS = gfac_list[0][2].shape[1]
+            LM = np.empty((self.nao, kM, nst), order='F'); RM = np.empty((self.nao, kM, nst), order='F')
+            LS = np.empty((self.nao, kS, nst), order='F')
+            for v, gf in enumerate(gfac_list):
+                LM[:, :, v], RM[:, :, v], LS[:, :, v] = gf
+            gfac = (LM, RM, LS)
+        if gfac is None:
+            t = self.xcgrid.probe(Lf, Rf, np.zeros((2, nst), dtype=np.int32))
+            tG = None
+        else:
+            t, tG = self.xcgrid.probe(Lf, Rf, np.zeros((2, nst), dtype=np.int32), gfac=gfac)
         de = -2.0*np.add.reduceat(t, self.aoslices[:, 2], axis=0)      # (natm, 3, nst+1)
-        return de[:, :, 0], [de[:, :, v + 1] for v in range(nst)]
+        out = [de[:, :, v + 1] for v in range(nst)]
+        if tG is not None:
+            deG = -2.0*np.add.reduceat(tG, self.aoslices[:, 2], axis=0)
+            out = [out[v] + deG[:, :, v] for v in range(nst)]
+        return de[:, :, 0], out
 
     def grad_xc_probe_multi_pyscf(self, P_list):
         """reference implementation with PySCF's grid routines (unused):
