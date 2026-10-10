@@ -33,11 +33,23 @@
 !**********************************************************************
 module mrsf_xcgrid
 
+  use iso_c_binding, only: c_int
   use mrsf_constants
   use mrsf_global
   use mrsf_io
+!$ use omp_lib
 
   implicit none
+
+#ifdef USE_MKL
+  interface
+     function mkl_threads_local(nt) bind(c, name='MKL_Set_Num_Threads_Local') result(prev)
+       import :: c_int
+       integer(c_int), value :: nt
+       integer(c_int)        :: prev
+     end function mkl_threads_local
+  end interface
+#endif
 
   integer, parameter       :: i8 = selected_int_kind(18)
   integer(is)              :: ngrid = 0, nblocks = 0, ncomp = 0, ndc = 0, nao_g = 0
@@ -234,12 +246,60 @@ contains
 
     if (.not. ao_cached) call mrsf_error('xc_cached: AO values are not cached')
     if (.not. allocated(Macc)) call mrsf_error('xc_cached: no kernel evaluation in progress')
-    do ib = 1, nblocks
-       nb = gend(ib) - gbeg(ib) + 1
-       call kernel_block(ib, nb, aoc(aoff(ib)+1), psiH(poff(ib)+1))
-    enddo
+    call cached_parallel()
 
   end subroutine xc_cached
+
+!######################################################################
+! cached_parallel: all cached blocks, OpenMP over blocks with sequential
+! MKL inside; per-thread flat work buffers (mapped onto explicit-shape
+! dummies of kernel_block_thread with the block's own nb) and per-thread
+! accumulators reduced into Macc once at the end
+!######################################################################
+  subroutine cached_parallel()
+
+    integer(is)           :: ib, nb, nbmax, nk, nthr
+    integer(c_int)        :: prev
+    logical               :: par
+    real(dp)              :: tl(5)
+    real(dp), allocatable :: psiL(:), psiR(:), rho1(:), wv(:), Bst(:), Ast(:), Mth(:,:,:,:)
+
+    nk = kcur*2*nvcur
+    nbmax = 0
+    do ib = 1, nblocks
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
+    enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nblocks >= nthr)
+    tl  = 0.0_dp
+
+    !$omp parallel if(par) default(shared) private(ib, nb, prev, psiL, psiR, rho1, wv, Bst, Ast, Mth) &
+    !$omp reduction(+:tl)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(psiL(nbmax*nk*ncomp), psiR(max(nbmax*kcur*ncomp,1_is)), rho1(nbmax*ndc*2), &
+         wv(nbmax*ndc*2), Bst(2*nbmax*nao_g*2), Ast(nocca*2*nbmax*2), Mth(nocca,nao_g,2,nvcur))
+    Mth = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call kernel_block_thread(nb, gbeg(ib), aoc(aoff(ib)+1), psiH(poff(ib)+1), psiL, psiR, &
+            rho1, wv, Bst, Ast, Mth, tl)
+    enddo
+    !$omp end do
+    !$omp critical
+    Macc = Macc + Mth
+    !$omp end critical
+    deallocate(psiL, psiR, rho1, wv, Bst, Ast, Mth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+    tpart(1:5) = tpart(1:5) + tl(1:5)
+
+  end subroutine cached_parallel
 
 !######################################################################
 ! xc_block: one streamed block, ao(nb, nao, ncomp)
@@ -379,6 +439,112 @@ contains
     tpart(6) = tpart(6) + wall_time() - t0
 
   end subroutine kernel_block
+
+!######################################################################
+! kernel_block_thread: one grid block for all nvcur densities, run by
+! one thread with sequential BLAS: psiL = ao L for all densities (one
+! dgemm per component), then per vector and spin the trial density, the
+! kernel potential, aow (first half of Bst) and the weighted hole-MO
+! products aowH from the cached psiH (second half of Ast), and ONE
+! projection dgemm per spin, M(i,nu,t) += [psi_H^T | aowH_t] [aow_t ; phi].
+! tl(1:5): factor values, densities, potentials, weighted products,
+! projections (thread seconds)
+!######################################################################
+  subroutine kernel_block_thread(nb, g0, ao, psiHb, psiL, psiR, rho1, wv, Bst, Ast, Mth, tl)
+
+    integer(is), intent(in) :: nb, g0
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), psiHb(nb,nocca,ncomp)
+    real(dp), intent(inout) :: psiL(nb,kcur*2*nvcur,ncomp), psiR(nb,kcur,ncomp)
+    real(dp), intent(inout) :: rho1(nb,ndc,2), wv(nb,ndc,2)
+    real(dp), intent(inout) :: Bst(2*nb,nao_g,2), Ast(nocca,2*nb,2)
+    real(dp), intent(inout) :: Mth(nocca,nao_g,2,nvcur), tl(5)
+
+    integer(is) :: nk, v, s, t, c, g, gg, x, y, mu, jc, i
+    real(dp)    :: acc, t1
+
+    nk = kcur*2*nvcur
+
+    ! block-constant halves of the stacked operands
+    do t = 1, 2
+       do g = 1, nb
+          Ast(1:nocca,g,t) = psiHb(g,1:nocca,1)
+       enddo
+       do mu = 1, nao_g
+          Bst(nb+1:2*nb,mu,t) = ao(1:nb,mu,1)
+       enddo
+    enddo
+
+    ! MO-factor values on the block for all densities at once
+    t1 = wall_time()
+    do c = 1, ncomp
+       call dgemm('N','N', nb, nk, nao_g, 1.0_dp, ao(1,1,c), nb, Lcur, nao_g, 0.0_dp, psiL(1,1,c), nb)
+    enddo
+    tl(1) = tl(1) + wall_time() - t1
+
+    do v = 1, nvcur
+       ! trial densities of both spins
+       t1 = wall_time()
+       do s = 1, 2
+          jc = kcur*(s-1) + 2*kcur*(v-1) + 1
+          if (rch(s,v) == 1) then
+             call block_rho(nb, kcur, psiL(1,jc,1), nb*nk, psiHb, nb*nocca, rho1(1,1,s))
+          else
+             do c = 1, ncomp
+                call dgemm('N','N', nb, kcur, nao_g, 1.0_dp, ao(1,1,c), nb, Rcur(1,1,s,v), nao_g, &
+                     0.0_dp, psiR(1,1,c), nb)
+             enddo
+             call block_rho(nb, kcur, psiL(1,jc,1), nb*nk, psiR, nb*kcur, rho1(1,1,s))
+          endif
+       enddo
+       tl(2) = tl(2) + wall_time() - t1
+       ! weighted kernel potentials wv(g,y,t) = w sum_{s,x} rho1(g,x,s) fxc(g,y,t,x,s)
+       t1 = wall_time()
+       do g = 1, nb
+          gg = g0 + g - 1
+          do t = 1, 2
+             do y = 1, ndc
+                acc = 0.0_dp
+                do s = 1, 2
+                   do x = 1, ndc
+                      acc = acc + rho1(g,x,s)*fxcw(y,t,x,s,gg)
+                   enddo
+                enddo
+                wv(g,y,t) = acc
+             enddo
+          enddo
+       enddo
+       tl(3) = tl(3) + wall_time() - t1
+       ! aow_t (first half of Bst) and the weighted hole-MO products aowH_t
+       ! (second half of Ast) from the cached psiH components
+       t1 = wall_time()
+       do t = 1, 2
+          do mu = 1, nao_g
+             Bst(1:nb,mu,t) = 0.5_dp*wv(1:nb,1,t)*ao(1:nb,mu,1)
+             do c = 2, ncomp
+                Bst(1:nb,mu,t) = Bst(1:nb,mu,t) + wv(1:nb,c,t)*ao(1:nb,mu,c)
+             enddo
+          enddo
+          do g = 1, nb
+             do i = 1, nocca
+                acc = 0.5_dp*wv(g,1,t)*psiHb(g,i,1)
+                do c = 2, ncomp
+                   acc = acc + wv(g,c,t)*psiHb(g,i,c)
+                enddo
+                Ast(i,nb+g,t) = acc
+             enddo
+          enddo
+       enddo
+       tl(4) = tl(4) + wall_time() - t1
+       ! projections, one dgemm per spin with K = 2 nb
+       t1 = wall_time()
+       do t = 1, 2
+          call dgemm('N','N', nocca, nao_g, 2*nb, 1.0_dp, Ast(1,1,t), nocca, Bst(1,1,t), 2*nb, &
+               1.0_dp, Mth(1,1,t,v), nocca)
+       enddo
+       tl(5) = tl(5) + wall_time() - t1
+    enddo
+
+  end subroutine kernel_block_thread
 
 !######################################################################
 ! block_rho: rho(g, x) of the density L R^T + R L^T from the factor
@@ -651,16 +817,18 @@ contains
   end subroutine xc_closed_shell_init
 
 !######################################################################
-! xc_kernel_cv: closed-shell kernel of the extended method on a batch
-! of CV trial amplitudes.  X(nvirb,ncol,nvec) holds the vectors; the
-! CV columns nocca+1..ncol, rows 3..nvirb, are Y(b,j) (b in V, j in C).
-! Trial density rho_t = 2 sum_{jb} Y_bj phi_j phi_b = L R^T + R L^T with
-! L = C_V Y, R = C_C (the first nC cached hole MOs); with both spin
-! densities equal to rho_t the alpha potential is 2 (f_aa + f_ab) *
-! (.|jb) Y, so L is taken as C_V Y / 2 and
-!   Vcv(j,b,v) = (jb| f_aa + f_ab |ld) Y_ld.
-! Loop order block-outer, vector-inner: each cached AO block is read
-! once per batch; all elementwise work is on unit-stride grid vectors.
+! xc_kernel_cv: closed-shell CV kernel of the extended method on the
+! CV amplitudes Y_v of nvec vectors (GGA form),
+!   Vcv(j,b,v) = sum_g [ psi_j(g) aow_v(g,nu) + aowC_v(j,g) phi_nu(g) ] C_nu b
+! with aow = w [v1 phi/2 + sum_c v_c d_c phi] and aowC the same weighting
+! of the cached active-core MO values. Block-parallel: OpenMP over the
+! cached grid blocks with sequential MKL inside, per-thread work arrays
+! allocated once and per-thread accumulators reduced at the end. Per
+! block: psiL = ao L for all vectors (one dgemm per component), then
+! per vector the trial density, the kernel potential, aow (first half
+! of the stacked right operand Bst), aowC (second half of the stacked
+! left operand Ast) and ONE projection dgemm with K = 2 nb:
+!   M(j,nu) += [psi_C^T | aowC] [aow ; phi].
 !######################################################################
   subroutine xc_kernel_cv(nvec, X, Vcv)
 
@@ -668,11 +836,12 @@ contains
     real(dp), intent(in)    :: X(nvirb,ncol,nvec)
     real(dp), intent(out)   :: Vcv(nC,nV,nvec)
 
-    real(dp), allocatable :: Lall(:,:,:), Macc(:,:,:), psiC(:,:,:), CCact(:,:), Yact(:,:), Vact(:,:,:)
-    real(dp), allocatable :: psiL(:,:,:), rho1(:,:), wv(:,:), aow(:,:), aowC(:,:)
-    integer(is)           :: v, ib, nb, g0, c, g, gg, ix, iy, mu, jc, nk, jj, nca
-    integer(i8)           :: ao0, ps0, po
-    real(dp)              :: acc, t0, t1
+    real(dp), allocatable :: Lall(:,:,:), Macc(:,:,:), CCact(:,:), Yact(:,:), Vact(:,:,:)
+    real(dp), allocatable :: psiL(:,:,:), psiC(:,:,:), rho1(:,:), wv(:,:), Bst(:,:), Ast(:,:), Mth(:,:,:)
+    integer(is)           :: v, ib, nb, nbmax, nk, jj, nca, nthr
+    integer(c_int)        :: prev
+    real(dp)              :: t0, t1, tl(4)
+    logical               :: par
 
     if (.not. xc_ready) call mrsf_error('xc_kernel_cv: grid not initialised')
     if (.not. ao_cached) call mrsf_error('xc_kernel_cv: AO values not cached')
@@ -696,60 +865,39 @@ contains
     enddo
     Macc = 0.0_dp
 
+    nbmax = 0
     do ib = 1, nblocks
-       nb  = gend(ib) - gbeg(ib) + 1
-       g0  = gbeg(ib)
-       ao0 = aoff(ib)
-       ps0 = poff(ib)
-       allocate(psiL(nb,nk,ncomp), rho1(nb,ndc), wv(nb,ndc), aow(nb,nao_g), aowC(nca,nb), &
-            psiC(nb,nca,ncomp))
-       ! active core MO values of the block, gathered from the cached hole MOs
-       do c = 1, ncomp
-          do jj = 1, nca
-             po = ps0 + int(nb,i8)*int(cact(jj)-1,i8) + int(nb,i8)*int(nocca,i8)*int(c-1,i8)
-             psiC(1:nb,jj,c) = psiH(po+1:po+nb)
-          enddo
-       enddo
-       t1 = wall_time()
-       ! factor values on the block, all vectors at once
-       do c = 1, ncomp
-          call dgemm('N','N', nb, nk, nao_g, 1.0_dp, aoc(ao0 + 1 + int(nb,i8)*int(nao_g,i8)*int(c-1,i8)), nb, &
-               Lall, nao_g, 0.0_dp, psiL(1,1,c), nb)
-       enddo
-       tcs(1) = tcs(1) + wall_time() - t1
-       do v = 1, nvec
-          t1 = wall_time()
-          jc = nca*(v-1) + 1
-          ! trial density from the factors and the active core MOs
-          call block_rho(nb, nca, psiL(1,jc,1), nb*nk, psiC, nb*nca, rho1)
-          ! weighted kernel potential wv(g,y) = w sum_x rho(g,x) (f_aa+f_ab)(y,x)
-          !$omp parallel do private(gg,iy,ix,acc)
-          do g = 1, nb
-             gg = g0 + g - 1
-             do iy = 1, ndc
-                acc = 0.0_dp
-                do ix = 1, ndc
-                   acc = acc + rho1(g,ix)*fxcw_cs(iy,ix,gg)
-                enddo
-                wv(g,iy) = acc
-             enddo
-          enddo
-          !$omp end parallel do
-          tcs(2) = tcs(2) + wall_time() - t1
-          t1 = wall_time()
-          call make_aow1(nb, aoc(ao0+1), wv, aow)
-          tcs(3) = tcs(3) + wall_time() - t1
-          t1 = wall_time()
-          ! M_C += psi_C^T aow + (C_C^T aow^T) phi
-          call dgemm('T','N', nca, nao_g, nb, 1.0_dp, psiC, nb, aow, nb, &
-               1.0_dp, Macc(1,1,v), nca)
-          call dgemm('T','T', nca, nb, nao_g, 1.0_dp, CCact, nao_g, aow, nb, 0.0_dp, aowC, nca)
-          call dgemm('N','N', nca, nao_g, nb, 1.0_dp, aowC, nca, aoc(ao0+1), nb, &
-               1.0_dp, Macc(1,1,v), nca)
-          tcs(4) = tcs(4) + wall_time() - t1
-       enddo
-       deallocate(psiL, rho1, wv, aow, aowC, psiC)
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
     enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nblocks >= nthr)
+    tl  = 0.0_dp
+
+    !$omp parallel if(par) default(shared) private(ib, nb, prev, psiL, psiC, rho1, wv, Bst, Ast, Mth) &
+    !$omp reduction(+:tl)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(psiL(nbmax,nk,ncomp), psiC(nbmax,nca,ncomp), rho1(nbmax,ndc), wv(nbmax,ndc), &
+         Bst(2*nbmax,nao_g), Ast(nca,2*nbmax), Mth(nca,nao_g,nvec))
+    Mth = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call cv_block(nb, nbmax, nk, nca, nvec, gbeg(ib), aoc(aoff(ib)+1), psiH(poff(ib)+1), &
+            Lall, psiL, psiC, rho1, wv, Bst, Ast, Mth, tl)
+    enddo
+    !$omp end do
+    !$omp critical
+    Macc = Macc + Mth
+    !$omp end critical
+    deallocate(psiL, psiC, rho1, wv, Bst, Ast, Mth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+    tcs(1:4) = tcs(1:4) + tl(1:4)
 
     t1 = wall_time()
     allocate(Vact(nca,nV,nvec))
@@ -768,6 +916,99 @@ contains
     nxc_vecs = nxc_vecs + nvec
 
   end subroutine xc_kernel_cv
+
+!######################################################################
+! cv_block: one grid block of the CV kernel for all vectors, run by one
+! thread with sequential BLAS. tl(1:4): factor values, density and
+! potential, weighted products, projection (thread seconds).
+!######################################################################
+  subroutine cv_block(nb, nbmax, nk, nca, nvec, g0, ao, psiHb, Lall, psiL, psiC, rho1, wv, &
+       Bst, Ast, Mth, tl)
+
+    integer(is), intent(in) :: nb, nbmax, nk, nca, nvec, g0
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), psiHb(nb,nocca,ncomp)
+    real(dp), intent(in)    :: Lall(nao_g,nca,nvec)
+    real(dp), intent(inout) :: psiL(nbmax,nk,ncomp), psiC(nbmax,nca,ncomp)
+    real(dp), intent(inout) :: rho1(nbmax,ndc), wv(nbmax,ndc)
+    real(dp), intent(inout) :: Bst(2*nbmax,nao_g), Ast(nca,2*nbmax), Mth(nca,nao_g,nvec)
+    real(dp), intent(inout) :: tl(4)
+
+    integer(is) :: c, jj, mu, g, gg, v, jc, ix, iy
+    real(dp)    :: t1, acc
+
+    ! active core MO values of the block and the block-constant halves of
+    ! the stacked operands: Ast(:,1:nb) = psi_C^T, Bst(nb+1:2nb,:) = phi
+    do c = 1, ncomp
+       do jj = 1, nca
+          psiC(1:nb,jj,c) = psiHb(1:nb,cact(jj),c)
+       enddo
+    enddo
+    do g = 1, nb
+       Ast(1:nca,g) = psiC(g,1:nca,1)
+    enddo
+    do mu = 1, nao_g
+       Bst(nb+1:2*nb,mu) = ao(1:nb,mu,1)
+    enddo
+
+    ! factor values psiL = ao L for all vectors and components
+    t1 = wall_time()
+    do c = 1, ncomp
+       call dgemm('N','N', nb, nk, nao_g, 1.0_dp, ao(1,1,c), nb, Lall, nao_g, &
+            0.0_dp, psiL(1,1,c), nbmax)
+    enddo
+    tl(1) = tl(1) + wall_time() - t1
+
+    do v = 1, nvec
+       jc = nca*(v-1)
+       ! trial density and gradient, rho = 2 psi_L psi_C
+       t1 = wall_time()
+       rho1(1:nb,:) = 0.0_dp
+       do jj = 1, nca
+          rho1(1:nb,1) = rho1(1:nb,1) + 2.0_dp*psiL(1:nb,jc+jj,1)*psiC(1:nb,jj,1)
+          do c = 2, ncomp
+             rho1(1:nb,c) = rho1(1:nb,c) + 2.0_dp*(psiL(1:nb,jc+jj,c)*psiC(1:nb,jj,1) &
+                  + psiL(1:nb,jc+jj,1)*psiC(1:nb,jj,c))
+          enddo
+       enddo
+       ! kernel potential wv(g,y) = w sum_x rho(g,x) (f_aa+f_ab)(y,x)
+       do g = 1, nb
+          gg = g0 + g - 1
+          do iy = 1, ndc
+             acc = 0.0_dp
+             do ix = 1, ndc
+                acc = acc + rho1(g,ix)*fxcw_cs(iy,ix,gg)
+             enddo
+             wv(g,iy) = acc
+          enddo
+       enddo
+       tl(2) = tl(2) + wall_time() - t1
+       ! weighted AO products (first half of Bst) and weighted active-core
+       ! MO products (second half of Ast)
+       t1 = wall_time()
+       do mu = 1, nao_g
+          Bst(1:nb,mu) = 0.5_dp*wv(1:nb,1)*ao(1:nb,mu,1)
+          do c = 2, ncomp
+             Bst(1:nb,mu) = Bst(1:nb,mu) + wv(1:nb,c)*ao(1:nb,mu,c)
+          enddo
+       enddo
+       do g = 1, nb
+          do jj = 1, nca
+             acc = 0.5_dp*wv(g,1)*psiC(g,jj,1)
+             do c = 2, ncomp
+                acc = acc + wv(g,c)*psiC(g,jj,c)
+             enddo
+             Ast(jj,nb+g) = acc
+          enddo
+       enddo
+       tl(3) = tl(3) + wall_time() - t1
+       ! projection: M(j,nu) += sum_g psi_j(g) aow(g,nu) + sum_g aowC(j,g) phi_nu(g)
+       t1 = wall_time()
+       call dgemm('N','N', nca, nao_g, 2*nb, 1.0_dp, Ast, nca, Bst, 2*nbmax, &
+            1.0_dp, Mth(1,1,v), nca)
+       tl(4) = tl(4) + wall_time() - t1
+    enddo
+
+  end subroutine cv_block
 
 !######################################################################
 ! make_aow1: aow(:,mu) = wv0/2 phi + sum_c wv_c d_c phi (one spin)

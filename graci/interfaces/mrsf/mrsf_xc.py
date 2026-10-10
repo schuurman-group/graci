@@ -14,7 +14,7 @@ import graci.interfaces.mrsf.mrsf_grad as mrsf_grad
 
 class XCGrid:
 
-    def __init__(self, mf, C, occ_a, occ_b, C_H, C_P, dims, mem_budget_gb=1.0, block_bytes=8.0e6):
+    def __init__(self, mf, C, occ_a, occ_b, C_H, C_P, dims, mem_budget_gb=1.0, block_bytes=1.0e6):
         """mf: PySCF (RO)KS object with built grids; C: MO coefficients;
         occ_a/occ_b: alpha/beta occupation vectors; C_H, C_P: hole and
         particle MO blocks; dims = (nocca, nvirb, naux). The AO values are
@@ -43,7 +43,7 @@ class XCGrid:
         fxc = np.ascontiguousarray(np.asarray(fxc).reshape(2, nv, 2, nv, ngrid))
         # grid blocks: ~block_bytes of AO values each
         nb = int(block_bytes/(8.0*self.nao*self.ncomp))
-        nb = max(256, min(8192, (nb//64)*64))
+        nb = max(64, min(8192, (nb//64)*64))
         self.gbeg = np.arange(0, ngrid, nb)
         self.gend = np.minimum(self.gbeg + nb, ngrid)
         self.nblocks = len(self.gbeg)

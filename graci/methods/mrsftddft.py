@@ -304,7 +304,8 @@ class Mrsftddft(cimethod.Cimethod):
             occ_g[gidx] = 1.0
             xcgrid = mrsf_xc.XCGrid(mf, C, occ_g, occ_g, C[:, hmap], C[:, pmap],
                                     (self.nocca, self.nvirb, self.naux),
-                                    self.mem_budget, block_bytes=2.0e6)
+                                    self.mem_budget,
+                                    block_bytes=getattr(self, 'kernel_block_bytes', 1.0e6))
             if not xcgrid.cache:
                 need = 8.0*xcgrid.ncomp*xcgrid.ngrid*(xcgrid.nao + self.nocca)/1.e9
                 sys.exit('\n ERROR: the extended MRSF-TDDFT kernel requires '
