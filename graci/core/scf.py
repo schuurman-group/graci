@@ -387,9 +387,15 @@ class Scf:
             mf.diis_start_cycle = self.diis_start
 
         # if this is an atom: preserve spherical symmetry
-        #if self.mult != 1: 
+        #if self.mult != 1:
         #    mf = scf.addons.frac_occ(mf)
-        mf.direct_scf = self.direct_scf 
+        # density_fit() switches direct_scf off on purpose: the incremental
+        # Fock build passes dm - dm_last, which carries no mo_coeff/mo_occ
+        # tags, so the DF exchange falls back to the dense O(naux nao^3)
+        # path instead of the O(naux nao^2 nocc) occupied-orbital form.
+        # Only apply the user setting for conventional integrals.
+        if not self.mol.use_df:
+            mf.direct_scf = self.direct_scf
 
         # run the scf computation
         self.energy = mf.kernel(dm0=dm)
