@@ -12,7 +12,7 @@ module mrsf_davidson
   use mrsf_global
   use mrsf_io
   use mrsf_space
-  use mrsf_sigma
+  use mrsf_sigma_mod
   use mrsf_extended, only: kernel_off
 
   implicit none

@@ -31,7 +31,7 @@ module mrsf_overlap
   use mrsf_constants
   use mrsf_io
   use mrsf_space, only: classify_orbitals
-  use mrsf_density, only: expand_one
+  use mrsf_density_mod, only: expand_one
 
   implicit none
 

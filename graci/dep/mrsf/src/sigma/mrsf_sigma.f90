@@ -9,7 +9,7 @@
 ! hole columns of B^Q_{HH} delivers the CV exchange term and the
 ! exchange-type coupling terms (see mrsf_extended).
 !**********************************************************************
-module mrsf_sigma
+module mrsf_sigma_mod
 
   use mrsf_constants
   use mrsf_global
@@ -393,4 +393,4 @@ contains
 
   end subroutine diagonal
 
-end module mrsf_sigma
+end module mrsf_sigma_mod
