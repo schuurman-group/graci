@@ -179,6 +179,10 @@ def parse_value(valstr, val_type):
     All keywords are converted to lower case.
     """
 
+    # Numeric commas are delimiters even when attached to a number.
+    if val_type is not str:
+        valstr = valstr.replace(',', ' ')
+
     # split any braces or ':' symbols
     split_line = re.split('(:)|(\[)|(\])|\n', valstr.lower())
     # remove instances of 'None'
