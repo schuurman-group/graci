@@ -517,13 +517,12 @@ class Mrsftddft(cimethod.Cimethod):
         (determinant-factorised two-index determinants, no truncation) or
         'tlf0' | 'tlf1' | 'tlf2' (truncated Leibniz formula, JCTC 15, 882
         (2019)); align: align the ket MOs to the bra MOs within each orbital
-        class before the evaluation. Returns (overlap list, ierr).
+        class before the evaluation. Standard and extended objects can be
+        combined (a standard object is an extended one without CV
+        amplitudes). Returns (overlap list, ierr).
         """
         if type(ket).__name__ != 'Mrsftddft':
             sys.exit('\n ERROR: MRSF overlaps require two Mrsftddft objects')
-        if self.extended or ket.extended:
-            sys.exit('\n ERROR: overlaps are not yet available for the '
-                     'extended MRSF-TDDFT method')
         for attr in ('nmo', 'nocca', 'nvirb', 'nel'):
             if getattr(self, attr) != getattr(ket, attr):
                 sys.exit('\n ERROR: MRSF overlaps require bra and ket objects '

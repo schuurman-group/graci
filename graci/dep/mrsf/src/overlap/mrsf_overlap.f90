@@ -24,7 +24,10 @@
 ! A+_{ai} = c+ X~/sqrt2 (OO: c+ X~), A-_{ai} = s' c- X~/sqrt2 (OO: 0):
 !   <Psi|Psi'> = sum (A+ A'+ + A- A'-) Sa Sb + sum (A+ A'- + A- A'+) T U,
 ! evaluated as Z = A Sa, Y = Sb A', W = A T, Q = U A'^T and dgemm over
-! all state pairs.
+! all state pairs. Extended (EMRSF) states add the CV configuration
+! state functions on G = |C Cbar O1 O1bar|; their blocks (CV-CV,
+! MRSF-CV) are evaluated by the same kind of identities on the G block
+! of M (see extended_terms below).
 !**********************************************************************
 module mrsf_overlap
 
@@ -47,22 +50,30 @@ contains
 ! by orthogonal Procrustes rotations of the MO overlap blocks (the ket
 ! amplitudes are transformed accordingly, so the exact overlaps are
 ! unchanged and the TLF expansions become valid when the orbitals are
-! reordered, sign-flipped or mixed between the two calculations);
-! xb(xdim,nb), xk(xdim,nk): compressed amplitudes (particle fastest);
-! S(nb,nk) out. ierr: 0 ok, 1 class mismatch, 2 singular core/hole
-! block (explicit minors used), 3 unknown method, 4 SVD failure
+! reordered, sign-flipped or mixed between the two calculations; for
+! extended objects the SOMO pair is only sign-aligned, see align_ket_ext);
+! ncolb/ncolk: columns of the bra/ket vectors, nocca (standard MRSF; 0
+! is accepted) or nocca + nC (extended MRSF: CV amplitudes in the last
+! nC columns, SOMO rows masked); xb(nvirb*ncolb,nb), xk(nvirb*ncolk,nk):
+! compressed amplitudes (particle fastest); S(nb,nk) out. ierr: 0 ok,
+! 1 class mismatch, 2 singular core/hole/G block (explicit minors used),
+! 3 unknown method, 4 SVD failure, 5 SOMO pair rotated or swapped
+! between the geometries (extended objects, alignment restricted to
+! sign flips; exact overlaps unaffected), 6 TLF closed forms of the CV
+! blocks need class-ordered MOs (core, O1, O2, virtuals in index order),
+! 7 = 2 and 5, 8 invalid column count
 !######################################################################
-  subroutine state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, &
+  subroutine state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, ncolb, ncolk, &
        Cb, Ck, Sao, xb, xk, S, ierr)
 
-    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, align, nb, nk
+    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, align, nb, nk, ncolb, ncolk
     real(dp), intent(in)     :: occ_b(nmo), occ_k(nmo), Cb(nao_b,nmo), Ck(nao_k,nmo)
     real(dp), intent(in)     :: Sao(nao_b,nao_k), xb(*), xk(*)
     real(dp), intent(out)    :: S(nb,nk)
     integer(is), intent(out) :: ierr
 
     integer(is), allocatable :: hb(:), pb(:), hk(:), pk(:)
-    integer(is) :: ncb, nvb, nck, nvk, io1b, io2b, io1k, io2k, nocca, nvirb
+    integer(is) :: ncb, nvb, nck, nvk, io1b, io2b, io1k, io2k, nocca, nvirb, nclb, nclk
     real(dp) :: t0
 
     t0 = wall_time()
@@ -80,8 +91,16 @@ contains
     endif
     nocca = ncb + 2
     nvirb = nvb + 2
+    nclb = ncolb
+    nclk = ncolk
+    if (nclb == 0) nclb = nocca
+    if (nclk == 0) nclk = nocca
+    if ((nclb /= nocca .and. nclb /= nocca + ncb) .or. (nclk /= nocca .and. nclk /= nocca + ncb)) then
+       ierr = 8
+       return
+    endif
     call overlap_core(nao_b, nao_k, nmo, ncb, nocca, nvirb, hb, pb, hk, pk, mult, method, align, &
-         nb, nk, Cb, Ck, Sao, xb, xk, S, ierr)
+         nb, nk, nclb, nclk, Cb, Ck, Sao, xb, xk, S, ierr)
     deallocate(hb, pb, hk, pk)
     time_ovl = time_ovl + wall_time() - t0
     novl_calls = novl_calls + 1
@@ -92,12 +111,12 @@ contains
 ! overlap_core
 !######################################################################
   subroutine overlap_core(nao_b, nao_k, nmo, nc, nocca, nvirb, hb, pb, hk, pk, mult, method, align, &
-       nb, nk, Cb, Ck, Sao, xb, xk, S, ierr)
+       nb, nk, ncolb, ncolk, Cb, Ck, Sao, xb, xk, S, ierr)
 
-    integer(is), intent(in)    :: nao_b, nao_k, nmo, nc, nocca, nvirb, mult, method, align, nb, nk
+    integer(is), intent(in)    :: nao_b, nao_k, nmo, nc, nocca, nvirb, mult, method, align, nb, nk, ncolb, ncolk
     integer(is), intent(in)    :: hb(nocca), pb(nvirb), hk(nocca), pk(nvirb)
     real(dp), intent(in)       :: Cb(nao_b,nmo), Ck(nao_k,nmo), Sao(nao_b,nao_k)
-    real(dp), intent(in)       :: xb(nvirb*nocca,nb), xk(nvirb*nocca,nk)
+    real(dp), intent(in)       :: xb(nvirb*ncolb,nb), xk(nvirb*ncolk,nk)
     real(dp), intent(out)      :: S(nb,nk)
     integer(is), intent(inout) :: ierr
 
@@ -105,9 +124,21 @@ contains
     real(dp), allocatable :: Ap(:,:,:), Am(:,:,:), Bp(:,:,:), Bm(:,:,:)
     real(dp), allocatable :: Zp(:,:,:), Zm(:,:,:), Yp(:,:,:), Ym(:,:,:)
     real(dp), allocatable :: Wp(:,:,:), Wm(:,:,:), Qp(:,:,:), Qm(:,:,:)
-    real(dp), allocatable :: Uh(:,:), Up(:,:), Xe(:,:), Xt(:,:)
-    real(dp) :: sgn_o
-    integer(is) :: v, nz, nw, info
+    real(dp), allocatable :: Uh(:,:), Up(:,:), Xe(:,:), Xt(:,:), Yb(:,:,:), Yk(:,:,:), Yt(:,:)
+    real(dp) :: sgn_o, offdiag
+    integer(is) :: v, nz, nw, info, nv, jl, i0
+    logical :: extb, extk, ext
+
+    extb = ncolb > nocca
+    extk = ncolk > nocca
+    ext = extb .or. extk
+    nv = nvirb - 2
+    if (ext .and. method /= 0) then
+       if (.not. natural_order(nc, nocca, hb, hk)) then
+          ierr = 6
+          return
+       endif
+    endif
 
     ! MO overlap matrix M = Cb^T Sao Ck (bra rows, ket columns)
     allocate(M(nmo,nmo), tmp(nao_b,nmo))
@@ -116,16 +147,22 @@ contains
     deallocate(tmp)
 
     ! alignment of the ket MOs to the bra MOs within the classes: M -> M U,
-    ! ket amplitudes X~ -> det(U_O) U_P^T X~ U_H
+    ! ket amplitudes X~ -> det(U_O) U_P^T X~ U_H (CV amplitudes Y -> U_V^T Y U_C)
     allocate(Uh(nocca,nocca), Up(nvirb,nvirb))
     sgn_o = 1.0_dp
+    offdiag = 0.0_dp
     if (align == 1) then
-       call align_ket(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, info)
+       if (ext) then
+          call align_ket_ext(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, offdiag, info)
+       else
+          call align_ket(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, info)
+       endif
        if (info /= 0) then
           ierr = 4
           deallocate(M, Uh, Up)
           return
        endif
+       if (ext .and. offdiag > 0.2_dp) ierr = 5
     endif
 
     ! two-index blocks
@@ -136,7 +173,7 @@ contains
        call blocks_tlf(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, method-1, Sa, Sb, T, U)
     endif
 
-    ! phase-absorbed amplitude families
+    ! phase-absorbed amplitude families (the first nocca columns of each vector)
     allocate(Ap(nvirb,nocca,nb), Am(nvirb,nocca,nb), Bp(nvirb,nocca,nk), Bm(nvirb,nocca,nk))
     do v = 1, nb
        call families(nmo, nc, nocca, nvirb, hb, pb, mult, xb(1,v), Ap(1,1,v), Am(1,1,v))
@@ -150,7 +187,7 @@ contains
        endif
        call families_expanded(nc, nocca, nvirb, hk, pk, mult, Xe, Bp(1,1,v), Bm(1,1,v))
     enddo
-    deallocate(Xe, Xt, Uh, Up)
+    deallocate(Xe, Xt)
 
     ! direct term: Z = A Sa (nvirb x nocca), Y = Sb B (nvirb x nocca), S += <Z, Y>
     nz = nvirb*nocca
@@ -180,7 +217,40 @@ contains
     enddo
     call dgemm('T','N', nb, nk, nw, 1.0_dp, Wp, nw, Qm, nw, 1.0_dp, S, nb)
     call dgemm('T','N', nb, nk, nw, 1.0_dp, Wm, nw, Qp, nw, 1.0_dp, S, nb)
-    deallocate(Wp, Wm, Qp, Qm, Ap, Am, Bp, Bm, Sa, Sb, T, U, M)
+    deallocate(Wp, Wm, Qp, Qm)
+
+    ! extended objects: CV amplitudes (virtual rows of the last nc columns)
+    if (ext .and. nc > 0 .and. nv > 0) then
+       allocate(Yb(nv,nc,nb), Yk(nv,nc,nk))
+       Yb = 0.0_dp
+       Yk = 0.0_dp
+       if (extb) then
+          do v = 1, nb
+             do jl = 1, nc
+                i0 = nvirb*(nocca + jl - 1)
+                Yb(:,jl,v) = xb(i0+3:i0+nvirb, v)
+             enddo
+          enddo
+       endif
+       if (extk) then
+          allocate(Yt(nv,nc))
+          do v = 1, nk
+             do jl = 1, nc
+                i0 = nvirb*(nocca + jl - 1)
+                Yk(:,jl,v) = xk(i0+3:i0+nvirb, v)
+             enddo
+             if (align == 1) then
+                call dgemm('T','N', nv, nc, nv, 1.0_dp, Up(3,3), nvirb, Yk(1,1,v), nv, 0.0_dp, Yt, nv)
+                call dgemm('N','N', nv, nc, nc, 1.0_dp, Yt, nv, Uh, nocca, 0.0_dp, Yk(1,1,v), nv)
+             endif
+          enddo
+          deallocate(Yt)
+       endif
+       call extended_terms(nmo, nc, nocca, nvirb, hb, pb, hk, pk, mult, method, nb, nk, extb, extk, &
+            M, Sa, Sb, T, U, Ap, Am, Bp, Bm, Yb, Yk, S, ierr)
+       deallocate(Yb, Yk)
+    endif
+    deallocate(Ap, Am, Bp, Bm, Sa, Sb, T, U, M, Uh, Up)
 
   end subroutine overlap_core
 
@@ -846,6 +916,938 @@ contains
 
   end function tlf_minor
 
+!######################################################################
+! ---------------- extended (EMRSF) states: CV contributions -----------
+! An extended state adds sum_{j in C, b in V} y_bj chi_jb to the MRSF
+! expansion, chi_jb = (D^a_jb + t D^b_jb)/sqrt2 with the canonical
+! determinants D^a_jb = (sorted((G\j)+b); G), D^b_jb = (G; sorted((G\j)+b)),
+! G = |C Cbar O1 O1bar| (the G configuration of the extended method),
+! t = +1 (singlets) / -1 (triplets), and the coefficients
+!   ca(j,b) = sG (-1)^(pG(j) + nb(j,b)) / sqrt2,  cb = t ca,
+! sG = (-1)^(posH(O2) + nC + 1 + qC(O1)) (phase of the MRSF slot O2->O1
+! which is the same determinant), pG(j) the rank of j in G, nb(j,b) the
+! number of G\j below b. All overlaps are products of plain minors of M
+! (CV-CV: det M[(G\j)+b, (G'\j')+b'] det M[G,G'] and the Cramer-type
+! minors det M[(G\j)+b, G'] det M[G, (G'\j')+b']; MRSF-CV: the minors
+! X1 = det M[H\i, (G'\j')+b'], X2 = det M[C+a, G'], X3 = det M[H\i, G'],
+! X4 = det M[C+a, (G'\j')+b'] with <Phi+|D'^a> = X1 X2, <Phi+|D'^b> =
+! X3 X4, <Phi-|D'^a> = X4 X3, <Phi-|D'^b> = X2 X1), evaluated in closed
+! form (one LU of N = M[G,G'] plus the hole/core LUs: Jacobi, Schur and
+! Cramer identities) or by the truncated Leibniz formula (closed forms
+! of the same separable structure; class-ordered MOs required), and
+! contracted with the amplitudes by dgemm over all state pairs. The
+! bra-CV/ket-MRSF terms use the same cross routine on M^T. Validated
+! against brute-force Loewdin overlaps (emrsf_overlap_ref.py).
+! Implementation note: every table that is combined elementwise with
+! the CV amplitudes Y(b,j) is stored in the same (virtual, core) layout
+! and the contractions over Y go through BLAS; loops that read a
+! (core, virtual) table against Y(b,j,v) were miscompiled by ifx 2025.3
+! with -ipo (Y addressed with the stride of the table), see the
+! synthetic reproducer tests/dbg_synth_tlf.py of the development tree.
+!######################################################################
+
+!######################################################################
+! extended_terms: adds the CV-CV, MRSF-CV and CV-MRSF contributions to S
+!######################################################################
+  subroutine extended_terms(nmo, nc, nocca, nvirb, hb, pb, hk, pk, mult, method, nb, nk, extb, extk, &
+       M, Sa, Sb, T, U, Ap, Am, Bp, Bm, Yb, Yk, S, ierr)
+
+    integer(is), intent(in)    :: nmo, nc, nocca, nvirb, hb(nocca), pb(nvirb), hk(nocca), pk(nvirb)
+    integer(is), intent(in)    :: mult, method, nb, nk
+    logical, intent(in)        :: extb, extk
+    real(dp), intent(in)       :: M(nmo,nmo), Sa(nocca,nocca), Sb(nvirb,nvirb), T(nocca,nvirb), U(nvirb,nocca)
+    real(dp), intent(in)       :: Ap(nvirb,nocca,nb), Am(nvirb,nocca,nb), Bp(nvirb,nocca,nk), Bm(nvirb,nocca,nk)
+    real(dp), intent(in)       :: Yb(nvirb-2,nc,nb), Yk(nvirb-2,nc,nk)
+    real(dp), intent(inout)    :: S(nb,nk)
+    integer(is), intent(inout) :: ierr
+
+    real(dp), allocatable :: MT(:,:), R(:,:), X2(:), X3(:)
+    integer(is) :: kt
+    real(dp) :: sGb, sGk, tcsf
+
+    kt = method - 1
+    tcsf = 1.0_dp
+    if (mult /= 1) tcsf = -1.0_dp
+    sGb = g_phase(nc, nocca, nvirb, hb, pb)
+    sGk = g_phase(nc, nocca, nvirb, hk, pk)
+
+    if (extb .and. extk) then
+       call cv_contract(nmo, nc, nocca, nvirb, hb, pb, hk, pk, nb, nk, M, Yb, Yk, sGb, sGk, tcsf, method, kt, S, ierr)
+    endif
+    ! bra MRSF, ket CV
+    if (extk) then
+       allocate(R(nb,nk), X2(nvirb), X3(nocca))
+       X2 = Sb(:,1)
+       X3 = Sa(:,nc+2)
+       call cross_contract(M, nmo, nc, nocca, nvirb, hb, pb, hk, pk, nb, nk, Ap, Am, X2, X3, Yk, sGk, tcsf, &
+            method, kt, R, ierr)
+       S = S + R
+       deallocate(R, X2, X3)
+    endif
+    ! bra CV, ket MRSF: the same routine on M^T with the roles exchanged
+    if (extb) then
+       allocate(MT(nmo,nmo), R(nk,nb), X2(nvirb), X3(nocca))
+       MT = transpose(M)
+       X2 = T(nc+2,:)
+       X3 = U(1,:)
+       call cross_contract(MT, nmo, nc, nocca, nvirb, hk, pk, hb, pb, nk, nb, Bp, Bm, X2, X3, Yb, sGb, tcsf, &
+            method, kt, R, ierr)
+       S = S + transpose(R)
+       deallocate(MT, R, X2, X3)
+    endif
+
+  end subroutine extended_terms
+
+!######################################################################
+! g_phase: sG = (-1)^(posH(O2) + nc + 1 + qC(O1)), the phase of the
+! MRSF slot (O1 <- O2) = sG |G> in the canonical form
+!######################################################################
+  function g_phase(nc, nocca, nvirb, hmap, pmap) result(sG)
+
+    integer(is), intent(in) :: nc, nocca, nvirb, hmap(nocca), pmap(nvirb)
+    real(dp) :: sG
+    integer(is), allocatable :: posH(:), qC(:)
+
+    allocate(posH(nocca), qC(nvirb))
+    call positions(nc, nocca, nvirb, hmap, pmap, posH, qC)
+    sG = real((-1)**(posH(nc+2) + nc + 1 + qC(1)), dp)
+    deallocate(posH, qC)
+
+  end function g_phase
+
+!######################################################################
+! natural_order: the orbital classes are in index order (core 1..nc,
+! O1 = nc+1, O2 = nc+2, virtuals above) on both sides, as required by
+! the TLF closed forms of the CV blocks
+!######################################################################
+  function natural_order(nc, nocca, hb, hk) result(ok)
+
+    integer(is), intent(in) :: nc, nocca, hb(nocca), hk(nocca)
+    logical :: ok
+
+    ok = (hb(nc+1) == nc + 1 .and. hb(nc+2) == nc + 2 .and. hk(nc+1) == nc + 1 .and. hk(nc+2) == nc + 2)
+    if (nc > 0) ok = ok .and. (hb(nc) == nc .and. hk(nc) == nc)
+
+  end function natural_order
+
+!######################################################################
+! perm_sign_list: sign of the permutation sorting a list of distinct
+! integers
+!######################################################################
+  function perm_sign_list(n, a) result(s)
+
+    integer(is), intent(in) :: n, a(n)
+    integer(is) :: s, i, j
+
+    s = 1
+    do i = 1, n
+       do j = i + 1, n
+          if (a(i) > a(j)) s = -s
+       enddo
+    enddo
+
+  end function perm_sign_list
+
+!######################################################################
+! cv_tables: per-side data of the CV amplitudes of one side: the sorted
+! G list, the rank pG(jl) (1-based) of core jl in it, the coefficient
+! table ca(bl,jl) and the sort signs sr(bl,jl) = sign((G\j)+b -> sorted)
+! (all tables in the (virtual, core) layout of the CV amplitudes: every
+! elementwise combination with Y keeps one memory layout)
+!######################################################################
+  subroutine cv_tables(nmo, nc, nocca, nvirb, hmap, pmap, sG, Gs, pG, ca, sr)
+
+    integer(is), intent(in)  :: nmo, nc, nocca, nvirb, hmap(nocca), pmap(nvirb)
+    real(dp), intent(in)     :: sG
+    integer(is), intent(out) :: Gs(nc+1), pG(nc)
+    real(dp), intent(out)    :: ca(nvirb-2,nc), sr(nvirb-2,nc)
+
+    integer(is) :: nG, nv, jl, bl, i, nbelow, j, b
+
+    nG = nc + 1
+    nv = nvirb - 2
+    Gs(1:nc) = hmap(1:nc)
+    Gs(nG) = hmap(nc+1)
+    call sort_list(nG, Gs)
+    do jl = 1, nc
+       pG(jl) = 0
+       do i = 1, nG
+          if (Gs(i) == hmap(jl)) pG(jl) = i
+       enddo
+    enddo
+    do jl = 1, nc
+       j = hmap(jl)
+       do bl = 1, nv
+          b = pmap(2+bl)
+          nbelow = 0
+          do i = 1, nG
+             if (Gs(i) /= j .and. Gs(i) < b) nbelow = nbelow + 1
+          enddo
+          ca(bl,jl) = sG*real((-1)**(pG(jl) - 1 + nbelow), dp)*isqrt2
+          sr(bl,jl) = real((-1)**(nG - 1 - nbelow), dp)
+       enddo
+    enddo
+
+  end subroutine cv_tables
+
+!######################################################################
+! cv_contract: CV-CV contributions. With the signed amplitudes the
+! overlap of two CV parts is
+!   sGb sGk { dN [ sum_i <S_i^T Y K_i, Y'> + (Y.Qx)(Px.Y') ] + t dR (Y.Qr)(Pr.Y') }
+! exact: dN = dR = detN^2, K = N^-1 (core block, transposed indexing),
+! S = Schur complement of N in M_VV', Qx = Qr = M_VG' N^-1, Px = Pr =
+! (N^-1 M_GV')^T; TLF(k): the truncated-Leibniz closed forms
+! (cv_tlf_pieces). Px, Pr, Qx, Qr and the amplitudes share the (virtual,
+! core) layout.
+!######################################################################
+  subroutine cv_contract(nmo, nc, nocca, nvirb, hb, pb, hk, pk, nb, nk, M, Yb, Yk, sGb, sGk, t, method, kt, S, ierr)
+
+    integer(is), intent(in)    :: nmo, nc, nocca, nvirb, hb(nocca), pb(nvirb), hk(nocca), pk(nvirb), nb, nk
+    integer(is), intent(in)    :: method, kt
+    real(dp), intent(in)       :: M(nmo,nmo), Yb(nvirb-2,nc,nb), Yk(nvirb-2,nc,nk), sGb, sGk, t
+    real(dp), intent(inout)    :: S(nb,nk)
+    integer(is), intent(inout) :: ierr
+
+    integer(is), allocatable :: Gsb(:), Gsk(:), pGb(:), pGk(:)
+    real(dp), allocatable :: cab(:,:), srb(:,:), cak(:,:), srk(:,:)
+    real(dp), allocatable :: N(:,:), Ninv(:,:), MVG(:,:), MGV(:,:), Sch(:,:), Q(:,:), P(:,:)
+    real(dp), allocatable :: K(:,:,:), Sv(:,:,:), Qx(:,:), Px(:,:), Qr(:,:), Pr(:,:)
+    real(dp), allocatable :: Ub(:,:,:), tmp(:,:), qxs(:), qrs(:), pxs(:), prs(:), R(:,:), dSv(:,:)
+    logical :: diagS(3)
+    integer(is) :: nv, nG, i, j, b, jl, jl2, info, nkp, ip, v, bl
+    real(dp) :: detN, dN, dR, fac
+    real(dp), parameter :: sing_tol = 1.0e-12_dp
+
+    nv = nvirb - 2
+    nG = nc + 1
+    if (nc == 0 .or. nv == 0) return
+    allocate(Gsb(nG), Gsk(nG), pGb(nc), pGk(nc), cab(nv,nc), srb(nv,nc), cak(nv,nc), srk(nv,nc))
+    call cv_tables(nmo, nc, nocca, nvirb, hb, pb, sGb, Gsb, pGb, cab, srb)
+    call cv_tables(nmo, nc, nocca, nvirb, hk, pk, sGk, Gsk, pGk, cak, srk)
+
+    allocate(K(nc,nc,3), Sv(nv,nv,3), Qx(nv,nc), Px(nv,nc), Qr(nv,nc), Pr(nv,nc))
+    K = 0.0_dp; Sv = 0.0_dp; Qx = 0.0_dp; Px = 0.0_dp; Qr = 0.0_dp; Pr = 0.0_dp
+    diagS = .false.
+    nkp = 0
+    if (method == 0) then
+       allocate(N(nG,nG), Ninv(nG,nG))
+       do j = 1, nG
+          do i = 1, nG
+             N(i,j) = M(Gsb(i), Gsk(j))
+          enddo
+       enddo
+       call lu_inverse(nG, N, detN, Ninv, info)
+       if (info /= 0 .or. abs(detN) < sing_tol) then
+          if (ierr == 5) then
+             ierr = 7
+          else if (ierr /= 7) then
+             ierr = 2
+          endif
+          call cv_fallback(nmo, nc, nocca, nvirb, nv, nG, hb, pb, hk, pk, nb, nk, M, Yb, Yk, Gsb, Gsk, pGb, pGk, &
+               cab, srb, cak, srk, t, S)
+          deallocate(N, Ninv, K, Sv, Qx, Px, Qr, Pr, Gsb, Gsk, pGb, pGk, cab, srb, cak, srk)
+          return
+       endif
+       allocate(MVG(nv,nG), MGV(nG,nv), Sch(nv,nv), Q(nv,nG), P(nG,nv))
+       do i = 1, nG
+          do b = 1, nv
+             MVG(b,i) = M(pb(2+b), Gsk(i))
+             MGV(i,b) = M(Gsb(i), pk(2+b))
+          enddo
+       enddo
+       do bl = 1, nv
+          do b = 1, nv
+             Sch(b,bl) = M(pb(2+b), pk(2+bl))
+          enddo
+       enddo
+       call dgemm('N','N', nv, nG, nG, 1.0_dp, MVG, nv, Ninv, nG, 0.0_dp, Q, nv)
+       call dgemm('N','N', nG, nv, nG, 1.0_dp, Ninv, nG, MGV, nG, 0.0_dp, P, nG)
+       call dgemm('N','N', nv, nv, nG, -1.0_dp, Q, nv, MGV, nG, 1.0_dp, Sch, nv)
+       nkp = 1
+       do jl2 = 1, nc
+          do jl = 1, nc
+             K(jl,jl2,1) = Ninv(pGk(jl2), pGb(jl))
+          enddo
+       enddo
+       Sv(:,:,1) = Sch
+       do jl = 1, nc
+          Qx(:,jl) = Q(:,pGb(jl))
+          Px(:,jl) = P(pGk(jl),:)
+       enddo
+       Qr = Qx
+       Pr = Px
+       dN = detN*detN
+       dR = dN
+       deallocate(N, Ninv, MVG, MGV, Sch, Q, P)
+    else
+       call cv_tlf_pieces(nmo, nc, nv, nG, M, kt, nkp, K, Sv, diagS, Qx, Px, Qr, Pr, dN, dR)
+    endif
+
+    ! contraction over all state pairs
+    allocate(Ub(nv,nc,nb), tmp(nv,nc), qxs(nb), qrs(nb), pxs(nk), prs(nk), R(nb,nk), dSv(nv,3))
+    do ip = 1, nkp
+       do b = 1, nv
+          dSv(b,ip) = Sv(b,b,ip)
+       enddo
+    enddo
+    Ub = 0.0_dp
+    do v = 1, nb
+       do ip = 1, nkp
+          call dgemm('N','N', nv, nc, nc, 1.0_dp, Yb(1,1,v), nv, K(1,1,ip), nc, 0.0_dp, tmp, nv)
+          if (diagS(ip)) then
+             do jl = 1, nc
+                Ub(:,jl,v) = Ub(:,jl,v) + dSv(:,ip)*tmp(:,jl)
+             enddo
+          else
+             call dgemm('T','N', nv, nc, nv, 1.0_dp, Sv(1,1,ip), nv, tmp, nv, 1.0_dp, Ub(1,1,v), nv)
+          endif
+       enddo
+       qxs(v) = sum(Yb(:,:,v)*Qx)
+       qrs(v) = sum(Yb(:,:,v)*Qr)
+    enddo
+    do v = 1, nk
+       pxs(v) = sum(Yk(:,:,v)*Px)
+       prs(v) = sum(Yk(:,:,v)*Pr)
+    enddo
+    call dgemm('T','N', nb, nk, nv*nc, 1.0_dp, Ub, nv*nc, Yk, nv*nc, 0.0_dp, R, nb)
+    fac = sGb*sGk
+    do v = 1, nk
+       do i = 1, nb
+          S(i,v) = S(i,v) + fac*(dN*(R(i,v) + qxs(i)*pxs(v)) + t*dR*qrs(i)*prs(v))
+       enddo
+    enddo
+    deallocate(Ub, tmp, qxs, qrs, pxs, prs, R, dSv, K, Sv, Qx, Px, Qr, Pr, Gsb, Gsk, pGb, pGk, cab, srb, cak, srk)
+
+  end subroutine cv_contract
+
+!######################################################################
+! cv_tlf_pieces: TLF(k) closed forms of the CV-CV blocks (class-ordered
+! MOs: G = 1..nG, virtuals nc+3..nmo). With d(p) = M(p,p), D_G = prod d,
+! E = M_VG D^-1 M_GV, E_VG = M_VG D^-1 M_GG, E_GV = M_GG D^-1 M_VG,
+! G2 = M_CG D^-1 M_GC, F = sum_{x<y} M(x,y)M(y,x)/(d(x)d(y)) over G:
+!  Xaa/D_G = K1 (x) S1 + K2 (x) diag(d_V) + K3 (x) E + Qx (x) Px
+! (the sign factors (-1)^(pG+pG') of the Jacobi identity absorbed), with
+!  K1 = delta/d(j) - [k>=2] (1-delta) M(j',j)/(d(j)d(j')),   S1 = M_VV' ([k=0]: diag)
+!  K2 = [k=1] -(1-delta) M(j',j)/(d(j)d(j'))
+!       [k=2] -delta (F - F_j)/d(j) + (1-delta)(G2(j',j) - 2 M(j',j))/(d(j)d(j'))
+!  K3 = -[k>=2] delta/d(j);  Qx = [k>=2] M(b,j)/d(j), Px = M(j',b')/d(j')
+! and the Cramer-type minors Xr = (-1)^(nG-1-pG) D_G Qr, Xc likewise:
+!  Qr = ([k>=1] M(b,j) - [k>=2] (E_VG(b,j) - M(b,j)))/d(j), Pr analogous;
+! detN(TLF) = D_G (k<=1), D_G (1 - F) (k=2); dN = detN D_G, dR = D_G^2
+!######################################################################
+  subroutine cv_tlf_pieces(nmo, nc, nv, nG, M, kt, nkp, K, Sv, diagS, Qx, Px, Qr, Pr, dN, dR)
+
+    integer(is), intent(in)  :: nmo, nc, nv, nG, kt
+    real(dp), intent(in)     :: M(nmo,nmo)
+    integer(is), intent(out) :: nkp
+    real(dp), intent(out)    :: K(nc,nc,3), Sv(nv,nv,3), Qx(nv,nc), Px(nv,nc), Qr(nv,nc), Pr(nv,nc), dN, dR
+    logical, intent(out)     :: diagS(3)
+
+    real(dp), allocatable :: d(:), MVGd(:,:), MGV(:,:), MGGd(:,:), MGC(:,:), E(:,:), EVG(:,:), EGV(:,:), G2(:,:), Fj(:)
+    real(dp) :: DG, F, detN
+    integer(is) :: p, q, j, jl, b, bl, kk
+
+    allocate(d(nG), Fj(nG))
+    do p = 1, nG
+       d(p) = M(p,p)
+    enddo
+    DG = product(d)
+    F = 0.0_dp
+    Fj = 0.0_dp
+    do p = 1, nG
+       do q = p + 1, nG
+          F = F + M(p,q)*M(q,p)/(d(p)*d(q))
+       enddo
+       do q = 1, nG
+          if (q /= p) Fj(p) = Fj(p) + M(q,p)*M(p,q)/(d(q)*d(p))
+       enddo
+    enddo
+    ! scaled products over G
+    allocate(MVGd(nv,nG), MGV(nG,nv), MGGd(nc,nG), MGC(nG,nc), E(nv,nv), EVG(nv,nc), EGV(nc,nv), G2(nc,nc))
+    do kk = 1, nG
+       do b = 1, nv
+          MVGd(b,kk) = M(nc+2+b, kk)/d(kk)
+          MGV(kk,b) = M(kk, nc+2+b)
+       enddo
+       do j = 1, nc
+          MGGd(j,kk) = M(j,kk)/d(kk)
+          MGC(kk,j) = M(kk,j)
+       enddo
+    enddo
+    call dgemm('N','N', nv, nv, nG, 1.0_dp, MVGd, nv, MGV, nG, 0.0_dp, E, nv)
+    call dgemm('N','N', nv, nc, nG, 1.0_dp, MVGd, nv, MGC, nG, 0.0_dp, EVG, nv)
+    call dgemm('N','N', nc, nv, nG, 1.0_dp, MGGd, nc, MGV, nG, 0.0_dp, EGV, nc)
+    call dgemm('N','N', nc, nc, nG, 1.0_dp, MGGd, nc, MGC, nG, 0.0_dp, G2, nc)
+
+    K = 0.0_dp; Sv = 0.0_dp; Qx = 0.0_dp; Px = 0.0_dp; Qr = 0.0_dp; Pr = 0.0_dp
+    diagS = .false.
+    ! K1 (x) S1
+    nkp = 1
+    do jl = 1, nc
+       K(jl,jl,1) = 1.0_dp/d(jl)
+       if (kt >= 2) then
+          do j = 1, nc
+             if (j /= jl) K(jl,j,1) = -M(j,jl)/(d(jl)*d(j))
+          enddo
+       endif
+    enddo
+    if (kt >= 1) then
+       do bl = 1, nv
+          do b = 1, nv
+             Sv(b,bl,1) = M(nc+2+b, nc+2+bl)
+          enddo
+       enddo
+    else
+       diagS(1) = .true.
+       do b = 1, nv
+          Sv(b,b,1) = M(nc+2+b, nc+2+b)
+       enddo
+    endif
+    ! K2 (x) diag(d_V)
+    if (kt >= 1) then
+       nkp = 2
+       diagS(2) = .true.
+       do b = 1, nv
+          Sv(b,b,2) = M(nc+2+b, nc+2+b)
+       enddo
+       do jl = 1, nc
+          do j = 1, nc
+             if (j == jl) then
+                if (kt >= 2) K(jl,j,2) = -(F - Fj(jl))/d(jl)
+             else
+                if (kt == 1) then
+                   K(jl,j,2) = -M(j,jl)/(d(jl)*d(j))
+                else
+                   K(jl,j,2) = (G2(j,jl) - 2.0_dp*M(j,jl))/(d(jl)*d(j))
+                endif
+             endif
+          enddo
+       enddo
+    endif
+    ! K3 (x) E and the Qx (x) Px piece
+    if (kt >= 2) then
+       nkp = 3
+       Sv(:,:,3) = E
+       do jl = 1, nc
+          K(jl,jl,3) = -1.0_dp/d(jl)
+          do b = 1, nv
+             Qx(b,jl) = M(nc+2+b, jl)/d(jl)
+             Px(b,jl) = M(jl, nc+2+b)/d(jl)
+          enddo
+       enddo
+    endif
+    ! Cramer-type minors
+    if (kt >= 1) then
+       do jl = 1, nc
+          do b = 1, nv
+             Qr(b,jl) = M(nc+2+b, jl)/d(jl)
+             Pr(b,jl) = M(jl, nc+2+b)/d(jl)
+             if (kt >= 2) then
+                Qr(b,jl) = Qr(b,jl) - (EVG(b,jl) - M(nc+2+b, jl))/d(jl)
+                Pr(b,jl) = Pr(b,jl) - (EGV(jl,b) - M(jl, nc+2+b))/d(jl)
+             endif
+          enddo
+       enddo
+    endif
+    detN = DG
+    if (kt >= 2) detN = DG*(1.0_dp - F)
+    dN = detN*DG
+    dR = DG*DG
+    deallocate(d, Fj, MVGd, MGV, MGGd, MGC, E, EVG, EGV, G2)
+
+  end subroutine cv_tlf_pieces
+
+!######################################################################
+! cv_fallback: CV-CV contributions with a singular N = M[G,G']: the
+! bordered minors per (j,j') from the LU of N without row j / column j'
+! (explicit determinants when that is singular too), the Cramer-type
+! minors by explicit determinants
+!######################################################################
+  subroutine cv_fallback(nmo, nc, nocca, nvirb, nv, nG, hb, pb, hk, pk, nb, nk, M, Yb, Yk, Gsb, Gsk, pGb, pGk, &
+       cab, srb, cak, srk, t, S)
+
+    integer(is), intent(in) :: nmo, nc, nocca, nvirb, nv, nG, hb(nocca), pb(nvirb), hk(nocca), pk(nvirb), nb, nk
+    integer(is), intent(in) :: Gsb(nG), Gsk(nG), pGb(nc), pGk(nc)
+    real(dp), intent(in)    :: M(nmo,nmo), Yb(nv,nc,nb), Yk(nv,nc,nk), cab(nv,nc), srb(nv,nc), cak(nv,nc), srk(nv,nc), t
+    real(dp), intent(inout) :: S(nb,nk)
+
+    integer(is), allocatable :: rl(:), cl(:), rows(:), cols(:)
+    real(dp), allocatable :: Ytb(:,:,:), Ytk(:,:,:), rI(:), cJ(:), Njj(:,:), Ninv(:,:), Rb(:,:), Cb(:,:)
+    real(dp), allocatable :: X(:,:), tmp(:,:), W(:,:)
+    real(dp) :: detN, dJ, xr, xc
+    integer(is) :: jl, jl2, b, bl, v, i, j, info
+    real(dp), parameter :: sing_tol = 1.0e-12_dp
+
+    detN = det_sub(nmo, M, nG, Gsb, Gsk)
+    allocate(Ytb(nv,nc,nb), Ytk(nv,nc,nk), rI(nb), cJ(nk), rows(nG), cols(nG))
+    do v = 1, nb
+       Ytb(:,:,v) = Yb(:,:,v)*cab
+    enddo
+    do v = 1, nk
+       Ytk(:,:,v) = Yk(:,:,v)*cak
+    enddo
+    ! Cramer-type minors: Xr(j,b) = det M[(G\j)+b, G'], Xc(j',b') = det M[G, (G'\j')+b']
+    rI = 0.0_dp; cJ = 0.0_dp
+    do jl = 1, nc
+       do b = 1, nv
+          call remove_one(nG, Gsb, pGb(jl), rows(1:nG-1)); rows(nG) = pb(2+b); call sort_list(nG, rows)
+          xr = det_sub(nmo, M, nG, rows, Gsk)
+          rI = rI + xr*Ytb(b,jl,:)
+          call remove_one(nG, Gsk, pGk(jl), cols(1:nG-1)); cols(nG) = pk(2+b); call sort_list(nG, cols)
+          xc = det_sub(nmo, M, nG, Gsb, cols)
+          cJ = cJ + xc*Ytk(b,jl,:)
+       enddo
+    enddo
+    do v = 1, nk
+       S(:,v) = S(:,v) + 2.0_dp*t*rI*cJ(v)
+    enddo
+    ! bordered minors per (j,j')
+    allocate(rl(nG-1), cl(nG-1), Njj(nG-1,nG-1), Ninv(nG-1,nG-1), Rb(nv,nG-1), Cb(nG-1,nv), X(nv,nv), tmp(nv,nG-1), W(nv,nb))
+    do jl2 = 1, nc
+       call remove_one(nG, Gsk, pGk(jl2), cl)
+       do jl = 1, nc
+          call remove_one(nG, Gsb, pGb(jl), rl)
+          do j = 1, nG - 1
+             do i = 1, nG - 1
+                Njj(i,j) = M(rl(i), cl(j))
+             enddo
+          enddo
+          call lu_inverse(nG-1, Njj, dJ, Ninv, info)
+          if (info == 0 .and. abs(dJ) >= sing_tol) then
+             do i = 1, nG - 1
+                do b = 1, nv
+                   Rb(b,i) = M(pb(2+b), cl(i))
+                   Cb(i,b) = M(rl(i), pk(2+b))
+                enddo
+             enddo
+             do bl = 1, nv
+                do b = 1, nv
+                   X(b,bl) = M(pb(2+b), pk(2+bl))
+                enddo
+             enddo
+             call dgemm('N','N', nv, nG-1, nG-1, 1.0_dp, Rb, nv, Ninv, nG-1, 0.0_dp, tmp(1,1), nv)
+             call dgemm('N','N', nv, nv, nG-1, -1.0_dp, tmp(1,1), nv, Cb, nG-1, 1.0_dp, X, nv)
+             do bl = 1, nv
+                do b = 1, nv
+                   X(b,bl) = srb(b,jl)*srk(bl,jl2)*dJ*X(b,bl)
+                enddo
+             enddo
+          else
+             do bl = 1, nv
+                cols(1:nG-1) = cl; cols(nG) = pk(2+bl); call sort_list(nG, cols)
+                do b = 1, nv
+                   rows(1:nG-1) = rl; rows(nG) = pb(2+b); call sort_list(nG, rows)
+                   X(b,bl) = det_sub(nmo, M, nG, rows, cols)
+                enddo
+             enddo
+          endif
+          ! S += 2 detN Ytb(:,jl,:)^T X Ytk(:,jl2,:)
+          call dgemm('T','N', nv, nb, nv, 1.0_dp, X, nv, Ytb(1,jl,1), nv*nc, 0.0_dp, W, nv)
+          call dgemm('T','N', nb, nk, nv, 2.0_dp*detN, W, nv, Ytk(1,jl2,1), nv*nc, 1.0_dp, S, nb)
+       enddo
+    enddo
+    deallocate(Ytb, Ytk, rI, cJ, rows, cols, rl, cl, Njj, Ninv, Rb, Cb, X, tmp, W)
+
+  end subroutine cv_fallback
+
+!######################################################################
+! cross_contract: contributions <MRSF side | CV side> for the rows of
+! Mx (MRSF side: hole/particle maps hm/pm, families Ap/Am) against the
+! columns (CV side: hc/pc, amplitudes Yc, G phase sGc):
+!   R(I,J) = B_I . g1_J + A_I . g4_J,
+!   B_I(i) = sum_a (Ap + t Am)_I(a,i) X2(a),  A_I(a) = sum_i (Am + t Ap)_I(a,i) X3(i),
+!   g1_J(i) = sum_k' X1(i;k') ca(k') y'_J(k'),  g4_J(a) = sum_k' X4(a;k') ca(k') y'_J(k')
+! (X2 = det Mx[C+a, G'], X3 = det Mx[H\i, G'] supplied by the caller from
+! the standard blocks). Exact: X1 by Laplace expansion along the
+! particle column with the Jacobi second minors of the hole block, X4
+! by Cramer's rule on the bordered core block; TLF: cross_tlf
+!######################################################################
+  subroutine cross_contract(Mx, nmo, nc, nocca, nvirb, hm, pm, hc, pc, nstm, nstc, Ap, Am, X2, X3, Yc, sGc, t, &
+       method, kt, R, ierr)
+
+    integer(is), intent(in)    :: nmo, nc, nocca, nvirb, hm(nocca), pm(nvirb), hc(nocca), pc(nvirb), nstm, nstc
+    integer(is), intent(in)    :: method, kt
+    real(dp), intent(in)       :: Mx(nmo,nmo), Ap(nvirb,nocca,nstm), Am(nvirb,nocca,nstm), X2(nvirb), X3(nocca)
+    real(dp), intent(in)       :: Yc(nvirb-2,nc,nstc), sGc, t
+    real(dp), intent(out)      :: R(nstm,nstc)
+    integer(is), intent(inout) :: ierr
+
+    integer(is), allocatable :: Hsm(:), Hsc(:), Csm(:), Csc(:), Gsc(:), posHm(:), qCm(:), pHc(:), pCc(:), pGc(:), L(:)
+    real(dp), allocatable :: ca(:,:), sc1(:,:), sc4(:,:), sr(:), g1(:,:), g4(:,:), B(:,:), Aa(:,:)
+    real(dp), allocatable :: A(:,:), Ainv(:,:), Cc(:,:), Cinv(:,:), MCP(:,:), MPC(:,:), tS(:,:), X1c(:,:), MHV(:,:)
+    real(dp), allocatable :: W1(:,:,:), Yt(:,:), Z(:,:), vJ(:), g1s(:)
+    integer(is) :: nv, nG, i, j, il, jl, al, bl, kl, v, info, pO2c, pi, pk, rk, i0, i1, nbelow, pj
+    real(dp) :: detA, detC, d2, aJ
+    real(dp), external :: ddot
+    real(dp), parameter :: sing_tol = 1.0e-12_dp
+
+    nv = nvirb - 2
+    nG = nc + 1
+    R = 0.0_dp
+    if (nc == 0 .or. nv == 0) return
+    allocate(Hsm(nocca), Hsc(nocca), Csm(nc), Csc(nc), Gsc(nG), posHm(nocca), qCm(nvirb), pHc(nc), pCc(nc), pGc(nc))
+    Hsm = hm; call sort_list(nocca, Hsm)
+    Hsc = hc; call sort_list(nocca, Hsc)
+    Csm = hm(1:nc); call sort_list(nc, Csm)
+    Csc = hc(1:nc); call sort_list(nc, Csc)
+    Gsc(1:nc) = hc(1:nc); Gsc(nG) = hc(nc+1); call sort_list(nG, Gsc)
+    call positions(nc, nocca, nvirb, hm, pm, posHm, qCm)
+    do jl = 1, nc
+       pHc(jl) = 0; pCc(jl) = 0; pGc(jl) = 0
+       do i = 1, nocca
+          if (Hsc(i) == hc(jl)) pHc(jl) = i
+       enddo
+       do i = 1, nc
+          if (Csc(i) == hc(jl)) pCc(jl) = i
+       enddo
+       do i = 1, nG
+          if (Gsc(i) == hc(jl)) pGc(jl) = i
+       enddo
+    enddo
+    pO2c = 0
+    do i = 1, nocca
+       if (Hsc(i) == hc(nc+2)) pO2c = i
+    enddo
+
+    ! coefficient and sign tables of the CV side
+    allocate(ca(nv,nc), sc1(nv,nc), sc4(nv,nc), sr(nvirb), L(nc+1))
+    do jl = 1, nc
+       do bl = 1, nv
+          nbelow = 0
+          do i = 1, nG
+             if (Gsc(i) /= hc(jl) .and. Gsc(i) < pc(2+bl)) nbelow = nbelow + 1
+          enddo
+          ca(bl,jl) = sGc*real((-1)**(pGc(jl) - 1 + nbelow), dp)*isqrt2
+          sc1(bl,jl) = real((-1)**(nG - 1 - nbelow), dp)
+          L(1:nc) = Csc; L(pCc(jl)) = pc(2+bl); L(nc+1) = hc(nc+1)
+          sc4(bl,jl) = real(perm_sign_list(nc+1, L), dp)
+       enddo
+    enddo
+    do al = 1, nvirb
+       sr(al) = real((-1)**(nc - qCm(al)), dp)
+    enddo
+
+    allocate(g1(nocca,nstc), g4(nvirb,nstc), B(nocca,nstm), Aa(nvirb,nstm))
+    g1 = 0.0_dp; g4 = 0.0_dp
+
+    if (method == 0) then
+       allocate(A(nocca,nocca), Ainv(nocca,nocca), Cc(nc,nc), Cinv(nc,nc))
+       do j = 1, nocca
+          do i = 1, nocca
+             A(i,j) = Mx(Hsm(i), Hsc(j))
+          enddo
+       enddo
+       do j = 1, nc
+          do i = 1, nc
+             Cc(i,j) = Mx(Csm(i), Csc(j))
+          enddo
+       enddo
+       call lu_inverse(nocca, A, detA, Ainv, info)
+       if (info == 0) call lu_inverse(nc, Cc, detC, Cinv, info)
+       if (info /= 0 .or. abs(detA) < sing_tol .or. abs(detC) < sing_tol) then
+          if (ierr == 5) then
+             ierr = 7
+          else if (ierr /= 7) then
+             ierr = 2
+          endif
+          call cross_fallback(Mx, nmo, nc, nocca, nvirb, nv, nG, hm, pm, hc, pc, nstc, Hsm, Csm, Gsc, pGc, ca, Yc, g1, g4)
+       else
+          ! X4 by Cramer's rule on the bordered core block:
+          ! X4(a;j',b') = sr(a) sc4(j',b') detC [tS(a,O1') X1c(j',b') - X1c(j',O1') tS(a,b')]
+          allocate(MCP(nc,nvirb), MPC(nvirb,nc), tS(nvirb,nvirb), X1c(nc,nvirb), MHV(nocca,nv))
+          do bl = 1, nvirb
+             do kl = 1, nc
+                MCP(kl,bl) = Mx(Csm(kl), pc(bl))
+             enddo
+             do al = 1, nvirb
+                tS(al,bl) = Mx(pm(al), pc(bl))
+             enddo
+          enddo
+          do kl = 1, nc
+             do al = 1, nvirb
+                MPC(al,kl) = Mx(pm(al), Csc(kl))
+             enddo
+          enddo
+          call dgemm('N','N', nc, nvirb, nc, 1.0_dp, Cinv, nc, MCP, nc, 0.0_dp, X1c, nc)
+          call dgemm('N','N', nvirb, nvirb, nc, -1.0_dp, MPC, nvirb, X1c, nc, 1.0_dp, tS, nvirb)
+          allocate(Yt(nv,nc), vJ(nv), Z(nocca,nc), g1s(nocca))
+          do v = 1, nstc
+             do jl = 1, nc
+                Yt(:,pCc(jl)) = sc4(:,jl)*ca(:,jl)*Yc(:,jl,v)
+             enddo
+             aJ = 0.0_dp
+             do pj = 1, nc
+                aJ = aJ + ddot(nv, X1c(pj,3), nc, Yt(1,pj), 1)
+             enddo
+             call dgemv('N', nv, nc, 1.0_dp, Yt, nv, X1c(1,1), 1, 0.0_dp, vJ, 1)
+             do al = 1, nvirb
+                g4(al,v) = tS(al,1)*aJ
+             enddo
+             call dgemv('N', nvirb, nv, -1.0_dp, tS(1,3), nvirb, vJ, 1, 1.0_dp, g4(1,v), 1)
+             do al = 1, nvirb
+                g4(al,v) = sr(al)*detC*g4(al,v)
+             enddo
+          enddo
+          ! X1 by Laplace expansion along the particle column: X1(i;j',b') = sc1(j',b') sum_k W1(i,k;j') Mx(k,b'),
+          ! W1 = (-1)^(rk + nG - 1) detA (-1)^(pi+pk+pj'+pO2') det Ainv[{pj',pO2'},{pi,pk}]
+          allocate(W1(nocca,nocca,nc))
+          W1 = 0.0_dp
+          do jl = 1, nc
+             pj = pHc(jl)
+             do pi = 1, nocca
+                do pk = 1, nocca
+                   if (pk == pi) cycle
+                   rk = pk - 1
+                   if (pk > pi) rk = rk - 1
+                   i0 = min(pi, pk); i1 = max(pi, pk)
+                   d2 = Ainv(pj, i0)*Ainv(pO2c, i1) - Ainv(pj, i1)*Ainv(pO2c, i0)
+                   if (pj > pO2c) d2 = -d2
+                   W1(pi,pk,jl) = real((-1)**(rk + nG - 1 + pi + pk + pj + pO2c), dp)*detA*d2
+                enddo
+             enddo
+          enddo
+          do bl = 1, nv
+             do pk = 1, nocca
+                MHV(pk,bl) = Mx(Hsm(pk), pc(2+bl))
+             enddo
+          enddo
+          do v = 1, nstc
+             do jl = 1, nc
+                Yt(:,jl) = sc1(:,jl)*ca(:,jl)*Yc(:,jl,v)
+             enddo
+             call dgemm('N','N', nocca, nc, nv, 1.0_dp, MHV, nocca, Yt, nv, 0.0_dp, Z, nocca)
+             g1s = 0.0_dp
+             do jl = 1, nc
+                call dgemv('N', nocca, nocca, 1.0_dp, W1(1,1,jl), nocca, Z(1,jl), 1, 1.0_dp, g1s, 1)
+             enddo
+             do il = 1, nocca
+                g1(il,v) = g1s(posHm(il)+1)
+             enddo
+          enddo
+          deallocate(MCP, MPC, tS, X1c, MHV, Yt, vJ, Z, g1s, W1)
+       endif
+       deallocate(A, Ainv, Cc, Cinv)
+    else
+       call cross_tlf(Mx, nmo, nc, nocca, nvirb, nv, nG, nstc, Yc, sGc, kt, g1, g4)
+    endif
+
+    ! bra-side vectors and the contraction over all pairs
+    do v = 1, nstm
+       do il = 1, nocca
+          B(il,v) = sum((Ap(:,il,v) + t*Am(:,il,v))*X2)
+       enddo
+       do al = 1, nvirb
+          Aa(al,v) = ddot(nocca, Am(al,1,v), nvirb, X3, 1) + t*ddot(nocca, Ap(al,1,v), nvirb, X3, 1)
+       enddo
+    enddo
+    call dgemm('T','N', nstm, nstc, nocca, 1.0_dp, B, nocca, g1, nocca, 0.0_dp, R, nstm)
+    call dgemm('T','N', nstm, nstc, nvirb, 1.0_dp, Aa, nvirb, g4, nvirb, 1.0_dp, R, nstm)
+    deallocate(Hsm, Hsc, Csm, Csc, Gsc, posHm, qCm, pHc, pCc, pGc, L, ca, sc1, sc4, sr, g1, g4, B, Aa)
+
+  end subroutine cross_contract
+
+!######################################################################
+! cross_fallback: g1, g4 from explicit determinants (singular hole or
+! core block)
+!######################################################################
+  subroutine cross_fallback(Mx, nmo, nc, nocca, nvirb, nv, nG, hm, pm, hc, pc, nstc, Hsm, Csm, Gsc, pGc, ca, Yc, g1, g4)
+
+    integer(is), intent(in) :: nmo, nc, nocca, nvirb, nv, nG, hm(nocca), pm(nvirb), hc(nocca), pc(nvirb), nstc
+    integer(is), intent(in) :: Hsm(nocca), Csm(nc), Gsc(nG), pGc(nc)
+    real(dp), intent(in)    :: Mx(nmo,nmo), ca(nv,nc), Yc(nv,nc,nstc)
+    real(dp), intent(out)   :: g1(nocca,nstc), g4(nvirb,nstc)
+
+    integer(is), allocatable :: rows(:), cols(:)
+    integer(is) :: jl, bl, il, al, v, pil
+    real(dp) :: x1, x4
+
+    allocate(rows(nG), cols(nG))
+    g1 = 0.0_dp; g4 = 0.0_dp
+    do jl = 1, nc
+       do bl = 1, nv
+          call remove_one(nG, Gsc, pGc(jl), cols(1:nG-1)); cols(nG) = pc(2+bl); call sort_list(nG, cols)
+          do il = 1, nocca
+             pil = 0
+             do v = 1, nocca
+                if (Hsm(v) == hm(il)) pil = v
+             enddo
+             call remove_one(nocca, Hsm, pil, rows)
+             x1 = det_sub(nmo, Mx, nG, rows, cols)
+             do v = 1, nstc
+                g1(il,v) = g1(il,v) + x1*ca(bl,jl)*Yc(bl,jl,v)
+             enddo
+          enddo
+          do al = 1, nvirb
+             rows(1:nc) = Csm; rows(nG) = pm(al); call sort_list(nG, rows)
+             x4 = det_sub(nmo, Mx, nG, rows, cols)
+             do v = 1, nstc
+                g4(al,v) = g4(al,v) + x4*ca(bl,jl)*Yc(bl,jl,v)
+             enddo
+          enddo
+       enddo
+    enddo
+    deallocate(rows, cols)
+
+  end subroutine cross_fallback
+
+!######################################################################
+! cross_tlf: g1, g4 from the TLF(k) closed forms of X1 and X4
+! (class-ordered MOs: core 1..nc, O1 = nc+1, O2 = nc+2, virtuals above;
+! kappa = sG (-1)^nc / sqrt2 carries the CSF coefficients):
+!  X1(i;j',b'): i = O2: -(-1)^(j'+nc) D_G Pr(j',b')
+!   i in G, i /= j' [k=2]: -(-1)^(i+j') D_G/(d(i)d(j')) [M(j',i)M(O2,b') - M(j',b')M(O2,i)]
+!   i = j' in C: D_G/d(i) {[k>=1] M(O2,b') - [k=2](E_O2V(b') - M(O2,i)M(i,b')/d(i))}
+!  X4(a;j',b'): a = O1: as X1 for i = O2
+!   a in O2 + V: (-1)^(j'+nc) D_C/d(j') {[k=2][M(j',O1)M(a,b') - M(j',b')M(a,O1)]
+!                 + delta_ab' d(a) ([k>=1] M(j',O1) - [k=2] G2c(j'))},
+!   G2c(j') = sum_{c in C} M(j',c) M(c,O1)/d(c)
+!######################################################################
+  subroutine cross_tlf(Mx, nmo, nc, nocca, nvirb, nv, nG, nstc, Yc, sGc, kt, g1, g4)
+
+    integer(is), intent(in) :: nmo, nc, nocca, nvirb, nv, nG, nstc, kt
+    real(dp), intent(in)    :: Mx(nmo,nmo), Yc(nv,nc,nstc), sGc
+    real(dp), intent(out)   :: g1(nocca,nstc), g4(nvirb,nstc)
+
+    real(dp), allocatable :: d(:), EO2V(:), mO2V(:), MCVt(:,:), PrT(:,:), G2c(:), c4(:), mo1d(:)
+    real(dp), allocatable :: u(:), w(:), e(:), z(:,:), MPV(:,:), yc4(:), zc(:)
+    real(dp) :: DG, DC, kap, pJ, acc, wsum
+    real(dp), external :: ddot
+    integer(is) :: p, kk, j, bl, al, i, v, O1, O2
+
+    O1 = nc + 1
+    O2 = nc + 2
+    allocate(d(nG), EO2V(nv), mO2V(nv), MCVt(nv,nc), PrT(nv,nc), G2c(nc), c4(nc), mo1d(nc))
+    allocate(u(nc), w(nc), e(nc), z(nvirb,nc), MPV(nvirb,nv), yc4(nv), zc(nvirb))
+    do p = 1, nG
+       d(p) = Mx(p,p)
+    enddo
+    DG = product(d)
+    DC = product(d(1:nc))
+    kap = sGc*real((-1)**nc, dp)*isqrt2
+    ! state-independent tables, all in the (virtual, core) layout of Yc
+    do bl = 1, nv
+       mO2V(bl) = Mx(O2, nc+2+bl)
+       EO2V(bl) = 0.0_dp
+       do kk = 1, nG
+          EO2V(bl) = EO2V(bl) + Mx(O2,kk)*Mx(kk,nc+2+bl)/d(kk)
+       enddo
+    enddo
+    do j = 1, nc
+       do bl = 1, nv
+          MCVt(bl,j) = Mx(j, nc+2+bl)
+          PrT(bl,j) = 0.0_dp
+          if (kt >= 1) PrT(bl,j) = Mx(j,nc+2+bl)/d(j)
+          if (kt >= 2) then
+             acc = 0.0_dp
+             do kk = 1, nG
+                acc = acc + Mx(j,kk)*Mx(kk,nc+2+bl)/d(kk)
+             enddo
+             PrT(bl,j) = PrT(bl,j) - (acc - Mx(j,nc+2+bl))/d(j)
+          endif
+       enddo
+       G2c(j) = 0.0_dp
+       do kk = 1, nc
+          G2c(j) = G2c(j) + Mx(j,kk)*Mx(kk,O1)/d(kk)
+       enddo
+       c4(j) = 0.0_dp
+       if (kt >= 1) c4(j) = -Mx(j,O1)/d(j)
+       if (kt >= 2) c4(j) = c4(j) + G2c(j)/d(j)
+       mo1d(j) = Mx(j,O1)/d(j)
+    enddo
+    do bl = 1, nv
+       do al = 1, nvirb
+          MPV(al,bl) = Mx(nc+al, nc+2+bl)
+       enddo
+    enddo
+
+    g1 = 0.0_dp; g4 = 0.0_dp
+    do v = 1, nstc
+       ! u(j) = sum_b M(O2,b) Y(b,j), e(j) = sum_b E_O2V(b) Y(b,j), w(j) = sum_b M(j,b) Y(b,j)
+       call dgemv('T', nv, nc, 1.0_dp, Yc(1,1,v), nv, mO2V, 1, 0.0_dp, u, 1)
+       call dgemv('T', nv, nc, 1.0_dp, Yc(1,1,v), nv, EO2V, 1, 0.0_dp, e, 1)
+       do j = 1, nc
+          w(j) = ddot(nv, MCVt(1,j), 1, Yc(1,j,v), 1)
+       enddo
+       pJ = ddot(nv*nc, PrT, 1, Yc(1,1,v), 1)
+       ! z(a,j) = sum_b M(a,b) Y(b,j); zc(a) = sum_j z(a,j) M(j,O1)/d(j); yc4(b) = sum_j Y(b,j) c4(j)
+       call dgemm('N','N', nvirb, nc, nv, 1.0_dp, MPV, nvirb, Yc(1,1,v), nv, 0.0_dp, z, nvirb)
+       call dgemv('N', nvirb, nc, 1.0_dp, z, nvirb, mo1d, 1, 0.0_dp, zc, 1)
+       call dgemv('N', nv, nc, 1.0_dp, Yc(1,1,v), nv, c4, 1, 0.0_dp, yc4, 1)
+       wsum = 0.0_dp
+       do j = 1, nc
+          wsum = wsum + w(j)/d(j)
+       enddo
+       ! g1
+       g1(O2,v) = kap*real((-1)**nc, dp)*DG*pJ
+       do i = 1, nG
+          acc = 0.0_dp
+          if (kt >= 2) then
+             do j = 1, nc
+                if (j == i) cycle
+                acc = acc + (Mx(j,i)*u(j) - Mx(O2,i)*w(j))/d(j)
+             enddo
+             acc = real((-1)**i, dp)*kap*DG/d(i)*acc
+          endif
+          if (i <= nc) then
+             if (kt >= 1) acc = acc + DG/d(i)*kap*real((-1)**(i-1), dp)*u(i)
+             if (kt >= 2) acc = acc - DG/d(i)*kap*real((-1)**(i-1), dp)*(e(i) - Mx(O2,i)*w(i)/d(i))
+          endif
+          g1(i,v) = acc
+       enddo
+       ! g4
+       g4(1,v) = kap*real((-1)**nc, dp)*DG*pJ
+       do al = 2, nvirb
+          acc = 0.0_dp
+          if (kt >= 2) acc = Mx(nc+al,O1)*wsum - zc(al)
+          if (al >= 3) acc = acc + Mx(nc+al, nc+al)*yc4(al-2)
+          g4(al,v) = kap*real((-1)**nc, dp)*DC*acc
+       enddo
+    enddo
+    deallocate(d, EO2V, mO2V, MCVt, PrT, G2c, c4, mo1d, u, w, e, z, MPV, yc4, zc)
+
+  end subroutine cross_tlf
+
+!######################################################################
+! align_ket_ext: alignment of the ket MOs for extended objects: core and
+! virtual classes by orthogonal Procrustes rotations as in align_ket,
+! the SOMO pair only by sign flips diag(+-1) (an O1-O2 rotation or swap
+! does not preserve the CV space built on G); offdiag = largest
+! off-diagonal SOMO overlap (a measure of the rotation that was not
+! aligned); sgn_o = det(U_O)
+!######################################################################
+  subroutine align_ket_ext(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, offdiag, info)
+
+    integer(is), intent(in)    :: nmo, nc, nocca, nvirb, hb(nocca), pb(nvirb), hk(nocca), pk(nvirb)
+    real(dp), intent(inout)    :: M(nmo,nmo)
+    real(dp), intent(out)      :: Uh(nocca,nocca), Up(nvirb,nvirb), sgn_o, offdiag
+    integer(is), intent(out)   :: info
+
+    real(dp), allocatable :: Uc(:,:), Uv(:,:)
+    real(dp) :: s1, s2
+    integer(is) :: nv
+
+    nv = nvirb - 2
+    allocate(Uc(nc,nc), Uv(nv,nv))
+    info = 0
+    call procrustes(nmo, nc, hb(1:nc), hk(1:nc), M, Uc, info)
+    if (info == 0) call procrustes(nmo, nv, pb(3:nvirb), pk(3:nvirb), M, Uv, info)
+    offdiag = max(abs(M(hb(nc+1), hk(nc+2))), abs(M(hb(nc+2), hk(nc+1))))
+    s1 = sign(1.0_dp, M(hb(nc+1), hk(nc+1)))
+    s2 = sign(1.0_dp, M(hb(nc+2), hk(nc+2)))
+    M(:, hk(nc+1)) = s1*M(:, hk(nc+1))
+    M(:, hk(nc+2)) = s2*M(:, hk(nc+2))
+    Uh = 0.0_dp; Up = 0.0_dp
+    Uh(1:nc,1:nc) = Uc
+    Uh(nc+1,nc+1) = s1
+    Uh(nc+2,nc+2) = s2
+    Up(1,1) = s1
+    Up(2,2) = s2
+    Up(3:nvirb,3:nvirb) = Uv
+    sgn_o = s1*s2
+    deallocate(Uc, Uv)
+
+  end subroutine align_ket_ext
+
 end module mrsf_overlap
 
 !**********************************************************************
@@ -861,14 +1863,14 @@ module mrsf_overlap_interface
 
 contains
 
-  subroutine mrsf_state_overlap_c(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, &
+  subroutine mrsf_state_overlap_c(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, ncolb, ncolk, &
        Cb, Ck, Sao, xb, xk, S, ierr) bind(c, name='mrsf_state_overlap')
-    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, align, nb, nk
+    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, method, align, nb, nk, ncolb, ncolk
     real(dp), intent(in)     :: occ_b(*), occ_k(*), Cb(*), Ck(*), Sao(*), xb(*), xk(*)
     real(dp), intent(out)    :: S(*)
     integer(is), intent(out) :: ierr
-    call state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, Cb, Ck, Sao, xb, xk, &
-         S, ierr)
+    call state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, ncolb, ncolk, Cb, Ck, Sao, &
+         xb, xk, S, ierr)
   end subroutine mrsf_state_overlap_c
 
 end module mrsf_overlap_interface

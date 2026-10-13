@@ -10,6 +10,7 @@ import graci.core.params as params
 import graci.interaction.interaction as interaction
 import graci.interfaces.bitci.bitwf_init as bitwf_init
 import graci.interfaces.bitci.wf_overlap as wf_overlap
+import graci.interfaces.mrsf.mrsf_overlap as mrsf_overlap
 import graci.io.output as output
 
 class Overlap(interaction.Interaction):
@@ -169,7 +170,7 @@ class Overlap(interaction.Interaction):
                                   bra_state_sym, ket_state_sym)
 
     #
-    def get_overlap(bra_st=None, ket_st=None, spin_state=False):
+    def get_overlap(self, bra_st=None, ket_st=None, spin_state=False):
         """
         Return requested overlaps.
  
@@ -241,9 +242,9 @@ class Overlap(interaction.Interaction):
             overlap_list, ierr = bra.overlap_sym(ket, ci_trans_sym,
                                                  self.mrsf_method,
                                                  self.mrsf_align)
-            if ierr == 2:
-                output.print_message('WARNING: near-singular core/hole MO '
-                                     'overlap block; explicit minors used')
+            if ierr in mrsf_overlap.warning_codes:
+                output.print_message('WARNING: '
+                                     + mrsf_overlap.warning_codes[ierr])
         else:
             # extract the determinant representation of the wave functions
             self.bra_wfunit, self.ket_wfunit = wf_overlap.extract(bra, ket)

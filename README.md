@@ -165,9 +165,10 @@ MRSF and CV configuration state functions (the paper's eq. 8), scaled by
 strengths through `$transition` between two extended objects of the same
 multiplicity) are available. The densities are the expectation values
 <Psi_I|E_pq|Psi_J> of the expansion in MRSF and CV configuration state
-functions, as for MRSF-TDDFT. Analytic gradients are available (see
-the `$mrsfgradient` paragraph); overlaps are not yet available for
-extended objects. The kernel needs the AO
+functions, as for MRSF-TDDFT. Analytic gradients (see the
+`$mrsfgradient` paragraph) and state overlaps between two geometries
+(see the `$overlap` paragraph) are available for extended objects. The
+kernel needs the AO
 values of the DFT grid cached in memory: `mem_budget` must cover
 8*ncomp*ngrid*(nao+nocc) bytes (about 1 GB for pyrazine/aug-cc-pVTZ at
 grid level 2; the run stops with the required value otherwise). The cost
@@ -268,3 +269,24 @@ the cost is negligible compared to the two MRSF-TDDFT calculations
 objects vanish identically and are returned as zero; the sign of each
 state (and therefore of each row/column) is that of the MRSF
 eigenvectors.
+
+Extended (EMRSF) objects are handled by the same section and keywords
+(see examples/h2o_mrsf_overlap/h2o_mrsf_overlap_extended.inp). The CV
+configuration state functions of the extended method live on the
+closed-shell configuration G = |C Cbar O1 O1bar|, and their overlaps
+reduce to minors of the G block of the MO overlap matrix, evaluated by
+the same determinant identities (exact) or by the truncated Leibniz
+formula (`tlf0`, `tlf1`, `tlf2`). Two points differ from the standard
+case: (i) the CV space is not invariant under rotations of the SOMO
+pair, so the alignment of the ket MOs rotates the core and the virtual
+classes as before but only sign-aligns the two SOMOs; when the SOMO
+block of the MO overlap matrix is far from diagonal (the SOMO pair has
+rotated or swapped between the two calculations) a warning is printed,
+the `exact` overlaps are still exact and only the TLF accuracy suffers;
+(ii) the TLF variants of the extended blocks require the orbital
+classes in index order (core, SOMOs, virtuals), which is the order
+PySCF produces; `exact` has no such requirement. A standard object may
+be paired with an extended one (it is treated as an extended state
+without CV amplitudes); the two models differ, so such overlaps are
+only meaningful for comparisons. The extra cost is negligible as well
+(pyrazine/aug-cc-pVTZ, 8 x 8 extended states: below 0.1 s).
