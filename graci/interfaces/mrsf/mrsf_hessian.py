@@ -11,6 +11,7 @@ trial densities by the library grid module, with the AO values cached
 when they fit the memory budget.
 """
 
+import time
 import numpy as np
 import graci.interfaces.mrsf.mrsf_grad as mrsf_grad
 import graci.interfaces.mrsf.mrsf_xc as mrsf_xc
@@ -25,7 +26,7 @@ class RoksHessian:
     O; for q in C: p in V; for q in O: p in V.
     """
 
-    def __init__(self, mf, C, occ, fa, fb, x_ref, eri_file, dims, mem_budget):
+    def __init__(self, mf, C, occ, fa, fb, x_ref, eri_file, dims, mem_budget, session=None):
         """
         mf         : PySCF object of the reference (functional and grids)
         C, occ     : reference MOs (nao, nmo) and occupations (nmo)
@@ -34,10 +35,15 @@ class RoksHessian:
         eri_file   : the DF integral file of the reference MOs
         dims       : (nocca, nvirb, naux)
         mem_budget : GB for the AO values cached on the grid
+        session    : optional mrsf_xc.GridSession whose grid (AO cache) is
+                     used instead of a private XCGrid
         """
+        self.times = {}
+        t0 = time.time()
         ierr = mrsf_grad.grad_init(eri_file)
         if ierr != 0:
             raise RuntimeError('mrsf_grad_init failed with error code %d' % ierr)
+        self.times['grad_init'] = time.time() - t0
 
         C = np.asarray(C)
         occ = np.asarray(occ, dtype=float)
@@ -59,18 +65,29 @@ class RoksHessian:
         self.lz = len(R)
 
         # Fock couplings and diagonal
+        t0 = time.time()
         self.hdiag = np.asarray(mrsf_grad.zvec_setup(self.nao, self.lz, fa, fb))
+        self.times['zvec_setup'] = time.time() - t0
 
         # XC kernel on the grid, with the libxc derivatives of the
         # reference cached once
         self.xcgrid = None
+        self.owns_grid = False
         if self.is_dft:
-            occ_a = (occ > 0.5).astype(float)
-            occ_b = (occ > 1.5).astype(float)
-            H = np.concatenate([Cidx, Oidx])
-            P = np.concatenate([Oidx, Vidx])
-            self.xcgrid = mrsf_xc.XCGrid(mf, C, occ_a, occ_b, C[:, H], C[:, P],
-                                         dims, mem_budget)
+            if session is not None and session.xcgrid is not None:
+                self.xcgrid = session.xcgrid
+            else:
+                occ_a = (occ > 0.5).astype(float)
+                occ_b = (occ > 1.5).astype(float)
+                H = np.concatenate([Cidx, Oidx])
+                P = np.concatenate([Oidx, Vidx])
+                self.xcgrid = mrsf_xc.XCGrid(mf, C, occ_a, occ_b, C[:, H], C[:, P],
+                                             dims, mem_budget, lazy=True)
+                self.owns_grid = True
+                self.times['AO cache fill'] = self.xcgrid.time_init_cache
+            t0 = time.time()
+            self.xcgrid.ensure_ref_kernel()
+            self.times['xc ref kernel'] = time.time() - t0
 
         # number of Hessian-vector products
         self.nprod = 0
@@ -92,9 +109,9 @@ class RoksHessian:
         return self.hdiag
 
     def free(self):
-        """release the grid cache and the library data of the Hessian"""
-        if self.xcgrid is not None:
+        """release the Hessian data (a private grid cache is freed; a
+        session's grid and the gradient blocks of the library are kept)"""
+        if self.xcgrid is not None and self.owns_grid:
             self.xcgrid.free()
-            self.xcgrid = None
+        self.xcgrid = None
         mrsf_grad.zvec_free()
-        mrsf_grad.grad_free()

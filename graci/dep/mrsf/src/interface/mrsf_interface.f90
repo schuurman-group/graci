@@ -15,6 +15,7 @@ module mrsf_interface
   use mrsf_davidson
   use mrsf_etensor
   use mrsf_density
+  use mrsf_gradient, only: grad_free
 
   implicit none
 
@@ -337,6 +338,7 @@ contains
   subroutine mrsf_finalise_f()
 
     call report_timings()
+    call grad_free()
     call free_ints()
     call free_orbital_data()
     extended = .false.

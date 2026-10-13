@@ -601,6 +601,14 @@ def print_mrsfgradient_results(grad_obj, states, res):
             outfile.write('\n   of which XC grid kernel {:.2f} ({:d} calls), XC probe {:.2f}; AO values {:s}'.format(
                           t['xc_kernel'], int(t['xc_calls']), t['xc_probe'],
                           'cached' if t['xc_cached'] else 'streamed (raise mem_budget to cache)'))
+        if grad_obj.verbose and 'detail' in t:
+            det = t['detail']
+            for grp in ('setup', 'rhs', 'fam', 'ao', '1e'):
+                items = [(k, v) for k, v in det.items() if k.startswith(grp + ':')]
+                if items:
+                    outfile.write('\n   '+grp+' detail (s): '+
+                                  ', '.join('{:s} {:.2f}'.format(k.split(':', 1)[1].strip(), v)
+                                            for k, v in items))
         outfile.write('\n\n Gradient of the ROKS reference (Hartree/Bohr)')
         outfile.write('\n   Atom          x                y                z')
         for A in range(len(asym)):

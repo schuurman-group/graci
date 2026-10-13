@@ -33,7 +33,7 @@ module mrsf_extended
   use mrsf_global
   use mrsf_io
   use mrsf_space
-  use mrsf_xcgrid, only: xc_ready, ao_cached, xc_closed_shell_init, xc_kernel_cv
+  use mrsf_xcgrid, only: xc_ready, ao_cached, ref_ready, cs_ready, xc_closed_shell_init, xc_kernel_cv
 
   implicit none
 
@@ -77,7 +77,13 @@ contains
        if (.not. xc_ready) call mrsf_error('ext_initialise: the grid kernel is not initialised')
        if (.not. ao_cached) call mrsf_error('ext_initialise: the extended method needs the '// &
             'AO values cached on the grid (raise mem_budget)')
-       call xc_closed_shell_init()
+       ! the closed-shell kernel of the CV block: installed by the driver from
+       ! the G-density set (xc_cs_from_g) or built here from a reference-type
+       ! kernel evaluated at the G density
+       if (.not. cs_ready) then
+          if (.not. ref_ready) call mrsf_error('ext_initialise: closed-shell kernel not installed')
+          call xc_closed_shell_init()
+       endif
     endif
 
     ! diagonal correction (1 - c_H)[(pp|O2O2) - (pp|O1O1)]

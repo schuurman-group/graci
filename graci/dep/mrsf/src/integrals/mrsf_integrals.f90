@@ -179,6 +179,7 @@ contains
     call build_diag0()
 
     ints_loaded = .true.
+    nload = nload + 1
     loaded_file = trim(fname)
     loaded_prec = trim(prec)
     loaded_vv   = trim(vvstore)

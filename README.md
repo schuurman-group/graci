@@ -222,8 +222,12 @@ Fock matrix of the G configuration and its response, the CV Coulomb,
 exchange and kernel terms including the third functional derivative at
 the G density, the coupling-block terms and the F' correction) enter the
 Z-vector right-hand side, the relaxed densities and the derivative
-families; the Z-vector operator is unchanged. The cost per state is about
-1.3-1.5 times that of an MRSF-TDDFT gradient.
+families; the Z-vector operator is unchanged. The grid cache, the kernel
+sets at the reference and G densities and the closed-shell Fock matrix of
+G are built once per SCF and shared by the extended energy sections, the
+stability check and the gradient sections of that SCF. The cost per state
+is about that of an MRSF-TDDFT gradient (pyrazine/aug-cc-pVTZ, 8 threads:
+11 s against 10 s per state, plus about 1 s of setup per section).
 
 Overlaps between MRSF-TDDFT states of two geometries (for nonadiabatic
 dynamics) are computed by the existing `$overlap` section when its

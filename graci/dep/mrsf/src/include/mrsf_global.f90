@@ -34,6 +34,7 @@ module mrsf_global
   logical     :: verbose = .true.
   logical     :: init_done = .false.
   logical     :: ints_loaded = .false.
+  integer(is) :: nload = 0                    ! fresh integral loads (gradient blocks keyed on it)
   logical     :: store_sp = .false.
   logical     :: vv_full = .false.
   logical     :: extended = .false.     ! EMRSF: CV columns present

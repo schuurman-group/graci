@@ -26,6 +26,7 @@ import graci.io.chkpt as chkpt
 import graci.core.ao2mo as ao2mo
 import graci.interfaces.mrsf.mrsf_init as mrsf_init
 import graci.interfaces.mrsf.mrsf_hessian as mrsf_hessian
+import graci.interfaces.mrsf.mrsf_xc as mrsf_xc
 
 # lowest-eigenvalue threshold (Hartree, PySCF's convention for the
 # Hessian of the same parametrisation)
@@ -107,9 +108,10 @@ def davidson_lowest(apply, diag, mask, nroots=2, nguess=4, tol=TOL,
 def _check(ci, mf, fock_mo):
     """one stability check of the reference loaded in the library"""
     t0 = time.time()
+    session = mrsf_xc.get_session(ci, ci.mem_budget)
     hess = mrsf_hessian.RoksHessian(mf, ci.mos, ci.occ_ref, fock_mo[0], fock_mo[1],
                                     float(ci.scf.hyb[2]), ci.eri_file(),
-                                    (ci.nocca, ci.nvirb, ci.naux), ci.mem_budget)
+                                    (ci.nocca, ci.nvirb, ci.naux), ci.mem_budget, session=session)
     t_setup = time.time() - t0
     mosym = np.asarray(ci.mosym)
     mask = mosym[hess.Rp] == mosym[hess.Rq]

@@ -77,6 +77,13 @@ module mrsf_xcgrid
   integer(is)              :: nxcg_calls = 0
   real(dp), allocatable    :: CHg(:,:), CPg(:,:)   ! (nao, nocca), (nao, nvirb)
   logical                  :: xc_ready = .false., ao_cached = .false.
+  logical                  :: ref_ready = .false.     ! reference-density kernel installed
+  logical                  :: cs_ready = .false.      ! closed-shell kernel of the CV block installed
+  ! quadratic-form probe (Part XIII): densities P = B S B^T, B = [C_H | Bexp]
+  logical                  :: probe_q = .false., gq = .false., gq_kxc = .false.
+  integer(is)              :: nexp_q = 0, maxnb_q = 0, nst_q = 0
+  real(dp), allocatable    :: Bexp_q(:,:), Sq(:,:,:,:), Bq(:,:,:,:), Wq(:,:,:,:)
+  integer(is), allocatable :: nbq(:,:), idxq(:,:,:)
   ! evaluation in progress
   integer(is)              :: kcur = 0, nvcur = 0
   real(dp), allocatable    :: Lcur(:,:,:,:), Rcur(:,:,:,:)   ! (nao, k, 2, nvec)
@@ -107,7 +114,25 @@ contains
     real(dp), intent(in)    :: CH1(nao1,nocca), CP1(nao1,nvirb)
     logical, intent(in)     :: cache_ao
 
-    integer(is) :: g, s, x, t, y, ib
+    call xc_init_grid(nao1, ngrid1, ncomp1, nv1, nblocks1, gbeg1, gend1, wgt1, CH1, CP1, cache_ao)
+    call xc_set_ref_kernel(ngrid1, nv1, vxc1, fxc1)
+
+  end subroutine xc_init
+
+!######################################################################
+! xc_init_grid: grid dimensions and blocks, weights, MO blocks and the
+! AO cache (no kernel: the reference kernel is installed separately by
+! xc_set_ref_kernel, the G-density set by xc_g_set)
+!######################################################################
+  subroutine xc_init_grid(nao1, ngrid1, ncomp1, nv1, nblocks1, gbeg1, gend1, wgt1, CH1, CP1, cache_ao)
+
+    integer(is), intent(in) :: nao1, ngrid1, ncomp1, nv1, nblocks1
+    integer(is), intent(in) :: gbeg1(nblocks1), gend1(nblocks1)
+    real(dp), intent(in)    :: wgt1(ngrid1)
+    real(dp), intent(in)    :: CH1(nao1,nocca), CP1(nao1,nvirb)
+    logical, intent(in)     :: cache_ao
+
+    integer(is) :: ib
 
     call xc_free()
     nao_g = nao1; ngrid = ngrid1; ncomp = ncomp1; ndc = nv1; nblocks = nblocks1
@@ -119,6 +144,32 @@ contains
        poff(ib) = int(ncomp,i8)*int(nocca,i8)*int(gbeg(ib)-1,i8)
     enddo
     allocate(wgt(ngrid)); wgt = wgt1
+    allocate(CHg(nao_g,nocca), CPg(nao_g,nvirb))
+    CHg = CH1; CPg = CP1
+    ao_cached = cache_ao
+    if (ao_cached) then
+       allocate(aoc(int(ncomp,i8)*int(nao_g,i8)*int(ngrid,i8)))
+       allocate(psiH(int(ncomp,i8)*int(nocca,i8)*int(ngrid,i8)))
+    endif
+    xc_ready = .true.
+
+  end subroutine xc_init_grid
+
+!######################################################################
+! xc_set_ref_kernel: potentials and weighted kernel of the reference
+! (spin-resolved, PySCF layout vxc(g,x,s), fxc(g,y,t,x,s))
+!######################################################################
+  subroutine xc_set_ref_kernel(ngrid1, nv1, vxc1, fxc1)
+
+    integer(is), intent(in) :: ngrid1, nv1
+    real(dp), intent(in)    :: vxc1(ngrid1,nv1,2), fxc1(ngrid1,nv1,2,nv1,2)
+
+    integer(is) :: g, s, x, t, y
+
+    if (.not. xc_ready) call mrsf_error('xc_set_ref_kernel: grid not initialised')
+    if (ngrid1 /= ngrid .or. nv1 /= ndc) call mrsf_error('xc_set_ref_kernel: dimension mismatch')
+    if (allocated(vxc)) deallocate(vxc)
+    if (allocated(fxcw)) deallocate(fxcw)
     allocate(vxc(ngrid,ndc,2)); vxc = vxc1
     allocate(fxcw(ndc,2,ndc,2,ngrid))
     !$omp parallel do private(s,x,t,y)
@@ -134,16 +185,9 @@ contains
        enddo
     enddo
     !$omp end parallel do
-    allocate(CHg(nao_g,nocca), CPg(nao_g,nvirb))
-    CHg = CH1; CPg = CP1
-    ao_cached = cache_ao
-    if (ao_cached) then
-       allocate(aoc(int(ncomp,i8)*int(nao_g,i8)*int(ngrid,i8)))
-       allocate(psiH(int(ncomp,i8)*int(nocca,i8)*int(ngrid,i8)))
-    endif
-    xc_ready = .true.
+    ref_ready = .true.
 
-  end subroutine xc_init
+  end subroutine xc_set_ref_kernel
 
 !######################################################################
 ! xc_add_block: cache the AO values of block ib, ao(nb, nao, ncomp), and
@@ -199,7 +243,7 @@ contains
     if (allocated(psiH)) deallocate(psiH)
     if (allocated(CHg)) deallocate(CHg, CPg)
     call xc_g_free()
-    xc_ready = .false.; ao_cached = .false.
+    xc_ready = .false.; ao_cached = .false.; ref_ready = .false.; cs_ready = .false.
 
   end subroutine xc_free
 
@@ -210,7 +254,8 @@ contains
     if (allocated(tacc)) deallocate(tacc)
     if (allocated(LMg)) deallocate(LMg, RMg, LSg)
     if (allocated(taccG)) deallocate(taccG)
-    kcur = 0; nvcur = 0; nstg = 0
+    if (allocated(Bexp_q)) deallocate(Bexp_q, nbq, idxq, Sq, Bq, Wq)
+    kcur = 0; nvcur = 0; nstg = 0; probe_q = .false.; gq = .false.; gq_kxc = .false.
 
   end subroutine xc_cleanup
 
@@ -226,6 +271,7 @@ contains
     integer(is) :: v, s
 
     if (.not. xc_ready) call mrsf_error('set_factors: grid not initialised')
+    if (.not. ref_ready) call mrsf_error('set_factors: reference kernel not installed')
     if (any(rch1 == 1) .and. k /= nocca) call mrsf_error('set_factors: R = C_H requires k = nocca')
     call xc_cleanup()
     tstart = wall_time()
@@ -820,6 +866,7 @@ contains
     integer(is) :: g, x, y
 
     if (.not. xc_ready) call mrsf_error('xc_closed_shell_init: grid not initialised')
+    if (.not. ref_ready) call mrsf_error('xc_closed_shell_init: reference kernel not installed')
     if (allocated(fxcw_cs)) deallocate(fxcw_cs)
     allocate(fxcw_cs(ndc,ndc,ngrid))
     !$omp parallel do private(x,y)
@@ -831,6 +878,7 @@ contains
        enddo
     enddo
     !$omp end parallel do
+    cs_ready = .true.
 
   end subroutine xc_closed_shell_init
 
@@ -1359,15 +1407,18 @@ contains
 ! with D_G = 2 C_G C_G^T (G = the first nocca - 1 hole MOs), in the same
 ! per-AO form as the reference probe (dE/dR_{A,x} = -2 sum_{mu in A} t).
 !######################################################################
-  subroutine xc_gprobe_set(nst, kM, LM, RM, kS, LS)
+  subroutine xc_gprobe_set(nst, kM, LM, RM, kS, LS, use_kxc)
 
     integer(is), intent(in) :: nst, kM, kS
+    logical, intent(in)     :: use_kxc
     real(dp), intent(in)    :: LM(nao_g,kM,nst), RM(nao_g,kM,nst), LS(nao_g,kS,nst)
 
     if (.not. g_ready) call mrsf_error('xc_gprobe_set: G kernel set not installed')
     if (.not. allocated(tacc)) call mrsf_error('xc_gprobe_set: call xc_probe_begin first')
     if (nst /= nvcur) call mrsf_error('xc_gprobe_set: state count differs from xc_probe_begin')
     if (kS /= nocca - 2) call mrsf_error('xc_gprobe_set: kS must equal the number of doubly occupied MOs')
+    if (use_kxc .and. .not. g_have_kxc) call mrsf_error('xc_gprobe_set: third functional derivatives not installed')
+    gq_kxc = use_kxc
     if (allocated(LMg)) deallocate(LMg, RMg, LSg)
     if (allocated(taccG)) deallocate(taccG)
     nstg = nst; kMg = kM; kSg = kS
@@ -1432,8 +1483,8 @@ contains
        call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
        call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
        call probe_reduce(nb, nc2, ao, Amat, aow2_1, PhiG, taccG(1,1,v))
-       ! kernel terms of the singlet CV block only (installed with the third derivatives)
-       if (.not. g_have_kxc) cycle
+       ! kernel terms of the singlet CV block only
+       if (.not. gq_kxc) cycle
        ! (f_G[D_s], D_s): Phi = psi_C LS^T + psiLS C_C^T, A = (aow C_C) LS^T + (aow LS) C_C^T
        call block_rho(nb, kSg, psiLS, nb*kSg, psiHb, nb*nocca, rho)
        call g_wv_f(nb, g0, rho, wv1)
@@ -1485,5 +1536,657 @@ contains
     !$omp end parallel do
 
   end subroutine make_aow_1s
+
+!######################################################################
+! xc_g_density: density (value and gradient) of the closed-shell
+! configuration G = the first nocca-1 hole MOs doubly occupied, from the
+! cached hole-MO values: rho(g,1) = 2 sum_i psi_i^2, rho(g,1+x) = 4 sum_i psi_i d_x psi_i
+!######################################################################
+  subroutine xc_g_density(rho)
+
+    real(dp), intent(out) :: rho(ngrid,ndc)
+
+    integer(is) :: ib, nb
+
+    if (.not. xc_ready) call mrsf_error('xc_g_density: grid not initialised')
+    if (.not. ao_cached) call mrsf_error('xc_g_density: the AO values must be cached (raise mem_budget)')
+    !$omp parallel do private(nb)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call gdens_block(nb, gbeg(ib), nocca-1, psiH(poff(ib)+1), rho)
+    enddo
+    !$omp end parallel do
+
+  end subroutine xc_g_density
+
+  subroutine gdens_block(nb, g0, nGo, psib, rho)
+
+    integer(is), intent(in)  :: nb, g0, nGo
+    real(dp), intent(in)     :: psib(nb,nocca,ncomp)
+    real(dp), intent(inout)  :: rho(ngrid,ndc)
+
+    integer(is) :: g, x
+
+    do g = 1, nb
+       rho(g0+g-1,1) = 2.0_dp*sum(psib(g,1:nGo,1)**2)
+       do x = 2, ndc
+          rho(g0+g-1,x) = 4.0_dp*sum(psib(g,1:nGo,1)*psib(g,1:nGo,x))
+       enddo
+    enddo
+
+  end subroutine gdens_block
+
+!######################################################################
+! xc_g_vxc_ao: AO matrix of the XC potential of the G density,
+! V = T + T^T, T = sum_g aow_G(g) phi(g)^T (PySCF nr_rks convention),
+! from the cached AO values and the installed vxc_G; block-parallel
+!######################################################################
+  subroutine xc_g_vxc_ao(V)
+
+    real(dp), intent(out) :: V(nao_g,nao_g)
+
+    integer(is)           :: ib, nb, nbmax, nthr
+    integer(c_int)        :: prev
+    logical               :: par
+    real(dp)              :: t0
+    real(dp), allocatable :: wv(:), aow(:), Vth(:,:)
+
+    if (.not. g_ready) call mrsf_error('xc_g_vxc_ao: G kernel set not installed')
+    if (.not. ao_cached) call mrsf_error('xc_g_vxc_ao: the AO values must be cached (raise mem_budget)')
+    t0 = wall_time()
+    nbmax = 0
+    do ib = 1, nblocks
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
+    enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nblocks >= nthr)
+    V = 0.0_dp
+
+    !$omp parallel if(par) default(shared) private(ib, nb, prev, wv, aow, Vth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(wv(nbmax*ndc), aow(nbmax*nao_g), Vth(nao_g,nao_g))
+    Vth = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call gvxc_block(nb, gbeg(ib), aoc(aoff(ib)+1), wv, aow, Vth)
+    enddo
+    !$omp end do
+    !$omp critical
+    V = V + Vth
+    !$omp end critical
+    deallocate(wv, aow, Vth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+    V = V + transpose(V)
+    time_xcg = time_xcg + wall_time() - t0
+    nxcg_calls = nxcg_calls + 1
+
+  end subroutine xc_g_vxc_ao
+
+  subroutine gvxc_block(nb, g0, ao, wv, aow, Vth)
+
+    integer(is), intent(in) :: nb, g0
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp)
+    real(dp), intent(inout) :: wv(nb,ndc), aow(nb,nao_g), Vth(nao_g,nao_g)
+
+    integer(is) :: c, mu
+
+    do c = 1, ndc
+       wv(:,c) = wgt(g0:g0+nb-1)*vxcG(g0:g0+nb-1,c)
+    enddo
+    do mu = 1, nao_g
+       aow(:,mu) = 0.5_dp*wv(:,1)*ao(:,mu,1)
+       do c = 2, ncomp
+          aow(:,mu) = aow(:,mu) + wv(:,c)*ao(:,mu,c)
+       enddo
+    enddo
+    call dgemm('T','N', nao_g, nao_g, nb, 1.0_dp, aow, nb, ao(1,1,1), nb, 1.0_dp, Vth, nao_g)
+
+  end subroutine gvxc_block
+
+!######################################################################
+! xc_cs_from_g: the closed-shell kernel array of the extended method's
+! CV block from the installed G set, fxcw_cs = fac * fxcwG
+!######################################################################
+  subroutine xc_cs_from_g(fac)
+
+    real(dp), intent(in) :: fac
+
+    integer(is) :: g
+
+    if (.not. g_ready) call mrsf_error('xc_cs_from_g: G kernel set not installed')
+    if (allocated(fxcw_cs)) deallocate(fxcw_cs)
+    allocate(fxcw_cs(ndc,ndc,ngrid))
+    !$omp parallel do
+    do g = 1, ngrid
+       fxcw_cs(:,:,g) = fac*fxcwG(:,:,g)
+    enddo
+    !$omp end parallel do
+    cs_ready = .true.
+
+  end subroutine xc_cs_from_g
+
+!######################################################################
+! Quadratic-form probe (Part XIII): every probe density is P = B S B^T in
+! the basis B = [C_H (hole MOs, cached on the grid) | Bexp (explicit AO
+! columns)]: per state the alpha and beta relaxed densities (kinds 1, 2)
+! and, for the extended method, the F^G density M (kind 3) and the CV
+! trial density D_s (kind 4). The AO values with second derivatives are
+! streamed in superblocks of consecutive cache blocks (xc_probe_super),
+! processed in parallel over the cache blocks with sequential BLAS.
+! Per term: rho = sum_ab psi_a S_ab psi_b, Phi = psi_B W^T, A = (aow B) W^T,
+! W = B S; the kernel terms (f[P], D) use the reference densities as today.
+!######################################################################
+  subroutine xc_probe_begin_q(nst, nexp, Bexp, maxnb, nb, idx, S, with_g, with_kxc)
+
+    integer(is), intent(in) :: nst, nexp, maxnb
+    real(dp), intent(in)    :: Bexp(nao_g,max(nexp,1))
+    integer(is), intent(in) :: nb(4,nst), idx(maxnb,4,nst)
+    real(dp), intent(in)    :: S(maxnb,maxnb,4,nst)
+    logical, intent(in)     :: with_g, with_kxc
+
+    integer(is) :: v, t, a, j, nbt
+
+    if (.not. xc_ready) call mrsf_error('xc_probe_begin_q: grid not initialised')
+    if (.not. ref_ready) call mrsf_error('xc_probe_begin_q: reference kernel not installed')
+    if (.not. ao_cached) call mrsf_error('xc_probe_begin_q: the AO values must be cached (raise mem_budget)')
+    if (with_g .and. .not. g_ready) call mrsf_error('xc_probe_begin_q: G kernel set not installed')
+    if (with_g .and. with_kxc .and. .not. g_have_kxc) &
+         call mrsf_error('xc_probe_begin_q: third functional derivatives not installed')
+    call xc_cleanup()
+    nst_q = nst; nexp_q = nexp; maxnb_q = maxnb; gq = with_g; gq_kxc = (with_g .and. with_kxc)
+    nvcur = nst; nstg = merge(nst, 0_is, with_g); kcur = 0
+    allocate(Bexp_q(nao_g,max(nexp,1)), nbq(4,nst), idxq(maxnb,4,nst), Sq(maxnb,maxnb,4,nst))
+    allocate(Bq(nao_g,maxnb,4,nst), Wq(nao_g,maxnb,4,nst))
+    Bexp_q = Bexp; nbq = nb; idxq = idx; Sq = S
+    Bq = 0.0_dp; Wq = 0.0_dp
+    do v = 1, nst
+       do t = 1, 4
+          nbt = nb(t,v)
+          if (nbt > maxnb) call mrsf_error('xc_probe_begin_q: term too long')
+          do a = 1, nbt
+             j = idx(a,t,v)
+             if (j < 1 .or. j > nocca + nexp) call mrsf_error('xc_probe_begin_q: bad basis index')
+             if (j <= nocca) then
+                Bq(:,a,t,v) = CHg(:,j)
+             else
+                Bq(:,a,t,v) = Bexp(:,j-nocca)
+             endif
+          enddo
+          if (nbt > 0) call dgemm('N','N', nao_g, nbt, nbt, 1.0_dp, Bq(1,1,t,v), nao_g, S(1,1,t,v), maxnb, &
+               0.0_dp, Wq(1,1,t,v), nao_g)
+       enddo
+    enddo
+    allocate(tacc(nao_g,3,nst+1)); tacc = 0.0_dp
+    if (with_g) then
+       allocate(taccG(nao_g,3,nst)); taccG = 0.0_dp
+    endif
+    probe_q = .true.
+    tstart = wall_time()
+
+  end subroutine xc_probe_begin_q
+
+!######################################################################
+! xc_probe_super: the AO values (nc2 components) of the ng points of the
+! cache blocks ib0 .. ib0+nsub-1, processed in parallel over the blocks
+!######################################################################
+  subroutine xc_probe_super(ib0, nsub, ng, nc2, ao)
+
+    integer(is), intent(in) :: ib0, nsub, ng, nc2
+    real(dp), intent(in)    :: ao(ng,nao_g,nc2)
+
+    integer(is)           :: ib, nb, nbmax, nthr, off, nst
+    integer(c_int)        :: prev
+    logical               :: par
+    real(dp), allocatable :: aob(:), psiHb(:), psiE(:), psiB(:), Tq(:), rho(:), wv(:), aowR(:), aow2R(:), &
+                             aow1(:), aow21(:), PhiD(:), Phi(:), Amat(:), tmp(:), wvG(:), aowG(:), aow2G(:), &
+                             PhiG(:), tth(:,:,:), tGth(:,:,:)
+
+    if (.not. probe_q) call mrsf_error('xc_probe_super: no quadratic-form probe in progress')
+    if (ib0 < 1 .or. ib0 + nsub - 1 > nblocks) call mrsf_error('xc_probe_super: block range out of range')
+    if (gend(ib0+nsub-1) - gbeg(ib0) + 1 /= ng) call mrsf_error('xc_probe_super: point count mismatch')
+    if ((ncomp == 1 .and. nc2 < 4) .or. (ncomp == 4 .and. nc2 < 10)) &
+         call mrsf_error('xc_probe_super: AO derivative components missing')
+    nst = nst_q
+    nbmax = 0
+    do ib = ib0, ib0+nsub-1
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
+    enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nsub > 1)
+
+    !$omp parallel if(par) default(shared) private(ib, nb, off, prev, aob, psiHb, psiE, psiB, Tq, rho, wv, &
+    !$omp aowR, aow2R, aow1, aow21, PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(aob(nbmax*nao_g*nc2), psiHb(nbmax*nocca*ncomp), psiE(nbmax*max(nexp_q,1)*ncomp), &
+         psiB(nbmax*maxnb_q*ncomp), Tq(nbmax*maxnb_q), rho(nbmax*ndc*2), wv(nbmax*ndc*2), &
+         aowR(nbmax*nao_g*2), aow2R(nbmax*nao_g*3*2), aow1(nbmax*nao_g*2), aow21(nbmax*nao_g*3*2), &
+         PhiD(nbmax*nao_g*2), Phi(nbmax*nao_g), Amat(nbmax*nao_g), tmp(nbmax*max(maxnb_q,nocca)), &
+         wvG(nbmax*ndc), aowG(nbmax*nao_g), aow2G(nbmax*nao_g*3), PhiG(nbmax*nao_g), &
+         tth(nao_g,3,nst+1), tGth(nao_g,3,max(nst,1)))
+    tth = 0.0_dp; tGth = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = ib0, ib0+nsub-1
+       nb  = gend(ib) - gbeg(ib) + 1
+       off = gbeg(ib) - gbeg(ib0)
+       call copy_sub(ng, nb, off, nao_g*nc2, ao, aob)
+       call copy_block(nb*nocca*ncomp, psiH(poff(ib)+1), psiHb)
+       call probe_q_block(nb, gbeg(ib), nc2, aob, psiHb, psiE, psiB, Tq, rho, wv, aowR, aow2R, aow1, aow21, &
+            PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth)
+    enddo
+    !$omp end do
+    !$omp critical
+    tacc = tacc + tth
+    if (gq) taccG = taccG + tGth
+    !$omp end critical
+    deallocate(aob, psiHb, psiE, psiB, Tq, rho, wv, aowR, aow2R, aow1, aow21, PhiD, Phi, Amat, tmp, &
+         wvG, aowG, aow2G, PhiG, tth, tGth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+
+  end subroutine xc_probe_super
+
+  subroutine copy_sub(ng, nb, off, ncol, ao, aob)
+    integer(is), intent(in) :: ng, nb, off, ncol
+    real(dp), intent(in)    :: ao(ng,ncol)
+    real(dp), intent(out)   :: aob(nb,ncol)
+    integer(is) :: j
+    do j = 1, ncol
+       aob(:,j) = ao(off+1:off+nb,j)
+    enddo
+  end subroutine copy_sub
+
+  subroutine probe_q_block(nb, g0, nc2, ao, psiHb, psiE, psiB, Tq, rho, wv, aowR, aow2R, aow1, aow21, &
+       PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth)
+
+    integer(is), intent(in) :: nb, g0, nc2
+    real(dp), intent(in)    :: ao(nb,nao_g,nc2), psiHb(nb,nocca,ncomp)
+    real(dp), intent(inout) :: psiE(nb,max(nexp_q,1),ncomp), psiB(nb,maxnb_q,ncomp), Tq(nb,maxnb_q)
+    real(dp), intent(inout) :: rho(nb,ndc,2), wv(nb,ndc,2), aowR(nb,nao_g,2), aow2R(nb,nao_g,3,2)
+    real(dp), intent(inout) :: aow1(nb,nao_g,2), aow21(nb,nao_g,3,2), PhiD(nb,nao_g,2), Phi(nb,nao_g)
+    real(dp), intent(inout) :: Amat(nb,nao_g), tmp(nb,max(maxnb_q,nocca))
+    real(dp), intent(inout) :: wvG(nb,ndc), aowG(nb,nao_g), aow2G(nb,nao_g,3), PhiG(nb,nao_g)
+    real(dp), intent(inout) :: tth(nao_g,3,nst_q+1), tGth(nao_g,3,max(nst_q,1))
+
+    integer(is) :: v, s, t, c, g, gg, x, y, nocc(2), nGo, nbt
+    real(dp)    :: acc
+
+    nocc(1) = nocca; nocc(2) = nocca - 2
+    nGo = nocca - 1
+
+    ! reference potentials, their AO products and the reference densities
+    do s = 1, 2
+       do c = 1, ndc
+          wv(:,c,s) = wgt(g0:g0+nb-1)*vxc(g0:g0+nb-1,c,s)
+       enddo
+    enddo
+    call make_aow_s(nb, nc2, ao, wv, aowR, aow2R)
+    do s = 1, 2
+       call dgemm('N','T', nb, nao_g, nocc(s), 1.0_dp, psiHb, nb, CHg, nao_g, 0.0_dp, PhiD(1,1,s), nb)
+       call dgemm('N','N', nb, nocc(s), nao_g, 1.0_dp, aowR(1,1,s), nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','T', nb, nao_g, nocc(s), 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call probe_reduce_s(nb, nc2, ao, Amat, aow2R(1,1,1,s), PhiD(1,1,s), tth(1,1,1))
+    enddo
+    if (nst_q == 0) return
+
+    ! explicit basis columns on the block
+    if (nexp_q > 0) then
+       do c = 1, ncomp
+          call dgemm('N','N', nb, nexp_q, nao_g, 1.0_dp, ao(1,1,c), nb, Bexp_q, nao_g, 0.0_dp, psiE(1,1,c), nb)
+       enddo
+    endif
+    if (gq) then
+       do c = 1, ndc
+          wvG(:,c) = wgt(g0:g0+nb-1)*vxcG(g0:g0+nb-1,c)
+       enddo
+       call make_aow_1s_s(nb, nc2, ao, wvG, aowG, aow2G)
+       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, psiHb, nb, CHg, nao_g, 0.0_dp, PhiG, nb)
+    endif
+
+    do v = 1, nst_q
+       ! (vxc^s, P^s_v) and the densities of P^s_v
+       do s = 1, 2
+          nbt = nbq(s,v)
+          call term_density(nb, nbt, idxq(1,s,v), Sq(1,1,s,v), psiHb, psiE, psiB, Tq, rho(1,1,s))
+          call term_phi_a(nb, nbt, psiB, Bq(1,1,s,v), Wq(1,1,s,v), aowR(1,1,s), tmp, Phi, Amat)
+          call probe_reduce_s(nb, nc2, ao, Amat, aow2R(1,1,1,s), Phi, tth(1,1,v+1))
+       enddo
+       ! (f_xc[P_v], D^t): weighted kernel potential of P_v
+       do g = 1, nb
+          gg = g0 + g - 1
+          do t = 1, 2
+             do y = 1, ndc
+                acc = 0.0_dp
+                do s = 1, 2
+                   do x = 1, ndc
+                      acc = acc + rho(g,x,s)*fxcw(y,t,x,s,gg)
+                   enddo
+                enddo
+                wv(g,y,t) = acc
+             enddo
+          enddo
+       enddo
+       call make_aow_s(nb, nc2, ao, wv, aow1, aow21)
+       do t = 1, 2
+          call dgemm('N','N', nb, nocc(t), nao_g, 1.0_dp, aow1(1,1,t), nb, CHg, nao_g, 0.0_dp, tmp, nb)
+          call dgemm('N','T', nb, nao_g, nocc(t), 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+          call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,t), PhiD(1,1,t), tth(1,1,v+1))
+       enddo
+       if (.not. gq) cycle
+       ! --- G-density terms of the extended method ---
+       ! (vxc_G, M)
+       nbt = nbq(3,v)
+       call term_density(nb, nbt, idxq(1,3,v), Sq(1,1,3,v), psiHb, psiE, psiB, Tq, rho(1,1,1))
+       call term_phi_a(nb, nbt, psiB, Bq(1,1,3,v), Wq(1,1,3,v), aowG, tmp, Phi, Amat)
+       call probe_reduce_s(nb, nc2, ao, Amat, aow2G, Phi, tGth(1,1,v))
+       ! (f_G[M], D_G), D_G = 2 C_G C_G^T (Phi_G carries C_G C_G^T: factor 2)
+       call g_wv_f(nb, g0, rho(1,1,1), wv(1,1,1))
+       wv(:,:,1) = 2.0_dp*wv(:,:,1)
+       call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
+       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1(1,1,1), nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), PhiG, tGth(1,1,v))
+       if (.not. gq_kxc) cycle
+       ! (f_G[D_s], D_s)
+       nbt = nbq(4,v)
+       call term_density(nb, nbt, idxq(1,4,v), Sq(1,1,4,v), psiHb, psiE, psiB, Tq, rho(1,1,2))
+       call g_wv_f(nb, g0, rho(1,1,2), wv(1,1,1))
+       call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
+       call term_phi_a(nb, nbt, psiB, Bq(1,1,4,v), Wq(1,1,4,v), aow1(1,1,1), tmp, Phi, Amat)
+       call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), Phi, tGth(1,1,v))
+       ! (k_G[D_s, D_s]/2, D_G) = (k_G[D_s, D_s], C_G C_G^T)
+       call g_wv_k(nb, g0, rho(1,1,2), wv(1,1,1))
+       call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
+       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1(1,1,1), nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), PhiG, tGth(1,1,v))
+    enddo
+
+  end subroutine probe_q_block
+
+  ! psi_B (values + gradients) of a term and its density rho = psi_B S psi_B^T
+  subroutine term_density(nb, nbt, idx, S, psiHb, psiE, psiB, Tq, rho)
+
+    integer(is), intent(in) :: nb, nbt, idx(maxnb_q)
+    real(dp), intent(in)    :: S(maxnb_q,maxnb_q), psiHb(nb,nocca,ncomp), psiE(nb,max(nexp_q,1),ncomp)
+    real(dp), intent(inout) :: psiB(nb,maxnb_q,ncomp), Tq(nb,maxnb_q)
+    real(dp), intent(out)   :: rho(nb,ndc)
+
+    call qf_density(nb, nbt, maxnb_q, nexp_q, idx, S, psiHb, psiE, psiB, Tq, rho)
+
+  end subroutine term_density
+
+  ! Phi = psi_B W^T and A = (aow B) W^T of a term
+  subroutine term_phi_a(nb, nbt, psiB, B, W, aow, tmp, Phi, Amat)
+
+    integer(is), intent(in) :: nb, nbt
+    real(dp), intent(in)    :: psiB(nb,maxnb_q,ncomp), B(nao_g,maxnb_q), W(nao_g,maxnb_q), aow(nb,nao_g)
+    real(dp), intent(inout) :: tmp(nb,max(maxnb_q,nocca))
+    real(dp), intent(out)   :: Phi(nb,nao_g), Amat(nb,nao_g)
+
+    if (nbt == 0) then
+       Phi = 0.0_dp; Amat = 0.0_dp
+       return
+    endif
+    call dgemm('N','T', nb, nao_g, nbt, 1.0_dp, psiB, nb, W, nao_g, 0.0_dp, Phi, nb)
+    call dgemm('N','N', nb, nbt, nao_g, 1.0_dp, aow, nb, B, nao_g, 0.0_dp, tmp, nb)
+    call dgemm('N','T', nb, nao_g, nbt, 1.0_dp, tmp, nb, W, nao_g, 0.0_dp, Amat, nb)
+
+  end subroutine term_phi_a
+
+  ! serial variants of make_aow / make_aow_1s / probe_reduce (called inside
+  ! the parallel region of xc_probe_super)
+  subroutine make_aow_s(nb, nc2, ao, wv, aow, aow2)
+
+    integer(is), intent(in) :: nb, nc2
+    real(dp), intent(in)    :: ao(nb,nao_g,nc2), wv(nb,ndc,2)
+    real(dp), intent(out)   :: aow(nb,nao_g,2), aow2(nb,nao_g,3,2)
+
+    integer(is) :: mu, s, c, x
+
+    do mu = 1, nao_g
+       do s = 1, 2
+          aow(:,mu,s) = 0.5_dp*wv(:,1,s)*ao(:,mu,1)
+          do c = 2, ncomp
+             aow(:,mu,s) = aow(:,mu,s) + wv(:,c,s)*ao(:,mu,c)
+          enddo
+          do x = 1, 3
+             aow2(:,mu,x,s) = 0.5_dp*wv(:,1,s)*ao(:,mu,1+x)
+             if (ncomp > 1) then
+                do c = 1, 3
+                   aow2(:,mu,x,s) = aow2(:,mu,x,s) + wv(:,c+1,s)*ao(:,mu,d2idx(x,c))
+                enddo
+             endif
+          enddo
+       enddo
+    enddo
+
+  end subroutine make_aow_s
+
+  subroutine make_aow_1s_s(nb, nc2, ao, wv, aow, aow2)
+
+    integer(is), intent(in) :: nb, nc2
+    real(dp), intent(in)    :: ao(nb,nao_g,nc2), wv(nb,ndc)
+    real(dp), intent(out)   :: aow(nb,nao_g), aow2(nb,nao_g,3)
+
+    integer(is) :: mu, c, x
+
+    do mu = 1, nao_g
+       aow(:,mu) = 0.5_dp*wv(:,1)*ao(:,mu,1)
+       do c = 2, ncomp
+          aow(:,mu) = aow(:,mu) + wv(:,c)*ao(:,mu,c)
+       enddo
+       do x = 1, 3
+          aow2(:,mu,x) = 0.5_dp*wv(:,1)*ao(:,mu,1+x)
+          if (ncomp > 1) then
+             do c = 1, 3
+                aow2(:,mu,x) = aow2(:,mu,x) + wv(:,c+1)*ao(:,mu,d2idx(x,c))
+             enddo
+          endif
+       enddo
+    enddo
+
+  end subroutine make_aow_1s_s
+
+  subroutine probe_reduce_s(nb, nc2, ao, Amat, aow2, Phi, t)
+
+    integer(is), intent(in)  :: nb, nc2
+    real(dp), intent(in)     :: ao(nb,nao_g,nc2), Amat(nb,nao_g), aow2(nb,nao_g,3), Phi(nb,nao_g)
+    real(dp), intent(inout)  :: t(nao_g,3)
+
+    integer(is) :: mu, x
+
+    do mu = 1, nao_g
+       do x = 1, 3
+          t(mu,x) = t(mu,x) + dot_product(ao(:,mu,1+x), Amat(:,mu)) + dot_product(aow2(:,mu,x), Phi(:,mu))
+       enddo
+    enddo
+
+  end subroutine probe_reduce_s
+
+!######################################################################
+! xc_g_potential_q: the G-density kernel potentials of the EMRSF
+! gradient (as xc_g_potential) for the densities given as quadratic
+! forms in the basis [C_H (cached) | Bexp]: M (term nbM, idxM, SM) and
+! D_s (nbS, idxS, SS). Instead of the full AO matrix of v[f rho(D_s)]
+! its products with the explicit columns and the hole MOs are returned:
+!   MM(i,nu) = projection of v[f rho(M)] on the hole MOs (V(H, all) = MM C)
+!   MK(i,nu) = the same for v[k rho(D_s)^2]           (when want_k)
+!   VE(mu,j) = (V1 Bexp)(mu,j),  VH(mu,i) = (V1 C_H)(mu,i),  V1 = v[f rho(D_s)] (AO)
+! block-parallel over the cached AO blocks, sequential MKL per thread.
+!######################################################################
+  subroutine xc_g_potential_q(nexp, Bexp, maxnb, nbM, idxM, SM, nbS, idxS, SS, want_k, MM, MK, VE, VH)
+
+    integer(is), intent(in) :: nexp, maxnb, nbM, nbS, idxM(maxnb), idxS(maxnb)
+    real(dp), intent(in)    :: Bexp(nao_g,max(nexp,1)), SM(maxnb,maxnb), SS(maxnb,maxnb)
+    logical, intent(in)     :: want_k
+    real(dp), intent(out)   :: MM(nocca,nao_g), MK(nocca,nao_g), VE(nao_g,max(nexp,1)), VH(nao_g,nocca)
+
+    integer(is)           :: ib, nb, nbmax, nthr
+    integer(c_int)        :: prev
+    logical               :: par
+    real(dp)              :: t0
+    real(dp), allocatable :: psiE(:), psiB(:), Tq(:), rhoM(:), rhoS(:), wv(:), Bst(:), Ast(:), aowS(:), &
+                             aowE(:), aowH(:), MthM(:,:), MthK(:,:), VEth(:,:), VHth(:,:)
+
+    if (.not. g_ready) call mrsf_error('xc_g_potential_q: G kernel set not installed')
+    if (.not. ao_cached) call mrsf_error('xc_g_potential_q: the AO values must be cached (raise mem_budget)')
+    if (want_k .and. .not. g_have_kxc) call mrsf_error('xc_g_potential_q: third derivatives not installed')
+    t0 = wall_time()
+    nbmax = 0
+    do ib = 1, nblocks
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
+    enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nblocks >= nthr)
+    MM = 0.0_dp; MK = 0.0_dp; VE = 0.0_dp; VH = 0.0_dp
+
+    !$omp parallel if(par) default(shared) private(ib, nb, prev, psiE, psiB, Tq, rhoM, rhoS, wv, Bst, Ast, &
+    !$omp aowS, aowE, aowH, MthM, MthK, VEth, VHth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(psiE(nbmax*max(nexp,1)*ncomp), psiB(nbmax*maxnb*ncomp), Tq(nbmax*maxnb), rhoM(nbmax*ndc), &
+         rhoS(nbmax*ndc), wv(nbmax*ndc), Bst(2*nbmax*nao_g), Ast(nocca*2*nbmax), aowS(nbmax*nao_g), &
+         aowE(nbmax*max(nexp,1)), aowH(nbmax*nocca), MthM(nocca,nao_g), MthK(nocca,nao_g), &
+         VEth(nao_g,max(nexp,1)), VHth(nao_g,nocca))
+    MthM = 0.0_dp; MthK = 0.0_dp; VEth = 0.0_dp; VHth = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call gpot_q_block(nb, gbeg(ib), aoc(aoff(ib)+1), psiH(poff(ib)+1), nexp, Bexp, maxnb, nbM, idxM, SM, &
+            nbS, idxS, SS, want_k, psiE, psiB, Tq, rhoM, rhoS, wv, Bst, Ast, aowS, aowE, aowH, &
+            MthM, MthK, VEth, VHth)
+    enddo
+    !$omp end do
+    !$omp critical
+    MM = MM + MthM
+    MK = MK + MthK
+    VE = VE + VEth
+    VH = VH + VHth
+    !$omp end critical
+    deallocate(psiE, psiB, Tq, rhoM, rhoS, wv, Bst, Ast, aowS, aowE, aowH, MthM, MthK, VEth, VHth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+    time_xcg = time_xcg + wall_time() - t0
+    nxcg_calls = nxcg_calls + 1
+
+  end subroutine xc_g_potential_q
+
+  subroutine gpot_q_block(nb, g0, ao, psiHb, nexp, Bexp, maxnb, nbM, idxM, SM, nbS, idxS, SS, want_k, &
+       psiE, psiB, Tq, rhoM, rhoS, wv, Bst, Ast, aowS, aowE, aowH, MthM, MthK, VEth, VHth)
+
+    integer(is), intent(in) :: nb, g0, nexp, maxnb, nbM, nbS, idxM(maxnb), idxS(maxnb)
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), psiHb(nb,nocca,ncomp)
+    real(dp), intent(in)    :: Bexp(nao_g,max(nexp,1)), SM(maxnb,maxnb), SS(maxnb,maxnb)
+    logical, intent(in)     :: want_k
+    real(dp), intent(inout) :: psiE(nb,max(nexp,1),ncomp), psiB(nb,maxnb,ncomp), Tq(nb,maxnb)
+    real(dp), intent(inout) :: rhoM(nb,ndc), rhoS(nb,ndc), wv(nb,ndc)
+    real(dp), intent(inout) :: Bst(2*nb,nao_g), Ast(nocca,2*nb), aowS(nb,nao_g)
+    real(dp), intent(inout) :: aowE(nb,max(nexp,1)), aowH(nb,nocca)
+    real(dp), intent(inout) :: MthM(nocca,nao_g), MthK(nocca,nao_g), VEth(nao_g,max(nexp,1)), VHth(nao_g,nocca)
+
+    integer(is) :: c, g, mu, j
+
+    ! block-constant halves of the stacked operands of g_project
+    do g = 1, nb
+       Ast(1:nocca,g) = psiHb(g,1:nocca,1)
+    enddo
+    do mu = 1, nao_g
+       Bst(nb+1:2*nb,mu) = ao(1:nb,mu,1)
+    enddo
+    ! explicit basis columns on the block
+    if (nexp > 0) then
+       do c = 1, ncomp
+          call dgemm('N','N', nb, nexp, nao_g, 1.0_dp, ao(1,1,c), nb, Bexp, nao_g, 0.0_dp, psiE(1,1,c), nb)
+       enddo
+    endif
+    ! densities of M and D_s
+    call qf_density(nb, nbM, maxnb, nexp, idxM, SM, psiHb, psiE, psiB, Tq, rhoM)
+    call qf_density(nb, nbS, maxnb, nexp, idxS, SS, psiHb, psiE, psiB, Tq, rhoS)
+    ! v[f rho(M)] on the hole MOs
+    call g_wv_f(nb, g0, rhoM, wv)
+    call g_project(nb, ao, psiHb, wv, Bst, Ast, MthM)
+    ! v[k rho(D_s)^2] on the hole MOs
+    if (want_k) then
+       call g_wv_k(nb, g0, rhoS, wv)
+       call g_project(nb, ao, psiHb, wv, Bst, Ast, MthK)
+    endif
+    ! v[f rho(D_s)] times the explicit columns and the hole MOs:
+    ! (V1 B)(mu,j) = sum_g [aowS(g,mu) psi_j(g) + phi_mu(g) aowpsi_j(g)]
+    call g_wv_f(nb, g0, rhoS, wv)
+    do mu = 1, nao_g
+       aowS(1:nb,mu) = 0.5_dp*wv(1:nb,1)*ao(1:nb,mu,1)
+       do c = 2, ncomp
+          aowS(1:nb,mu) = aowS(1:nb,mu) + wv(1:nb,c)*ao(1:nb,mu,c)
+       enddo
+    enddo
+    do j = 1, nexp
+       aowE(1:nb,j) = 0.5_dp*wv(1:nb,1)*psiE(1:nb,j,1)
+       do c = 2, ncomp
+          aowE(1:nb,j) = aowE(1:nb,j) + wv(1:nb,c)*psiE(1:nb,j,c)
+       enddo
+    enddo
+    do j = 1, nocca
+       aowH(1:nb,j) = 0.5_dp*wv(1:nb,1)*psiHb(1:nb,j,1)
+       do c = 2, ncomp
+          aowH(1:nb,j) = aowH(1:nb,j) + wv(1:nb,c)*psiHb(1:nb,j,c)
+       enddo
+    enddo
+    if (nexp > 0) then
+       call dgemm('T','N', nao_g, nexp, nb, 1.0_dp, aowS, nb, psiE(1,1,1), nb, 1.0_dp, VEth, nao_g)
+       call dgemm('T','N', nao_g, nexp, nb, 1.0_dp, ao(1,1,1), nb, aowE, nb, 1.0_dp, VEth, nao_g)
+    endif
+    call dgemm('T','N', nao_g, nocca, nb, 1.0_dp, aowS, nb, psiHb(1,1,1), nb, 1.0_dp, VHth, nao_g)
+    call dgemm('T','N', nao_g, nocca, nb, 1.0_dp, ao(1,1,1), nb, aowH, nb, 1.0_dp, VHth, nao_g)
+
+  end subroutine gpot_q_block
+
+  ! psi_B (values + gradients) of a quadratic-form term and its density
+  ! rho = sum_ab psi_a S_ab psi_b (value and gradient components)
+  subroutine qf_density(nb, nbt, maxnb, nexp, idx, S, psiHb, psiE, psiB, Tq, rho)
+
+    integer(is), intent(in) :: nb, nbt, maxnb, nexp, idx(maxnb)
+    real(dp), intent(in)    :: S(maxnb,maxnb), psiHb(nb,nocca,ncomp), psiE(nb,max(nexp,1),ncomp)
+    real(dp), intent(inout) :: psiB(nb,maxnb,ncomp), Tq(nb,maxnb)
+    real(dp), intent(out)   :: rho(nb,ndc)
+
+    integer(is) :: a, c, j
+
+    do c = 1, ncomp
+       do a = 1, nbt
+          j = idx(a)
+          if (j <= nocca) then
+             psiB(:,a,c) = psiHb(:,j,c)
+          else
+             psiB(:,a,c) = psiE(:,j-nocca,c)
+          endif
+       enddo
+    enddo
+    rho = 0.0_dp
+    if (nbt == 0) return
+    call dgemm('N','N', nb, nbt, nbt, 1.0_dp, psiB, nb, S, maxnb, 0.0_dp, Tq, nb)
+    do a = 1, nbt
+       rho(:,1) = rho(:,1) + Tq(:,a)*psiB(:,a,1)
+       do c = 2, ndc
+          rho(:,c) = rho(:,c) + 2.0_dp*Tq(:,a)*psiB(:,a,c)
+       enddo
+    enddo
+
+  end subroutine qf_density
 
 end module mrsf_xcgrid
