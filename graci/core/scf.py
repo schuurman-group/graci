@@ -15,6 +15,7 @@ import graci.io.output as output
 import graci.utils.timing as timing
 import graci.core.solvents as solvents
 import graci.core.functionals as functionals
+import graci.core.trah as trah
 from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 from pyscf.scf import stability
@@ -75,7 +76,7 @@ class Scf:
         # class variables
         self.valid_grids  = ['sg1_prune']
         self.valid_guess  = ['minao','1e','atom','huckel','vsap']
-        self.valid_method = ['soscf', 'cdiis', 'ediis','adiis']
+        self.valid_method = ['soscf', 'trah', 'autotrah', 'cdiis', 'ediis','adiis']
 
 # Required functions #######################################################
 
@@ -377,7 +378,7 @@ class Scf:
 
         # SCF CONVERGENCE OPTIONS
         if self.diag_method.lower() in self.valid_method \
-              and self.diag_method.lower() != 'soscf':
+              and self.diag_method.lower() not in ['soscf', 'trah', 'autotrah']:
             mf.DIIS = eval('scf.'+self.diag_method.upper())
         if self.diis_space > 0:
             mf.diis_space = self.diis_space
@@ -399,7 +400,16 @@ class Scf:
             mf.direct_scf = self.direct_scf
 
         # run the scf computation
-        self.energy = mf.kernel(dm0=dm)
+        if self.diag_method.lower() == 'trah':
+            self.energy = trah.kernel(mf, dm0=dm, conv_tol=mf.conv_tol,
+                                      conv_tol_grad=getattr(mf, 'conv_tol_grad', None),
+                                      max_cycle=mf.max_cycle)
+        elif self.diag_method.lower() == 'autotrah':
+            self.energy = trah.auto_kernel(mf, dm0=dm, conv_tol=mf.conv_tol,
+                                           conv_tol_grad=getattr(mf, 'conv_tol_grad', None),
+                                           max_cycle=mf.max_cycle)
+        else:
+            self.energy = mf.kernel(dm0=dm)
        
         # if not converged, kill things
         if not mf.converged:
