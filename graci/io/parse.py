@@ -232,16 +232,13 @@ def parse_value(valstr, val_type):
     if len(val_list) == 1:
         return convert_value(val_list[0])
 
-    # if this is vector, need to determine if 1D or 2D
-    # we will accept the following syntax for 1D arrays:
-    #  1. kword = [X Y Z]
-    #  2. kword = [X, Y, Z]
-    #
-    # However, we will be more strict re: 2D arrays. Need
-    # to see those square braces to denote change in dim
-    #  1. kword = [X Y Z] [X Y Z]
-    #  2. kword = [X, Y, Z], [X, Y, Z]
-    
+    # if this is vector, need to determine if 1D or 2D. The GRaCI
+    # syntax is whitespace-delimited (commas are tolerated):
+    #  1D: kword = [X Y Z]
+    #  2D: kword = [[X Y Z] [X Y Z]]
+    # The outer square braces of a 2D array are required: only the
+    # first top-level [...] group is kept.
+
     # scan for opening brace
     final_list_container = []
     stack = [final_list_container]

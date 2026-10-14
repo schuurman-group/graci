@@ -34,7 +34,7 @@ class Mrsfgradient:
         self.grid_response = False
         # derivative couplings <I|d/dR J> between states of the section:
         # nested list of 1-based adiabatic state pairs, e.g.
-        # [[1, 2], [2, 3]] (None = none)
+        # [[1 2] [2 3]], one pair: [[1 2]] (None = none)
         self.nac_pairs     = None
         # memory budget (GB) for the cached AO values on the XC grid and
         # the auxiliary blocks of the derivative-integral contraction
@@ -86,17 +86,18 @@ class Mrsfgradient:
 
     @staticmethod
     def parse_pairs(value, nst_avail):
-        """nac_pairs as parsed from the input ([[I, J], ...], a list of
-        integer arrays) -> list of 0-based (I, J) tuples. Each pair must
+        """nac_pairs as parsed from the input ([[I J] [K L] ...], a list
+        of integer arrays) -> list of 0-based (I, J) tuples. Each pair must
         hold two different existing states (1-based in the input)."""
         usage = ('$mrsfgradient: nac_pairs must be a nested list of pairs of '
-                 'existing states, e.g. nac_pairs = [[1, 2], [2, 3]]')
+                 'different existing states, e.g. nac_pairs = [[1 2] [2 3]] '
+                 '(one pair: [[1 2]])')
         if not isinstance(value, list) or len(value) == 0:
             sys.exit(usage)
         pairs = []
         for pair in value:
             pair = np.asarray(pair).reshape(-1)
-            if pair.size != 2 or pair[0] == pair[1]:
+            if pair.size != 2 or not np.issubdtype(pair.dtype, np.integer) or pair[0] == pair[1]:
                 sys.exit(usage)
             I, J = int(pair[0]) - 1, int(pair[1]) - 1
             if min(I, J) < 0 or max(I, J) >= nst_avail:

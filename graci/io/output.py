@@ -39,6 +39,14 @@ def print_message(message_str):
 
     return
 
+#
+def kword_str(value):
+    """keyword value as typed in the input: (nested) lists of arrays
+    with whitespace-separated entries, e.g. [[1 2] [1 3]]"""
+    if isinstance(value, list) and any(isinstance(v, (list, np.ndarray)) for v in value):
+        return '[' + ' '.join(kword_str(v) for v in value) + ']'
+    return str(value)
+
 
 def print_header(run_list):
     """print the output log file header"""
@@ -82,7 +90,7 @@ def print_header(run_list):
             ostr = '\n'
             for kword in params.kwords[calc_name].keys():
                 ostr += ' '+kword.ljust(20,' ')+\
-                        ' = '+str(getattr(calc_obj,kword))+'\n'
+                        ' = '+kword_str(getattr(calc_obj,kword))+'\n'
             outfile.write(ostr)
 
         if 'Molecule' in calc_types:
