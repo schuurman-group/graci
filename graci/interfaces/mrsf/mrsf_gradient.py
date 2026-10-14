@@ -110,6 +110,28 @@ def align_zvec(grad_old, ci_new, states):
     return z0
 
 
+def irrep_salcs(mol):
+    """symmetry-adapted combinations of the atomic displacements of mol
+    (p-type functions on the atoms, as in pyscf.grad.rhf.symmetrize), in
+    the frame and computational point group of mol: {PySCF irrep id:
+    (natm, 3, n) array of orthonormal combinations}; None if they cannot
+    be built in that frame and group"""
+    for group in (mol.topgroup, mol.groupname):
+        pmol = mol.copy()
+        pmol.basis = {'default': [[1, (1, 1)]]}
+        pmol.symmetry = group
+        pmol.symmetry_subgroup = mol.symmetry_subgroup if group == mol.topgroup else None
+        pmol.atom = mol._atom
+        pmol.unit = 'Bohr'
+        try:
+            pmol.build(False, False)
+        except Exception:
+            continue
+        if pmol.groupname == mol.groupname and np.allclose(pmol.atom_coords(), mol.atom_coords(), atol=1e-8):
+            return {int(i): c.reshape(mol.natm, 3, -1) for i, c in zip(pmol.irrep_id, pmol.symm_orb)}
+    return None
+
+
 class _XCShim:
     """duck-typed object for pyscf.grad.tduks._contract_xc_kernel"""
     class _Base:
@@ -765,9 +787,12 @@ class GradientDriver:
     # ------------------------------------------------------------------
     # the gradient of a list of states
     # ------------------------------------------------------------------
-    def run(self, states, zguess=None, xts=None, extra_rhs=None):
+    def run(self, states, zguess=None, xts=None, extra_rhs=None, symmetrize=True):
         """states: list of adiabatic state indices (0-based); zguess: optional
         (lzdim, nst) start vectors of the Z-vector equations; returns dict.
+        symmetrize: project the vectors onto the totally symmetric irrep
+        (point-group symmetry only; off for the vectors of the derivative
+        couplings, which carry the symmetry of the pair of states).
         xts: optional explicit expanded amplitude matrices X~ (nvirb, nocca),
         one per entry of states, used instead of the states' amplitudes
         (states then only label the vectors). Every term of the response
@@ -879,7 +904,7 @@ class GradientDriver:
         for k in range(nst):
             dexc = dexc_all[k]
             total = self.grad_ref + de1[k + 1] + de2[k] + deS[k + 1] + dexc
-            if mol.symmetry:
+            if mol.symmetry and symmetrize:
                 total = rhf_grad.symmetrize(mol, total)
             grads[k] = total
             parts.append({'ref': self.grad_ref, '1e': de1[k + 1], '2e': de2[k], 'S': deS[k + 1], 'xc': dexc})
@@ -909,6 +934,34 @@ class GradientDriver:
     # ------------------------------------------------------------------
     # non-adiabatic couplings between states of the same multiplicity
     # ------------------------------------------------------------------
+    def project_pair(self, I, J, vecs):
+        """coupling vectors (natm, 3) of the pair of states (I, J) projected
+        onto the irrep of the pair (product of the state irreps: XOR of the
+        PySCF ids for D2h and its subgroups); returns (projected vectors,
+        largest relative norm of a removed part, irrep label). Unchanged
+        without point-group symmetry or when the symmetry-adapted
+        displacements cannot be built in the frame of the molecule."""
+        vecs = [np.asarray(v) for v in vecs]
+        if not self.mol.symmetry:
+            return vecs, 0.0, None
+        if not hasattr(self, '_salcs'):
+            self._salcs = irrep_salcs(self.mol)
+            if self._salcs is None:
+                output.print_message('WARNING: derivative couplings not symmetry-projected (no '
+                                     'symmetry-adapted displacements in the frame of the molecule)')
+        if self._salcs is None:
+            return vecs, 0.0, None
+        irr = self.ci.state_sym(I)[0] ^ self.ci.state_sym(J)[0]
+        c = self._salcs.get(irr)
+        out, resid = [], 0.0
+        for v in vecs:
+            pv = np.zeros_like(v) if c is None else np.einsum('zxi,i->zx', c, np.einsum('zx,zxi->i', v, c))
+            nv = np.linalg.norm(v)
+            if nv > 0.0:
+                resid = max(resid, np.linalg.norm(v - pv)/nv)
+            out.append(pv)
+        return out, resid, self.ci.scf.mol.irreplbl[irr]
+
     def nac(self, pairs, *, divide_gap=True):
         """
         derivative couplings d_IJ = <I|d/dR J> for pairs [(I, J), ...]
@@ -952,7 +1005,7 @@ class GradientDriver:
             xts += [XI + XJ, XI - XJ, zero]
             labels += [I, J, I]
             extra += [None, None, gam_mo[k]]
-        res = self.run(labels, xts=xts, extra_rhs=extra)
+        res = self.run(labels, xts=xts, extra_rhs=extra, symmetrize=False)
         g = res['grad']
         gref = np.asarray(self.grad_ref)
         # AO half-derivative overlaps: ip[x, mu, nu] = <d_x mu | nu> (electron
@@ -972,6 +1025,9 @@ class GradientDriver:
                     dket = -np.einsum('mn,nm->', gam[:, p0:p1], ip[x, p0:p1, :])
                     dbra = -np.einsum('mn,mn->', gam[p0:p1, :], ip[x, p0:p1, :])
                     etf[A, x] = 0.5*(dket - dbra)
+            erf = self.erf_term(gam)
+            # the pieces carry the symmetry of the pair (run() did not symmetrise)
+            (h, dU, etf, erf), sym_resid, sym = self.project_pair(I, J, (h, dU, etf, erf))
             EI = self.ci.energy(I); EJ = self.ci.energy(J)
             scaled_h = h + (EJ - EI)*(etf + dU)
             if divide_gap and EJ == EI:
@@ -985,13 +1041,13 @@ class GradientDriver:
             scaled_h_etf = h + (EJ - EI)*dU
             d_etf = scaled_h_etf/(EJ - EI) if divide_gap else None
             # + electron rotation factors (angular momentum conservation)
-            erf = self.erf_term(gam)
             scaled_h_erf = scaled_h_etf - (EJ - EI)*erf
             d_erf = scaled_h_erf/(EJ - EI) if divide_gap else None
             out.append({'pair': (I, J), 'h': h, 'etf': etf, 'dU': dU,
                         'd': d, 'dE': EJ - EI, 'scaled_h': scaled_h,
                         'd_etf': d_etf, 'scaled_h_etf': scaled_h_etf,
-                        'erf': erf, 'd_erf': d_erf, 'scaled_h_erf': scaled_h_erf})
+                        'erf': erf, 'd_erf': d_erf, 'scaled_h_erf': scaled_h_erf,
+                        'sym': sym, 'sym_resid': sym_resid})
         return {'nac': out, 'zvec_niter': res['zvec_niter'],
                 'zvec_resid': res['zvec_resid'],
                 'zvec_converged': res['zvec_converged'], 'times': res['times']}
@@ -1029,7 +1085,7 @@ class GradientDriver:
             extra.append(2.0*dE*gam_mo)
             labels.append(I)
             gams[(I, J)] = gam_mo
-        res = self.run(labels, xts=xts, extra_rhs=extra)
+        res = self.run(labels, xts=xts, extra_rhs=extra, symmetrize=False)
         g = np.asarray(res['grad'])
         gref = np.asarray(self.grad_ref)
         ip = mol.intor('int1e_ipovlp', comp=3)
@@ -1046,6 +1102,9 @@ class GradientDriver:
                     dket = -np.einsum('mn,nm->', gam[:, p0:p1], ip[x, p0:p1, :])
                     dbra = -np.einsum('mn,mn->', gam[p0:p1, :], ip[x, p0:p1, :])
                     etf[A, x] = 0.5*(dket - dbra)
+            erf = self.erf_term(gam)
+            # the pieces carry the symmetry of the pair (run() did not symmetrise)
+            (hdu, etf, erf), sym_resid, sym = self.project_pair(I, J, (hdu, etf, erf))
             EI = self.ci.energy(I); EJ = self.ci.energy(J)
             scaled_h = hdu + (EJ - EI)*etf
             if divide_gap and EJ == EI:
@@ -1054,19 +1113,21 @@ class GradientDriver:
             d = scaled_h/(EJ - EI) if divide_gap else None
             # ETF-corrected coupling h/dE + dU (see nac())
             d_etf = hdu/(EJ - EI) if divide_gap else None
-            erf = self.erf_term(gam)
             scaled_h_erf = hdu - (EJ - EI)*erf
             d_erf = scaled_h_erf/(EJ - EI) if divide_gap else None
             out.append({'pair': (I, J), 'h': None, 'etf': etf, 'dU': None,
                         'd': d, 'dE': EJ - EI, 'scaled_h': scaled_h,
                         'd_etf': d_etf, 'scaled_h_etf': hdu,
-                        'erf': erf, 'd_erf': d_erf, 'scaled_h_erf': scaled_h_erf})
+                        'erf': erf, 'd_erf': d_erf, 'scaled_h_erf': scaled_h_erf,
+                        'sym': sym, 'sym_resid': sym_resid})
         sel = [pos[s] for s in states]
         gres = dict(res)
         # convergence of every vector of the pass (gradient and pair vectors)
         gres['zvec_converged_all'] = np.asarray(res['zvec_converged'])
         gres['zvec_resid_all'] = np.asarray(res['zvec_resid'])
         gres['grad'] = g[sel]
+        if mol.symmetry:
+            gres['grad'] = np.array([rhf_grad.symmetrize(mol, x) for x in g[sel]])
         for key in ('zvec_niter', 'zvec_resid', 'zvec_converged'):
             gres[key] = np.asarray(res[key])[sel]
         gres['parts'] = [res['parts'][i] for i in sel]

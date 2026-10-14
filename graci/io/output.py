@@ -666,6 +666,9 @@ def print_mrsfgradient_nacs(grad_obj):
                           'E_J - E_I = {:.6f} Eh'.format(
                               I + 1, J + 1, np.linalg.norm(result['d']),
                               result['dE']))
+            if result.get('sym') is not None:
+                outfile.write('\n   symmetry {:s} (projection removed a relative component '
+                              '{:.1e})'.format(result['sym'], result['sym_resid']))
             outfile.write('\n   Atom          x                y                z')
             for A, row in enumerate(result['d']):
                 outfile.write('\n   {:3d} {:2s}'.format(A + 1, asym[A]) +
