@@ -110,6 +110,18 @@ def align_zvec(grad_old, ci_new, states):
     return z0
 
 
+def nac_vectors(states, pairs):
+    """state vectors of a combined gradient and derivative-coupling pass:
+    the states in the given order, then the other states of the pairs;
+    returns (need, pos), pos[state] = column"""
+    need = list(states)
+    for I, J in pairs:
+        for s in (I, J):
+            if s not in need:
+                need.append(s)
+    return need, {s: k for k, s in enumerate(need)}
+
+
 def irrep_salcs(mol):
     """symmetry-adapted combinations of the atomic displacements of mol
     (p-type functions on the atoms, as in pyscf.grad.rhf.symmetrize), in
@@ -787,12 +799,13 @@ class GradientDriver:
     # ------------------------------------------------------------------
     # the gradient of a list of states
     # ------------------------------------------------------------------
-    def run(self, states, zguess=None, xts=None, extra_rhs=None, symmetrize=True):
+    def run(self, states, zguess=None, xts=None, extra_rhs=None, symmetrize=True, names=None):
         """states: list of adiabatic state indices (0-based); zguess: optional
         (lzdim, nst) start vectors of the Z-vector equations; returns dict.
         symmetrize: project the vectors onto the totally symmetric irrep
         (point-group symmetry only; off for the vectors of the derivative
         couplings, which carry the symmetry of the pair of states).
+        names: optional labels of the vectors in the messages ('state n').
         xts: optional explicit expanded amplitude matrices X~ (nvirb, nocca),
         one per entry of states, used instead of the states' amplitudes
         (states then only label the vectors). Every term of the response
@@ -835,12 +848,16 @@ class GradientDriver:
             Z, info = self.solve_pcg(Rmat, self.opt.zvec_tol, self.opt.zvec_iter, x0=zguess)
         times['zvec'] = time.time() - t0
         if zguess is not None and self.verbose:
-            output.print_message('  Z-vector warm start: iterations per state: '
-                                 + ' '.join(str(int(n)) for n in info['niter']))
+            if names is None:
+                output.print_message('  Z-vector warm start: iterations per state: '
+                                     + ' '.join(str(int(n)) for n in info['niter']))
+            else:
+                output.print_message('  Z-vector warm start: iterations: '
+                                     + ', '.join('%s %d' % (nm, int(n)) for nm, n in zip(names, info['niter'])))
         for k, ist in enumerate(states):
             if not info['converged'][k]:
-                output.print_message('WARNING: Z-vector of state %d not converged (residual %.3e)' %
-                                     (ist + 1, info['resid'][k]))
+                output.print_message('WARNING: Z-vector of %s not converged (residual %.3e)' %
+                                     ('state %d' % (ist + 1) if names is None else names[k], info['resid'][k]))
         # pass 2: families, energy-weighted density, AO assembly
         t0 = time.time()
         fam_states, entry_state, W_list, P_list, fac_list, gfac_list, Mx_list = [], [], [], [], [], [], []
@@ -1052,7 +1069,7 @@ class GradientDriver:
                 'zvec_resid': res['zvec_resid'],
                 'zvec_converged': res['zvec_converged'], 'times': res['times']}
 
-    def gradients_and_nacs(self, states, pairs, *, divide_gap=True):
+    def gradients_and_nacs(self, states, pairs, *, divide_gap=True, zguess=None):
         """gradients of states and derivative couplings of pairs in one
         response pass (one Z-vector solve, one AO pass). The gradients of
         all states of the pairs are evaluated, and per pair one more
@@ -1061,16 +1078,15 @@ class GradientDriver:
         Q(X_I + X_J) - Q(X_I) - Q(X_J) = 2 h_IJ, and the extra right-hand
         side adds 2 (E_J - E_I) dU_IJ, so
         scaled_h = 1/2 [...] + (E_J - E_I) etf, d = scaled_h/(E_J - E_I).
+        zguess: optional (lzdim, len(need)) start vectors of the state
+        vectors (need = nac_vectors(states, pairs)[0], zero columns = none);
+        a pair vector starts from z_I + z_J when both are available (its
+        cross terms change sign with the relative phase of the states).
         Returns (grad result dict of run() for states, nac list)."""
         import graci.interfaces.mrsf.mrsf_density as mrsf_density
         mol, C = self.mol, self.C
         nirr = self.ci.n_irrep()
-        need = list(states)
-        for I, J in pairs:
-            for s in (I, J):
-                if s not in need:
-                    need.append(s)
-        pos = {s: k for k, s in enumerate(need)}
+        need, pos = nac_vectors(states, pairs)
         xts = [self.expanded_amplitudes(s) for s in need]
         extra = [None]*len(need)
         labels = list(need)
@@ -1085,7 +1101,17 @@ class GradientDriver:
             extra.append(2.0*dE*gam_mo)
             labels.append(I)
             gams[(I, J)] = gam_mo
-        res = self.run(labels, xts=xts, extra_rhs=extra, symmetrize=False)
+        x0 = None
+        if zguess is not None:
+            zg = np.asarray(zguess)
+            have = np.any(zg != 0.0, axis=0)
+            cols = [zg[:, k] for k in range(len(need))]
+            for I, J in pairs:
+                both = have[pos[I]] and have[pos[J]]
+                cols.append(zg[:, pos[I]] + zg[:, pos[J]] if both else np.zeros(self.lzdim))
+            x0 = np.array(cols).T
+        names = ['state %d' % (s + 1) for s in need] + ['pair <%d|%d>' % (I + 1, J + 1) for I, J in pairs]
+        res = self.run(labels, zguess=x0, xts=xts, extra_rhs=extra, symmetrize=False, names=names)
         g = np.asarray(res['grad'])
         gref = np.asarray(self.grad_ref)
         ip = mol.intor('int1e_ipovlp', comp=3)
@@ -1119,7 +1145,9 @@ class GradientDriver:
                         'd': d, 'dE': EJ - EI, 'scaled_h': scaled_h,
                         'd_etf': d_etf, 'scaled_h_etf': hdu,
                         'erf': erf, 'd_erf': d_erf, 'scaled_h_erf': scaled_h_erf,
-                        'sym': sym, 'sym_resid': sym_resid})
+                        'sym': sym, 'sym_resid': sym_resid,
+                        'zvec_niter': int(res['zvec_niter'][v]), 'zvec_resid': float(res['zvec_resid'][v]),
+                        'zvec_converged': bool(res['zvec_converged'][v])})
         sel = [pos[s] for s in states]
         gres = dict(res)
         # convergence of every vector of the pass (gradient and pair vectors)
@@ -1128,8 +1156,11 @@ class GradientDriver:
         gres['grad'] = g[sel]
         if mol.symmetry:
             gres['grad'] = np.array([rhf_grad.symmetrize(mol, x) for x in g[sel]])
-        for key in ('zvec_niter', 'zvec_resid', 'zvec_converged'):
+        for key in ('zvec_niter', 'zvec_resid', 'zvec_converged', 'zeta_max', 'zeta_12'):
             gres[key] = np.asarray(res[key])[sel]
+        # Z-vectors of the states (warm start of the next geometry, columns
+        # matching the state list)
+        gres['zvec'] = np.asarray(res['zvec'])[:, sel]
         gres['parts'] = [res['parts'][i] for i in sel]
         gres['P_ao'] = [res['P_ao'][i] for i in sel]
         return gres, out

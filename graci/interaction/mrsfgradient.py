@@ -148,7 +148,9 @@ class Mrsfgradient:
             except Exception:
                 guess = None
         if guess is not None:
-            zguess = mrsf_gradient.align_zvec(guess, ci, states)
+            # with couplings: one start vector per state vector of the pass
+            vec_states = states if pairs is None else mrsf_gradient.nac_vectors(states, pairs)[0]
+            zguess = mrsf_gradient.align_zvec(guess, ci, vec_states)
             if zguess is None:
                 output.print_message('  Z-vector warm start: no usable Z-vectors in '
                                      + str(getattr(guess, 'label', self.guess_label)) + '; cold start')
@@ -162,7 +164,7 @@ class Mrsfgradient:
             res = driver.run(states, zguess=zguess)
         else:
             # gradients and couplings in one response pass
-            res, self.nac = driver.gradients_and_nacs(states, pairs)
+            res, self.nac = driver.gradients_and_nacs(states, pairs, zguess=zguess)
         driver.finalise()
 
         self.grad        = res['grad']

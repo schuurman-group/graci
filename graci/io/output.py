@@ -669,6 +669,10 @@ def print_mrsfgradient_nacs(grad_obj):
             if result.get('sym') is not None:
                 outfile.write('\n   symmetry {:s} (projection removed a relative component '
                               '{:.1e})'.format(result['sym'], result['sym_resid']))
+            if result.get('zvec_niter') is not None:
+                outfile.write('\n   Z-vector of the pair: {:d} iterations, residual {:.2e}{:s}'.format(
+                    result['zvec_niter'], result['zvec_resid'],
+                    '' if result['zvec_converged'] else '  (NOT CONVERGED)'))
             outfile.write('\n   Atom          x                y                z')
             for A, row in enumerate(result['d']):
                 outfile.write('\n   {:3d} {:2s}'.format(A + 1, asym[A]) +
