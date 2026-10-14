@@ -400,10 +400,10 @@ def render_list(chkpt, name, obj, grp_name, l_suffix, lvl=0):
                            grp_name=grp_name+'/'+dset_name)
             obj_write[indx] = dset_name
         elif isinstance(value, list):
-            obj_write[indx] = render_list(chkpt, name, value, grp_name,
+            obj_write[indx] = render_list(chkpt, lname, value, grp_name,
                                                  l_suffix, lvl=lvl+1)
         elif isinstance(value, dict):
-            obj_write[indx] = render_dict(chkpt, name, value, grp_name,
+            obj_write[indx] = render_dict(chkpt, lname, value, grp_name,
                                                  l_suffix, lvl=lvl+1)
         elif isinstance(value, np.ndarray):
             dset_name = link_name(value, suffix=lname)
@@ -471,10 +471,10 @@ def render_dict(chkpt, name, obj, grp_name, l_suffix, lvl=0):
             obj_write[key] = dset_name
         elif isinstance(value, list):
             #print('in dict='+str(name)+' found list: '+str(value),flush=True)
-            obj_write[key] = render_list(chkpt, name, value, grp_name,
+            obj_write[key] = render_list(chkpt, lname, value, grp_name,
                                                  l_suffix, lvl=lvl+1)
         elif isinstance(value, dict):
-            obj_write[key] = render_dict(chkpt, name, value, grp_name,
+            obj_write[key] = render_dict(chkpt, lname, value, grp_name,
                                                  l_suffix, lvl=lvl+1)
         elif isinstance(value, np.ndarray):
             dset_name = link_name(value, suffix=lname)
