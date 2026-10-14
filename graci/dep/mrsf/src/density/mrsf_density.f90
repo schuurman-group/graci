@@ -26,7 +26,7 @@
 ! O(nmo) accumulations). OpenMP over pairs (disjoint contiguous output
 ! slices, pairs sorted by bra state) with sequential BLAS inside.
 !**********************************************************************
-module mrsf_density
+module mrsf_density_mod
 
   use iso_c_binding, only: c_int
   use mrsf_constants
@@ -347,4 +347,4 @@ contains
 
   end subroutine expand_ext
 
-end module mrsf_density
+end module mrsf_density_mod

@@ -9,12 +9,12 @@ module mrsf_interface
   use mrsf_io
   use mrsf_space
   use mrsf_integrals
-  use mrsf_sigma
+  use mrsf_sigma_mod
   use mrsf_extended
   use mrsf_xcgrid, only: time_xc, nxc_calls, nxc_vecs, time_probe, nprobe_calls
   use mrsf_davidson
   use mrsf_etensor
-  use mrsf_density
+  use mrsf_density_mod
   use mrsf_gradient, only: grad_free
   use mrsf_overlap, only: time_ovl, novl_calls
 

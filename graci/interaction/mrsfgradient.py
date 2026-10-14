@@ -32,6 +32,10 @@ class Mrsfgradient:
         # include the quadrature-grid response in the reference (ROKS)
         # XC gradient (PySCF grid_response)
         self.grid_response = False
+        # derivative couplings <I|d/dR J> between states of the section:
+        # nested list of 1-based adiabatic state pairs, e.g.
+        # [[1, 2], [2, 3]] (None = none)
+        self.nac_pairs     = None
         # memory budget (GB) for the cached AO values on the XC grid and
         # the auxiliary blocks of the derivative-integral contraction
         self.mem_budget    = 2.0
@@ -65,6 +69,8 @@ class Mrsfgradient:
         # converged Z-vectors (lzdim, nstates): start vectors of a
         # warm-started gradient section at the next geometry
         self.zvec          = None
+        # derivative couplings: list of dicts (pair, etf, d, dE, ...)
+        self.nac           = None
 
     def copy(self):
         """create of deepcopy of self"""
@@ -77,6 +83,26 @@ class Mrsfgradient:
             else:
                 setattr(new, key, copy.deepcopy(value))
         return new
+
+    @staticmethod
+    def parse_pairs(value, nst_avail):
+        """nac_pairs as parsed from the input ([[I, J], ...], a list of
+        integer arrays) -> list of 0-based (I, J) tuples. Each pair must
+        hold two different existing states (1-based in the input)."""
+        usage = ('$mrsfgradient: nac_pairs must be a nested list of pairs of '
+                 'existing states, e.g. nac_pairs = [[1, 2], [2, 3]]')
+        if not isinstance(value, list) or len(value) == 0:
+            sys.exit(usage)
+        pairs = []
+        for pair in value:
+            pair = np.asarray(pair).reshape(-1)
+            if pair.size != 2 or pair[0] == pair[1]:
+                sys.exit(usage)
+            I, J = int(pair[0]) - 1, int(pair[1]) - 1
+            if min(I, J) < 0 or max(I, J) >= nst_avail:
+                sys.exit(usage)
+            pairs.append((I, J))
+        return pairs
 
     #
     @timing.timed
@@ -103,6 +129,14 @@ class Mrsfgradient:
                     sys.exit('$mrsfgradient: state %d does not exist (the %s section has %d states)'
                              % (st + 1, ci.label, nst_avail))
 
+        # derivative couplings (0-based pairs)
+        pairs = None
+        if self.nac_pairs is not None:
+            if getattr(ci, 'extended', False):
+                sys.exit('$mrsfgradient: nac_pairs are not yet available for the '
+                         'extended MRSF-TDDFT method')
+            pairs = self.parse_pairs(self.nac_pairs, nst_avail)
+
         # Z-vector warm start from a previous gradient section (in memory,
         # or read from the checkpoint when guess_label names one that is
         # not in memory)
@@ -124,7 +158,11 @@ class Mrsfgradient:
             driver = mrsf_egradient.EMRSFGradientDriver(ci, self)
         else:
             driver = mrsf_gradient.GradientDriver(ci, self)
-        res = driver.run(states, zguess=zguess)
+        if pairs is None:
+            res = driver.run(states, zguess=zguess)
+        else:
+            # gradients and couplings in one response pass
+            res, self.nac = driver.gradients_and_nacs(states, pairs)
         driver.finalise()
 
         self.grad        = res['grad']
@@ -142,5 +180,6 @@ class Mrsfgradient:
 
         if self.verbose:
             output.print_mrsfgradient_results(self, states, res)
+            output.print_mrsfgradient_nacs(self)
 
         return True

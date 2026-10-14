@@ -170,6 +170,7 @@ mrsfgradient_kword = {'mrsf_label'    : str,
                       'zvec_iter'     : int,
                       'zvec_solver'   : str,
                       'grid_response' : bool,
+                      'nac_pairs'     : int,
                       'mem_budget'    : float,
                       'verbose'       : bool,
                       'label'         : str}

@@ -649,6 +649,49 @@ def print_mrsfgradient_results(grad_obj, states, res):
     return
 
 #
+def print_mrsfgradient_nacs(grad_obj):
+    """Print derivative couplings requested by a $mrsfgradient section."""
+
+    if not grad_obj.nac:
+        return
+
+    ci = grad_obj.ci
+    mol = ci.scf.mol
+    asym = mol.asym
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n Derivative couplings (1/bohr)')
+        for result in grad_obj.nac:
+            I, J = result['pair']
+            outfile.write('\n\n <{:d}|d/dR {:d}>, |d| = {:.6f}, '
+                          'E_J - E_I = {:.6f} Eh'.format(
+                              I + 1, J + 1, np.linalg.norm(result['d']),
+                              result['dE']))
+            outfile.write('\n   Atom          x                y                z')
+            for A, row in enumerate(result['d']):
+                outfile.write('\n   {:3d} {:2s}'.format(A + 1, asym[A]) +
+                              ''.join('{:17.10f}'.format(v) for v in row))
+            d_etf = result.get('d_etf')
+            if d_etf is not None:
+                outfile.write('\n\n <{:d}|d/dR {:d}>, ETF-corrected (h/dE + dU, translation '
+                              'invariant), |d| = {:.6f}'.format(I + 1, J + 1, np.linalg.norm(d_etf)))
+                outfile.write('\n   Atom          x                y                z')
+                for A, row in enumerate(d_etf):
+                    outfile.write('\n   {:3d} {:2s}'.format(A + 1, asym[A]) +
+                                  ''.join('{:17.10f}'.format(v) for v in row))
+            d_erf = result.get('d_erf')
+            if d_erf is not None:
+                outfile.write('\n\n <{:d}|d/dR {:d}>, ETF+ERF-corrected (linear and angular '
+                              'momentum conserving), |d| = {:.6f}'.format(I + 1, J + 1, np.linalg.norm(d_erf)))
+                outfile.write('\n   Atom          x                y                z')
+                for A, row in enumerate(d_erf):
+                    outfile.write('\n   {:3d} {:2s}'.format(A + 1, asym[A]) +
+                                  ''.join('{:17.10f}'.format(v) for v in row))
+        outfile.write('\n')
+        outfile.flush()
+
+    return
+
+#
 def print_transition_header(label):
     """ print out Transition section header"""
 

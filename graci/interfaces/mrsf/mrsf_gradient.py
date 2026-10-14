@@ -695,11 +695,15 @@ class GradientDriver:
         """exchange-channel pass of the state (the large families)"""
         sd['st'] = mrsf_grad.state(self.x_resp, sd['Xt'], self.dims, self.dq_ref)
 
-    def prepare_state(self, ist):
+    def prepare_state(self, ist, Xt=None, extra=None):
         """pass 1 of a state: amplitudes, exchange pass, generalised Fock,
-        canonical multipliers of the frozen core; returns the state dict"""
+        canonical multipliers of the frozen core; returns the state dict.
+        Xt: explicit expanded amplitudes instead of those of state ist;
+        extra: additional right-hand side matrix (MO, dE/dkappa convention,
+        see run), which also enters the canonical multipliers"""
         with self.tm('rhs: amplitudes'):
-            sd = {'ist': ist, 'Xt': self.expanded_amplitudes(ist)}
+            Xt = self.expanded_amplitudes(ist) if Xt is None else np.array(Xt)
+            sd = {'ist': ist, 'Xt': Xt}
         with self.tm('rhs: state (MRSF)'):
             self.exchange_pass(sd)
         with self.tm('rhs: spc vectors'):
@@ -707,7 +711,7 @@ class GradientDriver:
         with self.tm('rhs: gfock_omega'):
             sd['Fo'] = self.gfock_omega(sd['Xt'], sd['st'], sd['terms'])
         with self.tm('rhs: zeta'):
-            sd['zeta'] = self.zeta(sd['Fo'])
+            sd['zeta'] = self.zeta(sd['Fo'] if extra is None else sd['Fo'] + extra)
         with self.tm('rhs: gfock_zeta'):
             sd['Fzeta'] = self.gfock_zeta(sd['zeta']) if self.N else np.zeros((self.nmo, self.nmo))
         return sd
@@ -761,9 +765,20 @@ class GradientDriver:
     # ------------------------------------------------------------------
     # the gradient of a list of states
     # ------------------------------------------------------------------
-    def run(self, states, zguess=None):
+    def run(self, states, zguess=None, xts=None, extra_rhs=None):
         """states: list of adiabatic state indices (0-based); zguess: optional
-        (lzdim, nst) start vectors of the Z-vector equations; returns dict"""
+        (lzdim, nst) start vectors of the Z-vector equations; returns dict.
+        xts: optional explicit expanded amplitude matrices X~ (nvirb, nocca),
+        one per entry of states, used instead of the states' amplitudes
+        (states then only label the vectors). Every term of the response
+        part is quadratic in X~ (no excitation-energy term), which nac()
+        relies on. extra_rhs: optional per-vector MO matrices (or None)
+        added to the generalised Fock matrix in the Z-vector right-hand
+        side and the canonical multipliers (dE/dkappa convention); with
+        X~ = 0 the result minus grad_ref is sum_pq extra_pq dkappa_pq/dR."""
+        if (xts is not None or extra_rhs is not None) and type(self) is not GradientDriver:
+            raise NotImplementedError('explicit amplitudes and extra right-hand sides '
+                                      'are only available for standard MRSF-TDDFT')
         mol, C = self.mol, self.C
         nst = len(states)
         times = {}
@@ -774,8 +789,14 @@ class GradientDriver:
         sds = []
         Rmat = np.zeros((self.lzdim, nst))
         for k, ist in enumerate(states):
-            sd = self.prepare_state(ist)
+            extra = extra_rhs[k] if extra_rhs is not None else None
+            if xts is None and extra is None:
+                sd = self.prepare_state(ist)
+            else:
+                sd = self.prepare_state(ist, Xt=None if xts is None else xts[k], extra=extra)
             Rmat[:, k] = self.rhs(sd['Fo'] + sd['Fzeta'])
+            if extra is not None:
+                Rmat[:, k] += self.rhs(extra)
             st_dq = np.array(sd['st']['dq'])
             if not keep_fam:
                 sd['st'] = None
@@ -884,6 +905,215 @@ class GradientDriver:
                 'zvec_resid': info['resid'], 'zvec_converged': info['converged'],
                 'parts': parts, 'times': times, 'P_ao': P_list, 'zeta_max': zeta_max,
                 'zeta_12': zeta_12, 'somo_gap': somo_gap, 'zvec': np.array(Z)}
+
+    # ------------------------------------------------------------------
+    # non-adiabatic couplings between states of the same multiplicity
+    # ------------------------------------------------------------------
+    def nac(self, pairs, *, divide_gap=True):
+        """
+        derivative couplings d_IJ = <I|d/dR J> for pairs [(I, J), ...]
+        (0-based adiabatic indices), returns a dict with, per pair,
+          h    (natm, 3): <I|dH/dR|J>, orbital response included
+          etf  (natm, 3): basis-function (half-derivative overlap) term
+          dU   (natm, 3): orbital-response part of the basis derivative,
+                          sum_pq gamma^IJ_pq U_pq (Z-vector)
+          d    (natm, 3): h/(E_J - E_I) + etf + dU
+          scaled_h (natm, 3): h + (E_J - E_I)*(etf + dU), finite at a CI.
+        Set divide_gap=False for CI optimisation: d is then None and no
+        division by the energy gap is performed.
+        h_IJ is the off-diagonal counterpart of the response part of the
+        gradient: that part is a quadratic form G(X) in the amplitudes,
+        so h_IJ = 1/4 [G(X_I + X_J) - G(X_I - X_J)] (the reference
+        gradient cancels). All 3 npairs vectors share one Z-vector solve.
+        etf_IJ = sum_{mu nu} gamma^IJ_{mu nu} 1/2 (<mu|d nu> - <d mu|nu>),
+        gamma^IJ_{pq} = <I|E_pq|J> (spin-summed, unrelaxed).
+        """
+        import graci.interfaces.mrsf.mrsf_density as mrsf_density
+        mol, C = self.mol, self.C
+        nirr = self.ci.n_irrep()
+        # transition densities <I|E_pq|J> (MO basis)
+        gam_mo = []
+        for I, J in pairs:
+            irrI, stI = self.ci.state_sym(I); irrJ, stJ = self.ci.state_sym(J)
+            tl = [[[] for _ in range(nirr)] for _ in range(nirr)]
+            tl[irrI][irrJ] = [[stI, stJ]]
+            gam_mo.append(np.array(mrsf_density.tdm(self.ci, self.ci, tl)[irrI][irrJ][:, :, 0]))
+        # per pair: X_I + X_J and X_I - X_J (h_IJ by polarisation) and a
+        # zero-amplitude vector whose Z-vector right-hand side is the
+        # antisymmetrised transition density on the rotation space: it
+        # gives sum_pq gamma_pq U_pq, the orbital-response part of the
+        # basis (CSF) derivative coupling, which does not vanish for MRSF
+        # (gamma^IJ has C-O, O-V and C-V elements on the non-redundant
+        # ROKS rotations)
+        xts, labels, extra = [], [], []
+        zero = np.zeros((self.nvirb, self.nocca))
+        for k, (I, J) in enumerate(pairs):
+            XI, XJ = self.expanded_amplitudes(I), self.expanded_amplitudes(J)
+            xts += [XI + XJ, XI - XJ, zero]
+            labels += [I, J, I]
+            extra += [None, None, gam_mo[k]]
+        res = self.run(labels, xts=xts, extra_rhs=extra)
+        g = res['grad']
+        gref = np.asarray(self.grad_ref)
+        # AO half-derivative overlaps: ip[x, mu, nu] = <d_x mu | nu> (electron
+        # coordinate); d/dR_A chi_mu = -d_x chi_mu for mu on atom A
+        ip = mol.intor('int1e_ipovlp', comp=3)
+        aoslices = mol.aoslice_by_atom()
+        out = []
+        for k, (I, J) in enumerate(pairs):
+            h = 0.25*(np.asarray(g[3*k]) - np.asarray(g[3*k + 1]))
+            dU = np.asarray(g[3*k + 2]) - gref
+            gam = C @ gam_mo[k] @ C.T
+            etf = np.zeros((mol.natm, 3))
+            for A in range(mol.natm):
+                p0, p1 = aoslices[A, 2], aoslices[A, 3]
+                for x in range(3):
+                    # <mu|d_A nu> = -<d nu|mu> (nu on A); <d_A mu|nu> = -<d mu|nu> (mu on A)
+                    dket = -np.einsum('mn,nm->', gam[:, p0:p1], ip[x, p0:p1, :])
+                    dbra = -np.einsum('mn,mn->', gam[p0:p1, :], ip[x, p0:p1, :])
+                    etf[A, x] = 0.5*(dket - dbra)
+            EI = self.ci.energy(I); EJ = self.ci.energy(J)
+            scaled_h = h + (EJ - EI)*(etf + dU)
+            if divide_gap and EJ == EI:
+                raise ValueError('Derivative coupling is undefined at zero gap; '
+                                 'use divide_gap=False for the finite scaled_h')
+            d = scaled_h/(EJ - EI) if divide_gap else None
+            # ETF-corrected coupling (Fatehi, Alguire, Shao, Subotnik, JCP 135,
+            # 234105 (2011)): first-order electron translation factors cancel
+            # the basis-function term etf, which carries the translational
+            # non-invariance (sum_A etf_A = electronic momentum matrix element)
+            scaled_h_etf = h + (EJ - EI)*dU
+            d_etf = scaled_h_etf/(EJ - EI) if divide_gap else None
+            # + electron rotation factors (angular momentum conservation)
+            erf = self.erf_term(gam)
+            scaled_h_erf = scaled_h_etf - (EJ - EI)*erf
+            d_erf = scaled_h_erf/(EJ - EI) if divide_gap else None
+            out.append({'pair': (I, J), 'h': h, 'etf': etf, 'dU': dU,
+                        'd': d, 'dE': EJ - EI, 'scaled_h': scaled_h,
+                        'd_etf': d_etf, 'scaled_h_etf': scaled_h_etf,
+                        'erf': erf, 'd_erf': d_erf, 'scaled_h_erf': scaled_h_erf})
+        return {'nac': out, 'zvec_niter': res['zvec_niter'],
+                'zvec_resid': res['zvec_resid'],
+                'zvec_converged': res['zvec_converged'], 'times': res['times']}
+
+    def gradients_and_nacs(self, states, pairs, *, divide_gap=True):
+        """gradients of states and derivative couplings of pairs in one
+        response pass (one Z-vector solve, one AO pass). The gradients of
+        all states of the pairs are evaluated, and per pair one more
+        vector X_I + X_J whose Z-vector right-hand side carries
+        2 (E_J - E_I) rhs(gamma^IJ): with Q(X) = G(X) - grad_ref quadratic,
+        Q(X_I + X_J) - Q(X_I) - Q(X_J) = 2 h_IJ, and the extra right-hand
+        side adds 2 (E_J - E_I) dU_IJ, so
+        scaled_h = 1/2 [...] + (E_J - E_I) etf, d = scaled_h/(E_J - E_I).
+        Returns (grad result dict of run() for states, nac list)."""
+        import graci.interfaces.mrsf.mrsf_density as mrsf_density
+        mol, C = self.mol, self.C
+        nirr = self.ci.n_irrep()
+        need = list(states)
+        for I, J in pairs:
+            for s in (I, J):
+                if s not in need:
+                    need.append(s)
+        pos = {s: k for k, s in enumerate(need)}
+        xts = [self.expanded_amplitudes(s) for s in need]
+        extra = [None]*len(need)
+        labels = list(need)
+        gams = {}
+        for I, J in pairs:
+            irrI, stI = self.ci.state_sym(I); irrJ, stJ = self.ci.state_sym(J)
+            tl = [[[] for _ in range(nirr)] for _ in range(nirr)]
+            tl[irrI][irrJ] = [[stI, stJ]]
+            gam_mo = np.array(mrsf_density.tdm(self.ci, self.ci, tl)[irrI][irrJ][:, :, 0])
+            dE = self.ci.energy(J) - self.ci.energy(I)
+            xts.append(xts[pos[I]] + xts[pos[J]])
+            extra.append(2.0*dE*gam_mo)
+            labels.append(I)
+            gams[(I, J)] = gam_mo
+        res = self.run(labels, xts=xts, extra_rhs=extra)
+        g = np.asarray(res['grad'])
+        gref = np.asarray(self.grad_ref)
+        ip = mol.intor('int1e_ipovlp', comp=3)
+        aoslices = mol.aoslice_by_atom()
+        out = []
+        for k, (I, J) in enumerate(pairs):
+            v = len(need) + k
+            hdu = 0.5*((g[v] - gref) - (g[pos[I]] - gref) - (g[pos[J]] - gref))
+            gam = C @ gams[(I, J)] @ C.T
+            etf = np.zeros((mol.natm, 3))
+            for A in range(mol.natm):
+                p0, p1 = aoslices[A, 2], aoslices[A, 3]
+                for x in range(3):
+                    dket = -np.einsum('mn,nm->', gam[:, p0:p1], ip[x, p0:p1, :])
+                    dbra = -np.einsum('mn,mn->', gam[p0:p1, :], ip[x, p0:p1, :])
+                    etf[A, x] = 0.5*(dket - dbra)
+            EI = self.ci.energy(I); EJ = self.ci.energy(J)
+            scaled_h = hdu + (EJ - EI)*etf
+            if divide_gap and EJ == EI:
+                raise ValueError('Derivative coupling is undefined at zero gap; '
+                                 'use divide_gap=False for the finite scaled_h')
+            d = scaled_h/(EJ - EI) if divide_gap else None
+            # ETF-corrected coupling h/dE + dU (see nac())
+            d_etf = hdu/(EJ - EI) if divide_gap else None
+            erf = self.erf_term(gam)
+            scaled_h_erf = hdu - (EJ - EI)*erf
+            d_erf = scaled_h_erf/(EJ - EI) if divide_gap else None
+            out.append({'pair': (I, J), 'h': None, 'etf': etf, 'dU': None,
+                        'd': d, 'dE': EJ - EI, 'scaled_h': scaled_h,
+                        'd_etf': d_etf, 'scaled_h_etf': hdu,
+                        'erf': erf, 'd_erf': d_erf, 'scaled_h_erf': scaled_h_erf})
+        sel = [pos[s] for s in states]
+        gres = dict(res)
+        # convergence of every vector of the pass (gradient and pair vectors)
+        gres['zvec_converged_all'] = np.asarray(res['zvec_converged'])
+        gres['zvec_resid_all'] = np.asarray(res['zvec_resid'])
+        gres['grad'] = g[sel]
+        for key in ('zvec_niter', 'zvec_resid', 'zvec_converged'):
+            gres[key] = np.asarray(res[key])[sel]
+        gres['parts'] = [res['parts'][i] for i in sel]
+        gres['P_ao'] = [res['P_ao'][i] for i in sel]
+        return gres, out
+
+    def erf_term(self, gam_ao, w=0.3):
+        """one-electron electron rotation factor Gamma''^A (natm, 3) of an AO
+        transition density (Qiu, Bhati, Tao, Bian, Rawlinson, Littlejohn,
+        Subotnik, JCP 160, 124102 (2024), eqs. 45-47 and 52):
+          Gamma''^A_mn = z^A_mn (X_A - X0_mn) x (K_mn^-1 J_mn),
+          J_mn = -1/2 <m|(r - X_B) x grad + (r - X_C) x grad|n>
+        (m on atom B, n on atom C), z^A_mn the semi-local weight with
+        locality w (bohr^-2), X0_mn the z-weighted centre and K_mn the
+        z-weighted massless inertia. sum_A Gamma'' = 0 and
+        sum_A X_A x Gamma'' = sum_mn D_mn J_mn; d_ETF - Gamma'' then conserves
+        linear and angular momentum. D_mn = gam_ao[n, m] (the orientation in
+        which the etf term is sum D_mn Gamma'_mn)."""
+        mol = self.mol
+        X = mol.atom_coords(); nat = mol.natm
+        if not hasattr(self, '_Lat'):
+            # PySCF int1e_cg_irxp = -<m|(r - O) x grad|n>
+            L = []
+            for B in range(nat):
+                with mol.with_common_origin(X[B]):
+                    L.append(-mol.intor('int1e_cg_irxp', comp=3))
+            self._Lat = np.array(L)
+        Lat = self._Lat
+        D = np.asarray(gam_ao).T
+        sl = mol.aoslice_by_atom()[:, 2:4]
+        out = np.zeros((nat, 3))
+        for B in range(nat):
+            b0, b1 = sl[B]
+            for Cc in range(nat):
+                c0, c1 = sl[Cc]
+                Jm = -0.5*(Lat[B][:, b0:b1, c0:c1] + Lat[Cc][:, b0:b1, c0:c1])
+                j = np.einsum('mn,xmn->x', D[b0:b1, c0:c1], Jm)
+                if not np.any(j):
+                    continue
+                a = np.sum((X - X[B])**2, axis=1); c = np.sum((X - X[Cc])**2, axis=1)
+                den = np.where(a + c > 1e-14, a + c, 1.0)
+                z = np.where(a + c > 1e-14, np.exp(-w*2.0*a*c/den), 1.0)
+                X0 = (z[:, None]*X).sum(0)/z.sum(); dX = X - X0
+                K = -np.einsum('a,ai,ai->', z, dX, dX)*np.eye(3) + np.einsum('a,ai,aj->ij', z, dX, dX)
+                v = np.linalg.lstsq(K, j, rcond=1e-10)[0]
+                out += z[:, None]*np.cross(dX, v)
+        return out
 
     def grad_xc_probe(self, Pa_ao, Pb_ao):
         """XC probe term of one state through PySCF's TD-UKS kernel routine

@@ -19,7 +19,7 @@ module mrsf_gradient
   use mrsf_global
   use mrsf_io
   use mrsf_space
-  use mrsf_sigma, only: ensure_work, plane_apply
+  use mrsf_sigma_mod, only: ensure_work, plane_apply
   use mrsf_etensor, only: etensor_kx, etensor_ready, etensor_nfc
 
   implicit none
