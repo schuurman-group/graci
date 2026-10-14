@@ -3,14 +3,37 @@ The Ao2mo object and its associated functions.
 """
 import sys as sys
 import os as os
+import hashlib
 import numpy as np
 import h5py as h5py
 import scipy.io as sp_io
 import graci.core.libs as libs
 import graci.utils.timing as timing
-from pyscf import gto, ao2mo, df
+from pyscf import gto, ao2mo, df, lib
 
-#
+# Ao2mo objects holding the packed MO tensor in memory, keyed on the
+# 2-e integral file name (the file is written lazily by ensure_file)
+_live = {}
+
+
+def mo_stamp(crds, orbs):
+    """hash of a geometry and an MO coefficient array: the identity of a
+    set of MO integrals (used as the reuse key of the MRSF library and of
+    the per-SCF grid session)"""
+    h = hashlib.blake2b(digest_size=16)
+    h.update(np.ascontiguousarray(crds, dtype=float).tobytes())
+    h.update(np.ascontiguousarray(orbs, dtype=float).tobytes())
+    return h.hexdigest()
+
+
+def ensure_file(fname):
+    """write the 2-e integral file fname now if an Ao2mo object holds its
+    tensor in memory without having written the file yet"""
+    obj = _live.get(fname)
+    if obj is not None and not obj.file_written:
+        obj.write_file()
+    return os.path.isfile(fname)
+
 
 def moints_exist(scf):
     """
@@ -36,13 +59,28 @@ class Ao2mo:
         self.orbs         = None
         self.label        = 'default'
         self.allowed_precision = ['single', 'double']
+        # packed MO DF tensor (naux, nmo(nmo+1)/2) kept in memory for the
+        # MRSF library (double precision only), its stamp (geometry + MOs)
+        # and the state of the file/bitci consumers
+        self.eri_mo       = None
+        self.stamp        = None
+        self.file_written = False
+        self.bitci_loaded = False
 
     @timing.timed
-    def run(self, scf, int_precision='single'):
+    def run(self, scf, int_precision='single', load_bitci=True, write_file=True,
+            keep_mem=0.0):
         """perform AO to MO integral transformation using the current
-           orbitals"""
+           orbitals. load_bitci: reload libbitci with the new integral
+           files (not needed by MRSF-TDDFT consumers); write_file: write
+           the 2-e Fortran file now (otherwise lazily, see ensure_file);
+           keep_mem: keep the packed double-precision MO tensor in memory
+           for the MRSF library when it is smaller than keep_mem GB"""
 
+        import time
         self.load_scf(scf)
+        self.times = {}
+        t0 = time.time()
 
         # by default, reload bitci using newly generate MO integral
         # files
@@ -56,34 +94,52 @@ class Ao2mo:
 
         # Do the AO -> MO transformation
         if scf.mol.use_df:
-            ij_trans = np.concatenate(([self.orbs], 
-                                       [self.orbs]))
-            df.outcore.general(scf.mol.pymol(), 
-                                ij_trans,
-                                'tmp_eri',
-                                auxbasis = scf.mol.ri_basis,
-                                dataname='eri_mo')
+            cderi = scf.df_tensor()
+            nao = self.orbs.shape[0]
+            if cderi is not None and cderi.ndim == 2 and cderi.shape[1] == nao*(nao+1)//2:
+                # the AO DF tensor of the SCF is in memory: transform it
+                # (same lower-Cholesky convention as df.outcore.general)
+                eri_mo = self.transform_df(cderi)
+                self.times['source'] = 'SCF DF tensor'
+            else:
+                self.times['source'] = 'new DF build'
+                ij_trans = np.concatenate(([self.orbs], 
+                                           [self.orbs]))
+                df.outcore.general(scf.mol.pymol(), 
+                                    ij_trans,
+                                    'tmp_eri',
+                                    auxbasis = scf.mol.ri_basis,
+                                    dataname='eri_mo')
 
-            eri    = h5py.File('tmp_eri', 'r')
-            eri_mo = np.array(eri.get('eri_mo'))
-            os.remove('tmp_eri')
-
-            #df.outcore.general(scf.mol.pymol(), ij_trans, 
-            #                   self.moint_2e_eri,
-            #                   auxbasis = scf.mol.ri_basis, 
-            #                   dataname='eri_mo')
+                eri    = h5py.File('tmp_eri', 'r')
+                eri_mo = np.array(eri.get('eri_mo'))
+                eri.close()
+                os.remove('tmp_eri')
 
         else:
             eri_ao = scf.mol.pymol().intor('int2e_sph', aosym='s8')
             eri_mo = ao2mo.incore.full(eri_ao, self.orbs)
             del(eri_ao)
-            #eri_mo = ao2mo.incore.full(eri_ao, self.orbs)
-            #with h5py.File(self.moint_2e_eri, 'w') as f:
-            #    f['eri_mo'] = eri_mo
 
-        self.write_integrals(eri_mo, self.precision_2e, 
-                                                 self.moint_2e_eri)
+        self.times['transform'] = time.time() - t0
+        t0 = time.time()
+
+        # the tensor stays in memory for the MRSF library when requested
+        # (double precision only: the single-precision writer converts the
+        # array in place); the file is written now or on demand
+        self.stamp = mo_stamp(scf.mol.crds, self.orbs)
+        self.eri_mo = None
+        self.file_written = False
+        if self.precision_2e == 'double' and eri_mo.nbytes <= keep_mem*1.0e9:
+            self.eri_mo = np.ascontiguousarray(eri_mo, dtype=np.float64)
+        _live[self.moint_2e_eri] = self
+        if write_file or self.eri_mo is None:
+            self.write_integrals(eri_mo, self.precision_2e, 
+                                                     self.moint_2e_eri)
+            self.file_written = True
         del(eri_mo)
+        self.times['write'] = time.time() - t0
+        t0 = time.time()
 
         # Construct the core Hamiltonian
         one_nuc_ao = scf.mol.pymol().intor('int1e_nuc')
@@ -94,12 +150,53 @@ class Ao2mo:
         # and write to file
         h1_mo = np.matmul(np.matmul(self.orbs.T, hcore_ao), self.orbs)
         self.write_integrals(h1_mo, 'double', self.moint_1e)
-        #with h5py.File(self.moint_1e, 'w') as f:
-        #    f['hcore_mo'] = h1_mo
 
-        self.load_bitci(scf)
+        self.times['1e'] = time.time() - t0
+        t0 = time.time()
+        self.bitci_loaded = False
+        if load_bitci:
+            self.load_bitci(scf)
+        self.times['bitci'] = time.time() - t0
+        if scf.verbose:
+            import graci.io.output as output
+            output.print_message('MO integrals: ' + self.times['source']
+                                 + ', transformation {:.2f} s, file {:.2f} s, 1e {:.2f} s, bitci {:.2f} s'.format(
+                                     self.times['transform'], self.times['write'], self.times['1e'], self.times['bitci'])
+                                 + (' (tensor kept in memory)' if self.eri_mo is not None else ''))
 
         return
+
+    #
+    def transform_df(self, cderi):
+        """packed MO tensor (naux, nmo(nmo+1)/2) from the packed AO DF
+        tensor cderi (naux, nao(nao+1)/2) of the SCF, in blocks of
+        auxiliary functions (PySCF's C transformation, s2 -> s2)"""
+        from pyscf.ao2mo import _ao2mo
+        naux = cderi.shape[0]
+        nmo = self.orbs.shape[1]
+        out = np.empty((naux, nmo*(nmo+1)//2), dtype=np.float64)
+        blk = max(1, int(2.0e8 // (8*max(cderi.shape[1], out.shape[1]))))
+        for p0, p1 in lib.prange(0, naux, blk):
+            _ao2mo.nr_e2(np.ascontiguousarray(cderi[p0:p1]), self.orbs, (0, nmo, 0, nmo),
+                         aosym='s2', mosym='s2', out=out[p0:p1])
+        return out
+
+    #
+    def write_file(self):
+        """write the 2-e integral file from the tensor held in memory"""
+        if self.file_written or self.eri_mo is None:
+            return
+        self.write_integrals(self.eri_mo, self.precision_2e, self.moint_2e_eri)
+        self.file_written = True
+
+    #
+    def release(self):
+        """drop the tensor held in memory (the file is written first if
+        it has not been)"""
+        self.write_file()
+        self.eri_mo = None
+        if _live.get(self.moint_2e_eri) is self:
+            del _live[self.moint_2e_eri]
 
     #
     def load_bitci(self, scf):
@@ -108,6 +205,8 @@ class Ao2mo:
         """
 
         self.load_scf(scf)
+        ensure_file(self.moint_2e_eri)
+        self.bitci_loaded = True
 
         libs.lib_func('bitci_int_finalize', [])
         if scf.mol.use_df:

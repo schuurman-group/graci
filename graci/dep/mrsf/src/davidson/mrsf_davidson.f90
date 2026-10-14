@@ -25,31 +25,40 @@ contains
 !   nextra : additional tracked roots
 !   maxvec : maximum subspace dimension (raised to >= 2*nsolve)
 !   tol    : convergence threshold on the residual norm
-!   ener   : eigenvalues (omega, relative to the reference energy)
-!   vecs   : compressed eigenvectors
+!   nguess : start vectors supplied in the first nguess columns of vecs
+!            (warm start: the vectors of a previous geometry aligned to
+!            the present MOs, in the compressed layout); they are masked,
+!            orthonormalised, wrong-irrep/dependent ones dropped, at most
+!            nsolve kept, and the block is completed with unit vectors on
+!            the lowest active diagonal entries not yet represented
+!   ener   : eigenvalues (omega, relative to the reference energy) of the
+!            nvec_out = nsolve tracked roots (the first nroots converged)
+!   vecs   : compressed Ritz vectors of the nvec_out tracked roots
 !   iconv  : 1 if converged, 0 otherwise
 !######################################################################
   subroutine davidson_solve(mult, irrep, nroots, nextra, maxvec_in, maxiter, tol, &
-       precond, inner_iter, ener, vecs, niter, iconv)
+       precond, inner_iter, nguess, ener, vecs, nvec_out, niter, iconv)
 
     integer(is), intent(in)    :: mult, irrep, nextra, maxvec_in, maxiter
-    integer(is), intent(in)    :: precond, inner_iter
+    integer(is), intent(in)    :: precond, inner_iter, nguess
     integer(is), intent(inout) :: nroots
     real(dp), intent(in)       :: tol
-    real(dp), intent(out)      :: ener(*), vecs(xdim_tot,*)
-    integer(is), intent(out)   :: niter, iconv
+    real(dp), intent(out)      :: ener(*)
+    real(dp), intent(inout)    :: vecs(xdim_tot,*)
+    integer(is), intent(out)   :: nvec_out, niter, iconv
 
-    integer(is), allocatable :: act(:), idx(:), cols(:)
+    integer(is), allocatable :: act(:), cols(:)
     real(dp), allocatable    :: d(:), V(:,:), AV(:,:), G(:,:), Gc(:,:), theta(:), work(:)
     real(dp), allocatable    :: R(:,:), AR(:,:), res(:,:), rnorm(:), dnew(:,:), ovl(:,:)
-    real(dp), allocatable    :: dtmp(:)
-    integer(is)              :: nact, nsolve, maxvec, currdim, ist, iend, nnew, nkept
+    real(dp), allocatable    :: dtmp(:), gvec(:), govl(:,:)
+    integer(is)              :: nact, nsolve, maxvec, currdim, ist, iend, nnew, nkept, ngacc
     integer(is)              :: ia, a, i, k, l, iter, lwork, info, kmin, ndim, ninner_tot
-    real(dp)                 :: denom, rmax, dnorm, proj, dmin
+    real(dp)                 :: denom, rmax, dnorm, proj, dmin, gnorm
     logical                  :: collapsed, use_inner
 
     iconv = 0
     niter = 0
+    nvec_out = 0
     ndim  = xdim_tot
     ! the Jacobi-Davidson correction with the kernel-free operator pays
     ! off only where the exact operator carries the CV kernel
@@ -79,7 +88,7 @@ contains
 
     allocate(d(ndim), V(ndim,maxvec), AV(ndim,maxvec), G(maxvec,maxvec), Gc(maxvec,maxvec))
     allocate(theta(maxvec), R(ndim,nsolve), AR(ndim,nsolve), res(ndim,nsolve))
-    allocate(rnorm(nsolve), dnew(ndim,nsolve), ovl(maxvec,nsolve), dtmp(nact), idx(nsolve), cols(nsolve))
+    allocate(rnorm(nsolve), dnew(ndim,nsolve), ovl(maxvec,nsolve), dtmp(nact), cols(nsolve))
     V = 0.0_dp; AV = 0.0_dp; G = 0.0_dp
 
     ! diagonal and preconditioner
@@ -88,23 +97,66 @@ contains
        if (slot_irrep(ia) /= irrep .and. irrep >= 0) d(ia) = 1.0e20_dp
     enddo
 
-    ! guess: unit vectors on the lowest active diagonal elements
+    ! start vectors: (1) the supplied guess vectors (warm start), masked
+    ! for this multiplicity/irrep, orthonormalised, the empty or dependent
+    ! ones dropped, at most nsolve kept
+    ngacc = 0
+    allocate(gvec(ndim))
+    do k = 1, nguess
+       if (ngacc == nsolve) exit
+       gvec = vecs(:,k)
+       call apply_mask(mult, irrep, 1_is, gvec)
+       gnorm = sqrt(dot_product(gvec, gvec))
+       if (gnorm < 1.0e-3_dp) cycle
+       gvec = gvec / gnorm
+       do l = 1, 2
+          do i = 1, ngacc
+             proj = dot_product(V(:,i), gvec)
+             gvec = gvec - proj * V(:,i)
+          enddo
+       enddo
+       gnorm = sqrt(dot_product(gvec, gvec))
+       if (gnorm < 1.0e-6_dp) cycle
+       ngacc = ngacc + 1
+       V(:,ngacc) = gvec / gnorm
+    enddo
+    ! (2) unit vectors on the lowest active diagonal elements, skipping
+    ! the slots already represented by the guess block
     do k = 1, nact
        dtmp(k) = d(act(k))
     enddo
-    do k = 1, nsolve
-       kmin = 1
-       dmin = dtmp(1)
-       do l = 2, nact
+    k = ngacc
+    do while (k < nsolve)
+       kmin = 0
+       dmin = huge(1.0_dp)
+       do l = 1, nact
           if (dtmp(l) < dmin) then
              dmin = dtmp(l)
              kmin = l
           endif
        enddo
-       idx(k) = act(kmin)
+       if (kmin == 0) exit
        dtmp(kmin) = huge(1.0_dp)
-       V(idx(k),k) = 1.0_dp
+       gvec = 0.0_dp
+       gvec(act(kmin)) = 1.0_dp
+       do i = 1, k
+          proj = dot_product(V(:,i), gvec)
+          gvec = gvec - proj * V(:,i)
+       enddo
+       gnorm = sqrt(dot_product(gvec, gvec))
+       if (gnorm < 0.5_dp) cycle
+       k = k + 1
+       V(:,k) = gvec / gnorm
     enddo
+    if (k < nsolve) then
+       ! the active space is too small to hold nsolve orthonormal vectors
+       nsolve = k
+       nroots = min(nroots, nsolve)
+    endif
+    if (ngacc > 0) then
+       allocate(govl(ngacc,nsolve))
+       govl = 0.0_dp
+    endif
 
     ! LAPACK workspace
     lwork = max(1_is, 3*maxvec + 64)
@@ -113,12 +165,20 @@ contains
     if (verbose) then
        write(6,'(/,2x,a,i0,a,i0,a,i0,a,i0)') 'Davidson: mult = ', mult, &
             ', irrep = ', irrep, ', active dim = ', nact, ', roots = ', nroots
+       if (nguess > 0) write(6,'(2x,a,i0,a,i0,a)') 'warm start: ', ngacc, ' of ', nguess, &
+            ' supplied vectors accepted as start vectors'
        write(6,'(2x,a)') ' iter   dim   max|r|         lowest eigenvalues'
     endif
 
     currdim = nsolve
     ist = 1
     iend = nsolve
+    ! keep the accepted guess block for the overlap diagnostic
+    if (ngacc > 0) then
+       deallocate(gvec)
+       allocate(gvec(ndim*ngacc))
+       gvec = reshape(V(:,1:ngacc), (/ ndim*ngacc /))
+    endif
 
     do iter = 1, maxiter
        niter = iter
@@ -232,8 +292,9 @@ contains
        currdim = iend
     enddo
 
-    ener(1:nroots) = theta(1:nroots)
-    vecs(1:ndim,1:nroots) = R(:,1:nroots)
+    nvec_out = nsolve
+    ener(1:nsolve) = theta(1:nsolve)
+    vecs(1:ndim,1:nsolve) = R(:,1:nsolve)
 
     if (verbose) then
        if (iconv == 1) then
@@ -243,9 +304,16 @@ contains
        endif
        if (use_inner) write(6,'(2x,a,i0,a)') 'inner correction equations: ', ninner_tot, &
             ' kernel-free operator applications'
+       if (ngacc > 0) then
+          ! norm of the projection of each converged root on the guess span
+          call dgemm('T','N', ngacc, nsolve, ndim, 1.0_dp, gvec, ndim, R, ndim, 0.0_dp, govl, ngacc)
+          write(6,'(2x,a,8f8.4)') 'warm start: |P_guess R_j| per root: ', &
+               (sqrt(dot_product(govl(:,k), govl(:,k))), k = 1, min(nroots, 8_is))
+       endif
     endif
 
-    deallocate(act, idx, d, V, AV, G, Gc, theta, work, R, AR, res, rnorm, dnew, ovl, dtmp, cols)
+    deallocate(act, d, V, AV, G, Gc, theta, work, R, AR, res, rnorm, dnew, ovl, dtmp, cols, gvec)
+    if (allocated(govl)) deallocate(govl)
 
   end subroutine davidson_solve
 

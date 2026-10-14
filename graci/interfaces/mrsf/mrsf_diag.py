@@ -3,15 +3,19 @@ Module for the Davidson diagonalisation of the MRSF-TDDFT response
 matrix
 """
 
+import sys
 import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
 
 @timing.timed
-def diag(ci_method, irrep):
+def diag(ci_method, irrep, guess=None):
     """
     Compute the lowest ci_method.nstates[irrep] roots of the
-    ci_method.mult manifold in the irrep 'irrep' (PySCF irrep id)
+    ci_method.mult manifold in the irrep 'irrep' (PySCF irrep id).
+    guess: optional (xdim, nguess) array of start vectors (compressed
+    layout, already aligned to the present MOs, any irrep content: the
+    library masks them and drops the empty ones)
 
     Returns:
         nroots : number of roots actually computed
@@ -19,6 +23,8 @@ def diag(ci_method, irrep):
         xvec   : compressed amplitude vectors, shape (xdim, nroots)
         niter  : number of Davidson iterations
         iconv  : 1 if converged, 0 otherwise
+        tracked: (ener_all, xvec_all) of all nroots + nextra tracked roots
+                 (start vectors of the next geometry)
     """
 
     nroots = int(ci_method.nstates[irrep])
@@ -33,15 +39,22 @@ def diag(ci_method, irrep):
     precond = {'diag': 1, 'inner': 2}[str(ci_method.precond).lower()]
     inner   = int(ci_method.inner_iter)
 
-    ener = np.zeros(nroots, dtype=float)
-    xvec = np.zeros(xdim*nroots, dtype=float)
+    nguess = 0 if guess is None else int(np.shape(guess)[1])
+    ncols  = max(nroots + nextra, nguess, 1)
+    ener = np.zeros(ncols, dtype=float)
+    xvec = np.zeros((xdim, ncols), dtype=np.float64, order='F')
+    if nguess > 0:
+        if np.shape(guess)[0] != xdim:
+            sys.exit('mrsf_diag: the guess vectors have the wrong dimension')
+        xvec[:, :nguess] = guess
 
     args = (irrep, mult, nroots, nextra, maxvec, maxit, tol, precond, inner,
-            xdim, ener, xvec, 0, 0)
-    nroots_out, ener, xvec, niter, iconv = libs.lib_func('mrsf_diag', args)
+            nguess, xdim, ener, xvec, 0, 0, 0)
+    nroots_out, ener, xvec, nvec_out, niter, iconv = libs.lib_func('mrsf_diag', args)
 
     nroots_out = int(nroots_out)
-    xvec = np.reshape(xvec, (xdim, nroots), order='F')
+    nvec_out   = int(nvec_out)
+    xvec = np.array(xvec)
 
     return nroots_out, ener[:nroots_out], xvec[:, :nroots_out], \
-           int(niter), int(iconv)
+           int(niter), int(iconv), (np.array(ener[:nvec_out]), xvec[:, :nvec_out])

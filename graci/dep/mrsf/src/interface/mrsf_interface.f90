@@ -133,24 +133,51 @@ contains
 !######################################################################
 ! mrsf_int_initialise
 !######################################################################
-  subroutine mrsf_int_initialise(method1, prec1, erifile1, vvstore1, membudget1) &
+  subroutine mrsf_int_initialise(method1, prec1, erifile1, vvstore1, membudget1, stamp1) &
        bind(c, name='mrsf_int_initialise')
 
-    character(kind=c_char), intent(in) :: method1(*), prec1(*), erifile1(*), vvstore1(*)
+    character(kind=c_char), intent(in) :: method1(*), prec1(*), erifile1(*), vvstore1(*), stamp1(*)
     real(dp), intent(in)               :: membudget1
-    character(len=255)                 :: method, prec, erifile, vvstore
+    character(len=255)                 :: method, prec, erifile, vvstore, stamp
 
     call c2fstr(method1, method)
     call c2fstr(prec1, prec)
     call c2fstr(erifile1, erifile)
     call c2fstr(vvstore1, vvstore)
+    call c2fstr(stamp1, stamp)
 
     if (trim(method) /= 'df') call mrsf_error('only density-fitted integrals are supported')
     mem_budget = membudget1 * 1.0e9_dp
 
-    call load_df_file(erifile, prec, vvstore, mem_budget)
+    call load_df_file(erifile, prec, vvstore, mem_budget, stamp)
 
   end subroutine mrsf_int_initialise
+
+!######################################################################
+! mrsf_int_load_mem: ingestion of the packed DF tensor from memory
+! (double precision): B1 is the (naux, npair) C-ordered NumPy array of
+! graci.core.ao2mo seen as the F-contiguous (npair, naux) matrix; the
+! file name and the stamp (hash of geometry and MOs) form the reuse key
+! as for the file path
+!######################################################################
+  subroutine mrsf_int_load_mem(prec1, erifile1, vvstore1, membudget1, stamp1, naux1, npair1, B1) &
+       bind(c, name='mrsf_int_load_mem')
+
+    character(kind=c_char), intent(in) :: prec1(*), erifile1(*), vvstore1(*), stamp1(*)
+    real(dp), intent(in)               :: membudget1
+    integer(is), intent(in)            :: naux1, npair1
+    real(dp), intent(in)               :: B1(npair1, naux1)
+    character(len=255)                 :: prec, erifile, vvstore, stamp
+
+    call c2fstr(prec1, prec)
+    call c2fstr(erifile1, erifile)
+    call c2fstr(vvstore1, vvstore)
+    call c2fstr(stamp1, stamp)
+    mem_budget = membudget1 * 1.0e9_dp
+
+    call load_df_mem(erifile, prec, vvstore, mem_budget, stamp, naux1, npair1, B1)
+
+  end subroutine mrsf_int_load_mem
 
 !######################################################################
 ! mrsf_ext_initialise: extended method data (after mrsf_int_initialise
@@ -206,14 +233,15 @@ contains
 ! mrsf_diag: Davidson diagonalisation for one (irrep, mult) block
 !######################################################################
   subroutine mrsf_diag(irrep1, imult1, nroots1, nextra1, maxvec1, maxiter1, tol1, &
-       precond1, inner1, xdim1, ener1, xvec1, niter1, iconv1) bind(c, name='mrsf_diag')
+       precond1, inner1, nguess1, xdim1, ener1, xvec1, nvec1, niter1, iconv1) bind(c, name='mrsf_diag')
 
     integer(is), intent(in)    :: irrep1, imult1, nextra1, maxvec1, maxiter1, xdim1
-    integer(is), intent(in)    :: precond1, inner1
+    integer(is), intent(in)    :: precond1, inner1, nguess1
     integer(is), intent(inout) :: nroots1
     real(dp), intent(in)       :: tol1
-    real(dp), intent(out)      :: ener1(*), xvec1(*)
-    integer(is), intent(out)   :: niter1, iconv1
+    real(dp), intent(out)      :: ener1(*)
+    real(dp), intent(inout)    :: xvec1(*)
+    integer(is), intent(out)   :: nvec1, niter1, iconv1
     real(dp)                   :: t0
 
     if (xdim1 /= xdim_tot) call mrsf_error('mrsf_diag: inconsistent xdim')
@@ -223,7 +251,7 @@ contains
 
     t0 = wall_time()
     call davidson_solve(imult1, irrep1, nroots1, nextra1, maxvec1, maxiter1, tol1, &
-         precond1, max(inner1, 1_is), ener1, xvec1, niter1, iconv1)
+         precond1, max(inner1, 1_is), max(nguess1, 0_is), ener1, xvec1, nvec1, niter1, iconv1)
     if (verbose) write(6,'(2x,a,f10.2,a,/)') 'Davidson time: ', wall_time()-t0, ' s'
 
   end subroutine mrsf_diag

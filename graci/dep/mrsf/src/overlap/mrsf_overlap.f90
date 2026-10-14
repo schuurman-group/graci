@@ -1848,6 +1848,133 @@ contains
 
   end subroutine align_ket_ext
 
+!######################################################################
+! align_vectors: warm-start transformation of vectors of a previous
+! geometry (ket: MOs Ck) to the present one (bra: MOs Cb). The ket MOs
+! are aligned to the bra MOs within the classes (align_ket, or
+! align_ket_ext when ext = 1: SOMO pair sign-aligned only) from M =
+! Cb^T Sao Ck, and the nk vectors xk (compressed layout, ncolk columns,
+! particle fastest) are transformed in place:
+!   mode 0 (amplitudes): expand -> X~ <- sgn_o Up^T X~ Uh (CV columns
+!          Y <- U_V^T Y U_C) -> fold back to the compressed layout
+!   mode 1 (Z-vector-type matrices Z(nvirb,nocca), O-O block zero):
+!          Z <- Up^T Z Uh (no reference sign, no expand/fold)
+! dmin(3): smallest diagonal element of the aligned MO overlap matrix
+! within the core, SOMO and virtual classes (1 = identical MOs);
+! ierr: 0 ok, 1 class mismatch, 4 SVD failure, 5 SOMO pair rotated or
+! swapped (ext = 1 only, warning), 8 invalid column count
+!######################################################################
+  subroutine align_vectors(nao_b, nao_k, nmo, occ_b, occ_k, mult, ext, mode, nk, ncolk, &
+       Cb, Ck, Sao, xk, dmin, ierr)
+
+    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, ext, mode, nk, ncolk
+    real(dp), intent(in)     :: occ_b(nmo), occ_k(nmo), Cb(nao_b,nmo), Ck(nao_k,nmo), Sao(nao_b,nao_k)
+    real(dp), intent(inout)  :: xk(*)
+    real(dp), intent(out)    :: dmin(3)
+    integer(is), intent(out) :: ierr
+
+    integer(is), allocatable :: hb(:), pb(:), hk(:), pk(:)
+    real(dp), allocatable    :: M(:,:), tmp(:,:), Uh(:,:), Up(:,:), Xe(:,:), Xt(:,:), Yt(:,:)
+    integer(is) :: ncb, nvb, nck, nvk, io1b, io2b, io1k, io2k, nocca, nvirb, nclk, nv, nc, info, v, i0, jl, i
+    real(dp)    :: sgn_o, offdiag, xoo
+
+    ierr = 0
+    dmin = 0.0_dp
+    call classify_orbitals(nmo, occ_b, ncb, nvb, hb, pb, io1b, io2b)
+    call classify_orbitals(nmo, occ_k, nck, nvk, hk, pk, io1k, io2k)
+    if (ncb /= nck .or. nvb /= nvk) then
+       ierr = 1
+       deallocate(hb, pb, hk, pk)
+       return
+    endif
+    nc = ncb
+    nocca = nc + 2
+    nvirb = nvb + 2
+    nv = nvb
+    nclk = ncolk
+    if (nclk == 0) nclk = nocca
+    if (nclk /= nocca .and. nclk /= nocca + nc) then
+       ierr = 8
+       deallocate(hb, pb, hk, pk)
+       return
+    endif
+
+    ! MO overlap matrix (bra rows, ket columns) and the class alignment
+    allocate(M(nmo,nmo), tmp(nao_b,nmo), Uh(nocca,nocca), Up(nvirb,nvirb))
+    call dgemm('N','N', nao_b, nmo, nao_k, 1.0_dp, Sao, nao_b, Ck, nao_k, 0.0_dp, tmp, nao_b)
+    call dgemm('T','N', nmo, nmo, nao_b, 1.0_dp, Cb, nao_b, tmp, nao_b, 0.0_dp, M, nmo)
+    deallocate(tmp)
+    if (ext == 1) then
+       call align_ket_ext(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, offdiag, info)
+    else
+       call align_ket(nmo, nc, nocca, nvirb, hb, pb, hk, pk, M, Uh, Up, sgn_o, info)
+       offdiag = 0.0_dp
+    endif
+    if (info /= 0) then
+       ierr = 4
+       deallocate(M, Uh, Up, hb, pb, hk, pk)
+       return
+    endif
+    if (ext == 1 .and. offdiag > 0.2_dp) ierr = 5
+    if (mode == 1) sgn_o = 1.0_dp
+
+    ! similarity diagnostic: smallest aligned diagonal overlap per class
+    dmin = huge(1.0_dp)
+    do i = 1, nc
+       dmin(1) = min(dmin(1), abs(M(hb(i), hk(i))))
+    enddo
+    do i = nc+1, nc+2
+       dmin(2) = min(dmin(2), abs(M(hb(i), hk(i))))
+    enddo
+    do i = 3, nvirb
+       dmin(3) = min(dmin(3), abs(M(pb(i), pk(i))))
+    enddo
+    if (nc == 0) dmin(1) = 1.0_dp
+    if (nv == 0) dmin(3) = 1.0_dp
+
+    ! transform the vectors in place
+    allocate(Xe(nvirb,nocca), Xt(nvirb,nocca))
+    if (nclk > nocca) allocate(Yt(nv,nc))
+    do v = 1, nk
+       i0 = nvirb*nclk*(v-1)
+       if (mode == 0) then
+          call expand_one(nc, nvirb, nocca, mult, xk(i0+1), Xe)
+       else
+          Xe = reshape(xk(i0+1:i0+nvirb*nocca), (/ nvirb, nocca /))
+       endif
+       call dgemm('T','N', nvirb, nocca, nvirb, sgn_o, Up, nvirb, Xe, nvirb, 0.0_dp, Xt, nvirb)
+       call dgemm('N','N', nvirb, nocca, nocca, 1.0_dp, Xt, nvirb, Uh, nocca, 0.0_dp, Xe, nvirb)
+       if (mode == 0) then
+          ! fold back: x_OO = (X~(1,hO1) -/+ X~(2,hO2))/sqrt2, redundant slots zeroed
+          xoo = Xe(1,nc+1)
+          if (mult == 1) then
+             Xe(1,nc+1) = (xoo - Xe(2,nc+2)) * isqrt2
+          else
+             Xe(1,nc+1) = (xoo + Xe(2,nc+2)) * isqrt2
+             Xe(1,nc+2) = 0.0_dp
+             Xe(2,nc+1) = 0.0_dp
+          endif
+          Xe(2,nc+2) = 0.0_dp
+       endif
+       xk(i0+1:i0+nvirb*nocca) = reshape(Xe, (/ nvirb*nocca /))
+       if (nclk > nocca .and. mode == 0) then
+          ! CV amplitudes: Y <- U_V^T Y U_C (rows 3:nvirb of the last nc columns)
+          do jl = 1, nc
+             Yt(:,jl) = xk(i0 + nvirb*(nocca+jl-1) + 3 : i0 + nvirb*(nocca+jl))
+          enddo
+          call dgemm('T','N', nv, nc, nv, 1.0_dp, Up(3,3), nvirb, Yt, nv, 0.0_dp, Xt, nv)
+          call dgemm('N','N', nv, nc, nc, 1.0_dp, Xt, nv, Uh, nocca, 0.0_dp, Yt, nv)
+          do jl = 1, nc
+             xk(i0 + nvirb*(nocca+jl-1) + 1 : i0 + nvirb*(nocca+jl-1) + 2) = 0.0_dp
+             xk(i0 + nvirb*(nocca+jl-1) + 3 : i0 + nvirb*(nocca+jl)) = Yt(:,jl)
+          enddo
+       endif
+    enddo
+    deallocate(Xe, Xt, M, Uh, Up, hb, pb, hk, pk)
+    if (allocated(Yt)) deallocate(Yt)
+
+  end subroutine align_vectors
+
 end module mrsf_overlap
 
 !**********************************************************************
@@ -1872,5 +1999,16 @@ contains
     call state_overlap(nao_b, nao_k, nmo, occ_b, occ_k, mult, method, align, nb, nk, ncolb, ncolk, Cb, Ck, Sao, &
          xb, xk, S, ierr)
   end subroutine mrsf_state_overlap_c
+
+  subroutine mrsf_align_vectors_c(nao_b, nao_k, nmo, occ_b, occ_k, mult, ext, mode, nk, ncolk, &
+       Cb, Ck, Sao, xk, dmin, ierr) bind(c, name='mrsf_align_vectors')
+    integer(is), intent(in)  :: nao_b, nao_k, nmo, mult, ext, mode, nk, ncolk
+    real(dp), intent(in)     :: occ_b(*), occ_k(*), Cb(*), Ck(*), Sao(*)
+    real(dp), intent(inout)  :: xk(*)
+    real(dp), intent(out)    :: dmin(3)
+    integer(is), intent(out) :: ierr
+    call align_vectors(nao_b, nao_k, nmo, occ_b, occ_k, mult, ext, mode, nk, ncolk, Cb, Ck, Sao, &
+         xk, dmin, ierr)
+  end subroutine mrsf_align_vectors_c
 
 end module mrsf_overlap_interface

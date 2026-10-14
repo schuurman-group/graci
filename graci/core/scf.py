@@ -15,12 +15,16 @@ import graci.io.output as output
 import graci.utils.timing as timing
 import graci.core.solvents as solvents
 import graci.core.functionals as functionals
+import graci.interfaces.scf.scf_native as scf_native
 from pyscf import gto, scf, dft, symm, df
 from pyscf.tools import molden
 from pyscf.scf import stability
 
 # cache of rebuilt PySCF objects (never stored on the Scf objects themselves)
 _pyscf_cache = {}
+# the packed AO DF tensor of the last SCF run per label (geometry hash,
+# array): reused by the MO integral transformation of the same geometry
+_df_cache = {}
 
 class Scf:
     """Class constructor for SCF object"""
@@ -44,12 +48,20 @@ class Scf:
         self.grid_level     = 2
         self.x2c            = False
         self.conv_tol       = 1e-8
+        # orbital-gradient convergence threshold (None: PySCF's default,
+        # sqrt(conv_tol)); a tighter value removes the orbital noise that
+        # limits the reproducibility of post-SCF energies and gradients
+        self.conv_tol_grad  = None
         self.cosmo          = False
         self.solvent        = None
         self.mol_label      = 'default'
         self.guess_label    = None
         self.direct_scf     = True
         self.chk_stable     = [False, False]
+        # SCF engine: 'pyscf' or 'native' (GRaCI's libscf)
+        self.backend        = 'pyscf'
+        # memory (GB) for the AO-value cache of the native backend
+        self.mem_budget     = 2.0
         
         # computed quantities
         self.mol          = None 
@@ -71,6 +83,8 @@ class Scf:
         # (omega, alpha, hyb) range-separation/hybrid coefficients of the
         # functional in the PySCF convention; (0., 0., 1.) for HF
         self.hyb          = None
+        # native backend: cycles, final gradient norm, timings
+        self.scf_info     = None
 
         # class variables
         self.valid_grids  = ['sg1_prune']
@@ -98,6 +112,13 @@ class Scf:
     def run(self, mol, guess):
         """compute the DFT energy and KS orbitals"""
         
+        # a new SCF run of this label replaces the cached PySCF objects
+        # and DF tensor of the previous one (they would accumulate over
+        # the steps of a dynamics run)
+        for key in [k for k in _pyscf_cache if k[0] == self.label]:
+            del _pyscf_cache[key]
+        _df_cache.pop(self.label, None)
+
         # set the GRaCI mol object
         self.mol = mol
        
@@ -141,24 +162,50 @@ class Scf:
             self.auxbasis = self.mol.ri_basis
 
         # run the SCF calculation
-        scf_pyscf = self.run_pyscf(pymol, guess)
-        if scf_pyscf is None:
-            return None       
- 
-        # extract orbitals, occupations and energies
-        self.orbs      = scf_pyscf.mo_coeff
-        
-        # orb_occ are the MO occupation numbers
-        self.orb_occ   = scf_pyscf.mo_occ
-        # orb_ener is the array of MO energies
-        self.orb_ener  = scf_pyscf.mo_energy
+        backend = str(self.backend).lower()
+        if backend not in ('pyscf', 'native'):
+            sys.exit('\n $scf backend = '+str(self.backend)+
+                     ' not recognised (pyscf | native)\n')
+
+        if backend == 'native':
+            # catch the use of XC functional aliases
+            try:
+                self.xc = functionals.aliases[self.xc.lower()]
+            except:
+                pass
+            res = scf_native.run(self, pymol, guess)
+            self.scf_info = res['info']
+            if not res['converged']:
+                if self.verbose:
+                    output.print_message('native SCF not converged in '+
+                                         str(self.scf_info['cycles'])+' cycles')
+                return None
+            self.energy    = res['e_tot']
+            self.orbs      = self.phase_convention(res['mo_coeff'])
+            self.orb_occ   = res['mo_occ']
+            self.orb_ener  = res['mo_energy']
+            self.nmo       = len(self.orb_occ)
+            self.naux      = res['naux']
+            _df_cache[self.label] = (self.geom_hash(), res['cderi'])
+        else:
+            scf_pyscf = self.run_pyscf(pymol, guess)
+            if scf_pyscf is None:
+                return None
+
+            # extract orbitals, occupations and energies
+            self.orbs      = scf_pyscf.mo_coeff
+            # orb_occ are the MO occupation numbers
+            self.orb_occ   = scf_pyscf.mo_occ
+            # orb_ener is the array of MO energies
+            self.orb_ener  = scf_pyscf.mo_energy
+            # number of MOs
+            self.nmo       = len(scf_pyscf.mo_occ)
+            # number of auxiliary AOs
+            if (self.mol.use_df and hasattr(scf_pyscf, 'with_df')):
+                self.naux  = int(scf_pyscf.with_df.auxmol.nao_nr())
+
         # number of electrons
         self.nel       = pymol.nelectron
-        # number of MOs
-        self.nmo       = len(scf_pyscf.mo_occ)
-        # number of auxiliary AOs
-        if (self.mol.use_df and hasattr(scf_pyscf, 'with_df')):
-            self.naux  = int(scf_pyscf.with_df.auxmol.nao_nr())
 
         # orb_sym are the symmetry labels 
         if pymol.symmetry:
@@ -177,8 +224,12 @@ class Scf:
         occmos = self.orbs[:,self.orb_occ>0]
         self.rdm_ao = occmos @ np.diag(self.orb_occ[self.orb_occ>0]) @ occmos.T 
 
-        # alpha/beta spin Fock matrices and hybrid coefficients
-        self.fock_ao, self.hyb = self.spin_fock(scf_pyscf)
+        # alpha/beta spin Fock matrices and hybrid coefficients (the
+        # native backend returns them at the final density)
+        if backend == 'native':
+            self.fock_ao, self.hyb = res['fock_ao'], res['hyb']
+        else:
+            self.fock_ao, self.hyb = self.spin_fock(scf_pyscf)
 
         # print the summary of the output to file
         if self.verbose:
@@ -328,6 +379,8 @@ class Scf:
 
         # convergence threshold
         mf.conv_tol = self.conv_tol
+        if self.conv_tol_grad is not None:
+            mf.conv_tol_grad = float(self.conv_tol_grad)
             
         # set the integral file names
         #if hasattr(mf, 'with_df'):
@@ -446,17 +499,44 @@ class Scf:
                      'after ' + str(chk_iter) + ' attempts. Continuing')
                 #return None 
 
-        # MO phase convention: positive dominant coefficients
-        # for degenerate coefficients, pick the first occurrence
-        # N.B. this is essential for diabatisation runs
-        abs_coeff = np.abs(mf.mo_coeff)
+        # MO phase convention
+        mf.mo_coeff = self.phase_convention(mf.mo_coeff)
+
+        # keep the AO DF tensor of the SCF (when PySCF holds it in memory)
+        # for the MO integral transformation of this geometry
+        if self.mol.use_df and hasattr(mf, 'with_df'):
+            cderi = getattr(mf.with_df, '_cderi', None)
+            if isinstance(cderi, np.ndarray):
+                _df_cache[self.label] = (self.geom_hash(), cderi)
+
+        return mf
+
+    #
+    def phase_convention(self, mo_coeff):
+        """MO phase convention: positive dominant coefficients; for
+        degenerate coefficients, the first occurrence (essential for
+        diabatisation runs)"""
+        abs_coeff = np.abs(mo_coeff)
         max_abs   = abs_coeff.max(axis=0, keepdims=True)
         # argmax on a boolean array returns the index of the first True
         indx      = (abs_coeff > max_abs - 1e-6).argmax(axis=0)
-        dominant  = mf.mo_coeff[indx, np.arange(mf.mo_coeff.shape[1])]
-        mf.mo_coeff *= np.where(dominant < 0., -1.0, 1.0)
+        dominant  = mo_coeff[indx, np.arange(mo_coeff.shape[1])]
+        return mo_coeff * np.where(dominant < 0., -1.0, 1.0)
 
-        return mf
+    #
+    def geom_hash(self):
+        """hash of the current geometry"""
+        return hashlib.blake2b(np.ascontiguousarray(self.mol.crds, dtype=float).tobytes(),
+                               digest_size=16).hexdigest()
+
+    #
+    def df_tensor(self):
+        """the packed AO DF tensor (naux, nao(nao+1)/2) of the last SCF
+        run of this label at the current geometry, or None"""
+        entry = _df_cache.get(self.label)
+        if entry is None or entry[0] != self.geom_hash():
+            return None
+        return entry[1]
 
     #
     def spin_fock(self, mf):

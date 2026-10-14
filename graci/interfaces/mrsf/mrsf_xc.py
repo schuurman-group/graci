@@ -312,11 +312,8 @@ _live = {'session': None}
 
 
 def _stamp(ci):
-    import hashlib
-    h = hashlib.blake2b(digest_size=16)
-    h.update(np.ascontiguousarray(ci.scf.mol.crds, dtype=float).tobytes())
-    h.update(np.ascontiguousarray(ci.mos, dtype=float).tobytes())
-    return h.hexdigest()
+    from graci.core.ao2mo import mo_stamp
+    return mo_stamp(ci.scf.mol.crds, ci.mos)
 
 
 def get_session(ci, mem_budget, block_bytes=1.0e6):

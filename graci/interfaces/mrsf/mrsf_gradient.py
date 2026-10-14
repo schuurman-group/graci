@@ -43,6 +43,73 @@ def _sym(a):
     return 0.5*(a + a.T)
 
 
+def rotation_pairs(occ):
+    """the Z-vector rotation space of a reference occupation vector (the
+    library order: for q in C: p in O; for q in C: p in V; for q in O: p
+    in V); returns (Rp, Rq) MO indices and the orbital classes"""
+    occ = np.asarray(occ, dtype=float)
+    Cidx = np.where(np.abs(occ - 2.0) < 1e-6)[0]
+    Oidx = np.where(np.abs(occ - 1.0) < 1e-6)[0]
+    Vidx = np.where(np.abs(occ) < 1e-6)[0]
+    R = [(p, q) for q in Cidx for p in Oidx] + [(p, q) for q in Cidx for p in Vidx] \
+        + [(p, q) for q in Oidx for p in Vidx]
+    return np.array([p for p, q in R], int), np.array([q for p, q in R], int), (Cidx, Oidx, Vidx)
+
+
+def align_zvec(grad_old, ci_new, states):
+    """start vectors of the Z-vector equations of the states (0-based
+    adiabatic indices) of ci_new from the Z-vectors of a previous
+    Mrsfgradient object grad_old (another geometry): the Z-vector of the
+    state with the same adiabatic index, as the local (nvirb, nocca) matrix,
+    rotated to the present MOs by the class alignment of the MO overlap
+    blocks (mrsf_overlap.align_vectors, mode 1). Returns the (lzdim, nst)
+    array (zero columns for states without a counterpart) or None."""
+    import graci.interfaces.mrsf.mrsf_overlap as mrsf_overlap
+    from pyscf import gto
+    zold = getattr(grad_old, 'zvec', None)
+    ci_old = getattr(grad_old, 'ci', None)
+    if zold is None or ci_old is None or grad_old.state_list is None:
+        return None
+    for attr in ('mult', 'nmo', 'nocca', 'nvirb', 'nel'):
+        if getattr(ci_old, attr, None) != getattr(ci_new, attr):
+            return None
+    zold = np.asarray(zold)
+    Rp_o, Rq_o, (Co, Oo, Vo) = rotation_pairs(ci_old.occ_ref)
+    Rp_n, Rq_n, (Cn, On, Vn) = rotation_pairs(ci_new.occ_ref)
+    if len(Rp_o) != zold.shape[0] or len(Rp_o) != len(Rp_n):
+        return None
+    Ho, Po = np.concatenate([Co, Oo]), np.concatenate([Oo, Vo])
+    Hn, Pn = np.concatenate([Cn, On]), np.concatenate([On, Vn])
+    Hloc_o = {p: k for k, p in enumerate(Ho)}; Ploc_o = {p: k for k, p in enumerate(Po)}
+    Hloc_n = {p: k for k, p in enumerate(Hn)}; Ploc_n = {p: k for k, p in enumerate(Pn)}
+    nocca, nvirb = len(Hn), len(Pn)
+    old_states = [int(st) for st in np.atleast_1d(grad_old.state_list)]
+    Zloc = np.zeros((nvirb*nocca, len(states)))
+    have = np.zeros(len(states), bool)
+    for k, ist in enumerate(states):
+        if ist not in old_states:
+            continue
+        j = old_states.index(ist)
+        Z = np.zeros((nvirb, nocca))
+        Z[[Ploc_o[p] for p in Rp_o], [Hloc_o[q] for q in Rq_o]] = zold[:, j]
+        Zloc[:, k] = Z.reshape(-1, order='F')
+        have[k] = True
+    if not have.any():
+        return None
+    Sao = gto.intor_cross('int1e_ovlp', ci_new.scf.mol.mol_obj, ci_old.scf.mol.mol_obj)
+    Zloc, dmin, ierr = mrsf_overlap.align_vectors(Sao, ci_new.mos, ci_old.mos, ci_new.occ_ref, ci_old.occ_ref,
+                                                  ci_new.mult, bool(getattr(ci_new, 'extended', False)), 1, Zloc)
+    if ierr in (1, 4, 8):
+        return None
+    z0 = np.zeros((len(Rp_n), len(states)))
+    for k in range(len(states)):
+        if not have[k]:
+            continue
+        Z = Zloc[:, k].reshape(nvirb, nocca, order='F')
+        z0[:, k] = Z[[Ploc_n[p] for p in Rp_n], [Hloc_n[q] for q in Rq_n]]
+    return z0
+
+
 class _XCShim:
     """duck-typed object for pyscf.grad.tduks._contract_xc_kernel"""
     class _Base:
@@ -563,15 +630,21 @@ class GradientDriver:
     def hessian_diag(self):
         return self.hdiag
 
-    def solve_pcg(self, Rmat, tol, maxiter):
+    def solve_pcg(self, Rmat, tol, maxiter, x0=None):
         """block preconditioned conjugate gradients for H z = -R (lockstep,
-        one operator call per iteration for the active vectors)"""
+        one operator call per iteration for the active vectors); x0: start
+        vectors (warm start: the Z-vectors of the previous geometry aligned
+        to the present MOs; one extra operator call for the residual)"""
         n, nvec = Rmat.shape
         b = -Rmat
         d = self.hessian_diag()
         d = np.where(np.abs(d) < 1e-4, np.sign(d + 1e-300)*1e-4, d)
-        x = np.zeros((n, nvec))
-        r = b.copy()
+        if x0 is None:
+            x = np.zeros((n, nvec))
+            r = b.copy()
+        else:
+            x = np.array(x0, dtype=float).reshape(n, nvec)
+            r = b - self.hessian_apply(x)
         zp = r/d[:, None]
         p = zp.copy()
         rz = np.einsum('ik,ik->k', r, zp)
@@ -688,8 +761,9 @@ class GradientDriver:
     # ------------------------------------------------------------------
     # the gradient of a list of states
     # ------------------------------------------------------------------
-    def run(self, states):
-        """states: list of adiabatic state indices (0-based); returns dict"""
+    def run(self, states, zguess=None):
+        """states: list of adiabatic state indices (0-based); zguess: optional
+        (lzdim, nst) start vectors of the Z-vector equations; returns dict"""
         mol, C = self.mol, self.C
         nst = len(states)
         times = {}
@@ -712,8 +786,11 @@ class GradientDriver:
         if self.opt.zvec_solver == 'dense':
             Z, info = self.solve_dense(Rmat)
         else:
-            Z, info = self.solve_pcg(Rmat, self.opt.zvec_tol, self.opt.zvec_iter)
+            Z, info = self.solve_pcg(Rmat, self.opt.zvec_tol, self.opt.zvec_iter, x0=zguess)
         times['zvec'] = time.time() - t0
+        if zguess is not None and self.verbose:
+            output.print_message('  Z-vector warm start: iterations per state: '
+                                 + ' '.join(str(int(n)) for n in info['niter']))
         for k, ist in enumerate(states):
             if not info['converged'][k]:
                 output.print_message('WARNING: Z-vector of state %d not converged (residual %.3e)' %
@@ -806,7 +883,7 @@ class GradientDriver:
         return {'grad': grads, 'grad_ref': self.grad_ref, 'zvec_niter': info['niter'],
                 'zvec_resid': info['resid'], 'zvec_converged': info['converged'],
                 'parts': parts, 'times': times, 'P_ao': P_list, 'zeta_max': zeta_max,
-                'zeta_12': zeta_12, 'somo_gap': somo_gap}
+                'zeta_12': zeta_12, 'somo_gap': somo_gap, 'zvec': np.array(Z)}
 
     def grad_xc_probe(self, Pa_ao, Pb_ao):
         """XC probe term of one state through PySCF's TD-UKS kernel routine

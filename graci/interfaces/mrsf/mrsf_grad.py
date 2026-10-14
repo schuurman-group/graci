@@ -16,8 +16,11 @@ def farr(a):
 
 
 def grad_init(eri_file):
-    """load the hole-particle DF block (second pass over the integral file);
-    returns the error code (0 = ok)"""
+    """load the hole-particle DF block (from the resident blocks of an
+    extended session, else a second pass over the integral file, written
+    on demand); returns the error code (0 = ok)"""
+    import graci.core.ao2mo as ao2mo
+    ao2mo.ensure_file(eri_file)
     return libs.lib_func('mrsf_grad_init', (eri_file, 0))
 
 

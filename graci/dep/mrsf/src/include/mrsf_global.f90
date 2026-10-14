@@ -108,6 +108,7 @@ module mrsf_global
 
   ! key of the currently loaded integrals (for reuse across sections)
   character(len=255)       :: loaded_file = '', loaded_prec = '', loaded_vv = ''
+  character(len=255)       :: loaded_stamp = ''   ! hash of geometry + MOs supplied by Python
   integer(is)              :: loaded_nmo = 0
   real(dp), allocatable    :: loaded_occ(:)
 

@@ -70,6 +70,40 @@ def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align
     return np.array(S), int(ierr)
 
 
+def align_vectors(Sao, Cb, Ck, occ_b, occ_k, mult, ext, mode, xk):
+    """warm-start transformation of the vectors xk (xdim, nk) of a previous
+    geometry (MOs Ck) to the present MOs Cb: the ket MOs are aligned to the
+    bra MOs within the orbital classes (orthogonal Procrustes rotations of
+    the MO overlap blocks; the SOMO pair only sign-aligned when ext) and
+    the vectors are transformed accordingly. mode 0: compressed amplitude
+    vectors (standard or extended layout); mode 1: Z-vector-type matrices
+    in the (nvirb, nocca) layout (no reference sign). Sao (nao_b, nao_k) is
+    the AO overlap matrix between the two geometries. Returns
+    (aligned vectors, dmin (3) = smallest aligned diagonal MO overlap of the
+    core, SOMO and virtual classes, ierr: 0 ok, 1 class mismatch, 4 SVD
+    failure, 5 SOMO pair rotated/swapped (ext, warning), 8 bad dimension)."""
+    Cb = np.asfortranarray(Cb, dtype=np.float64)
+    Ck = np.asfortranarray(Ck, dtype=np.float64)
+    Sao = np.asfortranarray(Sao, dtype=np.float64)
+    xk = np.asfortranarray(np.reshape(xk, (np.shape(xk)[0], -1)), dtype=np.float64).copy(order='F')
+    nao_b, nmo = Cb.shape
+    nao_k = Ck.shape[0]
+    nk = xk.shape[1]
+    occ_b = np.asfortranarray(occ_b, dtype=np.float64)
+    occ_k = np.asfortranarray(occ_k, dtype=np.float64)
+    nC = int(np.sum(np.abs(occ_k - 2.0) < 1.0e-6))
+    nocca, nvirb = nC + 2, nmo - nC
+    ncol = xk.shape[0] // nvirb
+    if xk.shape[0] != ncol*nvirb or ncol not in (nocca, nocca + nC):
+        sys.exit('MRSF warm start: the vectors have ' + str(xk.shape[0]) + ' elements; expected '
+                 + str(nvirb*nocca) + ' (standard) or ' + str(nvirb*(nocca + nC)) + ' (extended)')
+    dmin = np.zeros(3, dtype=np.float64)
+    args = (nao_b, nao_k, nmo, occ_b, occ_k, int(mult), int(bool(ext)), int(mode), nk, ncol,
+            Cb, Ck, Sao, xk, dmin, 0)
+    xk, dmin, ierr = libs.lib_func('mrsf_align_vectors', args)
+    return np.array(xk), np.array(dmin), int(ierr)
+
+
 def overlap(bra, ket, trans_list, method='exact', align=True, rep='adiabatic'):
     """
     <bra_I|ket_J> for all pairs of states in trans_list, a nested list over

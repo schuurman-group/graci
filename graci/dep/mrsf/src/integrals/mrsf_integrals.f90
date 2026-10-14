@@ -26,21 +26,123 @@ module mrsf_integrals
 contains
 
 !######################################################################
-! load_df_file
+! load_df_file: ingestion from the Fortran file written by
+! graci.core.ao2mo; stamp = a hash of the geometry and the MOs supplied
+! by Python, part of the reuse key (a file rewritten under the same
+! name at another geometry is never mistaken for the loaded one)
 !######################################################################
-  subroutine load_df_file(fname, prec, vvstore, budget_bytes)
+  subroutine load_df_file(fname, prec, vvstore, budget_bytes, stamp)
 
-    character(len=*), intent(in) :: fname, prec, vvstore
+    character(len=*), intent(in) :: fname, prec, vvstore, stamp
     real(dp), intent(in)         :: budget_bytes
 
     integer(is)           :: unit, dims(2), nrec, cpr, irec, c0, c1, ncol1
-    integer(is)           :: n_ij, nv_est, p, q, ij
+    integer(is)           :: n_ij
     logical               :: exists
     real(dp), allocatable :: buf(:,:)
     real(sp), allocatable :: buf_sp(:,:)
-    real(dp)              :: t0, gb, rq
+    real(dp)              :: t0
 
     t0 = wall_time()
+    if (load_df_reuse(fname, prec, vvstore, stamp, budget_bytes)) return
+
+    inquire(file=trim(fname), exist=exists)
+    if (.not. exists) call mrsf_error('integral file not found: '//trim(fname))
+
+    ! header: dimensions, number of records, columns per record
+    call freeunit(unit)
+    open(unit, file=trim(fname), form='unformatted', status='old')
+    read(unit) dims(1)
+    read(unit) dims(2)
+    n_ij = dims(2)
+    read(unit) nrec
+    read(unit) cpr
+    call load_df_setup(prec, vvstore, budget_bytes, dims(1), n_ij)
+
+    ! stream the records
+    allocate(buf(naux,cpr))
+    if (store_sp .or. trim(prec) == 'single') allocate(buf_sp(naux,cpr))
+    do irec = 1, nrec
+       c0    = (irec-1)*cpr + 1
+       c1    = min(irec*cpr, n_ij)
+       ncol1 = c1 - c0 + 1
+       if (trim(prec) == 'single') then
+          read(unit) buf_sp(1:naux, 1:ncol1)
+          buf(1:naux,1:ncol1) = real(buf_sp(1:naux,1:ncol1), dp)
+       else
+          read(unit) buf(1:naux, 1:ncol1)
+       endif
+       call scatter_record(c0, ncol1, buf)
+    enddo
+    close(unit)
+    deallocate(buf)
+    if (allocated(buf_sp)) deallocate(buf_sp)
+
+    call load_df_finish(fname, prec, vvstore, stamp, t0)
+
+  end subroutine load_df_file
+
+!######################################################################
+! load_df_mem: ingestion of the packed tensor from memory, B(npair,naux)
+! (the C-ordered (naux, npair) NumPy array of graci.core.ao2mo); column
+! blocks are transposed into the record layout and scattered as the
+! file records are (double precision only)
+!######################################################################
+  subroutine load_df_mem(fname, prec, vvstore, budget_bytes, stamp, naux_in, npair, B)
+
+    character(len=*), intent(in) :: fname, prec, vvstore, stamp
+    real(dp), intent(in)         :: budget_bytes
+    integer(is), intent(in)      :: naux_in, npair
+    real(dp), intent(in)         :: B(npair, naux_in)
+
+    integer(is), parameter :: tile = 64
+    integer(is)            :: ncolblk, c0, c1, ncol1, jt, it, jc, iq
+    real(dp), allocatable  :: buf(:,:)
+    real(dp)               :: t0
+
+    t0 = wall_time()
+    if (load_df_reuse(fname, prec, vvstore, stamp, budget_bytes)) return
+    if (trim(prec) == 'single') call mrsf_error('load_df_mem: the in-memory integral '&
+         //'handoff requires precision = double')
+    call load_df_setup(prec, vvstore, budget_bytes, naux_in, npair)
+
+    ! column blocks of about 64 MB
+    ncolblk = max(64_is, min(npair, int(8.0e6_dp / real(naux,dp), is)))
+    allocate(buf(naux, ncolblk))
+    do c0 = 1, npair, ncolblk
+       c1    = min(c0 + ncolblk - 1, npair)
+       ncol1 = c1 - c0 + 1
+       ! tiled transpose B(c0:c1, :) -> buf(:, 1:ncol1)
+       !$omp parallel do private(jt, it, jc, iq) schedule(dynamic)
+       do jt = 1, ncol1, tile
+          do it = 1, naux, tile
+             do jc = jt, min(jt + tile - 1, ncol1)
+                do iq = it, min(it + tile - 1, naux)
+                   buf(iq, jc) = B(c0 + jc - 1, iq)
+                enddo
+             enddo
+          enddo
+       enddo
+       !$omp end parallel do
+       call scatter_record(c0, ncol1, buf)
+    enddo
+    deallocate(buf)
+
+    call load_df_finish(fname, prec, vvstore, stamp, t0)
+
+  end subroutine load_df_mem
+
+!######################################################################
+! load_df_reuse: exchange-mode selection and the reuse of the loaded
+! integrals when the key (file, stamp, precision, storage, orbital
+! classes) is unchanged: only the Fock-dependent diagonal is rebuilt
+! (and the CV block loaded if newly needed)
+!######################################################################
+  function load_df_reuse(fname, prec, vvstore, stamp, budget_bytes) result(reused)
+
+    character(len=*), intent(in) :: fname, prec, vvstore, stamp
+    real(dp), intent(in)         :: budget_bytes
+    logical                      :: reused
 
     if (.not. init_done) call mrsf_error('mrsf_initialise must be called first')
 
@@ -62,10 +164,8 @@ contains
        endif
     endif
 
-    ! reuse the loaded integrals if the key (file, precision, storage,
-    ! orbital classes) is unchanged: only the Fock-dependent diagonal
-    ! has to be rebuilt (and the CV block loaded if newly needed)
-    if (ints_loaded .and. ints_match(fname, prec, vvstore)) then
+    reused = .false.
+    if (ints_loaded .and. ints_match(fname, prec, vvstore, stamp)) then
        if (verbose) write(6,'(/,2x,a)') 'MRSF integrals already loaded: reusing them'
        call build_diag0()
        if (extended .and. .not. allocated(Bcv)) call load_bcv_pass(fname)
@@ -75,28 +175,32 @@ contains
        else if (etensor_ready) then
           call etensor_free()
        endif
-       return
+       reused = .true.
     endif
 
-    inquire(file=trim(fname), exist=exists)
-    if (.not. exists) call mrsf_error('integral file not found: '//trim(fname))
+  end function load_df_reuse
+
+!######################################################################
+! load_df_setup: storage flags, dimensions, block structure, pair
+! tables and the allocation of the integral arrays
+!######################################################################
+  subroutine load_df_setup(prec, vvstore, budget_bytes, naux_in, n_ij)
+
+    character(len=*), intent(in) :: prec, vvstore
+    real(dp), intent(in)         :: budget_bytes
+    integer(is), intent(in)      :: naux_in, n_ij
+
+    integer(is) :: nv_est, p, q, ij
+    real(dp)    :: gb, rq
 
     store_sp = (trim(prec) == 'single')
     vv_full  = (trim(vvstore) == 'full')
     if (extended .and. store_sp) &
          call mrsf_error('the extended method requires double-precision integrals')
 
-    ! header: dimensions, number of records, columns per record
-    call freeunit(unit)
-    open(unit, file=trim(fname), form='unformatted', status='old')
-    read(unit) dims(1)
-    read(unit) dims(2)
-    naux = dims(1)
-    n_ij = dims(2)
+    naux = naux_in
     if (n_ij /= nmo*(nmo+1)/2) &
-         call mrsf_error('integral file pair dimension does not match nmo')
-    read(unit) nrec
-    read(unit) cpr
+         call mrsf_error('integral pair dimension does not match nmo')
 
     ! block structure (the T buffer holds ncol columns per vector)
     nplane = (naux + 1) / 2
@@ -156,34 +260,26 @@ contains
             8.0_dp*real(nvirb,dp)*real(nC,dp)*real(naux,dp)/1.0e9_dp, ' GB'
     endif
 
-    ! stream the records
-    allocate(buf(naux,cpr))
-    if (store_sp .or. trim(prec) == 'single') allocate(buf_sp(naux,cpr))
-    do irec = 1, nrec
-       c0    = (irec-1)*cpr + 1
-       c1    = min(irec*cpr, n_ij)
-       ncol1 = c1 - c0 + 1
-       if (trim(prec) == 'single') then
-          read(unit) buf_sp(1:naux, 1:ncol1)
-          buf(1:naux,1:ncol1) = real(buf_sp(1:naux,1:ncol1), dp)
-       else
-          read(unit) buf(1:naux, 1:ncol1)
-       endif
-       call scatter_record(c0, ncol1, buf)
-    enddo
-    close(unit)
-    deallocate(buf)
-    if (allocated(buf_sp)) deallocate(buf_sp)
+  end subroutine load_df_setup
+
+!######################################################################
+! load_df_finish: pairing blocks, diagonal, reuse key, exchange tensor
+!######################################################################
+  subroutine load_df_finish(fname, prec, vvstore, stamp, t0)
+
+    character(len=*), intent(in) :: fname, prec, vvstore, stamp
+    real(dp), intent(in)         :: t0
 
     call build_pairing_blocks()
     call build_diag0()
 
     ints_loaded = .true.
     nload = nload + 1
-    loaded_file = trim(fname)
-    loaded_prec = trim(prec)
-    loaded_vv   = trim(vvstore)
-    loaded_nmo  = nmo
+    loaded_file  = trim(fname)
+    loaded_prec  = trim(prec)
+    loaded_vv    = trim(vvstore)
+    loaded_stamp = trim(stamp)
+    loaded_nmo   = nmo
     if (allocated(loaded_occ)) deallocate(loaded_occ)
     allocate(loaded_occ(nmo))
     loaded_occ  = occ
@@ -191,20 +287,21 @@ contains
     time_load = wall_time() - t0
     if (verbose) write(6,'(2x,a,f10.2,a)') 'integral ingestion time: ', time_load, ' s'
 
-  end subroutine load_df_file
+  end subroutine load_df_finish
 
 !######################################################################
 ! ints_match: .true. if the loaded integrals correspond to the same
-! file, precision, storage and orbital classification
+! file, stamp, precision, storage and orbital classification
 !######################################################################
-  function ints_match(fname, prec, vvstore) result(same)
+  function ints_match(fname, prec, vvstore, stamp) result(same)
 
-    character(len=*), intent(in) :: fname, prec, vvstore
+    character(len=*), intent(in) :: fname, prec, vvstore, stamp
     logical                      :: same
 
     same = .false.
     if (.not. ints_loaded) return
     if (trim(fname) /= trim(loaded_file)) return
+    if (trim(stamp) /= trim(loaded_stamp)) return
     if (trim(prec) /= trim(loaded_prec)) return
     if (trim(vvstore) /= trim(loaded_vv)) return
     if (nmo /= loaded_nmo) return
@@ -490,6 +587,7 @@ contains
     if (allocated(loaded_occ)) deallocate(loaded_occ)
     call etensor_free()
     loaded_file = ''
+    loaded_stamp = ''
     nvmax = 0
     ints_loaded = .false.
 

@@ -42,11 +42,14 @@ scf_kword      = {'xc'             : str,
                   'damp_fac'       : float,
                   'chk_stable'     : bool,
                   'conv_tol'       : float,
+                  'conv_tol_grad'  : float,
                   'x2c'            : bool,
                   'cosmo'          : bool,
                   'solvent'        : str,
                   'mol_label'      : str,
                   'guess_label'    : str,
+                  'backend'        : str,
+                  'mem_budget'     : float,
                   'label'          : str}
 
 # MRCI section input keywords and data types
@@ -161,6 +164,7 @@ mrsftddft_kword = {'mult'           : int,
 
 # MRSF-TDDFT analytic nuclear gradients
 mrsfgradient_kword = {'mrsf_label'    : str,
+                      'guess_label'   : str,
                       'states'        : int,
                       'zvec_tol'      : float,
                       'zvec_iter'     : int,

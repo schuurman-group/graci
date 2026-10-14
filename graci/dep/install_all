@@ -31,3 +31,11 @@ for lib in overlap bitci mrsf; do
     
 done
 
+#
+# The SCF library links the libxc build shipped with the installed pyscf
+# (install_scf finds it)
+#
+cd scf
+./install_scf $args
+cd $topdir
+

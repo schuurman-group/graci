@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#
+# Conditional compilation flags
+#
+args=""
+for var in "$@"; do
+    args+=" $var"
+done
+
+#
+# libxc: the build shipped with the installed pyscf
+#
+LIBXC_DIR=$(python -c "import os, pyscf; print(os.path.join(os.path.dirname(pyscf.__file__), 'lib', 'deps', 'lib'))")
+if [ ! -f "$LIBXC_DIR/libxc.so" ]; then
+    echo "install_scf: libxc.so not found in $LIBXC_DIR"
+    exit 1
+fi
+
+#
+# Build the scf library
+#
+if [ -d build ]; then
+    rm -r build/*
+else
+    mkdir build
+fi
+
+cd build
+cmake ../ -DCMAKE_INSTALL_PREFIX=../.. -DLIBXC_DIR=$LIBXC_DIR $args
+make
+make install
+cd ..

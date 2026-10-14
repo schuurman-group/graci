@@ -19,6 +19,9 @@ class Mrsfgradient:
         # user defined quantities
         # label of the $mrsftddft section whose states are differentiated
         self.mrsf_label    = None
+        # label of a previous $mrsfgradient section (another geometry)
+        # whose Z-vectors start the Z-vector iterations (warm start)
+        self.guess_label   = None
         # adiabatic state indices (1-based in the input; None = all)
         self.states        = None
         # Z-vector solver: residual norm threshold, max. iterations,
@@ -59,6 +62,9 @@ class Mrsfgradient:
         self.times         = None
         # 0-based adiabatic indices of the differentiated states
         self.state_list    = None
+        # converged Z-vectors (lzdim, nstates): start vectors of a
+        # warm-started gradient section at the next geometry
+        self.zvec          = None
 
     def copy(self):
         """create of deepcopy of self"""
@@ -74,9 +80,11 @@ class Mrsfgradient:
 
     #
     @timing.timed
-    def run(self, ci):
+    def run(self, ci, guess=None):
         """compute the gradients of the requested states of the
-        Mrsftddft object ci"""
+        Mrsftddft object ci; guess: a previous Mrsfgradient object whose
+        Z-vectors (aligned to the present MOs) start the Z-vector
+        iterations"""
 
         if type(ci).__name__ != 'Mrsftddft':
             sys.exit('$mrsfgradient: mrsf_label must refer to an $mrsftddft section')
@@ -95,12 +103,28 @@ class Mrsfgradient:
                     sys.exit('$mrsfgradient: state %d does not exist (the %s section has %d states)'
                              % (st + 1, ci.label, nst_avail))
 
+        # Z-vector warm start from a previous gradient section (in memory,
+        # or read from the checkpoint when guess_label names one that is
+        # not in memory)
+        zguess = None
+        if guess is None and self.guess_label is not None:
+            import graci.io.chkpt as chkpt
+            try:
+                guess = chkpt.read('Mrsfgradient.' + str(self.guess_label))
+            except Exception:
+                guess = None
+        if guess is not None:
+            zguess = mrsf_gradient.align_zvec(guess, ci, states)
+            if zguess is None:
+                output.print_message('  Z-vector warm start: no usable Z-vectors in '
+                                     + str(getattr(guess, 'label', self.guess_label)) + '; cold start')
+
         if getattr(ci, 'extended', False):
             import graci.interfaces.mrsf.mrsf_egradient as mrsf_egradient
             driver = mrsf_egradient.EMRSFGradientDriver(ci, self)
         else:
             driver = mrsf_gradient.GradientDriver(ci, self)
-        res = driver.run(states)
+        res = driver.run(states, zguess=zguess)
         driver.finalise()
 
         self.grad        = res['grad']
@@ -114,6 +138,7 @@ class Mrsfgradient:
         self.somo_gap    = res.get('somo_gap', None)
         self.times       = res['times']
         self.state_list  = np.array(states)
+        self.zvec        = np.array(res['zvec'])
 
         if self.verbose:
             output.print_mrsfgradient_results(self, states, res)

@@ -77,6 +77,11 @@ class Driver:
            or len(grad_objs) > 0:
             libs.lib_load('mrsf')
 
+        # native SCF backend
+        if any(str(getattr(obj, 'backend', 'pyscf')).lower() == 'native'
+               for obj in scf_objs):
+            libs.lib_load('scf')
+
         # gradient sections need the MRSF integrals to stay loaded
         if len(grad_objs) > 0:
             for ci_obj in ci_objs:
@@ -182,12 +187,20 @@ class Driver:
                 if ci_calc is None:
                     continue
 
-                # perform AO -> MO integral transformation
+                # perform AO -> MO integral transformation; MRSF-TDDFT
+                # objects take the tensor from memory and do not need
+                # bitci reloaded with it
+                needs_bitci = type(ci_calc).__name__ != 'Mrsftddft'
                 if eri_mo.emo_cut is None or \
                         eri_mo.emo_cut < ci_calc.mo_cutoff or \
                           eri_mo.precision_2e != ci_calc.precision:
                     eri_mo.emo_cut = ci_calc.mo_cutoff
-                    eri_mo.run(scf_obj, ci_calc.precision)
+                    eri_mo.run(scf_obj, ci_calc.precision,
+                               load_bitci=needs_bitci,
+                               keep_mem=(0.0 if needs_bitci else
+                                         float(getattr(ci_calc, 'mem_budget', 0.0))))
+                elif needs_bitci and not eri_mo.bitci_loaded:
+                    eri_mo.load_bitci(scf_obj)
 
                 # update ci object with results of ao2mo
                 #ci_calc.update_eri(eri_mo = eri_mo)
@@ -224,7 +237,11 @@ class Driver:
                                          'section with label '
                                          + str(grad_obj.mrsf_label))
                     sys.exit(1)
-            grad_obj.run(ci_obj)
+            # warm start of the Z-vector equations from a previous
+            # gradient section (guess_label)
+            grad_guess = self.match_sections(grad_obj.guess_label, 'label',
+                                             grad_objs, match_all=False)
+            grad_obj.run(ci_obj, guess=grad_guess)
             if save_to_chkpt:
                 chkpt.write(grad_obj)
 

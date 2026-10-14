@@ -187,7 +187,10 @@ def print_scf_header(scf):
     LLEN = 76
 
     with output_file(file_names['out_file'], 'a+') as outfile:
-        title = 'SCF Computation with PySCF, label = '+str(scf.label)
+        if str(getattr(scf, 'backend', 'pyscf')).lower() == 'native':
+            title = 'SCF Computation (native backend), label = '+str(scf.label)
+        else:
+            title = 'SCF Computation with PySCF, label = '+str(scf.label)
         lpad = int(0.5*(max(0,LLEN-len(title))))
         pstr = str('*'.ljust(lpad)+title)
         pstr = pstr.ljust(LLEN-1)+'*'
@@ -217,6 +220,18 @@ def print_scf_summary(scf):
             outfile.write(' density fitting employed, basis: '+
                             str(scf.auxbasis)+'\n')
 
+        info = getattr(scf, 'scf_info', None)
+        if str(getattr(scf, 'backend', 'pyscf')).lower() == 'native' and info:
+            outfile.write(' native SCF: {:d} cycles ({:d} with the open-shell shortcut), '
+                          '|g| = {:.1e}, dE = {:.1e}\n'.format(info['cycles'],
+                          info['shortcut_cycles'], info['gradient_norm'], info['delta_e']))
+            outfile.write(' time {:.2f} s (J {:.2f}, K {:.2f}, XC {:.2f}; AO values {}),'
+                          ' PySCF data {:.2f} s\n'.format(info['time_run'], info['time_j'],
+                          info['time_k'], info['time_xc'],
+                          'cached' if info['ao_cache'] else 'streamed', info['time_data']))
+            if info['min_overlap_eig'] < 1e-7:
+                outfile.write(' WARNING: smallest overlap eigenvalue {:.1e} '
+                              '(near-linear dependence)\n'.format(info['min_overlap_eig']))
         outfile.write(' REF energy        = {:16.10f}\n'.format(scf.energy))
         outfile.write(' Nuclear Repulsion = {:16.10f}\n\n'.format(scf.mol.enuc))
         outfile.write(' Orbital Energies and Occupations\n')

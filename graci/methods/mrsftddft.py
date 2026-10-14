@@ -131,6 +131,11 @@ class Mrsftddft(cimethod.Cimethod):
         self.amps           = {'adiabatic' : None}
         # Davidson convergence information per irrep
         self.diag_info      = None
+        # all tracked Davidson roots per irrep (nroots + nextra Ritz
+        # vectors and values): the start vectors of a warm-started run at
+        # the next geometry
+        self.guess_vecs     = None
+        self.guess_ener     = None
 
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
@@ -162,9 +167,10 @@ class Mrsftddft(cimethod.Cimethod):
     def run(self, scf, guess=None, mo_ints=None):
         """compute the MRSF-TDDFT states for all irreps"""
 
-        # the guess object is currently ignored
-        guess      = None
-        scf_energy = self.set_scf(scf, ci_guess=guess, mo_ints=mo_ints)
+        # guess: a previous Mrsftddft object (another geometry) whose
+        # tracked Davidson vectors, aligned to the present MOs, start the
+        # Davidson iterations (warm start); validated in warm_vectors
+        scf_energy = self.set_scf(scf, ci_guess=None, mo_ints=mo_ints)
 
         if scf_energy is None:
             return None
@@ -201,10 +207,13 @@ class Mrsftddft(cimethod.Cimethod):
         mrsf_init.set_frozen_core(self.frozen_core)
         mrsf_init.init(self, fock_mo)
         mrsf_init.set_exchange(self.exchange)
-        mrsf_init.init_ints(self, self.eri_file())
+        mrsf_init.init_ints(self, self.eri_file(), mo_ints=mo_ints)
         self.nocca, self.nvirb, self.xdim, self.naux = \
             [int(x) for x in mrsf_init.dims()]
         self.ncol, self.ncv = [int(x) for x in mrsf_init.ext_dims()]
+
+        # warm start: the vectors of the guess object aligned to these MOs
+        gvecs = self.warm_vectors(guess)
 
         # extended method: closed-shell KS matrix of G, kernel cache
         xcgrid = None
@@ -218,20 +227,30 @@ class Mrsftddft(cimethod.Cimethod):
         self.energies_sym = np.zeros((nirr, max(maxroots, 1)), dtype=float)
         self.amps['adiabatic'] = [np.zeros((self.xdim, 0), dtype=float)
                                   for i in range(nirr)]
+        self.guess_vecs = [np.zeros((self.xdim, 0), dtype=float)
+                           for i in range(nirr)]
+        self.guess_ener = [np.zeros(0, dtype=float) for i in range(nirr)]
         self.diag_info = [None for i in range(nirr)]
 
         for irrep in self.irreps_nonzero():
-            nroots, ener, xvec, niter, iconv = mrsf_diag.diag(self, irrep)
+            nroots, ener, xvec, niter, iconv, tracked = \
+                mrsf_diag.diag(self, irrep, guess=gvecs)
             if nroots < self.nstates[irrep]:
                 output.print_message('  irrep '+str(irrep)+': number of '
                                      'roots reduced to '+str(nroots))
                 self.nstates[irrep] = nroots
             self.energies_sym[irrep, :nroots] = self.scf.energy + ener
             self.amps['adiabatic'][irrep] = xvec
+            self.guess_ener[irrep] = self.scf.energy + tracked[0]
+            self.guess_vecs[irrep] = tracked[1]
             self.diag_info[irrep] = (niter, iconv)
             if iconv != 1:
                 output.print_message('  WARNING: Davidson not converged '
                                      'for irrep '+str(irrep))
+        if gvecs is not None:
+            output.print_message('  warm start: Davidson iterations per irrep: '
+                                 + ' '.join(str(self.diag_info[i][0])
+                                            for i in self.irreps_nonzero()))
 
         # energies sorted by value, with the corresponding states
         self.order_energies()
@@ -286,6 +305,71 @@ class Mrsftddft(cimethod.Cimethod):
         self.print_moments()
 
         return True
+
+    #
+    def warm_vectors(self, guess):
+        """
+        start vectors for the Davidson iterations from a previous Mrsftddft
+        object of the same manifold (in memory, or read from the checkpoint
+        when guess_label names an object that is not in memory): all its
+        tracked Davidson vectors (guess_vecs; the converged amplitudes of
+        objects from older checkpoints), in ascending energy, aligned to the
+        present MOs (orthogonal Procrustes rotations of the MO overlap
+        blocks within the orbital classes, the SOMO pair only sign-aligned
+        for extended objects). Returns the (xdim, nguess) array or None.
+        """
+        from pyscf import gto
+        if guess is None and self.guess_label is not None:
+            import graci.io.chkpt as chkpt
+            try:
+                guess = chkpt.read('Mrsftddft.' + str(self.guess_label))
+            except Exception:
+                guess = None
+        if guess is None:
+            return None
+        if type(guess).__name__ != 'Mrsftddft' or guess.amps.get('adiabatic') is None:
+            output.print_message('  warm start: the guess object ' + str(self.guess_label)
+                                 + ' holds no MRSF-TDDFT vectors; cold start')
+            return None
+        for attr in ('mult', 'nmo', 'nocca', 'nvirb', 'nel', 'ncol'):
+            if getattr(guess, attr, None) != getattr(self, attr):
+                output.print_message('  warm start: the guess object ' + str(guess.label)
+                                     + ' differs in ' + attr + '; cold start')
+                return None
+        # all tracked vectors of the guess object, ascending energy
+        blocks, eners = [], []
+        gv = getattr(guess, 'guess_vecs', None)
+        for irr in range(guess.n_irrep()):
+            if gv is not None and gv[irr] is not None and np.shape(gv[irr])[1] > 0:
+                blocks.append(np.asarray(gv[irr]))
+                eners.append(np.asarray(guess.guess_ener[irr]))
+            else:
+                x = np.asarray(guess.amps['adiabatic'][irr])
+                if x.shape[1] == 0:
+                    continue
+                blocks.append(x)
+                eners.append(np.asarray(guess.energies_sym[irr, :x.shape[1]]))
+        if not blocks:
+            return None
+        xk = np.concatenate(blocks, axis=1)
+        order = np.argsort(np.concatenate(eners))
+        xk = xk[:, order]
+        if xk.shape[0] != self.xdim:
+            output.print_message('  warm start: the guess vectors have the wrong dimension; cold start')
+            return None
+        Sao = gto.intor_cross('int1e_ovlp', self.scf.mol.mol_obj, guess.scf.mol.mol_obj)
+        xk, dmin, ierr = mrsf_overlap.align_vectors(Sao, self.mos, guess.mos, self.occ_ref,
+                                                    guess.occ_ref, self.mult, self.extended, 0, xk)
+        if ierr in (1, 4, 8):
+            output.print_message('  warm start: MO alignment failed (code ' + str(ierr) + '); cold start')
+            return None
+        msg = ('  warm start from ' + str(guess.label) + ': ' + str(xk.shape[1])
+               + ' vectors; smallest aligned MO overlap (core/SOMO/virtual): '
+               + ' '.join('{:.4f}'.format(v) for v in dmin))
+        if ierr == 5:
+            msg += '  (WARNING: the SOMO pair has rotated or swapped between the geometries)'
+        output.print_message(msg)
+        return xk
 
     #
     def extended_setup(self):

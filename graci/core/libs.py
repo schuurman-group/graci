@@ -7,7 +7,7 @@ import copy as copy
 import ctypes as ctypes
 import graci.io.convert as convert
 
-libraries      = ['bitci','bitsi','bitwf','overlap','mrsf']
+libraries      = ['bitci','bitsi','bitwf','overlap','mrsf','scf']
 
 # registry of bitci functions
 bitci_registry = {
@@ -221,16 +221,22 @@ mrsf_registry = {
     'mrsf_initialise'     : ['int32','int32','int32','int64','double','double',
                              'double','double','double','double','double',
                              'int32','string','logical'],
-    'mrsf_int_initialise' : ['string','string','string','string','double'],
+    'mrsf_int_initialise' : ['string','string','string','string','double','string'],
+    # in-memory ingestion of the packed DF tensor (precision, file name, storage,
+    # budget, stamp, naux, npair, tensor as the F-contiguous (npair, naux) view)
+    'mrsf_int_load_mem'   : ['string','string','string','double','string','int32','int32','dptr'],
     'mrsf_set_extended'   : ['logical'],
     'mrsf_set_frozen_core'  : ['int32'],
     'mrsf_set_exchange' : ['int32'],
     'mrsf_ext_initialise' : ['int32','dptr','double','logical','int32','string'],
     'mrsf_get_dims'       : ['int32','int32','int32','int32'],
     'mrsf_get_ext_dims'   : ['int32','int32'],
+    # (irrep, mult, nroots, nextra, maxvec, maxiter, tol, precond, inner, nguess,
+    #  xdim, ener, xvec [dptr, in: guess columns, out: tracked Ritz vectors],
+    #  nvec_out, niter, iconv)
     'mrsf_diag'           : ['int32','int32','int32','int32','int32','int32',
-                             'double','int32','int32','int32','double','double',
-                             'int32','int32'],
+                             'double','int32','int32','int32','int32','double','dptr',
+                             'int32','int32','int32'],
     'mrsf_sigma'          : ['int32','int32','int32','int32','double','double'],
     'mrsf_diagonal'       : ['int32','int32','double'],
     # densities: occupations, amplitudes and output passed by address
@@ -290,20 +296,23 @@ mrsf_registry = {
     'mrsf_zvec_factors'   : ['int32','dptr','dptr'],
     'mrsf_zvec_hessian'   : ['int32','double','dptr','dptr','logical','dptr'],
     # state overlaps between two geometries (stateless)
-    'mrsf_state_overlap'  : ['int32']*3 + ['dptr']*2 + ['int32']*7 + ['dptr']*6 + ['int32']
+    'mrsf_state_overlap'  : ['int32']*3 + ['dptr']*2 + ['int32']*7 + ['dptr']*6 + ['int32'],
+    # warm-start alignment of vectors of a previous geometry (stateless)
+    'mrsf_align_vectors'  : ['int32']*3 + ['dptr']*2 + ['int32']*5 + ['dptr']*4 + ['double','int32']
 }
 
 mrsf_intent = {
     'mrsf_initialise'     : ['in']*14,
-    'mrsf_int_initialise' : ['in']*5,
+    'mrsf_int_initialise' : ['in']*6,
+    'mrsf_int_load_mem'   : ['in']*8,
     'mrsf_set_extended'   : ['in'],
     'mrsf_set_frozen_core'  : ['in'],
     'mrsf_set_exchange' : ['in'],
     'mrsf_ext_initialise' : ['in']*6,
     'mrsf_get_dims'       : ['out']*4,
     'mrsf_get_ext_dims'   : ['out']*2,
-    'mrsf_diag'           : ['in','in','out','in','in','in','in','in','in','in',
-                             'out','out','out','out'],
+    'mrsf_diag'           : ['in','in','out','in','in','in','in','in','in','in','in',
+                             'out','inout','out','out','out'],
     'mrsf_sigma'          : ['in','in','in','in','in','out'],
     'mrsf_diagonal'       : ['in','in','out'],
     'mrsf_density'        : ['in']*7 + ['out'],
@@ -356,7 +365,39 @@ mrsf_intent = {
     'mrsf_zvec_free'      : [],
     'mrsf_zvec_factors'   : ['in']*2 + ['out'],
     'mrsf_zvec_hessian'   : ['in']*5 + ['out'],
-    'mrsf_state_overlap'  : ['in']*17 + ['out','out']
+    'mrsf_state_overlap'  : ['in']*17 + ['out','out'],
+    'mrsf_align_vectors'  : ['in']*13 + ['inout','out','out']
+}
+
+# registry of scf (native SCF backend) functions: 'dptr' = pointer to an
+# F-contiguous float64 array (zero copy), int32 arrays are copied
+scf_registry = {
+    # natm, nbas, nenv, atm, bas, env, nao, ao_loc, cart, lmax, nc2s,
+    # c2s, c2s_off, stamp, ierr
+    'scf_set_basis'     : ['int32']*5 + ['dptr'] + ['int32','int32','logical','int32','int32',
+                                                   'dptr','int32','string','int32'],
+    # ngrid, coords (3,ngrid), weights, ncomp, mem_budget (GB), stamp, ierr
+    'scf_set_grid'      : ['int32','dptr','dptr','int32','double','string','int32'],
+    # nao, naux, h, S, enuc, cderi (npair,naux), cx, nfunc, xc ids,
+    # families, coefficients, nspin, nirrep, nso, irrep ids, so, ierr
+    'scf_set_operator'  : ['int32','int32','dptr','dptr','double','dptr','double','int32',
+                           'int32','int32','dptr','int32','int32','int32','int32','dptr','int32'],
+    # nao, nalpha, nbeta, k0a, k0b, X0, opts, C, mo_energy, mo_occ,
+    # mo_irrep, Fa, Fb, energies, info, ierr
+    'scf_run'           : ['int32']*5 + ['dptr']*5 + ['int32'] + ['dptr']*3 + ['int32','int32'],
+    'scf_timings'       : ['dptr'],
+    'scf_reset_timings' : [],
+    'scf_free'          : []
+}
+
+scf_intent = {
+    'scf_set_basis'     : ['in']*14 + ['out'],
+    'scf_set_grid'      : ['in']*6 + ['out'],
+    'scf_set_operator'  : ['in']*16 + ['out'],
+    'scf_run'           : ['in']*7 + ['out']*9,
+    'scf_timings'       : ['out'],
+    'scf_reset_timings' : [],
+    'scf_free'          : []
 }
 
 # list of existing library objects
@@ -388,6 +429,7 @@ def lib_func(name, args):
     global bitwf_registry, bitwf_intent
     global overlap_registry, overlap_intent
     global mrsf_registry, mrsf_intent
+    global scf_registry, scf_intent
     global lib_objs
 
     if name in bitci_registry:
@@ -405,6 +447,9 @@ def lib_func(name, args):
     elif name in mrsf_registry:
         arg_list   = mrsf_registry[name]
         arg_intent = mrsf_intent[name]
+    elif name in scf_registry:
+        arg_list   = scf_registry[name]
+        arg_intent = scf_intent[name]
     else:
         sys.exit('function: '+str(name)+' not found.') 
 
@@ -468,6 +513,11 @@ def lib_func(name, args):
             getattr(lib_objs['mrsf'], name)(*arg_ptr)
         else:
             getattr(lib_objs['mrsf'], name)()
+    elif name in scf_registry:
+        if len(args) > 0:
+            getattr(lib_objs['scf'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['scf'], name)()
             
     args_out = ()
     for i in range(len(args)):
