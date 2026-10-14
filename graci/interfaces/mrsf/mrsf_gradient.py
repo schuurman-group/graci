@@ -22,6 +22,7 @@ to the relaxed densities.
 """
 import sys
 import time
+import contextlib
 import numpy as np
 import scipy.linalg
 from pyscf import df
@@ -62,15 +63,35 @@ class _XCShim:
         self.base.exclude_nlc = True
 
 
+class _Timers:
+    """accumulating wall-clock timers of the driver stages: with tm('key'): ..."""
+
+    def __init__(self):
+        self.t = {}
+
+    @contextlib.contextmanager
+    def __call__(self, key):
+        t0 = time.time()
+        try:
+            yield
+        finally:
+            self.t[key] = self.t.get(key, 0.0) + time.time() - t0
+
+    def add(self, key, dt):
+        self.t[key] = self.t.get(key, 0.0) + float(dt)
+
+
 class GradientDriver:
 
     def __init__(self, ci, grad_obj):
         """ci: converged Mrsftddft object; grad_obj: the Mrsfgradient section"""
         self.ci, self.scf, self.opt = ci, ci.scf, grad_obj
         self.verbose = grad_obj.verbose
+        self.tm = _Timers()
         scf = self.scf
         self.mol = scf.mol.pymol()
-        self.mf = scf.pyscf_obj()
+        with self.tm('setup: pyscf_obj'):
+            self.mf = scf.pyscf_obj()
         mf = self.mf
         C = np.asarray(ci.mos)
         occ = np.asarray(ci.occ_ref)
@@ -147,34 +168,47 @@ class GradientDriver:
                      'the Cholesky decomposition of the DF metric must not fall back '
                      'to an eigen-decomposition' % (self.naux, ci.naux))
         self.dims = (self.nocca, self.nvirb, self.naux)
-        self.Lchol = scipy.linalg.cholesky(self.auxmol.intor('int2c2e', hermi=1), lower=True)
+        with self.tm('setup: DF metric'):
+            self.Lchol = scipy.linalg.cholesky(self.auxmol.intor('int2c2e', hermi=1), lower=True)
         # library: make sure the integrals of this CI object are loaded
         fock_mo = [self.fa, self.fb]
         # the gradient session of the library is a standard (non-extended)
         # one with the full core: the amplitudes of the state are supplied
         # from Python and the gradient kernels work on the MRSF layout
-        mrsf_init.set_extended(False)
-        mrsf_init.set_frozen_core(0)
-        mrsf_init.init(ci, fock_mo)
-        mrsf_init.set_exchange(getattr(ci, 'exchange', 'auto'))
-        mrsf_init.init_ints(ci, ci.eri_file())
+        with self.tm('setup: library integrals'):
+            mrsf_init.set_extended(False)
+            mrsf_init.set_frozen_core(0)
+            mrsf_init.init(ci, fock_mo)
+            mrsf_init.set_exchange(getattr(ci, 'exchange', 'auto'))
+            mrsf_init.init_ints(ci, ci.eri_file())
         # Z-vector operator = orbital Hessian of the reference (hole-particle
         # DF block, Fock couplings and diagonal in the library; the XC
         # kernel on the grid, where the library grid module caches the AO
         # values, weights and libxc derivatives once)
-        try:
-            self.hess = mrsf_hessian.RoksHessian(mf, C, occ, self.fa, self.fb, self.x_ref,
-                                                 ci.eri_file(), self.dims, grad_obj.mem_budget)
-        except RuntimeError as err:
-            sys.exit(str(err))
+        with self.tm('setup: grid session'):
+            self.session = mrsf_xc.get_session(ci, grad_obj.mem_budget)
+            if not getattr(self.session, 'reported', False):
+                self.tm.add('setup: AO cache fill', self.session.time_init)
+                self.session.reported = True
+        with self.tm('setup: Hessian/grid'):
+            try:
+                self.hess = mrsf_hessian.RoksHessian(mf, C, occ, self.fa, self.fb, self.x_ref,
+                                                     ci.eri_file(), self.dims, grad_obj.mem_budget,
+                                                     session=self.session)
+            except RuntimeError as err:
+                sys.exit(str(err))
         if self.hess.lz != self.lzdim:
             sys.exit('MRSF gradients: inconsistent rotation space')
-        self.Bso = mrsf_grad.bso(self.naux, self.nmo)
-        self.dq_ref = mrsf_grad.dq(self.occ, self.naux)        # Coulomb vector of the reference density
-        self.hdiag = self.hess.diag()
+        for key, val in self.hess.times.items():
+            self.tm.add('setup: ' + key, val)
+        with self.tm('setup: Bso/diag'):
+            self.Bso = mrsf_grad.bso(self.naux, self.nmo)
+            self.dq_ref = mrsf_grad.dq(self.occ, self.naux)        # Coulomb vector of the reference density
+            self.hdiag = self.hess.diag()
         if self.is_dft:
             self.ni = mf._numint
             self.xcgrid = self.hess.xcgrid
+            self.xcgrid.reset_counters()
         # one-electron derivative integrals and the reference pieces that do
         # not go through the DF families: nuclear repulsion, the reference
         # densities, W_ref = sum_s D^s F^s D^s and the reference XC gradient
@@ -202,6 +236,7 @@ class GradientDriver:
         elif self.is_dft:
             self.dexc_ref = None
         self.time_ref = time.time() - t0
+        self.tm.add('setup: reference pieces', self.time_ref)
 
     # ------------------------------------------------------------------
     # amplitudes and densities
@@ -335,31 +370,70 @@ class GradientDriver:
         M[np.ix_(P, P)] = MPP
         return M
 
-    def gfock_spc(self, Xt, terms):
-        """F^spc = sum_k t [J[B](A+A^T) + J[A](B+B^T)]"""
-        jq = np.array([v for (_, _, _, a, b) in terms for v in (a, b)]).T
-        JHH, JHP, JPP = mrsf_grad.jblocks(jq, self.dims)
+    def jsparse(self, J, kind, *args):
+        """J (A + A^T) for a sparse operand A: 'rc' (A[o, idx] = w or
+        A[idx, o] = w), 'unit' (A = val e_pq), 'Yh' (A = Y^T on (C, V)),
+        'Tvv' (A = Y Y^T on (V, V)), 'Tcc' (A = T on (C, C))"""
+        out = np.zeros((self.nmo, self.nmo))
+        if kind == 'rc':
+            o, idx, w = args
+            out[:, idx] += np.outer(J[:, o], w)
+            out[:, o] += J[:, idx] @ w
+        elif kind == 'unit':
+            p, q, val = args
+            out[:, q] += val*J[:, p]
+            out[:, p] += val*J[:, q]
+        elif kind == 'Yh':
+            Y = args[0]
+            out[:, self.Vidx] = J[:, self.Cidx] @ Y.T
+            out[:, self.Cidx] = J[:, self.Vidx] @ Y
+        elif kind == 'Tvv':
+            Y = args[0]
+            out[:, self.Vidx] = 2.0*((J[:, self.Vidx] @ Y) @ Y.T)
+        elif kind == 'Tcc':
+            out[:, self.Cidx] = 2.0*(J[:, self.Cidx] @ args[0])
+        else:
+            raise ValueError(kind)
+        return out
+
+    def gfock_spc(self, Xt, terms, jbl=None):
+        """F^spc = sum_k t [J[B](A+A^T) + J[A](B+B^T)] with the rank-1 pairing
+        operands; jbl = precomputed (JHH, JHP, JPP) of the 2 x 12 Coulomb vectors"""
+        if jbl is None:
+            jq = np.array([v for (_, _, _, a, b) in terms for v in (a, b)]).T
+            JHH, JHP, JPP = mrsf_grad.jblocks(jq, self.dims)
+        else:
+            JHH, JHP, JPP = jbl
         F = np.zeros((self.nmo, self.nmo))
         for k, (t, specA, specB, aQ, bQ) in enumerate(terms):
             JA = self.full_from_blocks(JHH[:, :, 2*k], JHP[:, :, 2*k], JPP[:, :, 2*k])
             JB = self.full_from_blocks(JHH[:, :, 2*k+1], JHP[:, :, 2*k+1], JPP[:, :, 2*k+1])
-            A = self.spec_matrix(specA); B = self.spec_matrix(specB)
-            F += t*(JB @ (A + A.T) + JA @ (B + B.T))
+            wA, idxA, oA, _ = specA
+            wB, idxB, oB, _ = specB
+            F += t*(self.jsparse(JB, 'rc', oA, idxA, wA) + self.jsparse(JA, 'rc', oB, idxB, wB))
         return F
 
     def add_spc_to_families(self, Ghh, Fhp, terms):
+        """rank-1 family pieces of the pairing terms: for each term and each of
+        its two specs (w on the core or the virtuals against a SOMO index o),
+        Ghh/Fhp[.., .., Q] += 1/2 t w (x) cQ (the Coulomb vector of the partner)"""
         Hloc, Ploc, Cset = self.Hloc, self.Ploc, set(self.Cidx)
         for t, specA, specB, aQ, bQ in terms:
             for spec, cQ in ((specA, bQ), (specB, aQ)):
                 w, idx, o, orient = spec
-                for m, wm in zip(idx, w):
-                    if m in Cset:
-                        if orient == 'col':
-                            Ghh[Hloc[m], Hloc[o], :] += 0.5*t*wm*cQ
-                        else:
-                            Ghh[Hloc[o], Hloc[m], :] += 0.5*t*wm*cQ
+                upd = 0.5*t*np.outer(w, cQ)                                   # (len(idx), naux)
+                if idx[0] in Cset:
+                    hidx = [Hloc[m] for m in idx]
+                    if orient == 'col':
+                        Ghh[hidx, Hloc[o], :] += upd
                     else:
-                        Fhp[Hloc[o], Ploc[m], :] += 0.5*t*wm*cQ
+                        Ghh[Hloc[o], hidx, :] += upd
+                else:
+                    Fhp[Hloc[o], [Ploc[m] for m in idx], :] += upd
+
+    def fam_bytes_state(self):
+        """memory of the per-state families kept between the two passes"""
+        return 8.0*self.naux*(2*self.nocca*self.nocca + 2*self.nocca*self.nvirb)
 
     # ------------------------------------------------------------------
     # generalised Fock matrices
@@ -554,13 +628,19 @@ class GradientDriver:
         Xt: explicit expanded amplitudes instead of those of state ist;
         extra: additional right-hand side matrix (MO, dE/dkappa convention,
         see run), which also enters the canonical multipliers"""
-        Xt = self.expanded_amplitudes(ist) if Xt is None else np.array(Xt)
-        sd = {'ist': ist, 'Xt': Xt}
-        self.exchange_pass(sd)
-        sd['terms'] = self.spc_aux_vectors(sd['Xt'])
-        sd['Fo'] = self.gfock_omega(sd['Xt'], sd['st'], sd['terms'])
-        sd['zeta'] = self.zeta(sd['Fo'] if extra is None else sd['Fo'] + extra)
-        sd['Fzeta'] = self.gfock_zeta(sd['zeta']) if self.N else np.zeros((self.nmo, self.nmo))
+        with self.tm('rhs: amplitudes'):
+            Xt = self.expanded_amplitudes(ist) if Xt is None else np.array(Xt)
+            sd = {'ist': ist, 'Xt': Xt}
+        with self.tm('rhs: state (MRSF)'):
+            self.exchange_pass(sd)
+        with self.tm('rhs: spc vectors'):
+            sd['terms'] = self.spc_aux_vectors(sd['Xt'])
+        with self.tm('rhs: gfock_omega'):
+            sd['Fo'] = self.gfock_omega(sd['Xt'], sd['st'], sd['terms'])
+        with self.tm('rhs: zeta'):
+            sd['zeta'] = self.zeta(sd['Fo'] if extra is None else sd['Fo'] + extra)
+        with self.tm('rhs: gfock_zeta'):
+            sd['Fzeta'] = self.gfock_zeta(sd['zeta']) if self.N else np.zeros((self.nmo, self.nmo))
         return sd
 
     def extra_families(self, sd):
@@ -573,23 +653,31 @@ class GradientDriver:
         families and probe factors; returns (entries, W, (Pa_ao, Pb_ao), fac)"""
         C = self.C
         Xt, st, terms, Fo = sd['Xt'], sd['st'], sd['terms'], sd['Fo']
-        Fz = self.gfock_z(z)
-        W = 0.5*C @ _sym(Fo + Fz + sd['Fzeta']) @ C.T
-        Ta, Tb = self.T_densities(Xt)
-        pa, pb = self.pz_densities(z)
-        pzeta = self.zeta_density(sd['zeta'])
-        Pa, Pb = Ta + pa + pzeta, Tb + pb + pzeta
-        Za, Zb = self.z_to_local(z)
-        self.add_spc_to_families(st['Ghh'], st['Fhp'], terms)
+        with self.tm('fam: gfock_z'):
+            Fz = self.gfock_z(z)
+        with self.tm('fam: W/densities'):
+            W = 0.5*C @ _sym(Fo + Fz + sd['Fzeta']) @ C.T
+            Ta, Tb = self.T_densities(Xt)
+            pa, pb = self.pz_densities(z)
+            pzeta = self.zeta_density(sd['zeta'])
+            Pa, Pb = Ta + pa + pzeta, Tb + pb + pzeta
+            Za, Zb = self.z_to_local(z)
+        with self.tm('fam: add_spc'):
+            self.add_spc_to_families(st['Ghh'], st['Fhp'], terms)
         Ta_fam = Ta[np.ix_(self.H, self.H)]
         if self.N:
-            self.zeta_exchange_fix(st['Ghh'], pzeta)
+            with self.tm('fam: zeta fix'):
+                self.zeta_exchange_fix(st['Ghh'], pzeta)
             Ta_fam = Ta_fam + 2.0*pzeta[np.ix_(self.H, self.H)]
-        extra = self.extra_families(sd)
-        g, pq = mrsf_grad.finish(self.x_ref, st, Ta_fam, Xt, Za, Zb, self.occH, self.dims)
+        with self.tm('fam: extra_families'):
+            extra = self.extra_families(sd)
+        with self.tm('fam: finish'):
+            g, pq = mrsf_grad.finish(self.x_ref, st, Ta_fam, Xt, Za, Zb, self.occH, self.dims)
         entries = [{'Xt': Xt, 'Ghh': st['Ghh'], 'Fhp': st['Fhp'], 'Yf': st['Yf'], 'g': g}] + extra
-        fac = self.P_factors(Xt, Za, Zb, pzeta)
-        return entries, W, (C @ Pa @ C.T, C @ Pb @ C.T), fac
+        with self.tm('fam: P_factors/AO'):
+            fac = self.P_quadratic(Xt, Za, Zb, pzeta)
+            P_ao = (C @ Pa @ C.T, C @ Pb @ C.T)
+        return entries, W, P_ao, fac
 
     def probe_g_factors(self, sd):
         """hook: factor pairs (LM, RM, LS) of the G-density probe terms of
@@ -623,8 +711,7 @@ class GradientDriver:
         t0 = time.time()
         # pass 1: per-state RHS pieces; the generalised Fock matrices are
         # kept, the (large) families are kept only when they fit the budget
-        fam_bytes = 8.0*self.naux*(self.nocca*self.nocca + 2*self.nocca*self.nvirb + self.nocca*self.nocca)
-        keep_fam = nst*fam_bytes <= 0.5*self.ci.mem_budget*1.0e9
+        keep_fam = nst*self.fam_bytes_state() <= 0.5*self.ci.mem_budget*1.0e9
         sds = []
         Rmat = np.zeros((self.lzdim, nst))
         for k, ist in enumerate(states):
@@ -668,10 +755,11 @@ class GradientDriver:
             sd['st'] = None
         times['families'] = time.time() - t0
         # reference two-electron families (first entry of the AO pass)
-        Ghh_ref, g_ref = mrsf_grad.reffam(self.x_ref, st_dq, self.occH, self.dims)
-        fam_states.insert(0, {'Xt': np.zeros((self.nvirb, self.nocca)), 'Ghh': Ghh_ref,
-                              'Fhp': np.zeros((self.nocca, self.nvirb, self.naux), order='F'),
-                              'Yf': np.zeros((self.nvirb, self.nocca, self.naux), order='F'), 'g': g_ref})
+        with self.tm('ao: reffam'):
+            Ghh_ref, g_ref = mrsf_grad.reffam(self.x_ref, st_dq, self.occH, self.dims)
+            fam_states.insert(0, {'Xt': np.zeros((self.nvirb, self.nocca)), 'Ghh': Ghh_ref,
+                                  'Fhp': np.zeros((self.nocca, self.nvirb, self.naux), order='F'),
+                                  'Yf': np.zeros((self.nvirb, self.nocca, self.naux), order='F'), 'g': g_ref})
         t0 = time.time()
         de2_all = mrsf_dfgrad.df_grad_factorised(mol, self.auxmol, self.Lchol, C[:, self.H], C[:, self.P],
                                                  fam_states, max_memory=max(500, 1000*self.opt.mem_budget))
@@ -689,33 +777,40 @@ class GradientDriver:
                 self.dexc_ref = dexc_ref_probe
         else:
             dexc_all = [np.zeros((mol.natm, 3)) for _ in range(nst)]
-        # reference gradient
-        de1_ref = np.zeros((mol.natm, 3)); deS_ref = np.zeros((mol.natm, 3))
-        Dt = self.Da + self.Db
-        for A, (s0, s1, p0, p1) in enumerate(self.aoslices):
-            de1_ref[A] = np.einsum('xpq,pq->x', self.hcore_deriv(A), Dt)
-            deS_ref[A] = -2.0*np.einsum('xpq,pq->x', self.s1[:, p0:p1], self.W_ref[p0:p1])
-        self.grad_ref = self.grad_nuc + de1_ref + de2_ref + deS_ref + self.dexc_ref
+        # one-electron (core Hamiltonian) and overlap derivative terms of the
+        # reference and of every state in one pass over the atoms
+        with self.tm('1e: hcore/overlap loops'):
+            Dt = self.Da + self.Db
+            dens = [Dt]
+            Wmats = [self.W_ref]
+            for k in range(nst):
+                Pa_ao, Pb_ao = P_list[k]
+                Pt = Pa_ao + Pb_ao
+                if Mx_list[k] is not None:
+                    Pt = Pt + C @ Mx_list[k] @ C.T
+                dens.append(Pt)
+                Wmats.append(W_list[k])
+            dens = np.array(dens); Wmats = np.array(Wmats)
+            de1 = np.zeros((nst + 1, mol.natm, 3)); deS = np.zeros((nst + 1, mol.natm, 3))
+            for A, (s0, s1, p0, p1) in enumerate(self.aoslices):
+                h1 = self.hcore_deriv(A)
+                de1[:, A, :] = np.einsum('xpq,kpq->kx', h1, dens)
+                deS[:, A, :] = -2.0*np.einsum('xpq,kpq->kx', self.s1[:, p0:p1], Wmats[:, p0:p1])
+        self.grad_ref = self.grad_nuc + de1[0] + de2_ref + deS[0] + self.dexc_ref
         grads = np.zeros((nst, mol.natm, 3))
         parts = []
         for k in range(nst):
-            Pa_ao, Pb_ao = P_list[k]
-            Pt = Pa_ao + Pb_ao
-            if Mx_list[k] is not None:
-                Pt = Pt + C @ Mx_list[k] @ C.T
-            de1 = np.zeros((mol.natm, 3))
-            deS = np.zeros((mol.natm, 3))
-            for A, (s0, s1, p0, p1) in enumerate(self.aoslices):
-                de1[A] = np.einsum('xpq,pq->x', self.hcore_deriv(A), Pt)
-                deS[A] = -2.0*np.einsum('xpq,pq->x', self.s1[:, p0:p1], W_list[k][p0:p1])
             dexc = dexc_all[k]
-            total = self.grad_ref + de1 + de2[k] + deS + dexc
+            total = self.grad_ref + de1[k + 1] + de2[k] + deS[k + 1] + dexc
             if mol.symmetry:
                 total = rhf_grad.symmetrize(mol, total)
             grads[k] = total
-            parts.append({'ref': self.grad_ref, '1e': de1, '2e': de2[k], 'S': deS, 'xc': dexc})
+            parts.append({'ref': self.grad_ref, '1e': de1[k + 1], '2e': de2[k], 'S': deS[k + 1], 'xc': dexc})
         times['1e_xc'] = time.time() - t0
         times['ref'] = self.time_ref
+        times['detail'] = dict(self.tm.t)
+        if self.is_dft and self.verbose:
+            self.xcgrid.print_timings()
         if self.is_dft:
             times['xc_kernel'] = self.xcgrid.time_kernel
             times['xc_calls'] = self.xcgrid.ncalls_kernel
@@ -966,6 +1061,31 @@ class GradientDriver:
             out.append(np.add.reduceat(t, aoslices, axis=1).T)
         return out
 
+    def P_quadratic(self, Xt, Za, Zb, pzeta=None):
+        """relaxed densities P^s = T^s + p^{z,s} (+ p^zeta) as quadratic forms
+        P = B S B^T in the basis [C_H (cached on the grid) | C_P Za | C_P X~ | C_P Zb]:
+        returns (Bexp (nao, 3 nocca), {'a': (nb, idx, S), 'b': ...}) with 1-based
+        basis indices, the explicit columns counted from nocca + 1 (the
+        assembler adds the state offset)"""
+        CH, CP = self.C[:, self.H], self.C[:, self.P]
+        h = self.nocca
+        Bexp = np.zeros((self.nao, 3*h))
+        Bexp[:, :h] = CP @ Za; Bexp[:, h:2*h] = CP @ Xt; Bexp[:, 2*h:] = CP @ Zb
+        Ta, Tb = self.T_densities(Xt)
+        Ta_loc = Ta[np.ix_(self.H, self.H)]
+        Sa = np.zeros((2*h, 2*h)); Sb = np.zeros((3*h, 3*h))
+        Sa[:h, :h] = Ta_loc
+        Sa[h:2*h, :h] = np.eye(h); Sa[:h, h:2*h] = np.eye(h)          # sym(C_P Za C_H^T)
+        Sb[h:2*h, h:2*h] = np.eye(h)                                   # (C_P X~)(C_P X~)^T
+        Sb[2*h:3*h, :h] = np.eye(h); Sb[:h, 2*h:3*h] = np.eye(h)       # sym(C_P Zb C_H^T)
+        if pzeta is not None and self.N:
+            pz = pzeta[np.ix_(self.H, self.H)]
+            Sa[:h, :h] += pz; Sb[:h, :h] += pz
+        ih = np.arange(1, h + 1)
+        idxa = np.concatenate([ih, h + 1 + np.arange(h)])
+        idxb = np.concatenate([ih, h + 1 + h + np.arange(h), h + 1 + 2*h + np.arange(h)])
+        return Bexp, {'a': (2*h, idxa, Sa), 'b': (3*h, idxb, Sb)}
+
     def P_factors(self, Xt, Za, Zb, pzeta=None):
         """relaxed densities P^s = T^s + p^{z,s} (+ p^zeta) as AO factor pairs
         (L, R), P = L R^T + R L^T with k = 2 nocca columns: alpha = [C_H Ta/2 | C_P Za]
@@ -987,28 +1107,49 @@ class GradientDriver:
 
     def grad_xc_probe_multi(self, fac_list, gfac_list=None):
         """XC probe terms of all states and the reference XC gradient on the
-        fixed grid through the library grid module; fac_list holds per state
-        the factor pairs (L, R) of P^s (P_factors), gfac_list the G-density
-        factor pairs (LM, RM, LS) of the extended method (or None entries).
+        fixed grid through the library grid module (quadratic-form probe):
+        fac_list holds per state (Bexp, terms) from P_quadratic, gfac_list
+        the G-density entries (Bexp_g, terms) of the extended method or None.
         Returns (dexc_ref, [dexc_k])."""
         nst = len(fac_list)
-        k = fac_list[0][0].shape[1]
-        Lf = np.empty((self.nao, k, 2, nst), order='F'); Rf = np.empty((self.nao, k, 2, nst), order='F')
-        for v, (L, R) in enumerate(fac_list):
-            Lf[:, :, :, v] = L; Rf[:, :, :, v] = R
-        gfac = None
-        if gfac_list is not None and any(gf is not None for gf in gfac_list):
-            kM = gfac_list[0][0].shape[1]; kS = gfac_list[0][2].shape[1]
-            LM = np.empty((self.nao, kM, nst), order='F'); RM = np.empty((self.nao, kM, nst), order='F')
-            LS = np.empty((self.nao, kS, nst), order='F')
-            for v, gf in enumerate(gfac_list):
-                LM[:, :, v], RM[:, :, v], LS[:, :, v] = gf
-            gfac = (LM, RM, LS)
-        if gfac is None:
-            t = self.xcgrid.probe(Lf, Rf, np.zeros((2, nst), dtype=np.int32))
-            tG = None
+        nocca = self.nocca
+        with_g = gfac_list is not None and any(gf is not None for gf in gfac_list)
+        blocks, offs = [], []
+        ncols = 0
+        for v in range(nst):
+            offs.append(ncols)
+            blocks.append(fac_list[v][0]); ncols += fac_list[v][0].shape[1]
+            if with_g:
+                blocks.append(gfac_list[v][0]); ncols += gfac_list[v][0].shape[1]
+        Bexp = np.hstack(blocks) if ncols > 0 else np.zeros((self.nao, 0))
+        terms = []
+        for v in range(nst):
+            tv = [fac_list[v][1]['a'], fac_list[v][1]['b']]
+            if with_g:
+                tv += [gfac_list[v][1]['M'], gfac_list[v][1]['S']]
+            else:
+                tv += [(0, np.zeros(0, int), np.zeros((0, 0))), (0, np.zeros(0, int), np.zeros((0, 0)))]
+            terms.append(tv)
+        maxnb = max(1, max(t[0] for tv in terms for t in tv))
+        nb = np.zeros((4, nst), dtype=np.int32); idx = np.zeros((maxnb, 4, nst), dtype=np.int32)
+        S = np.zeros((maxnb, maxnb, 4, nst))
+        for v in range(nst):
+            nstate = fac_list[v][0].shape[1]
+            for k, (n, ix, Sm) in enumerate(terms[v]):
+                nb[k, v] = n
+                if n == 0:
+                    continue
+                ix = np.asarray(ix, dtype=np.int64).copy()
+                off = offs[v] + (nstate if k >= 2 else 0)
+                ix[ix > nocca] += off
+                idx[:n, k, v] = ix
+                S[:n, :n, k, v] = Sm
+        if with_g:
+            t, tG = self.xcgrid.probe_q(Bexp, nb, idx, S, with_g=True,
+                                        with_kxc=bool(getattr(self, 'use_kernel', False)))
         else:
-            t, tG = self.xcgrid.probe(Lf, Rf, np.zeros((2, nst), dtype=np.int32), gfac=gfac)
+            t = self.xcgrid.probe_q(Bexp, nb, idx, S, with_g=False)
+            tG = None
         de = -2.0*np.add.reduceat(t, self.aoslices[:, 2], axis=0)      # (natm, 3, nst+1)
         out = [de[:, :, v + 1] for v in range(nst)]
         if tG is not None:

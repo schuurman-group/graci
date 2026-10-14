@@ -113,4 +113,18 @@ contains
     call grad_reffam(cx1, dq1, occH1, Ghh1, g1)
   end subroutine mrsf_grad_reffam_c
 
+  subroutine mrsf_grad_kg_c(nG1, K1) bind(c, name='mrsf_grad_kg')
+    integer(is), intent(in) :: nG1
+    real(dp), intent(out)   :: K1(nmo,nmo)
+    call grad_kg(nG1, K1)
+  end subroutine mrsf_grad_kg_c
+
+  subroutine mrsf_grad_fam_outer_c(nt1, n11, n21, nq1, i01, i11, j01, j11, Mats1, vecs1, F1) &
+       bind(c, name='mrsf_grad_fam_outer')
+    integer(is), intent(in) :: nt1, n11, n21, nq1, i01, i11, j01, j11
+    real(dp), intent(in)    :: Mats1(*), vecs1(*)
+    real(dp), intent(inout) :: F1(*)
+    call grad_fam_outer(nt1, n11, n21, nq1, i01, i11, j01, j11, Mats1, vecs1, F1)
+  end subroutine mrsf_grad_fam_outer_c
+
 end module mrsf_grad_interface

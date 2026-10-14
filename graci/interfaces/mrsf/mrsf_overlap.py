@@ -13,6 +13,17 @@ import graci.core.libs as libs
 methods = {'exact': 0, 'tlf0': 1, 'tlf1': 2, 'tlf2': 3}
 
 
+# non-fatal library return codes: 2 explicit minors used for a near-singular
+# core/hole/G block, 5 SOMO pair rotated or swapped between the geometries
+# (extended objects: the alignment of the SOMO pair is restricted to sign
+# flips), 7 = both
+warning_codes = {2: 'near-singular core/hole MO overlap block; explicit minors used',
+                 5: 'the SOMO pair is rotated or swapped between the two geometries; '
+                    'the TLF overlaps of extended objects are unreliable (exact ones are not affected)',
+                 7: 'near-singular MO overlap block (explicit minors used) and rotated SOMO pair '
+                    '(TLF overlaps of extended objects unreliable)'}
+
+
 def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align=True):
     """overlap matrix (nb, nk) between the bra states with compressed
     amplitudes xb (xdim, nb) in the MOs Cb (nao_b, nmo) and the ket states
@@ -20,9 +31,15 @@ def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align
     matrix between the two geometries; occ_b/occ_k the reference
     occupations; align: align the ket MOs to the bra MOs within each
     orbital class (orthogonal Procrustes rotations from the MO overlap
-    blocks, ket amplitudes transformed accordingly). Returns (S, ierr): ierr
-    0 ok, 1 orbital-class mismatch, 2 explicit minors used (near-singular
-    core/hole block), 3 bad method, 4 SVD failure in the alignment."""
+    blocks, ket amplitudes transformed accordingly). Each side is standard
+    (xdim = nvirb*nocca) or extended (xdim = nvirb*(nocca+nC), the CV
+    amplitudes in the last nC columns); a standard side paired with an
+    extended one counts as an extended state without CV part. Returns
+    (S, ierr): ierr 0 ok, 1 orbital-class mismatch, 2 explicit minors used
+    (near-singular core/hole/G block), 3 bad method, 4 SVD failure in the
+    alignment, 5 SOMO pair rotated/swapped (extended objects, warning),
+    6 TLF closed forms of the extended blocks need the orbital classes in
+    index order, 7 = 2 and 5, 8 invalid amplitude dimension."""
     if method not in methods:
         sys.exit('MRSF overlaps: unknown method ' + str(method) + ' (exact|tlf0|tlf1|tlf2)')
     Cb = np.asfortranarray(Cb, dtype=np.float64)
@@ -33,10 +50,22 @@ def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align
     nao_b, nmo = Cb.shape
     nao_k = Ck.shape[0]
     nb, nk = xb.shape[1], xk.shape[1]
+    occ_b = np.asfortranarray(occ_b, dtype=np.float64)
+    occ_k = np.asfortranarray(occ_k, dtype=np.float64)
+    # column counts of the two sides (standard: nocca, extended: nocca + nC)
+    nC = int(np.sum(np.abs(occ_b - 2.0) < 1.0e-6))
+    nocca, nvirb = nC + 2, nmo - nC
+    ncol = []
+    for side, x in (('bra', xb), ('ket', xk)):
+        n = x.shape[0] // nvirb
+        if x.shape[0] != n*nvirb or n not in (nocca, nocca + nC):
+            sys.exit('MRSF overlaps: the ' + side + ' amplitude vectors have ' + str(x.shape[0])
+                     + ' elements; expected ' + str(nvirb*nocca) + ' (standard) or '
+                     + str(nvirb*(nocca + nC)) + ' (extended)')
+        ncol.append(n)
     S = np.zeros((nb, nk), dtype=np.float64, order='F')
-    args = (nao_b, nao_k, nmo, np.asfortranarray(occ_b, dtype=np.float64),
-            np.asfortranarray(occ_k, dtype=np.float64), int(mult), methods[method], int(bool(align)), nb, nk,
-            Cb, Ck, Sao, xb, xk, S, 0)
+    args = (nao_b, nao_k, nmo, occ_b, occ_k, int(mult), methods[method], int(bool(align)), nb, nk,
+            ncol[0], ncol[1], Cb, Ck, Sao, xb, xk, S, 0)
     S, ierr = libs.lib_func('mrsf_state_overlap', args)
     return np.array(S), int(ierr)
 
@@ -48,7 +77,9 @@ def overlap(bra, ket, trans_list, method='exact', align=True, rep='adiabatic'):
     indices) as built by Interaction.ci_pair_list(..., sym_blk=True);
     returns the same nested layout of overlap values (the layout expected
     by Overlap.build_ci_overlaps). bra and ket are Mrsftddft objects of
-    two geometries (same basis, same reference occupation pattern).
+    two geometries (same basis, same reference occupation pattern),
+    standard or extended (a standard object paired with an extended one
+    is treated as an extended state without CV amplitudes).
     """
     nirr_bra = bra.n_irrep()
     nirr_ket = ket.n_irrep()
@@ -84,6 +115,11 @@ def overlap(bra, ket, trans_list, method='exact', align=True, rep='adiabatic'):
         sys.exit('MRSF overlaps: unknown method ' + str(method))
     if ierr == 4:
         sys.exit('MRSF overlaps: SVD failure in the MO alignment')
+    if ierr == 6:
+        sys.exit('MRSF overlaps: the TLF variants for extended objects require the orbital '
+                 'classes in index order (core, SOMOs, virtuals); use mrsf_method = exact')
+    if ierr == 8:
+        sys.exit('MRSF overlaps: inconsistent amplitude dimensions')
     for bi in range(nirr_bra):
         for ki in range(nirr_ket):
             pairs = trans_list[bi][ki]

@@ -84,6 +84,29 @@ def dq(occ, naux):
     return out
 
 
+def kg(nG, nmo):
+    """exchange matrix (MO basis) of the closed-shell density of the first
+    nG hole MOs, K_pq = sum_Q sum_{i<=nG} B^Q_pi B^Q_qi"""
+    K = fzeros(nmo, nmo)
+    libs.lib_func('mrsf_grad_kg', (int(nG), K))
+    return K
+
+
+def fam_outer(F, i0, i1, j0, j1, mats, vecs):
+    """F[i0:i1, j0:j1, :] += sum_t mats[t] (x) vecs[t] in place on an F-ordered
+    (n1, n2, naux) family (0-based half-open ranges); mats[t] (i1-i0, j1-j0),
+    vecs[t] (naux)"""
+    assert F.flags.f_contiguous and F.dtype == np.float64
+    nt = len(mats)
+    if nt == 0:
+        return
+    n1, n2, nq = F.shape
+    M = np.empty((i1 - i0, j1 - j0, nt), order='F'); V = np.empty((nq, nt), order='F')
+    for t in range(nt):
+        M[:, :, t] = mats[t]; V[:, t] = vecs[t]
+    libs.lib_func('mrsf_grad_fam_outer', (nt, n1, n2, nq, i0 + 1, i1, j0 + 1, j1, M, V, F))
+
+
 def booq(dims):
     """copy of the hole-hole DF block B^Q_hh' (nocca, nocca, naux)"""
     nocca, nvirb, naux = dims

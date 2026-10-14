@@ -15,6 +15,8 @@ module mrsf_interface
   use mrsf_davidson
   use mrsf_etensor
   use mrsf_density_mod
+  use mrsf_gradient, only: grad_free
+  use mrsf_overlap, only: time_ovl, novl_calls
 
   implicit none
 
@@ -337,6 +339,7 @@ contains
   subroutine mrsf_finalise_f()
 
     call report_timings()
+    call grad_free()
     call free_ints()
     call free_orbital_data()
     extended = .false.
@@ -348,7 +351,7 @@ contains
 
     real(dp) :: gflop
 
-    if (verbose .and. (nsigma_calls > 0 .or. nxc_calls > 0)) then
+    if (verbose .and. (nsigma_calls > 0 .or. nxc_calls > 0 .or. novl_calls > 0)) then
        write(6,'(/,2x,a)') 'MRSF timings'
        if (nsigma_calls > 0) then
           write(6,'(2x,a,f10.2,a)') 'integral ingestion : ', time_load, ' s'
@@ -385,6 +388,8 @@ contains
             'xc kernel (grid)   : ', time_xc, ' s (', nxc_calls, ' calls, ', nxc_vecs, ' vectors)'
        if (nprobe_calls > 0) write(6,'(2x,a,f10.2,a,i0,a)') 'xc probe (grid)    : ', time_probe, &
             ' s (', nprobe_calls, ' calls)'
+       if (novl_calls > 0) write(6,'(2x,a,f10.3,a,i0,a)') 'state overlaps     : ', time_ovl, &
+            ' s (', novl_calls, ' calls)'
     endif
 
     time_load = 0.0_dp; time_sigma = 0.0_dp; time_exch = 0.0_dp
@@ -393,6 +398,7 @@ contains
     time_ebuild = 0.0_dp; time_etens = 0.0_dp; flop_etens = 0.0_dp; netens_vecs = 0
     time_inner = 0.0_dp; ninner_vecs = 0
     time_xc = 0.0_dp; nxc_calls = 0; nxc_vecs = 0; time_probe = 0.0_dp; nprobe_calls = 0
+    time_ovl = 0.0_dp; novl_calls = 0
 
   end subroutine report_timings
 

@@ -16,7 +16,7 @@ import graci.interfaces.mrsf.mrsf_density as mrsf_density
 import graci.interfaces.mrsf.mrsf_overlap as mrsf_overlap
 import graci.interfaces.mrsf.mrsf_stability as mrsf_stability
 
-def closed_shell_fock(scf, mf, C, gidx):
+def closed_shell_fock_pyscf(scf, mf, C, gidx):
     """closed-shell KS (or HF) matrix of the configuration G = |C O1^2|
     (orbitals gidx doubly occupied) evaluated with the triplet orbitals C
     (eq. 17 of Oh et al.): returns (F_AO, F_MO). The same functional,
@@ -39,6 +39,9 @@ def closed_shell_fock(scf, mf, C, gidx):
     fa = getattr(f, 'focka', None)
     f_ao = np.asarray(f) if fa is None else np.asarray(fa)
     return f_ao, C.T @ f_ao @ C
+
+
+closed_shell_fock = closed_shell_fock_pyscf        # reference build (PySCF); the session builds it in the library
 
 
 class Mrsftddft(cimethod.Cimethod):
@@ -234,9 +237,8 @@ class Mrsftddft(cimethod.Cimethod):
         self.order_energies()
         n_tot = self.n_states()
 
-        # the grid kernel cache of the extended method is no longer needed
-        if xcgrid is not None:
-            xcgrid.free()
+        # the grid session (AO cache, kernels, F^G) stays alive for the
+        # other sections and the gradients of this SCF object
 
         # state density matrices: expectation values <Psi|E_pq|Psi> of the
         # (extended) configuration expansion
@@ -291,35 +293,30 @@ class Mrsftddft(cimethod.Cimethod):
         data of the extended method: the closed-shell KS matrix of the
         configuration G = |C O1^2| evaluated with the triplet orbitals
         (eq. 17 of Oh et al.), in the MO basis, and the grid-kernel cache
-        of the singlet CV block (None when no kernel is needed)
+        of the singlet CV block (None when no kernel is needed); both come
+        from the per-SCF grid session (shared with the other sections and
+        the gradients of the same SCF object)
         """
         import graci.interfaces.mrsf.mrsf_xc as mrsf_xc
 
-        mf   = self.scf.pyscf_obj()
-        C    = np.asarray(self.mos)
-        hmap, pmap = self.orbital_classes()
-        nc   = len(hmap) - 2
-        gidx = list(hmap[:nc]) + [int(hmap[nc])]
+        sess = mrsf_xc.get_session(self, self.mem_budget,
+                                   block_bytes=getattr(self, 'kernel_block_bytes', 1.0e6))
         xc   = str(self.scf.xc).lower()
-        fdft_mo = closed_shell_fock(self.scf, mf, C, gidx)[1]
-
         self.use_kernel = bool(self.mult == 1 and xc != 'hf')
         xcgrid = None
         if self.use_kernel:
-            occ_g = np.zeros(self.nmo, dtype=float)
-            occ_g[gidx] = 1.0
-            xcgrid = mrsf_xc.XCGrid(mf, C, occ_g, occ_g, C[:, hmap], C[:, pmap],
-                                    (self.nocca, self.nvirb, self.naux),
-                                    self.mem_budget,
-                                    block_bytes=getattr(self, 'kernel_block_bytes', 1.0e6))
+            xcgrid = sess.xcgrid
             if not xcgrid.cache:
                 need = 8.0*xcgrid.ncomp*xcgrid.ngrid*(xcgrid.nao + self.nocca)/1.e9
                 sys.exit('\n ERROR: the extended MRSF-TDDFT kernel requires '
                          'the AO values cached on the grid: set mem_budget '
                          'to at least '+'{:.2f}'.format(1.05*need)+' GB')
+        fdft_mo = sess.fock_g(self)
+        if self.use_kernel:
+            sess.ensure_g_kernel(False)
+            xcgrid.install_cs_kernel(2.0)
         return fdft_mo, xcgrid
 
-    #
     def check_input(self):
         """sanity checks on the reference and the input"""
 
@@ -520,13 +517,12 @@ class Mrsftddft(cimethod.Cimethod):
         (determinant-factorised two-index determinants, no truncation) or
         'tlf0' | 'tlf1' | 'tlf2' (truncated Leibniz formula, JCTC 15, 882
         (2019)); align: align the ket MOs to the bra MOs within each orbital
-        class before the evaluation. Returns (overlap list, ierr).
+        class before the evaluation. Standard and extended objects can be
+        combined (a standard object is an extended one without CV
+        amplitudes). Returns (overlap list, ierr).
         """
         if type(ket).__name__ != 'Mrsftddft':
             sys.exit('\n ERROR: MRSF overlaps require two Mrsftddft objects')
-        if self.extended or ket.extended:
-            sys.exit('\n ERROR: overlaps are not yet available for the '
-                     'extended MRSF-TDDFT method')
         for attr in ('nmo', 'nocca', 'nvirb', 'nel'):
             if getattr(self, attr) != getattr(ket, attr):
                 sys.exit('\n ERROR: MRSF overlaps require bra and ket objects '

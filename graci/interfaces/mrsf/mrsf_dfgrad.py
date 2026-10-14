@@ -44,20 +44,26 @@ def df_grad_factorised(mol, auxmol, L, C_H, C_P, states, max_memory=2000):
     R1 = np.asfortranarray(C_H)
     fams = []
     for st in states:
-        GhhP = rotate_aux(st['Ghh'], L)
-        FP = rotate_aux(st['Fhp'], L)
         YfP = rotate_aux(st['Yf'], L)
         gam = Linv.T @ st['g'] @ Linv
-        # L1(mu,j,P) = 1/2 [C_H Ghh^P + C_P F^P^T], L2(mu,j,P) = C_P Yf^P  (dgemm on F-ordered views)
-        L1 = 0.5*(C_H @ GhhP.reshape(nocca, -1, order='F')).reshape(nao, nocca, naux, order='F')
-        FPt = np.asfortranarray(FP.transpose(1, 0, 2))                        # (a, j, P)
-        L1 = L1 + 0.5*(C_P @ FPt.reshape(C_P.shape[1], -1, order='F')).reshape(nao, nocca, naux, order='F')
         L2 = (C_P @ YfP.reshape(C_P.shape[1], -1, order='F')).reshape(nao, nocca, naux, order='F')
-        fams.append({'L': [np.asfortranarray(L1), np.asfortranarray(L2)],
+        if st.get('pp_only', False):
+            # particle-particle family only (the CV entry of the extended method)
+            L1 = None
+        else:
+            GhhP = rotate_aux(st['Ghh'], L)
+            FP = rotate_aux(st['Fhp'], L)
+            # L1(mu,j,P) = 1/2 [C_H Ghh^P + C_P F^P^T], L2(mu,j,P) = C_P Yf^P  (dgemm on F-ordered views)
+            L1 = 0.5*(C_H @ GhhP.reshape(nocca, -1, order='F')).reshape(nao, nocca, naux, order='F')
+            FPt = np.asfortranarray(FP.transpose(1, 0, 2))                        # (a, j, P)
+            L1 = L1 + 0.5*(C_P @ FPt.reshape(C_P.shape[1], -1, order='F')).reshape(nao, nocca, naux, order='F')
+            L1 = np.asfortranarray(L1)
+            del GhhP, FP
+        fams.append({'L': [L1, np.asfortranarray(L2)],
                      'R': [R1, np.asfortranarray(C_P @ st['Xt'])],
-                     'active': [bool(np.any(L1)), bool(np.any(L2))],
+                     'active': [L1 is not None and bool(np.any(L1)), bool(np.any(L2))],
                      'gam2': np.asfortranarray(gam + gam.T)})
-        del GhhP, FP, YfP
+        del YfP
 
     # auxiliary blocks: the library holds ip1, its transpose and the
     # unpacked ip2 block (3 x 3 nao^2 nP words) plus the half-transforms

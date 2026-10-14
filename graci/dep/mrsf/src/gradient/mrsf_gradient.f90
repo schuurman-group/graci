@@ -27,6 +27,7 @@ module mrsf_gradient
   real(dp), allocatable :: Bhp(:,:,:)    ! (nocca,nvirb,naux)  B^Q_{Hmap(i),Pmap(a)}
   real(dp), allocatable :: BooQ(:,:,:)   ! (nocca,nocca,naux)  plane-contiguous B^Q_{HH}
   logical               :: grad_ready = .false.
+  integer(is)           :: grad_nload = -1     ! integral load the blocks belong to
 
 contains
 
@@ -54,9 +55,10 @@ contains
     if (store_sp) then
        ierr = 2; return
     endif
-    inquire(file=trim(fname), exist=exists)
-    if (.not. exists) then
-       ierr = 3; return
+    ! the blocks of the loaded integral set are kept across sections
+    if (grad_ready .and. grad_nload == nload) then
+       if (verbose) write(6,'(/,2x,a)') 'MRSF gradient blocks already loaded: reusing them'
+       return
     endif
 
     call grad_free()
@@ -70,58 +72,129 @@ contains
        BooQ(:,:,Q) = Boo(Ql,:,:,blk)
     enddo
 
-    ! pair tables (1-based, p >= q, ij = p(p-1)/2 + q)
-    n_ij = nmo*(nmo+1)/2
-    allocate(ptab(n_ij), qtab(n_ij))
-    ij = 0
-    do ip = 1, nmo
-       do iq = 1, ip
-          ij = ij + 1
-          ptab(ij) = ip
-          qtab(ij) = iq
+    if (allocated(Bcv)) then
+       ! the hole-particle block from the resident blocks (extended sessions)
+       call bhp_from_blocks()
+    else
+       inquire(file=trim(fname), exist=exists)
+       if (.not. exists) then
+          ierr = 3; return
+       endif
+       ! pair tables (1-based, p >= q, ij = p(p-1)/2 + q)
+       n_ij = nmo*(nmo+1)/2
+       allocate(ptab(n_ij), qtab(n_ij))
+       ij = 0
+       do ip = 1, nmo
+          do iq = 1, ip
+             ij = ij + 1
+             ptab(ij) = ip
+             qtab(ij) = iq
+          enddo
        enddo
-    enddo
-
-    call freeunit(unit)
-    open(unit, file=trim(fname), form='unformatted', status='old')
-    read(unit) dims(1)
-    read(unit) dims(2)
-    if (dims(1) /= naux .or. dims(2) /= n_ij) then
-       close(unit); ierr = 4; return
+       call freeunit(unit)
+       open(unit, file=trim(fname), form='unformatted', status='old')
+       read(unit) dims(1)
+       read(unit) dims(2)
+       if (dims(1) /= naux .or. dims(2) /= n_ij) then
+          close(unit); ierr = 4; return
+       endif
+       read(unit) nrec
+       read(unit) cpr
+       allocate(buf(naux,cpr))
+       do irec = 1, nrec
+          c0   = (irec-1)*cpr + 1
+          c1   = min(irec*cpr, n_ij)
+          ncol = c1 - c0 + 1
+          read(unit) buf(1:naux, 1:ncol)
+          !$omp parallel do private(ij, ip, iq, i, a, i2, a2)
+          do k = 1, ncol
+             ij = c0 + k - 1
+             ip = ptab(ij); iq = qtab(ij)
+             i = Hinv(ip); a = Pinv(iq)
+             if (i > 0 .and. a > 0) Bhp(i,a,:) = buf(:,k)
+             i2 = Hinv(iq); a2 = Pinv(ip)
+             if (i2 > 0 .and. a2 > 0) Bhp(i2,a2,:) = buf(:,k)
+          enddo
+          !$omp end parallel do
+       enddo
+       close(unit)
+       deallocate(buf, ptab, qtab)
     endif
-    read(unit) nrec
-    read(unit) cpr
-    allocate(buf(naux,cpr))
-    do irec = 1, nrec
-       c0   = (irec-1)*cpr + 1
-       c1   = min(irec*cpr, n_ij)
-       ncol = c1 - c0 + 1
-       read(unit) buf(1:naux, 1:ncol)
-       !$omp parallel do private(ij, ip, iq, i, a, i2, a2)
-       do k = 1, ncol
-          ij = c0 + k - 1
-          ip = ptab(ij); iq = qtab(ij)
-          i = Hinv(ip); a = Pinv(iq)
-          if (i > 0 .and. a > 0) Bhp(i,a,:) = buf(:,k)
-          i2 = Hinv(iq); a2 = Pinv(ip)
-          if (i2 > 0 .and. a2 > 0) Bhp(i2,a2,:) = buf(:,k)
-       enddo
-       !$omp end parallel do
-    enddo
-    close(unit)
-    deallocate(buf, ptab, qtab)
 
     grad_ready = .true.
+    grad_nload = nload
     if (verbose) write(6,'(/,2x,a,f10.2,a,f8.3,a)') 'MRSF gradient blocks loaded in ', &
          wall_time() - t0, ' s (Bhp ', 8.0_dp*nocca*nvirb*naux/1.0e9_dp, ' GB)'
 
   end subroutine grad_init
 
+  subroutine bhp_from_blocks()
+
+    ! Bhp(i,a,Q) = B^Q_{i a} for i in H = [C, O1, O2], a in P = [O1, O2, V]
+    ! from Bcv (C rows), Boo (SOMO-SOMO) and Bvo (SOMO-V)
+    integer(is) :: i, a, Q, x, y, blk, Ql
+
+    !$omp parallel do private(i, a, x, y, blk, Ql)
+    do Q = 1, naux
+       blk = (Q-1)/nQ + 1
+       Ql  = Q - (blk-1)*nQ
+       do i = 1, nC
+          do a = 1, nvirb
+             Bhp(i,a,Q) = Bcv(a,i,Q)
+          enddo
+       enddo
+       do x = 1, 2
+          do y = 1, 2
+             Bhp(nC+x,y,Q) = Boo(Ql,nC+x,nC+y,blk)
+          enddo
+          do a = 3, nvirb
+             Bhp(nC+x,a,Q) = Bvo(Q,a-2,x)
+          enddo
+       enddo
+    enddo
+    !$omp end parallel do
+
+  end subroutine bhp_from_blocks
+
   subroutine grad_free()
     if (allocated(Bhp)) deallocate(Bhp)
     if (allocated(BooQ)) deallocate(BooQ)
     grad_ready = .false.
+    grad_nload = -1
   end subroutine grad_free
+
+!######################################################################
+! grad_kg: exchange matrix of the closed-shell density of the first nG
+! hole MOs, K_pq = sum_Q sum_{i<=nG} B^Q_pi B^Q_qi (MO indices)
+!######################################################################
+  subroutine grad_kg(nG, K)
+
+    integer(is), intent(in) :: nG
+    real(dp), intent(out)   :: K(nmo,nmo)
+
+    real(dp), allocatable :: W(:,:)
+    integer(is)           :: Q, i, h, a, m
+
+    if (.not. grad_ready) call mrsf_error('grad_kg: gradient blocks not loaded')
+    if (nG < 1 .or. nG > nocca) call mrsf_error('grad_kg: bad number of occupied MOs')
+    allocate(W(nmo, naux*nG))
+    !$omp parallel do private(i, h, a, m)
+    do Q = 1, naux
+       do i = 1, nG
+          m = (Q-1)*nG + i
+          do h = 1, nocca
+             W(Hmap(h),m) = BooQ(i,h,Q)
+          enddo
+          do a = 1, nvirb
+             W(Pmap(a),m) = Bhp(i,a,Q)
+          enddo
+       enddo
+    enddo
+    !$omp end parallel do
+    call dgemm('N','T', nmo, nmo, naux*nG, 1.0_dp, W, nmo, W, nmo, 0.0_dp, K, nmo)
+    deallocate(W)
+
+  end subroutine grad_kg
 
 !######################################################################
 ! grad_bso: B^Q_{p,O_x} for all MOs p (for the pairing terms)
@@ -852,5 +925,31 @@ contains
     real(dp), intent(inout) :: Wq(nvirb,nw)
     Wq(3:2+ncl,:) = W(:,Q,:)
   end subroutine gather_q_emb
+
+!######################################################################
+! grad_fam_outer: F(i0:i1, j0:j1, Q) += sum_t Mats(:,:,t) vecs(Q,t) on a
+! sub-block of an (n1, n2, naux) family (Ghh, Fhp, Yf), in place
+!######################################################################
+  subroutine grad_fam_outer(nt, n1, n2, nq, i0, i1, j0, j1, Mats, vecs, F)
+
+    integer(is), intent(in) :: nt, n1, n2, nq, i0, i1, j0, j1
+    real(dp), intent(in)    :: Mats(i1-i0+1,j1-j0+1,nt), vecs(nq,nt)
+    real(dp), intent(inout) :: F(n1,n2,nq)
+
+    integer(is) :: Q, t, j, ni
+
+    if (i0 < 1 .or. i1 > n1 .or. j0 < 1 .or. j1 > n2) call mrsf_error('grad_fam_outer: block out of range')
+    ni = i1 - i0 + 1
+    !$omp parallel do private(t, j)
+    do Q = 1, nq
+       do t = 1, nt
+          do j = j0, j1
+             F(i0:i1,j,Q) = F(i0:i1,j,Q) + vecs(Q,t)*Mats(1:ni,j-j0+1,t)
+          enddo
+       enddo
+    enddo
+    !$omp end parallel do
+
+  end subroutine grad_fam_outer
 
 end module mrsf_gradient

@@ -257,6 +257,16 @@ mrsf_registry = {
     'mrsf_grad_reffam'    : ['double'] + ['dptr']*4,
     # grid module: XC kernel on factor-pair densities
     'mrsf_xc_init'        : ['int32']*7 + ['dptr']*5 + ['logical'],
+    'mrsf_xc_init_grid'   : ['int32']*7 + ['dptr']*3 + ['logical'],
+    'mrsf_xc_set_ref_kernel' : ['int32','int32','dptr','dptr'],
+    'mrsf_xc_g_density'   : ['dptr'],
+    'mrsf_xc_probe_begin_q' : ['int32','int32','dptr','int32','int32','int32','dptr','logical','logical'],
+    'mrsf_xc_probe_super' : ['int32']*4 + ['dptr'],
+    'mrsf_xc_g_potential_q' : ['int32','dptr','int32','int32','int32','dptr','int32','int32','dptr','logical'] + ['dptr']*4,
+    'mrsf_xc_g_vxc_ao'    : ['dptr'],
+    'mrsf_xc_cs_from_g'   : ['double'],
+    'mrsf_grad_kg'        : ['int32','dptr'],
+    'mrsf_grad_fam_outer' : ['int32']*8 + ['dptr']*3,
     'mrsf_xc_add_block'   : ['int32','dptr'],
     'mrsf_xc_free'        : [],
     'mrsf_xc_begin'       : ['int32','int32','dptr','dptr','int32'],
@@ -270,7 +280,7 @@ mrsf_registry = {
     'mrsf_xc_g_set'       : ['int32','int32','dptr','dptr','dptr','logical'],
     'mrsf_xc_g_free'      : [],
     'mrsf_xc_g_potential' : ['int32','dptr','dptr','int32','dptr','dptr','dptr','dptr'],
-    'mrsf_xc_gprobe_set'  : ['int32','int32','dptr','dptr','int32','dptr'],
+    'mrsf_xc_gprobe_set'  : ['int32','int32','dptr','dptr','int32','dptr','logical'],
     'mrsf_xc_gprobe_get'  : ['dptr'],
     'mrsf_aograd_block'   : ['int32']*4 + ['dptr']*6,
     'mrsf_aograd_free'    : [],
@@ -280,7 +290,7 @@ mrsf_registry = {
     'mrsf_zvec_factors'   : ['int32','dptr','dptr'],
     'mrsf_zvec_hessian'   : ['int32','double','dptr','dptr','logical','dptr'],
     # state overlaps between two geometries (stateless)
-    'mrsf_state_overlap'  : ['int32']*3 + ['dptr']*2 + ['int32']*5 + ['dptr']*6 + ['int32']
+    'mrsf_state_overlap'  : ['int32']*3 + ['dptr']*2 + ['int32']*7 + ['dptr']*6 + ['int32']
 }
 
 mrsf_intent = {
@@ -314,6 +324,16 @@ mrsf_intent = {
     'mrsf_grad_finish'    : ['in']*9 + ['inout']*2 + ['in'] + ['out']*2,
     'mrsf_grad_reffam'    : ['in']*3 + ['out']*2,
     'mrsf_xc_init'        : ['in']*13,
+    'mrsf_xc_init_grid'   : ['in']*11,
+    'mrsf_xc_set_ref_kernel' : ['in']*4,
+    'mrsf_xc_g_density'   : ['out'],
+    'mrsf_xc_probe_begin_q' : ['in']*9,
+    'mrsf_xc_probe_super' : ['in']*5,
+    'mrsf_xc_g_potential_q' : ['in']*10 + ['out']*4,
+    'mrsf_xc_g_vxc_ao'    : ['out'],
+    'mrsf_xc_cs_from_g'   : ['in'],
+    'mrsf_grad_kg'        : ['in','out'],
+    'mrsf_grad_fam_outer' : ['in']*10 + ['out'],
     'mrsf_xc_add_block'   : ['in']*2,
     'mrsf_xc_free'        : [],
     'mrsf_xc_begin'       : ['in']*5,
@@ -327,7 +347,7 @@ mrsf_intent = {
     'mrsf_xc_g_set'       : ['in']*6,
     'mrsf_xc_g_free'      : [],
     'mrsf_xc_g_potential' : ['in']*5 + ['out']*3,
-    'mrsf_xc_gprobe_set'  : ['in']*6,
+    'mrsf_xc_gprobe_set'  : ['in']*7,
     'mrsf_xc_gprobe_get'  : ['out'],
     'mrsf_aograd_block'   : ['in']*8 + ['inout','out'],
     'mrsf_aograd_free'    : [],
@@ -336,7 +356,7 @@ mrsf_intent = {
     'mrsf_zvec_free'      : [],
     'mrsf_zvec_factors'   : ['in']*2 + ['out'],
     'mrsf_zvec_hessian'   : ['in']*5 + ['out'],
-    'mrsf_state_overlap'  : ['in']*15 + ['out','out']
+    'mrsf_state_overlap'  : ['in']*17 + ['out','out']
 }
 
 # list of existing library objects

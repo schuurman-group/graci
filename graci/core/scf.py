@@ -6,6 +6,7 @@ Initial pass, at least, will employ PySCF
 import os
 import sys
 import h5py
+import hashlib
 import copy
 import numpy as np
 import graci.core.params as params
@@ -525,7 +526,9 @@ class Scf:
         reaches the checkpoint file.
         """
         global _pyscf_cache
-        key = (self.label, id(self))
+        key = (self.label, id(self),
+               hashlib.blake2b(np.ascontiguousarray(self.mol.crds, dtype=float).tobytes(),
+                               digest_size=16).hexdigest())
         if key in _pyscf_cache:
             # the orbitals may have been re-optimised since the object was
             # cached (MRSF stability check)
@@ -552,8 +555,9 @@ class Scf:
         if self.x2c:
             mf = mf.x2c()
         if self.mol.use_df:
+            # the DF tensor is built by PySCF on first use (the gradients
+            # need only the auxiliary basis)
             mf = mf.density_fit(auxbasis=self.mol.ri_basis)
-            mf.with_df.build()
         mf.mo_coeff  = self.orbs
         mf.mo_occ    = self.orb_occ
         mf.mo_energy = self.orb_ener
