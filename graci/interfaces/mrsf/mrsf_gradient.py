@@ -281,7 +281,10 @@ class GradientDriver:
             mrsf_init.set_frozen_core(0)
             mrsf_init.init(ci, fock_mo)
             mrsf_init.set_exchange(getattr(ci, 'exchange', 'auto'))
-            mrsf_init.init_ints(ci, ci.eri_file())
+            # the full-hole exchange tensor of the Z-vector operator may use
+            # the larger of the two sections' memory budgets
+            mrsf_init.init_ints(ci, ci.eri_file(),
+                                mem_budget=max(float(ci.mem_budget), float(grad_obj.mem_budget)))
         # Z-vector operator = orbital Hessian of the reference (hole-particle
         # DF block, Fock couplings and diagonal in the library; the XC
         # kernel on the grid, where the library grid module caches the AO
@@ -713,6 +716,55 @@ class GradientDriver:
         info['resid'] = resid
         return x, info
 
+    def native_solver_ok(self):
+        """the library solver needs the cached AO values for the XC kernel"""
+        return (not self.is_dft) or bool(self.hess.xcgrid.cache)
+
+    def solve_native(self, Rmat, tol, maxiter, x0=None):
+        """H z = -R in the library (mrsf_zsolve): one shared subspace for all
+        columns, minimal residual (robust for the indefinite orbital Hessian
+        of a saddle-point reference), the Fock-diagonal preconditioner or,
+        with the XC kernel, a few kernel-free inner steps; one library call"""
+        b = -np.asarray(Rmat, dtype=float)
+        n, ncol = b.shape
+        prec = str(getattr(self.opt, 'zvec_precond', 'auto')).lower()
+        inner = self.is_dft and (prec in ('inner', 'auto'))
+        ninner = int(getattr(self.opt, 'zvec_inner', 2))
+        budget = 0.25*float(self.opt.mem_budget)*1.0e9
+        maxsub = int(max(2*ncol, min(int(maxiter)*ncol + ncol, budget//(16.0*n))))
+        mrsf_grad.zvec_reset_timings()
+        X, niter, resid, hist, info, ierr = mrsf_grad.zvec_solve(self.x_ref, self.is_dft, b, x0, tol,
+                                                                  maxiter, 2 if inner else 1, ninner, maxsub)
+        if ierr != 0:
+            sys.exit('MRSF gradients: Z-vector solver error %d' % ierr)
+        self.hess.nprod += int(info[0])
+        if self.verbose:
+            with output.output_file(output.file_names['out_file'], 'a+') as f:
+                for it in range(1, int(niter.max()) + 1 if ncol > 0 else 1):
+                    act = niter >= it
+                    f.write('\n  Z-vector iteration %3d: max residual %.3e (%d active)' %
+                            (it, hist[it, act].max(), int(np.sum(act))))
+        tt = mrsf_grad.zvec_timings()
+        self.tm.add('zvec: operator (%d products)' % int(info[0]), info[7])
+        if inner:
+            self.tm.add('zvec: inner steps (%d kernel-free products)' % int(info[1]), info[8])
+        self.tm.add('zvec: XC kernel', tt['xc'])
+        self.tm.add('zvec: exchange', tt['exch_ph'] + tt['exch_hp'])
+        self.tm.add('zvec: Coulomb/Fock', tt['coulomb'] + tt['fock'] + tt['local'])
+        self.tm.add('zvec: solver algebra', max(info[9] - info[7] - info[8], 0.0))
+        self.zvec_stats = {'solver': 'native', 'precond': 'inner (%d)' % ninner if inner else 'diagonal',
+                           'products': int(info[0]), 'inner_products': int(info[1]),
+                           'restarts': int(info[2]), 'basis': int(info[3]),
+                           'ritz': (float(info[4]), float(info[5])), 'nneg': int(info[6])}
+        if int(info[6]) > 0:
+            output.print_message('the orbital Hessian of the ROKS reference has %d negative '
+                                 'eigenvalue(s) (lowest Ritz value of D^-1 H in the Z-vector '
+                                 'subspace: %.3f): the reference is a saddle point of the ROKS '
+                                 'energy; stability = True in $mrsftddft re-optimises it' %
+                                 (int(info[6]), float(info[4])))
+        return np.asarray(X), {'converged': np.asarray(resid) < tol, 'niter': niter,
+                               'resid': np.asarray(resid)}
+
     def solve_dense(self, Rmat):
         n = self.lzdim
         Hm = self.hessian_apply(np.eye(n))
@@ -842,9 +894,17 @@ class GradientDriver:
         times['rhs'] = time.time() - t0
         # Z-vectors for all states at once
         t0 = time.time()
-        if self.opt.zvec_solver == 'dense':
+        solver = str(self.opt.zvec_solver).lower()
+        self.zvec_stats = {'solver': solver}
+        if solver == 'dense':
             Z, info = self.solve_dense(Rmat)
+        elif solver == 'native' and self.native_solver_ok():
+            Z, info = self.solve_native(Rmat, self.opt.zvec_tol, self.opt.zvec_iter, x0=zguess)
         else:
+            if solver == 'native' and self.verbose:
+                output.print_message('Z-vector: the AO values are not cached (raise mem_budget); '
+                                     'using the Python conjugate-gradient solver')
+            self.zvec_stats = {'solver': 'pcg'}
             Z, info = self.solve_pcg(Rmat, self.opt.zvec_tol, self.opt.zvec_iter, x0=zguess)
         times['zvec'] = time.time() - t0
         if zguess is not None and self.verbose:
@@ -943,7 +1003,8 @@ class GradientDriver:
                              for sd in sds])
         zeta_12 = np.array([sd['zeta'][-1] for sd in sds]) if nsp else np.zeros(len(sds))
         self.debug = {'sds': sds, 'Z': Z, 'W': W_list, 'P': P_list}
-        return {'grad': grads, 'grad_ref': self.grad_ref, 'zvec_niter': info['niter'],
+        return {'zvec_stats': dict(getattr(self, 'zvec_stats', {})),
+                'grad': grads, 'grad_ref': self.grad_ref, 'zvec_niter': info['niter'],
                 'zvec_resid': info['resid'], 'zvec_converged': info['converged'],
                 'parts': parts, 'times': times, 'P_ao': P_list, 'zeta_max': zeta_max,
                 'zeta_12': zeta_12, 'somo_gap': somo_gap, 'zvec': np.array(Z)}

@@ -602,8 +602,16 @@ def print_mrsfgradient_results(grad_obj, states, res):
                       ', manifold: '+('singlets' if ci.mult == 1 else 'triplets'))
         outfile.write('\n Reference (ROKS) energy: '+
                       '{:16.10f}'.format(ci.scf.energy)+' Ha')
-        outfile.write('\n Z-vector solver: '+str(grad_obj.zvec_solver)+
+        zs = res.get('zvec_stats', {}) or {}
+        outfile.write('\n Z-vector solver: '+str(zs.get('solver', grad_obj.zvec_solver))+
                       ', tolerance '+'{:.1e}'.format(grad_obj.zvec_tol))
+        if zs.get('solver') == 'native':
+            outfile.write('\n Z-vector: shared subspace, minimal residual, preconditioner {:s}; '
+                          '{:d} operator products{:s}, basis {:d}{:s}; lowest Ritz value of '
+                          'D^-1 H {:.3f}'.format(zs['precond'], zs['products'],
+                          ' (+{:d} kernel-free)'.format(zs['inner_products']) if zs['inner_products'] else '',
+                          zs['basis'], ', {:d} restart(s)'.format(zs['restarts']) if zs['restarts'] else '',
+                          zs['ritz'][0]))
         nfc = int(getattr(ci, 'frozen_core', 0) or 0)
         if nfc > 0:
             outfile.write('\n Frozen core: '+str(nfc)+' doubly occupied MOs; canonical '
@@ -626,7 +634,7 @@ def print_mrsfgradient_results(grad_obj, states, res):
                           'cached' if t['xc_cached'] else 'streamed (raise mem_budget to cache)'))
         if grad_obj.verbose and 'detail' in t:
             det = t['detail']
-            for grp in ('setup', 'rhs', 'fam', 'ao', '1e'):
+            for grp in ('setup', 'rhs', 'zvec', 'fam', 'ao', '1e'):
                 items = [(k, v) for k, v in det.items() if k.startswith(grp + ':')]
                 if items:
                     outfile.write('\n   '+grp+' detail (s): '+

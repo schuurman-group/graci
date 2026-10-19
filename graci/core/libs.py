@@ -295,6 +295,13 @@ mrsf_registry = {
     'mrsf_zvec_free'      : [],
     'mrsf_zvec_factors'   : ['int32','dptr','dptr'],
     'mrsf_zvec_hessian'   : ['int32','double','dptr','dptr','logical','dptr'],
+    'mrsf_zvec_apply'     : ['int32','double','logical','dptr','dptr'],
+    # ncol, cx, have_xc, B, X (start/solution), nx0, tol, maxit, precond,
+    # ninner, maxsub, niter, resid, hist, info, ierr
+    'mrsf_zvec_solve'     : ['int32','double','logical','dptr','dptr','int32','double'] + ['int32']*5 +
+                            ['dptr']*3 + ['int32'],
+    'mrsf_zvec_timings'   : ['dptr'],
+    'mrsf_zvec_reset_timings' : [],
     # state overlaps between two geometries (stateless)
     'mrsf_state_overlap'  : ['int32']*3 + ['dptr']*2 + ['int32']*7 + ['dptr']*6 + ['int32'],
     # warm-start alignment of vectors of a previous geometry (stateless)
@@ -365,6 +372,10 @@ mrsf_intent = {
     'mrsf_zvec_free'      : [],
     'mrsf_zvec_factors'   : ['in']*2 + ['out'],
     'mrsf_zvec_hessian'   : ['in']*5 + ['out'],
+    'mrsf_zvec_apply'     : ['in']*4 + ['out'],
+    'mrsf_zvec_solve'     : ['in']*4 + ['inout'] + ['in']*6 + ['out']*5,
+    'mrsf_zvec_timings'   : ['out'],
+    'mrsf_zvec_reset_timings' : [],
     'mrsf_state_overlap'  : ['in']*17 + ['out','out'],
     'mrsf_align_vectors'  : ['in']*13 + ['inout','out','out']
 }

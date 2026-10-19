@@ -99,6 +99,7 @@ module mrsf_xcgrid
   real(dp)                 :: tcs(5) = 0.0_dp   ! closed-shell kernel: psiL, rho+wv, aow, projections, final
   integer(is)              :: nxc_calls = 0, nxc_vecs = 0, nprobe_calls = 0
   real(dp)                 :: tpart(6) = 0.0_dp   ! kernel: psi, rho, wv, aow, projection, misc
+  real(dp)                 :: tzv(5) = 0.0_dp     ! Z-vector kernel (xc_zvec): psi, rho, wv, aow, projection
 
 contains
 
@@ -363,6 +364,195 @@ contains
     tpart(1:5) = tpart(1:5) + tl(1:5)
 
   end subroutine cached_parallel
+
+!######################################################################
+! xc_zvec: XC kernel part of the Z-vector operator (cached AO values),
+! VHP(nocca, nvirb, 2, nvec) = HP blocks of the kernel potentials of the
+! trial densities of the weighted rotation matrices Zab(nvirb, nocca, 2,
+! nvec) (= w^s z on the particle x hole blocks). Spin-shared factor
+! columns: Z^a has no C->O block and Z^b no O->V block, so with
+! L^a = C_P Z^a (all nocca columns) the beta factor is
+!   L^b(:, C) = L^a(:, C) + C_O Z^b(O, C),  L^b(:, O) = 0,
+! and on a grid block psi_{L^b} = psi_{L^a}(C columns) + psi_O Z^b(O, C)
+! with the cached SOMO values: one AO dgemm with nocca*nvec columns
+! instead of 2*nocca*nvec; the beta density and projection run over the
+! nC core rows only (the beta rows of the open shells are not used by
+! the operator and are returned as zero).
+!######################################################################
+  subroutine xc_zvec(nvec, Zab, VHP)
+
+    integer(is), intent(in) :: nvec
+    real(dp), intent(in)    :: Zab(nvirb,nocca,2,nvec)
+    real(dp), intent(out)   :: VHP(nocca,nvirb,2,nvec)
+
+    integer(is)           :: ib, nb, nbmax, nthr, v
+    integer(c_int)        :: prev
+    logical               :: par
+    real(dp)              :: tl(5), t0
+    real(dp), allocatable :: La(:,:,:), Zo(:,:,:), Mz(:,:,:,:)
+    real(dp), allocatable :: psiLa(:), psiLb(:), rho1(:), wv(:), Bst(:), Ast(:), Mth(:,:,:,:)
+
+    if (.not. xc_ready) call mrsf_error('xc_zvec: grid not initialised')
+    if (.not. ref_ready) call mrsf_error('xc_zvec: reference kernel not installed')
+    if (.not. ao_cached) call mrsf_error('xc_zvec: AO values are not cached')
+    t0 = wall_time()
+    allocate(La(nao_g,nocca,nvec), Zo(2,nC,nvec), Mz(nocca,nao_g,2,nvec))
+    do v = 1, nvec
+       call dgemm('N','N', nao_g, nocca, nvirb, 1.0_dp, CPg, nao_g, Zab(1,1,1,v), nvirb, 0.0_dp, &
+            La(1,1,v), nao_g)
+       Zo(1:2,1:nC,v) = Zab(1:2,1:nC,2,v)
+    enddo
+    Mz = 0.0_dp
+    nbmax = 0
+    do ib = 1, nblocks
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
+    enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nblocks >= nthr)
+    tl  = 0.0_dp
+
+    !$omp parallel if(par) default(shared) private(ib, nb, prev, psiLa, psiLb, rho1, wv, Bst, Ast, Mth) &
+    !$omp reduction(+:tl)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(psiLa(nbmax*nocca*nvec*ncomp), psiLb(nbmax*nC*ncomp), rho1(nbmax*ndc*2), &
+         wv(nbmax*ndc*2), Bst(2*nbmax*nao_g*2), Ast(nocca*2*nbmax*2), Mth(nocca,nao_g,2,nvec))
+    Mth = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call zvec_block_thread(nb, gbeg(ib), nvec, aoc(aoff(ib)+1), psiH(poff(ib)+1), La, Zo, &
+            psiLa, psiLb, rho1, wv, Bst, Ast, Mth, tl)
+    enddo
+    !$omp end do
+    !$omp critical
+    Mz = Mz + Mth
+    !$omp end critical
+    deallocate(psiLa, psiLb, rho1, wv, Bst, Ast, Mth)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+    tzv(1:5) = tzv(1:5) + tl(1:5)
+
+    ! projections onto the particle MOs
+    VHP = 0.0_dp
+    do v = 1, nvec
+       call dgemm('N','N', nocca, nvirb, nao_g, 1.0_dp, Mz(1,1,1,v), nocca, CPg, nao_g, 0.0_dp, &
+            VHP(1,1,1,v), nocca)
+       call dgemm('N','N', nC, nvirb, nao_g, 1.0_dp, Mz(1,1,2,v), nocca, CPg, nao_g, 0.0_dp, &
+            VHP(1,1,2,v), nocca)
+    enddo
+    deallocate(La, Zo, Mz)
+    time_xc = time_xc + wall_time() - t0
+    nxc_calls = nxc_calls + 1
+    nxc_vecs = nxc_vecs + nvec
+
+  end subroutine xc_zvec
+
+!######################################################################
+! zvec_block_thread: one cached grid block of xc_zvec for all vectors,
+! run by one thread with sequential BLAS (see kernel_block_thread for the
+! stacked projection operands). tl: factor values, densities,
+! potentials, weighted products, projections (thread seconds)
+!######################################################################
+  subroutine zvec_block_thread(nb, g0, nvec, ao, psiHb, La, Zo, psiLa, psiLb, rho1, wv, Bst, Ast, Mth, tl)
+
+    integer(is), intent(in) :: nb, g0, nvec
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), psiHb(nb,nocca,ncomp)
+    real(dp), intent(in)    :: La(nao_g,nocca*nvec), Zo(2,nC,nvec)
+    real(dp), intent(inout) :: psiLa(nb,nocca*nvec,ncomp), psiLb(nb,nC,ncomp)
+    real(dp), intent(inout) :: rho1(nb,ndc,2), wv(nb,ndc,2)
+    real(dp), intent(inout) :: Bst(2*nb,nao_g,2), Ast(nocca,2*nb,2)
+    real(dp), intent(inout) :: Mth(nocca,nao_g,2,nvec), tl(5)
+
+    integer(is) :: v, s, t, c, g, gg, x, y, mu, i, j0, k
+    real(dp)    :: acc, t1
+
+    ! block-constant halves of the stacked operands
+    do t = 1, 2
+       do g = 1, nb
+          Ast(1:nocca,g,t) = psiHb(g,1:nocca,1)
+       enddo
+       do mu = 1, nao_g
+          Bst(nb+1:2*nb,mu,t) = ao(1:nb,mu,1)
+       enddo
+    enddo
+
+    ! alpha factor values for all vectors
+    t1 = wall_time()
+    do c = 1, ncomp
+       call dgemm('N','N', nb, nocca*nvec, nao_g, 1.0_dp, ao(1,1,c), nb, La, nao_g, 0.0_dp, &
+            psiLa(1,1,c), nb)
+    enddo
+    tl(1) = tl(1) + wall_time() - t1
+
+    do v = 1, nvec
+       j0 = nocca*(v-1)
+       ! beta factor values: alpha core columns + SOMO values x Z^b(O, C)
+       t1 = wall_time()
+       do c = 1, ncomp
+          do k = 1, nC
+             psiLb(1:nb,k,c) = psiLa(1:nb,j0+k,c)
+          enddo
+          call dgemm('N','N', nb, nC, 2, 1.0_dp, psiHb(1,nC+1,c), nb, Zo(1,1,v), 2, 1.0_dp, &
+               psiLb(1,1,c), nb)
+       enddo
+       tl(1) = tl(1) + wall_time() - t1
+       ! trial densities
+       t1 = wall_time()
+       call block_rho(nb, nocca, psiLa(1,j0+1,1), nb*nocca*nvec, psiHb, nb*nocca, rho1(1,1,1))
+       call block_rho(nb, nC, psiLb, nb*nC, psiHb, nb*nocca, rho1(1,1,2))
+       tl(2) = tl(2) + wall_time() - t1
+       ! weighted kernel potentials wv(g,y,t) = w sum_{s,x} rho1(g,x,s) fxc(g,y,t,x,s)
+       t1 = wall_time()
+       do g = 1, nb
+          gg = g0 + g - 1
+          do t = 1, 2
+             do y = 1, ndc
+                acc = 0.0_dp
+                do s = 1, 2
+                   do x = 1, ndc
+                      acc = acc + rho1(g,x,s)*fxcw(y,t,x,s,gg)
+                   enddo
+                enddo
+                wv(g,y,t) = acc
+             enddo
+          enddo
+       enddo
+       tl(3) = tl(3) + wall_time() - t1
+       ! aow_t (first half of Bst) and the weighted hole-MO products aowH_t
+       t1 = wall_time()
+       do t = 1, 2
+          do mu = 1, nao_g
+             Bst(1:nb,mu,t) = 0.5_dp*wv(1:nb,1,t)*ao(1:nb,mu,1)
+             do c = 2, ncomp
+                Bst(1:nb,mu,t) = Bst(1:nb,mu,t) + wv(1:nb,c,t)*ao(1:nb,mu,c)
+             enddo
+          enddo
+          do g = 1, nb
+             do i = 1, nocca
+                acc = 0.5_dp*wv(g,1,t)*psiHb(g,i,1)
+                do c = 2, ncomp
+                   acc = acc + wv(g,c,t)*psiHb(g,i,c)
+                enddo
+                Ast(i,nb+g,t) = acc
+             enddo
+          enddo
+       enddo
+       tl(4) = tl(4) + wall_time() - t1
+       ! projections: alpha over all hole rows, beta over the core rows
+       t1 = wall_time()
+       call dgemm('N','N', nocca, nao_g, 2*nb, 1.0_dp, Ast(1,1,1), nocca, Bst(1,1,1), 2*nb, &
+            1.0_dp, Mth(1,1,1,v), nocca)
+       call dgemm('N','N', nC, nao_g, 2*nb, 1.0_dp, Ast(1,1,2), nocca, Bst(1,1,2), 2*nb, &
+            1.0_dp, Mth(1,1,2,v), nocca)
+       tl(5) = tl(5) + wall_time() - t1
+    enddo
+
+  end subroutine zvec_block_thread
 
 !######################################################################
 ! xc_block: one streamed block, ao(nb, nao, ncomp)

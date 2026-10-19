@@ -216,6 +216,49 @@ def zvec_hessian(cx, z, VHP, have_xc, lz):
     return Hz
 
 
+def zvec_apply(cx, z, have_xc, lz):
+    """fused operator product H z (lz, nvec): two-electron, XC kernel (cached
+    AO values) and Fock parts in one library call"""
+    z = farr(z)
+    nvec = z.shape[1]
+    Hz = fzeros(lz, nvec)
+    libs.lib_func('mrsf_zvec_apply', (nvec, float(cx), bool(have_xc), z, Hz))
+    return Hz
+
+
+def zvec_solve(cx, have_xc, B, X0, tol, maxit, precond, ninner, maxsub):
+    """the library's Z-vector solver (shared subspace, minimal residual) for
+    H X = B, B (lz, ncol); X0: start vectors or None; precond 1 diagonal,
+    2 kernel-free inner steps. Returns X, niter, resid, hist (maxit+1,
+    ncol), info (see mrsf_zsolve.f90), ierr"""
+    B = farr(B)
+    lz, ncol = B.shape
+    X = fzeros(lz, ncol) if X0 is None else farr(np.array(X0, dtype=float).reshape(lz, ncol))
+    nx0 = 0 if X0 is None else 1
+    niter = np.zeros(ncol, dtype=np.int32)
+    resid = fzeros(ncol)
+    hist = fzeros(int(maxit) + 1, ncol)
+    info = fzeros(16)
+    out = libs.lib_func('mrsf_zvec_solve', (ncol, float(cx), bool(have_xc), B, X, nx0, float(tol),
+                                            int(maxit), int(precond), int(ninner), int(maxsub),
+                                            niter, resid, hist, info, 0))
+    X, niter, resid, hist, info, ierr = out
+    return X, np.asarray(niter, dtype=int), resid, hist, info, ierr
+
+
+def zvec_timings():
+    """timers of the fused product: dict of seconds and counts"""
+    t = fzeros(16)
+    libs.lib_func('mrsf_zvec_timings', (t,))
+    keys = ['local', 'coulomb', 'exch_ph', 'exch_hp', 'xc', 'fock', 'calls', 'vectors',
+            'xc_psi', 'xc_rho', 'xc_wv', 'xc_aow', 'xc_proj']
+    return dict(zip(keys, (float(x) for x in t[:13])))
+
+
+def zvec_reset_timings():
+    libs.lib_func('mrsf_zvec_reset_timings', ())
+
+
 def aograd_free():
     libs.lib_func('mrsf_aograd_free', ())
 

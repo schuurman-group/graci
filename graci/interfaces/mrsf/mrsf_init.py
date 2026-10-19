@@ -42,15 +42,17 @@ def init(ci_method, fock_mo):
     return
 
 #
-def init_ints(ci_method, eri_file, mo_ints=None):
+def init_ints(ci_method, eri_file, mo_ints=None, mem_budget=None):
     """load the density-fitted MO integrals: from the packed tensor that
     the Ao2mo object mo_ints holds in memory when it belongs to the same
     geometry and MOs (double precision), otherwise from eri_file. The
     stamp (geometry + MOs) is part of the library's reuse key, so a file
     rewritten under the same name at another geometry is never mistaken
-    for the loaded integrals"""
+    for the loaded integrals. mem_budget (GB): budget for the exchange
+    tensor decision and the work buffers (default: the section's)"""
 
     stmp = stamp(ci_method)
+    budget = float(ci_method.mem_budget if mem_budget is None else mem_budget)
     eri_mem = getattr(mo_ints, 'eri_mo', None) if mo_ints is not None else None
     if eri_mem is not None and mo_ints.stamp == stmp \
             and ci_method.precision == 'double' \
@@ -58,14 +60,14 @@ def init_ints(ci_method, eri_file, mo_ints=None):
         naux, npair = eri_mem.shape
         # the C-ordered (naux, npair) array is the F-contiguous (npair, naux) matrix
         args = (ci_method.precision, eri_file, ci_method.vv_storage,
-                float(ci_method.mem_budget), stmp, int(naux), int(npair), eri_mem.T)
+                budget, stmp, int(naux), int(npair), eri_mem.T)
         libs.lib_func('mrsf_int_load_mem', args)
         if mo_ints.file_written:
             mo_ints.release()
     else:
         ao2mo.ensure_file(eri_file)
         args = ('df', ci_method.precision, eri_file, ci_method.vv_storage,
-                float(ci_method.mem_budget), stmp)
+                budget, stmp)
         libs.lib_func('mrsf_int_initialise', args)
 
     return

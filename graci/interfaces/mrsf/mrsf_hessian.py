@@ -93,9 +93,14 @@ class RoksHessian:
         self.nprod = 0
 
     def apply(self, Z):
-        """H Z for a batch of rotation vectors Z (lz, nvec)"""
+        """H Z for a batch of rotation vectors Z (lz, nvec): one fused library
+        call when the AO values are cached (or without XC), else the
+        factors / streamed kernel / two-electron and Fock part in turn"""
         zF = mrsf_grad.farr(Z)
         nvec = zF.shape[1]
+        if not self.is_dft or self.xcgrid.cache:
+            self.nprod += nvec
+            return mrsf_grad.zvec_apply(self.x_ref, zF, self.is_dft, self.lz)
         if self.is_dft:
             Lf = mrsf_grad.zvec_factors(zF, self.nao, self.nocca)
             VHP, _ = self.xcgrid.kernel(Lf, Lf, np.ones((2, nvec), dtype=np.int32),

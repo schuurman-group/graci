@@ -24,11 +24,19 @@ class Mrsfgradient:
         self.guess_label   = None
         # adiabatic state indices (1-based in the input; None = all)
         self.states        = None
-        # Z-vector solver: residual norm threshold, max. iterations,
-        # 'pcg' (default) or 'dense' (debugging, small systems only)
-        self.zvec_tol      = 1e-8
+        # Z-vector solver: residual norm threshold (absolute 2-norm; the
+        # gradient error is about 0.1-0.2 times, the coupling error about
+        # 0.3-0.5 times this value), max. iterations; 'native' (default:
+        # the library's shared-subspace minimal-residual solver), 'pcg'
+        # (Python conjugate gradients, reference) or 'dense' (debugging,
+        # small systems only); preconditioner of the native solver: 'auto'
+        # (kernel-free inner steps with an XC kernel, else the diagonal),
+        # 'inner' or 'diag', and the number of inner steps
+        self.zvec_tol      = 1e-6
         self.zvec_iter     = 100
-        self.zvec_solver   = 'pcg'
+        self.zvec_solver   = 'native'
+        self.zvec_precond  = 'auto'
+        self.zvec_inner    = 2
         # include the quadrature-grid response in the reference (ROKS)
         # XC gradient (PySCF grid_response)
         self.grid_response = False
@@ -115,6 +123,10 @@ class Mrsfgradient:
 
         if type(ci).__name__ != 'Mrsftddft':
             sys.exit('$mrsfgradient: mrsf_label must refer to an $mrsftddft section')
+        if str(self.zvec_solver).lower() not in ('native', 'pcg', 'dense'):
+            sys.exit('$mrsfgradient: zvec_solver must be native, pcg or dense')
+        if str(self.zvec_precond).lower() not in ('auto', 'inner', 'diag'):
+            sys.exit('$mrsfgradient: zvec_precond must be auto, inner or diag')
         self.ci = ci
 
         output.print_mrsfgradient_header(self.label)
