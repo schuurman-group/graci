@@ -275,10 +275,11 @@ class Mrsftddft(cimethod.Cimethod):
         # other sections and the gradients of this SCF object
 
         # state density matrices: expectation values <Psi|E_pq|Psi> of the
-        # (extended) configuration expansion (the cross terms of the Pi
-        # parent are not available yet: densities skipped for ext_space = pi)
-        pi_space = bool(self.extended and str(self.ext_space).lower() == 'pi')
-        dmat_sym = None if pi_space else mrsf_density.rdm(self)
+        # (extended) configuration expansion; for the extended method the
+        # C->V configurations are the singles of the parent (G for
+        # ext_space = published, Pi = w_G G + w_D D + w_S S for pi), whose
+        # weights the density kernel receives
+        dmat_sym = mrsf_density.rdm(self)
 
         # the library (and the loaded integrals) is kept alive so that a
         # following mrsftddft section on the same SCF object (e.g. the
@@ -299,11 +300,6 @@ class Mrsftddft(cimethod.Cimethod):
         # print the states
         if self.verbose:
             output.print_mrsftddft_states(self)
-
-        if pi_space:
-            output.print_message('  ext_space = pi: state densities, natural orbitals '
-                                 'and moments are not yet available for the invariant parent')
-            return True
 
         # store the density matrices in adiabatic energy order
         self.dmats['adiabatic'] = np.zeros((n_tot, self.nmo, self.nmo),
@@ -648,9 +644,10 @@ class Mrsftddft(cimethod.Cimethod):
         if bool(getattr(self, 'extended', False)) != bool(getattr(ket, 'extended', False)):
             sys.exit('\n ERROR: MRSF transition densities require two '
                      'extended or two standard MRSF-TDDFT objects')
-        for obj in (self, ket):
-            if getattr(obj, 'extended', False) and str(getattr(obj, 'ext_space', 'published')).lower() == 'pi':
-                sys.exit('\n ERROR: transition densities are not yet available for ext_space = pi')
+        if (str(getattr(self, 'ext_space', 'published')).lower() !=
+                str(getattr(ket, 'ext_space', 'published')).lower()):
+            sys.exit('\n ERROR: MRSF transition densities require the same '
+                     'extension space (ext_space) for the bra and ket objects')
         if np.any(self.mos != ket.mos):
             sys.exit('\n ERROR: MRSF transition densities require the '
                      'same MOs for the bra and ket objects')

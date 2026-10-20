@@ -291,13 +291,14 @@ contains
 
 !######################################################################
 ! mrsf_density: state 1-RDMs (spin-summed, MO basis); ncol1 = nocca
-! (standard) or nocca + nC (extended); arrays passed by address
+! (standard) or nocca + nC (extended); wpi1(3) = parent weights of the
+! extension ((1,0,0) published / standard); arrays passed by address
 !######################################################################
-  subroutine mrsf_density_c(nmo1, occ1, imult1, ncol1, xdim1, nroots1, xvec1, dmat1) &
+  subroutine mrsf_density_c(nmo1, occ1, imult1, ncol1, xdim1, nroots1, wpi1, xvec1, dmat1) &
        bind(c, name='mrsf_density')
 
     integer(is), intent(in) :: nmo1, imult1, ncol1, xdim1, nroots1
-    real(dp), intent(in)    :: occ1(nmo1), xvec1(xdim1,nroots1)
+    real(dp), intent(in)    :: occ1(nmo1), wpi1(3), xvec1(xdim1,nroots1)
     real(dp), intent(out)   :: dmat1(nmo1,nmo1,nroots1)
     integer(is), allocatable :: ipairs(:,:)
     integer(is)              :: k
@@ -306,7 +307,7 @@ contains
     do k = 1, nroots1
        ipairs(:,k) = k
     enddo
-    call tdm_pairs(nmo1, occ1, imult1, ncol1, xdim1, nroots1, nroots1, nroots1, ipairs, &
+    call tdm_pairs(nmo1, occ1, imult1, ncol1, xdim1, nroots1, nroots1, nroots1, wpi1, ipairs, &
          xvec1, xvec1, dmat1)
     deallocate(ipairs)
 
@@ -315,16 +316,16 @@ contains
 !######################################################################
 ! mrsf_tdm: 1-TDMs <bra|E_pq|ket> for pairs of states
 !######################################################################
-  subroutine mrsf_tdm(nmo1, occ1, imult1, ncol1, xdim1, npairs1, nb1, nk1, ipairs1, xb1, xk1, &
+  subroutine mrsf_tdm(nmo1, occ1, imult1, ncol1, xdim1, npairs1, nb1, nk1, wpi1, ipairs1, xb1, xk1, &
        rho1) bind(c, name='mrsf_tdm')
 
     integer(is), intent(in) :: nmo1, imult1, ncol1, xdim1, npairs1, nb1, nk1
-    real(dp), intent(in)    :: occ1(nmo1)
+    real(dp), intent(in)    :: occ1(nmo1), wpi1(3)
     integer(is), intent(in) :: ipairs1(2,npairs1)
     real(dp), intent(in)    :: xb1(xdim1,nb1), xk1(xdim1,nk1)
     real(dp), intent(out)   :: rho1(nmo1,nmo1,npairs1)
 
-    call tdm_pairs(nmo1, occ1, imult1, ncol1, xdim1, npairs1, nb1, nk1, ipairs1, xb1, xk1, rho1)
+    call tdm_pairs(nmo1, occ1, imult1, ncol1, xdim1, npairs1, nb1, nk1, wpi1, ipairs1, xb1, xk1, rho1)
 
   end subroutine mrsf_tdm
 

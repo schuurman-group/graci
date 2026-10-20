@@ -241,9 +241,9 @@ mrsf_registry = {
     'mrsf_diagonal'       : ['int32','int32','double'],
     # densities: occupations, amplitudes and output passed by address
     'mrsf_density'        : ['int32','dptr','int32','int32','int32','int32',
-                             'dptr','dptr'],
+                             'dptr','dptr','dptr'],
     'mrsf_tdm'            : ['int32','dptr','int32','int32','int32','int32',
-                             'int32','int32','int32','dptr','dptr','dptr'],
+                             'int32','int32','dptr','int32','dptr','dptr','dptr'],
     'mrsf_finalise'       : [],
     'mrsf_report_timings' : [],
     # gradient kernels: 'dptr' = pointer to an F-contiguous float64 array
@@ -322,8 +322,8 @@ mrsf_intent = {
                              'out','inout','out','out','out'],
     'mrsf_sigma'          : ['in','in','in','in','in','out'],
     'mrsf_diagonal'       : ['in','in','out'],
-    'mrsf_density'        : ['in']*7 + ['out'],
-    'mrsf_tdm'            : ['in']*11 + ['out'],
+    'mrsf_density'        : ['in']*8 + ['out'],
+    'mrsf_tdm'            : ['in']*12 + ['out'],
     'mrsf_finalise'       : [],
     'mrsf_report_timings' : [],
     'mrsf_grad_init'      : ['in','out'],

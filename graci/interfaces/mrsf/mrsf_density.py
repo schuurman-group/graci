@@ -6,9 +6,12 @@ occupations and output arrays are passed to the library by address
 (F-contiguous float64, no element-wise conversion).
 """
 
+import sys
 import numpy as np
 import graci.core.libs as libs
 import graci.utils.timing as timing
+
+WPI_PUBLISHED = np.array([1.0, 0.0, 0.0])
 
 
 def _ncol(ci_method):
@@ -17,6 +20,20 @@ def _ncol(ci_method):
     checkpoints have no ncol attribute)"""
     ncol = getattr(ci_method, 'ncol', None)
     return int(ci_method.nocca) if ncol is None else int(ncol)
+
+
+def _wpi(ci_method):
+    """parent weights (w_G, w_D, w_S) of the extension's C->V
+    configurations: those of the Pi parent for ext_space = pi, (1, 0, 0)
+    for the published parent and for standard MRSF objects"""
+    if (getattr(ci_method, 'extended', False) and
+            str(getattr(ci_method, 'ext_space', 'published')).lower() == 'pi'):
+        info = getattr(ci_method, 'pi_info', None)
+        if info is None or 'w' not in info:
+            sys.exit('\n ERROR: ext_space = pi object without parent '
+                     'weights (pi_info)')
+        return np.asfortranarray(np.asarray(info['w'], dtype=np.float64).reshape(3))
+    return np.asfortranarray(WPI_PUBLISHED.copy())
 
 
 def _famps(x):
@@ -51,12 +68,13 @@ def rdm(ci_method):
     mult = int(ci_method.mult)
     ncol = _ncol(ci_method)
     occ  = np.asfortranarray(ci_method.occ_ref, dtype=np.float64)
+    wpi  = _wpi(ci_method)
 
     xvec, offs = _stack(ci_method)
     ntot = xvec.shape[1]
     dmat = np.zeros((nmo, nmo, ntot), dtype=np.float64, order='F')
     if ntot > 0:
-        libs.lib_func('mrsf_density', (nmo, occ, mult, ncol, xdim, ntot, xvec, dmat))
+        libs.lib_func('mrsf_density', (nmo, occ, mult, ncol, xdim, ntot, wpi, xvec, dmat))
 
     return [dmat[:, :, offs[irr]:offs[irr]+ci_method.n_states_sym(irr)]
             for irr in range(ci_method.n_irrep())]
@@ -90,6 +108,16 @@ def tdm(bra, ket, trans_list, rep='adiabatic'):
     if int(ket.xdim) != xdim or _ncol(ket) != ncol:
         raise ValueError('MRSF transition densities require equal response '
                          'spaces for the bra and ket objects')
+    if (str(getattr(bra, 'ext_space', 'published')).lower() !=
+            str(getattr(ket, 'ext_space', 'published')).lower()):
+        raise ValueError('MRSF transition densities require the same '
+                         'extension space (ext_space) for the bra and ket '
+                         'objects')
+    wpi = _wpi(bra)
+    if not np.allclose(wpi, _wpi(ket), rtol=0.0, atol=1e-10):
+        raise ValueError('MRSF transition densities require the same '
+                         'parent weights for the bra and ket objects '
+                         '(same SCF reference)')
 
     xb, boff = _stack(bra, rep)
     xk, koff = _stack(ket, rep)
@@ -112,8 +140,8 @@ def tdm(bra, ket, trans_list, rep='adiabatic'):
 
     pairs = np.reshape(np.array(pairs, dtype=int), (2*n), order='C')
     rhoij = np.zeros((nmo, nmo, n), dtype=np.float64, order='F')
-    args  = (nmo, occ, mult, ncol, xdim, n, xb.shape[1], xk.shape[1], pairs,
-             xb, xk, rhoij)
+    args  = (nmo, occ, mult, ncol, xdim, n, xb.shape[1], xk.shape[1], wpi,
+             pairs, xb, xk, rhoij)
     libs.lib_func('mrsf_tdm', args)
 
     for (bra_irr, ket_irr), (i0, i1) in blocks.items():
