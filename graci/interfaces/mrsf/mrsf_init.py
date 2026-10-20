@@ -101,20 +101,28 @@ def set_exchange(mode):
     return
 
 #
-def init_ext(ci_method, fdft_mo, eri_file):
-    """extended-method data: fdft_mo (nmo, nmo) closed-shell KS matrix of
-    the configuration G in the MO basis, coupling scale ci_method.ccp_eff,
-    kernel flag ci_method.use_kernel; after init_ints() and, when the
-    kernel is used, after the grid initialisation (mrsf_xc.XCGrid)"""
+def init_ext(ci_method, fone, fcpl, wpi, shift, coul, mode, eri_file):
+    """extended-method data: fone (nmo, nmo) one-body operator of the CV
+    block (published model: the closed-shell KS matrix of G, corrected to
+    F' in the library; EMRSF-Pi: the invariant operator), fcpl (nmo, nmo,
+    3) one-body operators of the Fock-type coupling terms per parent G, D,
+    S, wpi (3) parent weights, shift (Pi pair energy; ignored for the
+    published model), coul (scale of the singlet CV Coulomb term), mode
+    (1 published, 2 Pi); coupling scale ci_method.ccp_eff and kernel flag
+    ci_method.use_kernel; after init_ints() and, when the kernel is used,
+    after the grid initialisation (mrsf_xc.XCGrid)"""
 
     nmo = int(ci_method.nmo)
     # the particle-core block is read from the file when the integrals were
     # loaded by a standard section before (the file may still be unwritten)
     ao2mo.ensure_file(eri_file)
-    fdft = np.asfortranarray(np.asarray(fdft_mo, dtype=float).reshape(nmo, nmo))
-    # F' correction: 1 = diagonal (published), 2 = covariant (Part XII)
+    fone = np.asfortranarray(np.asarray(fone, dtype=float).reshape(nmo, nmo))
+    fcpl = np.asfortranarray(np.asarray(fcpl, dtype=float).reshape(nmo, nmo, 3))
+    wpi = np.asfortranarray(np.asarray(wpi, dtype=float).reshape(3))
+    # F' correction of the published model: 1 = diagonal, 2 = covariant (Part XII)
     fprime = {'diagonal': 1, 'covariant': 2}[str(getattr(ci_method, 'fprime', 'covariant')).lower()]
-    args = (nmo, fdft, float(ci_method.ccp_eff), bool(ci_method.use_kernel), fprime, eri_file)
+    args = (nmo, fone, fcpl, wpi, float(shift), float(ci_method.ccp_eff),
+            bool(ci_method.use_kernel), float(coul), int(mode), fprime, eri_file)
     libs.lib_func('mrsf_ext_initialise', args)
 
     return

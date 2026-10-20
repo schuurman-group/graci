@@ -74,6 +74,7 @@ contains
     real(dp), intent(out)   :: S(nvirb,ncol,nvec)
     real(dp), allocatable   :: Xt(:,:,:), Scv(:,:,:)
     integer(is)             :: v, cv0
+    real(dp), parameter     :: zero22(2,2) = 0.0_dp
 
     allocate(Xt(nvirb,ncol,nvec))
     call expand(mult, nvec, X, Xt)
@@ -110,9 +111,9 @@ contains
     ! from the explicit tensor or the DF plane sweep
     if (use_etensor .and. etensor_ready) then
        if (extended) then
-          call etensor_contract(nvec, Xt, S, ccp*cK4, ccp*cK1, X, Scv)
+          call etensor_contract(nvec, Xt, S, ccp*cKov, ccp*cKco, X, Scv)
        else
-          call etensor_contract(nvec, Xt, S, 0.0_dp, 0.0_dp)
+          call etensor_contract(nvec, Xt, S, zero22, zero22)
        endif
     else if (extended) then
        call exchange_contract(nvec, Xt, S, X, Scv)

@@ -91,14 +91,9 @@ module mrsf_global
   ! EMRSF data (ext_initialise)
   real(dp), allocatable    :: Fp_emb(:,:)     ! (nvirb,nvirb) F'_VV embedded (SOMO rows/cols 0)
   real(dp), allocatable    :: Fp_cc(:,:)      ! (nC,nC) F'_CC
-  real(dp), allocatable    :: Fcv(:,:)        ! (nV,nC) F^DFT_{b j}
-  real(dp), allocatable    :: fO2V(:)         ! (nV) F^DFT_{O2 b}
-  real(dp), allocatable    :: fCO1(:)         ! (nC) F^DFT_{j O1}
-  real(dp), allocatable    :: w1(:)           ! (nV) (O2O1|O2 b)
-  real(dp), allocatable    :: w2(:)           ! (nC) (jO1|O2O1)
   real(dp), allocatable    :: Bo12(:)         ! (naux) B^Q_{O1 O2}
   real(dp), allocatable    :: diag_cv(:,:)    ! (nvirb,nC) CV diagonal without the shift
-  real(dp)                 :: A_G = 0.0_dp    ! shift of the CV block
+  real(dp)                 :: A_G = 0.0_dp    ! shift of the CV block (A_G of eq. 13, or the Pi pair energy)
 
   ! work arrays
   real(dp), allocatable    :: Twork(:,:,:,:)  ! (nvirb,nQ,ncol,nvmax)

@@ -334,12 +334,22 @@ def print_mrsftddft_states(ci_method):
             outfile.write(' Frozen core: '+str(nfc)+' doubly occupied MOs '
                           'excluded from the response space\n')
         if extended:
+            pi = str(getattr(ci_method, 'ext_space', 'published')).lower() == 'pi'
             outfile.write(' Extended MRSF-TDDFT: '+str(ci_method.ncv)
-                          +' core-to-virtual configurations of the closed-shell '
-                          +'configuration G added, c_cp = '
-                          +'{:6.4f}'.format(ci_method.ccp_eff)
+                          +' core-to-virtual configurations of '
+                          +('the invariant lowest pair state (EMRSF-Pi)' if pi
+                            else 'the closed-shell configuration G')
+                          +' added, c_cp = '+'{:6.4f}'.format(ci_method.ccp_eff)
                           +(', XC kernel in the CV block' if ci_method.use_kernel
-                            else ', no XC kernel in the CV block')+'\n')
+                            else ', no XC kernel in the CV block')
+                          +(', Coulomb term scaled by kappa' if str(getattr(ci_method, 'ext_model', 'kernel')).lower() == 'kappa' else '')
+                          +'\n')
+            info = getattr(ci_method, 'pi_info', None)
+            if pi and info is not None:
+                outfile.write(' EMRSF-Pi parent weights (G, D, S): '
+                              +' '.join('{:8.5f}'.format(x) for x in info['w'])
+                              +'; pair-block eigenvalues (Ha): '
+                              +' '.join('{:10.6f}'.format(x) for x in info['pair'])+'\n')
         for irrep in ci_method.irreps_nonzero():
             niter, iconv = ci_method.diag_info[irrep]
             outfile.write(' irrep '+str(irrlbl[irrep]).ljust(4)+': '

@@ -171,7 +171,7 @@ contains
        if (extended .and. .not. allocated(Bcv)) call load_bcv_pass(fname)
        if (use_etensor) then
           if (.not. etensor_ready .or. etensor_nfc /= nfc .or. &
-               (extended .and. .not. allocated(Eo2))) call etensor_build()
+               (extended .and. .not. allocated(Eo))) call etensor_build()
        else if (etensor_ready) then
           call etensor_free()
        endif

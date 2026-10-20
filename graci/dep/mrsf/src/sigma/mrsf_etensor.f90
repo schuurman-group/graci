@@ -29,7 +29,7 @@ module mrsf_etensor
   integer(is), allocatable :: pair_of(:,:)           ! (nocca,nocca) pair index of two active holes (0: none)
   real(dp), allocatable    :: Eplane(:,:,:)          ! (nvirb,nvirb,nplane_e)
   real(dp), allocatable    :: Ediag(:,:)             ! (nvirb,npair_e)
-  real(dp), allocatable    :: Eo2(:,:,:)             ! (nV,nC,nC) E_{jp}(2+q,2) = (jp|V_q O2)
+  real(dp), allocatable    :: Eo(:,:,:,:)            ! (nV,nC,nC,2) E_{jp}(2+q,x) = (jp|V_q O_x)
   real(dp)                 :: etensor_gb = 0.0_dp
   real(dp)                 :: time_ebuild = 0.0_dp, time_etens = 0.0_dp, flop_etens = 0.0_dp
   integer(is)              :: netens_vecs = 0
@@ -60,7 +60,7 @@ contains
     if (allocated(pair_of)) deallocate(pair_of)
     if (allocated(Eplane)) deallocate(Eplane)
     if (allocated(Ediag)) deallocate(Ediag)
-    if (allocated(Eo2)) deallocate(Eo2)
+    if (allocated(Eo)) deallocate(Eo)
     etensor_ready = .false.
     etensor_nfc   = -1
     npair_e  = 0
@@ -168,9 +168,9 @@ contains
     enddo
     deallocate(Etmp, Apk, Bho, off)
 
-    ! (jp|V_q O2) for the CO1 block term of the extended method
+    ! (jp|V_q O_x) for the CO block terms of the extended method
     if (extended) then
-       allocate(Eo2(max(nV,1_is),max(nC,1_is),max(nC,1_is)), source=0.0_dp)
+       allocate(Eo(max(nV,1_is),max(nC,1_is),max(nC,1_is),2), source=0.0_dp)
        do p = 1, nC
           do j = 1, nC
              pr = pair_of(j,p)
@@ -178,11 +178,13 @@ contains
              k = (pr+1)/2
              if (mod(pr,2_is) == 1) then
                 do q = 1, nV
-                   Eo2(q,j,p) = Eplane(2+q,2,k)
+                   Eo(q,j,p,1) = Eplane(2+q,1,k)
+                   Eo(q,j,p,2) = Eplane(2+q,2,k)
                 enddo
              else
                 do q = 1, nV
-                   Eo2(q,j,p) = Eplane(2,2+q,k)
+                   Eo(q,j,p,1) = Eplane(1,2+q,k)
+                   Eo(q,j,p,2) = Eplane(2,2+q,k)
                 enddo
              endif
           enddo
@@ -258,21 +260,22 @@ contains
 !   S(:,i,v) -= c sum_j E_ij Xt(:,j,v)                (MRSF columns)
 ! and, for the extended method (Scv, X present):
 !   Scv(:,i,v) += sum_{j in C} E_ij Y_j(:,v)          (unscaled)
-!   S(:,nocca+j,v) += c_o2v E_{j,O1} Xt(:,hO2,v)       (O2V block term)
-!   S(3:,nocca+j,v) += c_co1 sum_p (jp|V O2) X(1,p,v)  (CO1 block term)
-! Xt: expanded vectors; X: compressed vectors (O1 row of the CO1 term)
+!   S(:,nocca+j,v) += cKov(y,x) E_{j,O_x} Xt(:,hO_y,v)  (OV block terms)
+!   S(3:,nocca+j,v) += cKco(s,x) sum_p (jp|V O_x) X(s,p,v)  (CO block terms)
+! with the coefficients (already scaled by c_cp) of mrsf_extended.
+! Xt: expanded vectors; X: compressed vectors (CO slot rows of the CO terms)
 !######################################################################
-  subroutine etensor_contract(nvec, Xt, S, c_o2v, c_co1, X, Scv)
+  subroutine etensor_contract(nvec, Xt, S, cKov, cKco, X, Scv)
 
     integer(is), intent(in)           :: nvec
     real(dp), intent(in)              :: Xt(nvirb,ncol,nvec)
     real(dp), intent(inout)           :: S(nvirb,ncol,nvec)
-    real(dp), intent(in)              :: c_o2v, c_co1
+    real(dp), intent(in)              :: cKov(2,2), cKco(2,2)
     real(dp), intent(in), optional    :: X(nvirb,ncol,nvec)
     real(dp), intent(inout), optional :: Scv(nvirb,nocca,nvec)
 
-    integer(is)           :: k, p1, p2, j, v, p, ldv
-    real(dp), allocatable :: dd(:), xCO1(:,:)
+    integer(is)           :: k, p1, p2, j, v, p, ldv, ir, ix
+    real(dp), allocatable :: dd(:), xs(:,:)
     real(dp)              :: t0
 
     if (.not. etensor_ready) call mrsf_error('etensor_contract: tensor not built')
@@ -282,29 +285,35 @@ contains
 
     do k = 1, nplane_e
        p1 = 2*k - 1
-       call pair_apply(nvec, Eplane(1,1,k), 'L', p1, .false., dd, Xt, S, c_o2v, Scv)
+       call pair_apply(nvec, Eplane(1,1,k), 'L', p1, .false., dd, Xt, S, cKov, Scv)
        p2 = 2*k
        if (p2 <= npair_e) then
           dd = Ediag(:,p2) - Ediag(:,p1)
-          call pair_apply(nvec, Eplane(1,1,k), 'U', p2, .true., dd, Xt, S, c_o2v, Scv)
+          call pair_apply(nvec, Eplane(1,1,k), 'U', p2, .true., dd, Xt, S, cKov, Scv)
        endif
     enddo
 
-    ! CO1 block term
-    if (present(Scv) .and. present(X) .and. c_co1 /= 0.0_dp .and. nC > 0 .and. nV > 0) then
-       allocate(xCO1(nC,nvec))
-       do v = 1, nvec
-          do p = 1, nC
-             xCO1(p,v) = X(1,p,v)
+    ! CO block terms
+    if (present(Scv) .and. present(X) .and. nC > 0 .and. nV > 0) then
+       allocate(xs(nC,nvec))
+       do ir = 1, 2
+          if (all(cKco(ir,:) == 0.0_dp)) cycle
+          do v = 1, nvec
+             do p = 1, nC
+                xs(p,v) = X(ir,p,v)
+             enddo
+          enddo
+          do ix = 1, 2
+             if (cKco(ir,ix) == 0.0_dp) cycle
+             do j = 1, nC
+                if (frozen_hole(j)) cycle
+                call dgemm('N','N', nV, nvec, nC, cKco(ir,ix), Eo(1,j,1,ix), nV*nC, xs, nC, &
+                     1.0_dp, S(3,nocca+j,1), ldv)
+             enddo
+             flop_etens = flop_etens + 2.0_dp*real(nV,dp)*real(nC,dp)*real(nC_act,dp)*real(nvec,dp)
           enddo
        enddo
-       do j = 1, nC
-          if (frozen_hole(j)) cycle
-          call dgemm('N','N', nV, nvec, nC, c_co1, Eo2(1,j,1), nV*nC, xCO1, nC, &
-               1.0_dp, S(3,nocca+j,1), ldv)
-       enddo
-       flop_etens = flop_etens + 2.0_dp*real(nV,dp)*real(nC,dp)*real(nC_act,dp)*real(nvec,dp)
-       deallocate(xCO1)
+       deallocate(xs)
     endif
 
     deallocate(dd)
@@ -316,7 +325,7 @@ contains
 !######################################################################
 ! pair_apply: all products of one pair (i,j) stored in plane (uplo)
 !######################################################################
-  subroutine pair_apply(nvec, plane, uplo, p, upper, dd, Xt, S, c_o2v, Scv)
+  subroutine pair_apply(nvec, plane, uplo, p, upper, dd, Xt, S, cKov, Scv)
 
     integer(is), intent(in)           :: nvec, p
     real(dp), intent(in)              :: plane(nvirb,nvirb)
@@ -325,17 +334,15 @@ contains
     real(dp), intent(in)              :: dd(nvirb)
     real(dp), intent(in)              :: Xt(nvirb,ncol,nvec)
     real(dp), intent(inout)           :: S(nvirb,ncol,nvec)
-    real(dp), intent(in)              :: c_o2v
+    real(dp), intent(in)              :: cKov(2,2)
     real(dp), intent(inout), optional :: Scv(nvirb,nocca,nvec)
 
-    integer(is) :: i, j, ldv, ldc, hO1, hO2, nprod
+    integer(is) :: i, j, ldv, ldc, nprod, x, y
 
     i   = pair_i(p)
     j   = pair_j(p)
     ldv = nvirb*ncol
     ldc = nvirb*nocca
-    hO1 = nC + 1
-    hO2 = nC + 2
     nprod = 0
 
     ! MRSF columns
@@ -362,12 +369,16 @@ contains
           if (upper) call diag_update(nvec, 1.0_dp, dd, Xt(1,nocca+i,1), ldv, Scv(1,j,1), ldc)
           nprod = nprod + 1
        endif
-       ! O2V block term: pair (c, O1), c in C
-       if (j == hO1 .and. i <= nC .and. c_o2v /= 0.0_dp) then
-          call dsymm('L', uplo, nvirb, nvec, c_o2v, plane, nvirb, Xt(1,hO2,1), ldv, &
-               1.0_dp, S(1,nocca+i,1), ldv)
-          if (upper) call diag_update(nvec, c_o2v, dd, Xt(1,hO2,1), ldv, S(1,nocca+i,1), ldv)
-          nprod = nprod + 1
+       ! OV block terms: pair (c, O_x), c in C, applied to the hole column hO_y
+       if (i <= nC .and. j > nC) then
+          x = j - nC
+          do y = 1, 2
+             if (cKov(y,x) == 0.0_dp) cycle
+             call dsymm('L', uplo, nvirb, nvec, cKov(y,x), plane, nvirb, Xt(1,nC+y,1), ldv, &
+                  1.0_dp, S(1,nocca+i,1), ldv)
+             if (upper) call diag_update(nvec, cKov(y,x), dd, Xt(1,nC+y,1), ldv, S(1,nocca+i,1), ldv)
+             nprod = nprod + 1
+          enddo
        endif
     endif
     flop_etens = flop_etens + 2.0_dp*real(nprod,dp)*real(nvirb,dp)**2*real(nvec,dp)

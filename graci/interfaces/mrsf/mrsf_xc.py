@@ -7,6 +7,7 @@ factors) is evaluated inside the library, projected directly onto the
 hole-particle and hole-hole MO blocks.
 """
 import time
+import sys
 import numpy as np
 import graci.core.libs as libs
 import graci.interfaces.mrsf.mrsf_grad as mrsf_grad
@@ -241,6 +242,41 @@ class XCGrid:
         self.g_arrays = (rho, vxc, fxc, kxc if with_kxc else None)
         self.time_init_kernel += time.time() - t0
 
+    def ensure_kernel_occ(self, occ_total, with_kxc=False):
+        """closed-shell kernel set (spin-0 convention, see ensure_g_kernel) at
+        the density of the (fractional) total occupations occ_total of the
+        MOs C, through PySCF's density evaluation; keyed on the occupations"""
+        key = ('occ',) + tuple(float(round(o, 10)) for o in np.asarray(occ_total, float))
+        if self.g_kernel and self.g_gidx == key and (self.g_with_kxc or not with_kxc):
+            return
+        t0 = time.time()
+        xc, ni, mol, grids = self.mf.xc, self.ni, self.mol, self.mf.grids
+        nv, ngrid = self.ncomp, self.ngrid
+        xctype = ni._xc_type(xc)
+        rho = ni.cache_xc_kernel(mol, grids, xc, self.C, np.asarray(occ_total, float), spin=0)[0]
+        out = ni.eval_xc_eff(xc, rho, deriv=3 if with_kxc else 2, xctype=xctype)
+        vxc = np.ascontiguousarray(np.asarray(out[1]).reshape(nv, ngrid))
+        fxc = np.ascontiguousarray(np.asarray(out[2]).reshape(nv, nv, ngrid))
+        if with_kxc:
+            kxc = np.ascontiguousarray(np.asarray(out[3]).reshape(nv, nv, nv, ngrid))
+        else:
+            kxc = np.zeros((nv, nv, nv, 1))
+        libs.lib_func('mrsf_xc_g_set', (int(ngrid), nv, vxc.T, fxc.T, np.asfortranarray(kxc.T), bool(with_kxc)))
+        self.g_kernel, self.g_gidx, self.g_with_kxc = True, key, bool(with_kxc)
+        self.g_arrays = (rho, vxc, fxc, kxc if with_kxc else None)
+        self.time_init_kernel += time.time() - t0
+
+    def fxc_potential_ao(self, dm):
+        """AO matrix of the linear XC response f_xc[rho0] rho_t for the total
+        trial density matrix dm at the density of the installed closed-shell
+        kernel set (PySCF spin-0 convention: this is the first-order change
+        of the closed-shell potential for the total density change rho_t)"""
+        rho0, vxc, fxc = self.g_arrays[0], self.g_arrays[1], self.g_arrays[2]
+        ni, mol, grids, xc = self.ni, self.mol, self.mf.grids, self.mf.xc
+        dm = 0.5*(dm + dm.T)
+        v = ni.nr_rks_fxc(mol, grids, xc, None, dm, 0, 1, rho0, vxc, fxc)
+        return np.asarray(v)
+
     def install_cs_kernel(self, fac=2.0):
         """closed-shell kernel array of the CV block of the extended method
         from the installed G set: w (f_aa + f_ab) = fac * w f^(0) (fac = 2)"""
@@ -367,6 +403,7 @@ class GridSession:
                                  (self.nocca, self.nvirb, self.naux), mem_budget, block_bytes, lazy=True)
             self.time_init = time.time() - t0
         self._fock_g = None
+        self._fock_ens = None
         self.time_fock_g = 0.0
 
     @property
@@ -394,6 +431,52 @@ class GridSession:
             F = closed_shell_fock_pyscf(self.scf, self.mf, self.C, self.gidx)[1]
         self._fock_g = F
         self.time_fock_g = time.time() - t0
+        return F
+
+    def occ_ens(self):
+        """total occupations of the ensemble density 2 P_C + P_O1 + P_O2"""
+        occ = np.zeros(self.nmo)
+        occ[self.Cidx] = 2.0
+        occ[self.Oidx] = 1.0
+        return occ
+
+    def ensure_kernel_ens(self, with_kxc=False):
+        """the closed-shell kernel set at the ensemble density rho_ens"""
+        self.xcgrid.ensure_kernel_occ(self.occ_ens(), with_kxc)
+
+    def fxc_potential_ao(self, dm):
+        return self.xcgrid.fxc_potential_ao(dm)
+
+    def fock_ens(self):
+        """closed-shell KS (or HF) matrix of the ensemble density D_ens =
+        2 P_C + P_O1 + P_O2 evaluated with the triplet orbitals (MO basis):
+        the invariant one-body operator of EMRSF-Pi; library build from the
+        resident DF blocks (J from the Coulomb vector, K from the hole-MO
+        exchange getter: K[D_ens] = K[C] + K[C u O]) and the cached grid"""
+        if self._fock_ens is not None:
+            return self._fock_ens
+        t0 = time.time()
+        nmo, naux, H, P = self.nmo, self.naux, self.H, self.P
+        dims = (self.nocca, self.nvirb, naux)
+        if not (self.xcgrid is None or self.xcgrid.cache):
+            sys.exit('\n ERROR: EMRSF-Pi requires the AO values cached on the grid '
+                     '(raise mem_budget in the $mrsftddft section)')
+        dq = mrsf_grad.dq(self.occ_ens(), naux)
+        JHH, JHP, JPP = mrsf_grad.jblocks(dq, dims)
+        J = np.zeros((nmo, nmo))
+        J[np.ix_(H, H)] = JHH[:, :, 0]
+        J[np.ix_(P, P)] = JPP[:, :, 0]
+        J[np.ix_(H, P)] = JHP[:, :, 0]
+        J[np.ix_(P, H)] = JHP[:, :, 0].T
+        nC = len(self.Cidx)
+        K = mrsf_grad.kg(nC, nmo) + mrsf_grad.kg(self.nocca, nmo)
+        C = self.C
+        F = C.T @ self.mf.get_hcore() @ C + J - 0.5*self.x_ref*K
+        if self.is_dft:
+            self.ensure_kernel_ens(False)
+            F = F + C.T @ self.xcgrid.vxc_g_ao() @ C
+        self._fock_ens = F
+        self.time_fock_g += time.time() - t0
         return F
 
     def _fock_g_library(self):

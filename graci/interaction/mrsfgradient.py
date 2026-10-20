@@ -168,6 +168,8 @@ class Mrsfgradient:
                 output.print_message('  Z-vector warm start: no usable Z-vectors in '
                                      + str(getattr(guess, 'label', self.guess_label)) + '; cold start')
 
+        if getattr(ci, 'extended', False) and str(getattr(ci, 'ext_space', 'published')).lower() == 'pi':
+            sys.exit('$mrsfgradient: gradients are not yet available for ext_space = pi')
         if getattr(ci, 'extended', False):
             import graci.interfaces.mrsf.mrsf_egradient as mrsf_egradient
             driver = mrsf_egradient.EMRSFGradientDriver(ci, self)

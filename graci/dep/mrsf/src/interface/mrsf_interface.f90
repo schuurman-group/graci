@@ -182,16 +182,21 @@ contains
 !######################################################################
 ! mrsf_ext_initialise: extended method data (after mrsf_int_initialise
 ! and, if the kernel is used, after the grid initialisation)
-!   fdft1(nmo,nmo): closed-shell KS matrix of G in the MO basis
+!   fone1(nmo,nmo): one-body operator of the CV block (published model:
+!     the closed-shell KS matrix of G, corrected to F' in the library;
+!     EMRSF-Pi: the invariant operator of the Python driver)
+!   fcpl1(nmo,nmo,3): one-body operators of the Fock-type coupling terms
+!     per parent G, D, S;  wpi1(3): parent weights;  shift1: CV shift (Pi)
+!   coul1: scale of the singlet CV Coulomb term;  mode1: 1 published, 2 Pi
 !######################################################################
-  subroutine mrsf_ext_initialise(nmo1, fdft1, ccp1, use_kernel1, fprime1, erifile1) &
-       bind(c, name='mrsf_ext_initialise')
+  subroutine mrsf_ext_initialise(nmo1, fone1, fcpl1, wpi1, shift1, ccp1, use_kernel1, coul1, &
+       mode1, fprime1, erifile1) bind(c, name='mrsf_ext_initialise')
 
     integer(is), intent(in)            :: nmo1
-    real(dp), intent(in)               :: fdft1(nmo1,nmo1)
-    real(dp), intent(in)               :: ccp1
+    real(dp), intent(in)               :: fone1(nmo1,nmo1), fcpl1(nmo1,nmo1,3), wpi1(3)
+    real(dp), intent(in)               :: shift1, ccp1, coul1
     logical(c_bool), intent(in)        :: use_kernel1
-    integer(is), intent(in)            :: fprime1
+    integer(is), intent(in)            :: mode1, fprime1
     character(kind=c_char), intent(in) :: erifile1(*)
     character(len=255)                 :: erifile
 
@@ -199,7 +204,7 @@ contains
     if (.not. extended) call mrsf_error('mrsf_ext_initialise: mrsf_set_extended not set')
     call c2fstr(erifile1, erifile)
     if (.not. allocated(Bcv)) call load_bcv_pass(erifile)
-    call ext_initialise(fdft1, ccp1, logical(use_kernel1), fprime1)
+    call ext_initialise(fone1, fcpl1, wpi1, shift1, ccp1, logical(use_kernel1), coul1, mode1, fprime1)
 
   end subroutine mrsf_ext_initialise
 

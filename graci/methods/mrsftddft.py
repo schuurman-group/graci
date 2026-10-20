@@ -5,6 +5,7 @@ reference
 """
 import copy as copy
 import sys as sys
+import os
 import numpy as np
 import graci.utils.timing as timing
 import graci.methods.cimethod as cimethod
@@ -88,6 +89,16 @@ class Mrsftddft(cimethod.Cimethod):
         # virtual-virtual rotations) or 'diagonal' (the published form,
         # energies only)
         self.fprime         = 'covariant'
+        # parent configuration of the CV excitations: 'published' = the
+        # closed-shell configuration G = |C O1^2| (Oh et al.; the energies
+        # depend on the choice of the two SOMOs), 'pi' = EMRSF-Pi, the
+        # invariant lowest pair state of the MRSF pair block (energies
+        # invariant under O1-O2 rotations); 'kernel' = XC kernel at the
+        # ensemble density and unscaled Coulomb term in the CV block (the
+        # published structure), 'kappa' = kernel-free with the Coulomb term
+        # scaled by kappa_coov
+        self.ext_space      = 'published'
+        self.ext_model      = 'kernel'
         # internal stability check of the ROKS triplet reference (an
         # unstable reference is re-optimised along the unstable direction)
         self.stability      = False
@@ -126,6 +137,9 @@ class Mrsftddft(cimethod.Cimethod):
         self.naux           = None
         # weight of the CV configurations per adiabatic state (extended)
         self.gamma_cv       = None
+        # EMRSF-Pi: parent weights and pair-block eigenvalues
+        self.pi_info        = None
+        self.fock_mo        = None
         # compressed amplitude vectors, one (xdim, nroots) array per
         # irrep, for each representation
         self.amps           = {'adiabatic' : None}
@@ -215,11 +229,12 @@ class Mrsftddft(cimethod.Cimethod):
         # warm start: the vectors of the guess object aligned to these MOs
         gvecs = self.warm_vectors(guess)
 
-        # extended method: closed-shell KS matrix of G, kernel cache
+        # extended method: one-body operators, parent weights, kernel cache
         xcgrid = None
         if self.extended:
-            fdft_mo, xcgrid = self.extended_setup()
-            mrsf_init.init_ext(self, fdft_mo, self.eri_file())
+            self.fock_mo = fock_mo
+            ext_args, xcgrid = self.extended_setup()
+            mrsf_init.init_ext(self, *ext_args, self.eri_file())
 
         # Davidson diagonalisation, irrep by irrep
         nirr = self.n_irrep()
@@ -260,8 +275,10 @@ class Mrsftddft(cimethod.Cimethod):
         # other sections and the gradients of this SCF object
 
         # state density matrices: expectation values <Psi|E_pq|Psi> of the
-        # (extended) configuration expansion
-        dmat_sym = mrsf_density.rdm(self)
+        # (extended) configuration expansion (the cross terms of the Pi
+        # parent are not available yet: densities skipped for ext_space = pi)
+        pi_space = bool(self.extended and str(self.ext_space).lower() == 'pi')
+        dmat_sym = None if pi_space else mrsf_density.rdm(self)
 
         # the library (and the loaded integrals) is kept alive so that a
         # following mrsftddft section on the same SCF object (e.g. the
@@ -279,16 +296,21 @@ class Mrsftddft(cimethod.Cimethod):
                 X = self.amplitudes(istate)
                 self.gamma_cv[istate] = np.sum(X[:, self.nocca:]**2)
 
+        # print the states
+        if self.verbose:
+            output.print_mrsftddft_states(self)
+
+        if pi_space:
+            output.print_message('  ext_space = pi: state densities, natural orbitals '
+                                 'and moments are not yet available for the invariant parent')
+            return True
+
         # store the density matrices in adiabatic energy order
         self.dmats['adiabatic'] = np.zeros((n_tot, self.nmo, self.nmo),
                                            dtype=float)
         for istate in range(n_tot):
             irr, st = self.state_sym(istate)
             self.dmats['adiabatic'][istate, :, :] = dmat_sym[irr][:, :, st]
-
-        # print the states
-        if self.verbose:
-            output.print_mrsftddft_states(self)
 
         # build the natural orbitals in AO basis by default
         self.build_nos()
@@ -374,19 +396,25 @@ class Mrsftddft(cimethod.Cimethod):
     #
     def extended_setup(self):
         """
-        data of the extended method: the closed-shell KS matrix of the
-        configuration G = |C O1^2| evaluated with the triplet orbitals
-        (eq. 17 of Oh et al.), in the MO basis, and the grid-kernel cache
-        of the singlet CV block (None when no kernel is needed); both come
-        from the per-SCF grid session (shared with the other sections and
-        the gradients of the same SCF object)
+        data of the extended method from the per-SCF grid session (shared
+        with the other sections and the gradients of the same SCF object):
+        the arguments of mrsf_init.init_ext (one-body operator of the CV
+        block, Fock-type coupling operators per parent, parent weights,
+        shift, Coulomb scale, mode) and the grid-kernel cache of the singlet
+        CV block (None when no kernel is used). Published model: the
+        closed-shell KS matrix of G (eq. 17 of Oh et al.), the kernel at
+        the G density; EMRSF-Pi: the invariant operators of mrsf_pi.py and
+        the kernel at the ensemble density.
         """
         import graci.interfaces.mrsf.mrsf_xc as mrsf_xc
+        import graci.interfaces.mrsf.mrsf_pi as mrsf_pi
 
         sess = mrsf_xc.get_session(self, self.mem_budget,
                                    block_bytes=getattr(self, 'kernel_block_bytes', 1.0e6))
-        xc   = str(self.scf.xc).lower()
-        self.use_kernel = bool(self.mult == 1 and xc != 'hf')
+        xc    = str(self.scf.xc).lower()
+        space = str(self.ext_space).lower()
+        model = str(self.ext_model).lower()
+        self.use_kernel = bool(self.mult == 1 and xc != 'hf' and model == 'kernel')
         xcgrid = None
         if self.use_kernel:
             xcgrid = sess.xcgrid
@@ -395,11 +423,41 @@ class Mrsftddft(cimethod.Cimethod):
                 sys.exit('\n ERROR: the extended MRSF-TDDFT kernel requires '
                          'the AO values cached on the grid: set mem_budget '
                          'to at least '+'{:.2f}'.format(1.05*need)+' GB')
-        fdft_mo = sess.fock_g(self)
-        if self.use_kernel:
-            sess.ensure_g_kernel(False)
-            xcgrid.install_cs_kernel(2.0)
-        return fdft_mo, xcgrid
+        coul = 1.0 if model == 'kernel' else float(self.spc_eff[2])
+        if space == 'published':
+            fone = sess.fock_g(self)
+            fcpl = np.stack([fone, fone, fone], axis=2)
+            args = (fone, fcpl, np.array([1.0, 0.0, 0.0]), 0.0, coul, 1)
+            if self.use_kernel:
+                sess.ensure_g_kernel(False)
+                xcgrid.install_cs_kernel(2.0)
+            self.pi_info = None
+        else:
+            # the DF blocks of the gradient module (SOMO columns, Coulomb
+            # vectors, hole exchange) serve the operator builds
+            import graci.interfaces.mrsf.mrsf_grad as mrsf_grad
+            ierr = mrsf_grad.grad_init(self.eri_file())
+            if ierr != 0:
+                sys.exit('\n ERROR: EMRSF-Pi needs the double-precision DF blocks '
+                         '(gradient module initialisation failed, code '+str(ierr)+')')
+            pi = mrsf_pi.pi_setup(sess, self.fock_mo[0], self.fock_mo[1], float(self.chf_eff))
+            if os.environ.get('GRACI_PI_WFIX'):
+                # diagnostic: the conventions of EMRSF-Pi on the pure-G parent
+                wfix = np.array([1.0, 0.0, 0.0])
+                pi['shift'] = float(pi['Hp'][0, 0])
+                pi['fone'] = mrsf_pi.pi_fone_for_weights(sess, pi, wfix, float(self.chf_eff))
+                pi['w'] = wfix
+                output.print_message('  EMRSF-Pi diagnostic: parent weights forced to (1, 0, 0)')
+            args = (pi['fone'], pi['fcpl'], pi['w'], pi['shift'], coul, 2)
+            if self.use_kernel:
+                sess.ensure_kernel_ens(False)
+                xcgrid.install_cs_kernel(2.0)
+            self.pi_info = {'w': pi['w'], 'pair': pi['pair']}
+            output.print_message('  EMRSF-Pi: pair block eigenvalues (Ha) '
+                                 + ' '.join('{:10.6f}'.format(x) for x in pi['pair'])
+                                 + ', parent weights (G, D, S) '
+                                 + ' '.join('{:8.5f}'.format(x) for x in pi['w']))
+        return args, xcgrid
 
     def check_input(self):
         """sanity checks on the reference and the input"""
@@ -457,6 +515,12 @@ class Mrsftddft(cimethod.Cimethod):
         self.fprime = str(self.fprime).lower()
         if self.fprime not in ('diagonal', 'covariant'):
             sys.exit('\n ERROR: fprime must be diagonal or covariant')
+        self.ext_space = str(self.ext_space).lower()
+        if self.ext_space not in ('published', 'pi'):
+            sys.exit('\n ERROR: ext_space must be published or pi')
+        self.ext_model = str(self.ext_model).lower()
+        if self.ext_model not in ('kernel', 'kappa'):
+            sys.exit('\n ERROR: ext_model must be kernel or kappa')
 
         return
 
@@ -584,6 +648,9 @@ class Mrsftddft(cimethod.Cimethod):
         if bool(getattr(self, 'extended', False)) != bool(getattr(ket, 'extended', False)):
             sys.exit('\n ERROR: MRSF transition densities require two '
                      'extended or two standard MRSF-TDDFT objects')
+        for obj in (self, ket):
+            if getattr(obj, 'extended', False) and str(getattr(obj, 'ext_space', 'published')).lower() == 'pi':
+                sys.exit('\n ERROR: transition densities are not yet available for ext_space = pi')
         if np.any(self.mos != ket.mos):
             sys.exit('\n ERROR: MRSF transition densities require the '
                      'same MOs for the bra and ket objects')
@@ -605,6 +672,10 @@ class Mrsftddft(cimethod.Cimethod):
         combined (a standard object is an extended one without CV
         amplitudes). Returns (overlap list, ierr).
         """
+        for obj in (self, ket):
+            if getattr(obj, 'extended', False) and str(getattr(obj, 'ext_space', 'published')).lower() == 'pi':
+                sys.exit('\n ERROR: state overlaps are not yet available for ext_space = pi')
+
         if type(ket).__name__ != 'Mrsftddft':
             sys.exit('\n ERROR: MRSF overlaps require two Mrsftddft objects')
         for attr in ('nmo', 'nocca', 'nvirb', 'nel'):
