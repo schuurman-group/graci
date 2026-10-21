@@ -866,9 +866,9 @@ class GradientDriver:
         added to the generalised Fock matrix in the Z-vector right-hand
         side and the canonical multipliers (dE/dkappa convention); with
         X~ = 0 the result minus grad_ref is sum_pq extra_pq dkappa_pq/dR."""
-        if (xts is not None or extra_rhs is not None) and type(self) is not GradientDriver:
+        if (xts is not None or extra_rhs is not None) and not getattr(self, 'supports_xts', True):
             raise NotImplementedError('explicit amplitudes and extra right-hand sides '
-                                      'are only available for standard MRSF-TDDFT')
+                                      'are not yet available for this gradient driver')
         mol, C = self.mol, self.C
         nst = len(states)
         times = {}
@@ -1352,17 +1352,23 @@ class GradientDriver:
             if with_g:
                 blocks.append(gfac_list[v][0]); ncols += gfac_list[v][0].shape[1]
         Bexp = np.hstack(blocks) if ncols > 0 else np.zeros((self.nao, 0))
+        # a fifth kind (the T^cv density of the Pi parent) when the G entries carry it
+        with_w = bool(with_g and getattr(self, 'probe_with_w', False))
+        nkind = 5 if with_w else 4
+        empty = (0, np.zeros(0, int), np.zeros((0, 0)))
         terms = []
         for v in range(nst):
             tv = [fac_list[v][1]['a'], fac_list[v][1]['b']]
             if with_g:
                 tv += [gfac_list[v][1]['M'], gfac_list[v][1]['S']]
+                if with_w:
+                    tv.append(gfac_list[v][1].get('T', empty))
             else:
-                tv += [(0, np.zeros(0, int), np.zeros((0, 0))), (0, np.zeros(0, int), np.zeros((0, 0)))]
+                tv += [empty, empty]
             terms.append(tv)
-        maxnb = max(1, max(t[0] for tv in terms for t in tv))
-        nb = np.zeros((4, nst), dtype=np.int32); idx = np.zeros((maxnb, 4, nst), dtype=np.int32)
-        S = np.zeros((maxnb, maxnb, 4, nst))
+        maxnb = max(2, max(t[0] for tv in terms for t in tv))
+        nb = np.zeros((nkind, nst), dtype=np.int32); idx = np.zeros((maxnb, nkind, nst), dtype=np.int32)
+        S = np.zeros((maxnb, maxnb, nkind, nst))
         for v in range(nst):
             nstate = fac_list[v][0].shape[1]
             for k, (n, ix, Sm) in enumerate(terms[v]):
@@ -1375,8 +1381,8 @@ class GradientDriver:
                 idx[:n, k, v] = ix
                 S[:n, :n, k, v] = Sm
         if with_g:
-            t, tG = self.xcgrid.probe_q(Bexp, nb, idx, S, with_g=True,
-                                        with_kxc=bool(getattr(self, 'use_kernel', False)))
+            with_kxc = bool(getattr(self, 'probe_with_kxc', getattr(self, 'use_kernel', False)))
+            t, tG = self.xcgrid.probe_q(Bexp, nb, idx, S, with_g=True, with_kxc=with_kxc, with_w=with_w)
         else:
             t = self.xcgrid.probe_q(Bexp, nb, idx, S, with_g=False)
             tG = None

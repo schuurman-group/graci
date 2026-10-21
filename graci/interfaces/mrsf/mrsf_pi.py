@@ -134,7 +134,13 @@ def pi_setup(sess, fa, fb, chf, linearised_xc=True):
         C = sess.C
         dm = np.zeros((nmo, nmo))
         dm[np.ix_([O1, O2], [O1, O2])] = dgam
-        fone = fone + C.T @ sess.fxc_potential_ao(C @ dm @ C.T) @ C
+        # the kernel set of the grid module is shared: (re)install the one at
+        # rho_ens before the linearised XC difference (a published section or
+        # a gradient of the same SCF may have installed the set at rho_G)
+        sess.ensure_kernel_ens(False)
+        Vdg = C.T @ sess.fxc_potential_ao(C @ dm @ C.T) @ C
+        sess.pi_vdg = (np.array(dgam), Vdg)          # reused by the gradient driver of the same SCF
+        fone = fone + Vdg
     return {'w': w, 'pair': pair, 'shift': shift, 'fone': fone, 'fcpl': fcpl, 'dgam': dgam, 'Hp': Hp}
 
 
@@ -153,5 +159,6 @@ def pi_fone_for_weights(sess, pi, w, chf, linearised_xc=True):
         C = sess.C
         dm = np.zeros((nmo, nmo))
         dm[np.ix_([O1, O2], [O1, O2])] = dgam
+        sess.ensure_kernel_ens(False)
         fone = fone + C.T @ sess.fxc_potential_ao(C @ dm @ C.T) @ C
     return fone

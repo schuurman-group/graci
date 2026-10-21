@@ -70,6 +70,9 @@ class Mrsfgradient:
         # state and the SOMO gap (Hartree) it is divided by
         self.zeta_12       = None
         self.somo_gap      = None
+        # extended method with the Pi parent: pair-block eigenvalues, parent
+        # weights, pair gap, |z_w| and Q_12 per state
+        self.pi_diag       = None
         # timings of the stages
         self.times         = None
         # 0-based adiabatic indices of the differentiated states
@@ -168,8 +171,6 @@ class Mrsfgradient:
                 output.print_message('  Z-vector warm start: no usable Z-vectors in '
                                      + str(getattr(guess, 'label', self.guess_label)) + '; cold start')
 
-        if getattr(ci, 'extended', False) and str(getattr(ci, 'ext_space', 'published')).lower() == 'pi':
-            sys.exit('$mrsfgradient: gradients are not yet available for ext_space = pi')
         if getattr(ci, 'extended', False):
             import graci.interfaces.mrsf.mrsf_egradient as mrsf_egradient
             driver = mrsf_egradient.EMRSFGradientDriver(ci, self)
@@ -191,6 +192,7 @@ class Mrsfgradient:
         self.zeta_max    = np.array(res.get('zeta_max', []))
         self.zeta_12     = np.array(res.get('zeta_12', []))
         self.somo_gap    = res.get('somo_gap', None)
+        self.pi_diag     = res.get('pi', None)
         self.times       = res['times']
         self.state_list  = np.array(states)
         self.zvec        = np.array(res['zvec'])

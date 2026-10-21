@@ -235,6 +235,23 @@ contains
   end subroutine mrsf_get_ext_dims
 
 !######################################################################
+! mrsf_ext_parent_tables: the pinned closed-form coupling coefficients
+! of the extended method (parent X = 1 G, 2 D, 3 S; multiplicity mult),
+! the single source used by the energies and the gradients
+!######################################################################
+  subroutine mrsf_ext_parent_tables(mult1, X1, tJco, tKco, tFco, tWco, tJov, tKov, tFov, tWov, tA, tB, &
+       tJoo, tKoo, tFblk) bind(c, name='mrsf_ext_parent_tables')
+
+    integer(is), intent(in) :: mult1, X1
+    real(dp), intent(out)   :: tJco(2,2), tKco(2,2), tFco(2,2), tWco(2,3,2)
+    real(dp), intent(out)   :: tJov(2,2), tKov(2,2), tFov(2,2), tWov(2,3,2)
+    real(dp), intent(out)   :: tA(2,2), tB(2,2), tJoo(3), tKoo(3,4), tFblk(3)
+
+    call parent_tables(mult1, X1, tJco, tKco, tFco, tWco, tJov, tKov, tFov, tWov, tA, tB, tJoo, tKoo, tFblk)
+
+  end subroutine mrsf_ext_parent_tables
+
+!######################################################################
 ! mrsf_diag: Davidson diagonalisation for one (irrep, mult) block
 !######################################################################
   subroutine mrsf_diag(irrep1, imult1, nroots1, nextra1, maxvec1, maxiter1, tol1, &

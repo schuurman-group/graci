@@ -162,4 +162,44 @@ contains
     call xc_timings()
   end subroutine mrsf_xc_timings_c
 
+  ! ---- Part XX: base-density weights, Dgamma, the extended potential and probe
+  subroutine mrsf_xc_set_hole_weights_c(nocca1, lam1) bind(c, name='mrsf_xc_set_hole_weights')
+    integer(is), intent(in) :: nocca1
+    real(dp), intent(in)    :: lam1(nocca1)
+    call xc_set_hole_weights(nocca1, lam1)
+  end subroutine mrsf_xc_set_hole_weights_c
+
+  subroutine mrsf_xc_clear_hole_weights_c() bind(c, name='mrsf_xc_clear_hole_weights')
+    call xc_clear_hole_weights()
+  end subroutine mrsf_xc_clear_hole_weights_c
+
+  subroutine mrsf_xc_set_dgamma_c(dg1) bind(c, name='mrsf_xc_set_dgamma')
+    real(dp), intent(in) :: dg1(2,2)
+    call xc_set_dgamma(dg1)
+  end subroutine mrsf_xc_set_dgamma_c
+
+  subroutine mrsf_xc_clear_dgamma_c() bind(c, name='mrsf_xc_clear_dgamma')
+    call xc_clear_dgamma()
+  end subroutine mrsf_xc_clear_dgamma_c
+
+  subroutine mrsf_xc_probe_begin_q2_c(nst1, nexp1, Bexp1, maxnb1, nb1, idx1, S1, withg1, withk1, withw1) &
+       bind(c, name='mrsf_xc_probe_begin_q2')
+    integer(is), intent(in) :: nst1, nexp1, maxnb1, nb1(5,nst1), idx1(maxnb1,5,nst1)
+    real(dp), intent(in)    :: Bexp1(nao_g,max(nexp1,1)), S1(maxnb1,maxnb1,5,nst1)
+    logical(c_bool), intent(in) :: withg1, withk1, withw1
+    call xc_probe_begin_q2(nst1, nexp1, Bexp1, maxnb1, nb1, idx1, S1, logical(withg1), logical(withk1), &
+         logical(withw1))
+  end subroutine mrsf_xc_probe_begin_q2_c
+
+  subroutine mrsf_xc_g_potential_q2_c(nexp1, Bexp1, maxnb1, nbM1, idxM1, SM1, nbS1, idxS1, SS1, nbT1, idxT1, ST1, &
+       wantk1, wantt1, MM1, MK1, MT1, MK21, VE1, VH1) bind(c, name='mrsf_xc_g_potential_q2')
+    integer(is), intent(in) :: nexp1, maxnb1, nbM1, nbS1, nbT1, idxM1(maxnb1), idxS1(maxnb1), idxT1(maxnb1)
+    real(dp), intent(in)    :: Bexp1(nao_g,max(nexp1,1)), SM1(maxnb1,maxnb1), SS1(maxnb1,maxnb1), ST1(maxnb1,maxnb1)
+    logical(c_bool), intent(in) :: wantk1, wantt1
+    real(dp), intent(out)   :: MM1(nocca,nao_g), MK1(nocca,nao_g), MT1(nocca,nao_g), MK21(nocca,nao_g)
+    real(dp), intent(out)   :: VE1(nao_g,max(nexp1,1)), VH1(nao_g,nocca)
+    call xc_g_potential_q2(nexp1, Bexp1, maxnb1, nbM1, idxM1, SM1, nbS1, idxS1, SS1, nbT1, idxT1, ST1, &
+         logical(wantk1), logical(wantt1), MM1, MK1, MT1, MK21, VE1, VH1)
+  end subroutine mrsf_xc_g_potential_q2_c
+
 end module mrsf_xcgrid_interface

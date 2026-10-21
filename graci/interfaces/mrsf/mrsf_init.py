@@ -128,6 +128,19 @@ def init_ext(ci_method, fone, fcpl, wpi, shift, coul, mode, eri_file):
     return
 
 #
+def parent_tables(mult, X):
+    """the library's pinned coupling tables of parent X (1 G, 2 D, 3 S) for
+    the multiplicity mult: dict of F-ordered arrays Jco, Kco, Fco (2,2),
+    Wco (2,3,2), Jov, Kov, Fov (2,2), Wov (2,3,2), A, B (2,2), Joo (3),
+    Koo (3,4), Fblk (3) (0-based indices, see mrsf_extended.f90)"""
+    shapes = [('Jco', (2, 2)), ('Kco', (2, 2)), ('Fco', (2, 2)), ('Wco', (2, 3, 2)),
+              ('Jov', (2, 2)), ('Kov', (2, 2)), ('Fov', (2, 2)), ('Wov', (2, 3, 2)),
+              ('A', (2, 2)), ('B', (2, 2)), ('Joo', (3,)), ('Koo', (3, 4)), ('Fblk', (3,))]
+    arrs = [np.zeros(shp, dtype=np.float64, order='F') for _, shp in shapes]
+    libs.lib_func('mrsf_ext_parent_tables', (int(mult), int(X)) + tuple(arrs))
+    return {name: np.array(a) for (name, _), a in zip(shapes, arrs)}
+
+
 def ext_dims():
     """returns (ncol, ncv): columns of the response vector and CV slots"""
 

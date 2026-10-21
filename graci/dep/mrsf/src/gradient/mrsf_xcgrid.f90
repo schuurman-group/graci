@@ -69,6 +69,20 @@ module mrsf_xcgrid
   real(dp), allocatable    :: fxcwG(:,:,:)          ! (ndc, ndc, ngrid) w f (y,x,g)
   real(dp), allocatable    :: kxcwG(:,:,:,:)        ! (ndc, ndc, ndc, ngrid) w k (z,y,x,g)
   logical                  :: g_ready = .false., g_have_kxc = .false.
+  ! general closed-shell base density of the extended method's gradient:
+  ! D_base = 2 C_H diag(lamH) C_H^T with lamH = n_i/2 (1 on the first
+  ! nocca-1 hole MOs for the published parent G; 1 on the core and 1/2 on
+  ! the two SOMOs for the Pi parent); the published pattern keeps the
+  ! original code path (bit-identical)
+  real(dp), allocatable    :: lamH(:), CHgL(:,:)      ! (nocca), (nao, nocca) = C_H diag(lamH)
+  logical                  :: lam_set = .false., lam_is_G = .true.
+  ! SOMO-pair density Dgamma (2x2 on the hole MOs nocca-1, nocca) of the
+  ! linearised XC term E_W = int rho_T f rho_Dg of the Pi parent: probe
+  ! terms (f[Dg], T), (f[T], Dg), (2 k[T,Dg], D_base/2) and the mixed
+  ! potential of xc_g_potential_q2
+  real(dp)                 :: dgam_g(2,2) = 0.0_dp
+  real(dp), allocatable    :: BDg(:,:), WDg(:,:)      ! (nao, 2): C_O and C_O Dgamma
+  logical                  :: dg_set = .false., gq_w = .false.
   ! G-probe factors registered for a probe pass (xc_gprobe_set)
   integer(is)              :: kMg = 0, kSg = 0, nstg = 0
   real(dp), allocatable    :: LMg(:,:,:), RMg(:,:,:), LSg(:,:,:)
@@ -147,6 +161,8 @@ contains
     allocate(wgt(ngrid)); wgt = wgt1
     allocate(CHg(nao_g,nocca), CPg(nao_g,nvirb))
     CHg = CH1; CPg = CP1
+    call xc_clear_hole_weights()
+    call xc_clear_dgamma()
     ao_cached = cache_ao
     if (ao_cached) then
        allocate(aoc(int(ncomp,i8)*int(nao_g,i8)*int(ngrid,i8)))
@@ -243,6 +259,8 @@ contains
     if (allocated(aoc)) deallocate(aoc)
     if (allocated(psiH)) deallocate(psiH)
     if (allocated(CHg)) deallocate(CHg, CPg)
+    call xc_clear_hole_weights()
+    call xc_clear_dgamma()
     call xc_g_free()
     xc_ready = .false.; ao_cached = .false.; ref_ready = .false.; cs_ready = .false.
 
@@ -256,7 +274,7 @@ contains
     if (allocated(LMg)) deallocate(LMg, RMg, LSg)
     if (allocated(taccG)) deallocate(taccG)
     if (allocated(Bexp_q)) deallocate(Bexp_q, nbq, idxq, Sq, Bq, Wq)
-    kcur = 0; nvcur = 0; nstg = 0; probe_q = .false.; gq = .false.; gq_kxc = .false.
+    kcur = 0; nvcur = 0; nstg = 0; probe_q = .false.; gq = .false.; gq_kxc = .false.; gq_w = .false.
 
   end subroutine xc_cleanup
 
@@ -1386,6 +1404,117 @@ contains
 !         wv(g,z) = sum_{x,y} w k(z,y,x) rho(g,x) rho(g,y)
 ! (one spin; rho are the components of the trial density on the block)
 !######################################################################
+  subroutine xc_set_hole_weights(nocca1, lam)
+
+    integer(is), intent(in) :: nocca1
+    real(dp), intent(in)    :: lam(nocca1)
+    integer(is) :: i
+
+    if (.not. xc_ready) call mrsf_error('xc_set_hole_weights: grid not initialised')
+    if (nocca1 /= nocca) call mrsf_error('xc_set_hole_weights: dimension mismatch')
+    call xc_clear_hole_weights()
+    allocate(lamH(nocca), CHgL(nao_g,nocca))
+    lamH = lam
+    do i = 1, nocca
+       CHgL(:,i) = lamH(i)*CHg(:,i)
+    enddo
+    lam_set = .true.
+    lam_is_G = all(abs(lamH(1:nocca-1) - 1.0_dp) < 1.0e-14_dp) .and. abs(lamH(nocca)) < 1.0e-14_dp
+
+  end subroutine xc_set_hole_weights
+
+  subroutine xc_clear_hole_weights()
+
+    if (allocated(lamH)) deallocate(lamH, CHgL)
+    lam_set = .false.; lam_is_G = .true.
+
+  end subroutine xc_clear_hole_weights
+
+  subroutine xc_set_dgamma(dg)
+
+    real(dp), intent(in) :: dg(2,2)
+
+    if (.not. xc_ready) call mrsf_error('xc_set_dgamma: grid not initialised')
+    call xc_clear_dgamma()
+    allocate(BDg(nao_g,2), WDg(nao_g,2))
+    dgam_g = dg
+    BDg(:,1) = CHg(:,nocca-1); BDg(:,2) = CHg(:,nocca)
+    WDg = matmul(BDg, dgam_g)
+    dg_set = .true.
+
+  end subroutine xc_set_dgamma
+
+  subroutine xc_clear_dgamma()
+
+    if (allocated(BDg)) deallocate(BDg, WDg)
+    dgam_g = 0.0_dp
+    dg_set = .false.
+
+  end subroutine xc_clear_dgamma
+
+  ! base_amat: A = (aow1 C_H Lambda) C_H^T of the base density (published:
+  ! C_G C_G^T over the first nocca-1 hole MOs, the original calls)
+  subroutine base_amat(nb, aow1, tmp, Amat)
+
+    integer(is), intent(in) :: nb
+    real(dp), intent(in)    :: aow1(nb,nao_g)
+    real(dp), intent(inout) :: tmp(nb,*)
+    real(dp), intent(out)   :: Amat(nb,nao_g)
+    integer(is) :: nGo
+
+    nGo = nocca - 1
+    if (lam_is_G) then
+       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+    else
+       call dgemm('N','N', nb, nocca, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
+       call dgemm('N','T', nb, nao_g, nocca, 1.0_dp, tmp, nb, CHgL, nao_g, 0.0_dp, Amat, nb)
+    endif
+
+  end subroutine base_amat
+
+  ! base_phi: Phi = psi_H Lambda C_H^T (published: psi_G C_G^T)
+  subroutine base_phi(nb, psiHb, PhiG)
+
+    integer(is), intent(in) :: nb
+    real(dp), intent(in)    :: psiHb(nb,nocca,ncomp)
+    real(dp), intent(out)   :: PhiG(nb,nao_g)
+
+    if (lam_is_G) then
+       call dgemm('N','T', nb, nao_g, nocca-1, 1.0_dp, psiHb, nb, CHg, nao_g, 0.0_dp, PhiG, nb)
+    else
+       call dgemm('N','T', nb, nao_g, nocca, 1.0_dp, psiHb, nb, CHgL, nao_g, 0.0_dp, PhiG, nb)
+    endif
+
+  end subroutine base_phi
+
+  ! g_wv_k2: mixed weighted third-derivative potential
+  !          wv(g,z) = sum_{x,y} w k(z,y,x) rhoA(g,x) rhoB(g,y)
+  subroutine g_wv_k2(nb, g0, rhoA, rhoB, wv)
+
+    integer(is), intent(in) :: nb, g0
+    real(dp), intent(in)    :: rhoA(nb,ndc), rhoB(nb,ndc)
+    real(dp), intent(out)   :: wv(nb,ndc)
+
+    integer(is) :: g, gg, x, y, z
+    real(dp)    :: acc
+
+    if (.not. g_have_kxc) call mrsf_error('g_wv_k2: third derivatives not installed')
+    do g = 1, nb
+       gg = g0 + g - 1
+       do z = 1, ndc
+          acc = 0.0_dp
+          do x = 1, ndc
+             do y = 1, ndc
+                acc = acc + kxcwG(z,y,x,gg)*rhoA(g,x)*rhoB(g,y)
+             enddo
+          enddo
+          wv(g,z) = acc
+       enddo
+    enddo
+
+  end subroutine g_wv_k2
+
   subroutine g_wv_f(nb, g0, rho, wv)
 
     integer(is), intent(in) :: nb, g0
@@ -1647,8 +1776,8 @@ contains
     call make_aow_1s(nb, nc2, ao, wvG, aowG, aow2G)
     allocate(PhiG(nb,nao_g), Phi(nb,nao_g), Amat(nb,nao_g))
     allocate(tmp(nb,max(kMg,nocca)), tmp2(nb,max(kMg,nocca)))
-    ! Phi_G = psi_G C_G^T
-    call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, psiHb, nb, CHg, nao_g, 0.0_dp, PhiG, nb)
+    ! Phi_G = psi_H Lambda C_H^T (published: psi_G C_G^T)
+    call base_phi(nb, psiHb, PhiG)
     allocate(psiLM(nb,kMg,ncomp), psiRM(nb,kMg,ncomp), psiLS(nb,kSg,ncomp), rho(nb,ndc), wv1(nb,ndc), &
          aow1(nb,nao_g), aow2_1(nb,nao_g,3))
     do v = 1, nstg
@@ -1670,8 +1799,7 @@ contains
        call g_wv_f(nb, g0, rho, wv1)
        wv1 = 2.0_dp*wv1
        call make_aow_1s(nb, nc2, ao, wv1, aow1, aow2_1)
-       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
-       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call base_amat(nb, aow1, tmp, Amat)
        call probe_reduce(nb, nc2, ao, Amat, aow2_1, PhiG, taccG(1,1,v))
        ! kernel terms of the singlet CV block only
        if (.not. gq_kxc) cycle
@@ -1689,8 +1817,7 @@ contains
        ! (k_G[D_s, D_s]/2, D_G) = (k_G[D_s, D_s], C_G C_G^T)
        call g_wv_k(nb, g0, rho, wv1)
        call make_aow_1s(nb, nc2, ao, wv1, aow1, aow2_1)
-       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1, nb, CHg, nao_g, 0.0_dp, tmp, nb)
-       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call base_amat(nb, aow1, tmp, Amat)
        call probe_reduce(nb, nc2, ao, Amat, aow2_1, PhiG, taccG(1,1,v))
     enddo
     deallocate(wvG, aowG, aow2G, PhiG, Phi, Amat, tmp, tmp2, psiLM, psiRM, psiLS, rho, wv1, aow1, aow2_1)
@@ -1881,6 +2008,36 @@ contains
     real(dp), intent(in)    :: S(maxnb,maxnb,4,nst)
     logical, intent(in)     :: with_g, with_kxc
 
+    call probe_begin_impl(nst, nexp, Bexp, maxnb, 4_is, nb, idx, S, with_g, with_kxc, .false.)
+
+  end subroutine xc_probe_begin_q
+
+!######################################################################
+! xc_probe_begin_q2: as xc_probe_begin_q with a fifth term kind, T^cv of
+! the Pi parent, and the E_W probe terms (f[Dg], T), (f[T], Dg) and
+! (2 k[T,Dg], D_base/2) switched on by with_w (needs xc_set_dgamma and the
+! third derivatives of the installed kernel set)
+!######################################################################
+  subroutine xc_probe_begin_q2(nst, nexp, Bexp, maxnb, nb, idx, S, with_g, with_kxc, with_w)
+
+    integer(is), intent(in) :: nst, nexp, maxnb
+    real(dp), intent(in)    :: Bexp(nao_g,max(nexp,1))
+    integer(is), intent(in) :: nb(5,nst), idx(maxnb,5,nst)
+    real(dp), intent(in)    :: S(maxnb,maxnb,5,nst)
+    logical, intent(in)     :: with_g, with_kxc, with_w
+
+    call probe_begin_impl(nst, nexp, Bexp, maxnb, 5_is, nb, idx, S, with_g, with_kxc, with_w)
+
+  end subroutine xc_probe_begin_q2
+
+  subroutine probe_begin_impl(nst, nexp, Bexp, maxnb, nk, nb, idx, S, with_g, with_kxc, with_w)
+
+    integer(is), intent(in) :: nst, nexp, maxnb, nk
+    real(dp), intent(in)    :: Bexp(nao_g,max(nexp,1))
+    integer(is), intent(in) :: nb(nk,nst), idx(maxnb,nk,nst)
+    real(dp), intent(in)    :: S(maxnb,maxnb,nk,nst)
+    logical, intent(in)     :: with_g, with_kxc, with_w
+
     integer(is) :: v, t, a, j, nbt
 
     if (.not. xc_ready) call mrsf_error('xc_probe_begin_q: grid not initialised')
@@ -1889,15 +2046,19 @@ contains
     if (with_g .and. .not. g_ready) call mrsf_error('xc_probe_begin_q: G kernel set not installed')
     if (with_g .and. with_kxc .and. .not. g_have_kxc) &
          call mrsf_error('xc_probe_begin_q: third functional derivatives not installed')
+    if (with_w .and. (nk < 5 .or. .not. with_g)) call mrsf_error('xc_probe_begin_q2: E_W terms need the T term and with_g')
+    if (with_w .and. .not. dg_set) call mrsf_error('xc_probe_begin_q2: Dgamma not set (xc_set_dgamma)')
+    if (with_w .and. .not. g_have_kxc) call mrsf_error('xc_probe_begin_q2: third functional derivatives not installed')
+    if (with_w .and. maxnb < 2) call mrsf_error('xc_probe_begin_q2: maxnb must be at least 2')
     call xc_cleanup()
-    nst_q = nst; nexp_q = nexp; maxnb_q = maxnb; gq = with_g; gq_kxc = (with_g .and. with_kxc)
+    nst_q = nst; nexp_q = nexp; maxnb_q = maxnb; gq = with_g; gq_kxc = (with_g .and. with_kxc); gq_w = with_w
     nvcur = nst; nstg = merge(nst, 0_is, with_g); kcur = 0
-    allocate(Bexp_q(nao_g,max(nexp,1)), nbq(4,nst), idxq(maxnb,4,nst), Sq(maxnb,maxnb,4,nst))
-    allocate(Bq(nao_g,maxnb,4,nst), Wq(nao_g,maxnb,4,nst))
+    allocate(Bexp_q(nao_g,max(nexp,1)), nbq(nk,nst), idxq(maxnb,nk,nst), Sq(maxnb,maxnb,nk,nst))
+    allocate(Bq(nao_g,maxnb,nk,nst), Wq(nao_g,maxnb,nk,nst))
     Bexp_q = Bexp; nbq = nb; idxq = idx; Sq = S
     Bq = 0.0_dp; Wq = 0.0_dp
     do v = 1, nst
-       do t = 1, 4
+       do t = 1, nk
           nbt = nb(t,v)
           if (nbt > maxnb) call mrsf_error('xc_probe_begin_q: term too long')
           do a = 1, nbt
@@ -1920,7 +2081,7 @@ contains
     probe_q = .true.
     tstart = wall_time()
 
-  end subroutine xc_probe_begin_q
+  end subroutine probe_begin_impl
 
 !######################################################################
 ! xc_probe_super: the AO values (nc2 components) of the ng points of the
@@ -1936,7 +2097,7 @@ contains
     logical               :: par
     real(dp), allocatable :: aob(:), psiHb(:), psiE(:), psiB(:), Tq(:), rho(:), wv(:), aowR(:), aow2R(:), &
                              aow1(:), aow21(:), PhiD(:), Phi(:), Amat(:), tmp(:), wvG(:), aowG(:), aow2G(:), &
-                             PhiG(:), tth(:,:,:), tGth(:,:,:)
+                             PhiG(:), tth(:,:,:), tGth(:,:,:), rhoDg(:), aowDg(:), aow2Dg(:)
 
     if (.not. probe_q) call mrsf_error('xc_probe_super: no quadratic-form probe in progress')
     if (ib0 < 1 .or. ib0 + nsub - 1 > nblocks) call mrsf_error('xc_probe_super: block range out of range')
@@ -1953,7 +2114,7 @@ contains
     par = (nthr > 1) .and. (nsub > 1)
 
     !$omp parallel if(par) default(shared) private(ib, nb, off, prev, aob, psiHb, psiE, psiB, Tq, rho, wv, &
-    !$omp aowR, aow2R, aow1, aow21, PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth)
+    !$omp aowR, aow2R, aow1, aow21, PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth, rhoDg, aowDg, aow2Dg)
 #ifdef USE_MKL
     if (par) prev = mkl_threads_local(1_c_int)
 #endif
@@ -1962,7 +2123,7 @@ contains
          aowR(nbmax*nao_g*2), aow2R(nbmax*nao_g*3*2), aow1(nbmax*nao_g*2), aow21(nbmax*nao_g*3*2), &
          PhiD(nbmax*nao_g*2), Phi(nbmax*nao_g), Amat(nbmax*nao_g), tmp(nbmax*max(maxnb_q,nocca)), &
          wvG(nbmax*ndc), aowG(nbmax*nao_g), aow2G(nbmax*nao_g*3), PhiG(nbmax*nao_g), &
-         tth(nao_g,3,nst+1), tGth(nao_g,3,max(nst,1)))
+         tth(nao_g,3,nst+1), tGth(nao_g,3,max(nst,1)), rhoDg(nbmax*ndc), aowDg(nbmax*nao_g), aow2Dg(nbmax*nao_g*3))
     tth = 0.0_dp; tGth = 0.0_dp
     !$omp do schedule(dynamic)
     do ib = ib0, ib0+nsub-1
@@ -1971,7 +2132,7 @@ contains
        call copy_sub(ng, nb, off, nao_g*nc2, ao, aob)
        call copy_block(nb*nocca*ncomp, psiH(poff(ib)+1), psiHb)
        call probe_q_block(nb, gbeg(ib), nc2, aob, psiHb, psiE, psiB, Tq, rho, wv, aowR, aow2R, aow1, aow21, &
-            PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth)
+            PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth, rhoDg, aowDg, aow2Dg)
     enddo
     !$omp end do
     !$omp critical
@@ -1979,7 +2140,7 @@ contains
     if (gq) taccG = taccG + tGth
     !$omp end critical
     deallocate(aob, psiHb, psiE, psiB, Tq, rho, wv, aowR, aow2R, aow1, aow21, PhiD, Phi, Amat, tmp, &
-         wvG, aowG, aow2G, PhiG, tth, tGth)
+         wvG, aowG, aow2G, PhiG, tth, tGth, rhoDg, aowDg, aow2Dg)
 #ifdef USE_MKL
     if (par) prev = mkl_threads_local(0_c_int)
 #endif
@@ -1998,7 +2159,7 @@ contains
   end subroutine copy_sub
 
   subroutine probe_q_block(nb, g0, nc2, ao, psiHb, psiE, psiB, Tq, rho, wv, aowR, aow2R, aow1, aow21, &
-       PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth)
+       PhiD, Phi, Amat, tmp, wvG, aowG, aow2G, PhiG, tth, tGth, rhoDg, aowDg, aow2Dg)
 
     integer(is), intent(in) :: nb, g0, nc2
     real(dp), intent(in)    :: ao(nb,nao_g,nc2), psiHb(nb,nocca,ncomp)
@@ -2008,9 +2169,10 @@ contains
     real(dp), intent(inout) :: Amat(nb,nao_g), tmp(nb,max(maxnb_q,nocca))
     real(dp), intent(inout) :: wvG(nb,ndc), aowG(nb,nao_g), aow2G(nb,nao_g,3), PhiG(nb,nao_g)
     real(dp), intent(inout) :: tth(nao_g,3,nst_q+1), tGth(nao_g,3,max(nst_q,1))
+    real(dp), intent(inout) :: rhoDg(nb,ndc), aowDg(nb,nao_g), aow2Dg(nb,nao_g,3)
 
-    integer(is) :: v, s, t, c, g, gg, x, y, nocc(2), nGo, nbt
-    real(dp)    :: acc
+    integer(is) :: v, s, t, c, g, gg, x, y, nocc(2), nGo, nbt, idxDg(2)
+    real(dp)    :: acc, SDg(2,2)
 
     nocc(1) = nocca; nocc(2) = nocca - 2
     nGo = nocca - 1
@@ -2041,7 +2203,15 @@ contains
           wvG(:,c) = wgt(g0:g0+nb-1)*vxcG(g0:g0+nb-1,c)
        enddo
        call make_aow_1s_s(nb, nc2, ao, wvG, aowG, aow2G)
-       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, psiHb, nb, CHg, nao_g, 0.0_dp, PhiG, nb)
+       call base_phi(nb, psiHb, PhiG)
+       if (gq_w) then
+          ! the (block-constant) Dgamma density and the AO products of its kernel potential
+          idxDg(1) = nocca - 1; idxDg(2) = nocca
+          SDg = dgam_g
+          call qf_density(nb, 2_is, 2_is, nexp_q, idxDg, SDg, psiHb, psiE, psiB, Tq, rhoDg)
+          call g_wv_f(nb, g0, rhoDg, wv(1,1,1))
+          call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aowDg, aow2Dg)
+       endif
     endif
 
     do v = 1, nst_q
@@ -2080,13 +2250,33 @@ contains
        call term_density(nb, nbt, idxq(1,3,v), Sq(1,1,3,v), psiHb, psiE, psiB, Tq, rho(1,1,1))
        call term_phi_a(nb, nbt, psiB, Bq(1,1,3,v), Wq(1,1,3,v), aowG, tmp, Phi, Amat)
        call probe_reduce_s(nb, nc2, ao, Amat, aow2G, Phi, tGth(1,1,v))
-       ! (f_G[M], D_G), D_G = 2 C_G C_G^T (Phi_G carries C_G C_G^T: factor 2)
+       ! (f_G[M], D_base), D_base = 2 C_H Lambda C_H^T (Phi_G carries C_H Lambda C_H^T: factor 2)
        call g_wv_f(nb, g0, rho(1,1,1), wv(1,1,1))
        wv(:,:,1) = 2.0_dp*wv(:,:,1)
        call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
-       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1(1,1,1), nb, CHg, nao_g, 0.0_dp, tmp, nb)
-       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call base_amat(nb, aow1(1,1,1), tmp, Amat)
        call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), PhiG, tGth(1,1,v))
+       if (gq_w) then
+          ! --- linearised XC term of the Pi parent, E_W = int rho_T f rho_Dg ---
+          ! (f[Dg], T): the Dgamma potential against the density of T^cv (kind 5)
+          nbt = nbq(5,v)
+          call term_density(nb, nbt, idxq(1,5,v), Sq(1,1,5,v), psiHb, psiE, psiB, Tq, rho(1,1,2))
+          call term_phi_a(nb, nbt, psiB, Bq(1,1,5,v), Wq(1,1,5,v), aowDg, tmp, Phi, Amat)
+          call probe_reduce_s(nb, nc2, ao, Amat, aow2Dg, Phi, tGth(1,1,v))
+          ! (f[T], Dg): the potential of rho_T against the Dgamma density
+          call g_wv_f(nb, g0, rho(1,1,2), wv(1,1,1))
+          call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
+          call dgemm('N','T', nb, nao_g, 2_is, 1.0_dp, psiHb(1,nocca-1,1), nb, WDg, nao_g, 0.0_dp, Phi, nb)
+          call dgemm('N','N', nb, 2_is, nao_g, 1.0_dp, aow1(1,1,1), nb, BDg, nao_g, 0.0_dp, tmp, nb)
+          call dgemm('N','T', nb, nao_g, 2_is, 1.0_dp, tmp, nb, WDg, nao_g, 0.0_dp, Amat, nb)
+          call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), Phi, tGth(1,1,v))
+          ! (2 k[T, Dg], D_base/2): mixed third-derivative term
+          call g_wv_k2(nb, g0, rho(1,1,2), rhoDg, wv(1,1,1))
+          wv(:,:,1) = 2.0_dp*wv(:,:,1)
+          call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
+          call base_amat(nb, aow1(1,1,1), tmp, Amat)
+          call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), PhiG, tGth(1,1,v))
+       endif
        if (.not. gq_kxc) cycle
        ! (f_G[D_s], D_s)
        nbt = nbq(4,v)
@@ -2095,11 +2285,10 @@ contains
        call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
        call term_phi_a(nb, nbt, psiB, Bq(1,1,4,v), Wq(1,1,4,v), aow1(1,1,1), tmp, Phi, Amat)
        call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), Phi, tGth(1,1,v))
-       ! (k_G[D_s, D_s]/2, D_G) = (k_G[D_s, D_s], C_G C_G^T)
+       ! (k_G[D_s, D_s]/2, D_base) = (k_G[D_s, D_s], C_H Lambda C_H^T)
        call g_wv_k(nb, g0, rho(1,1,2), wv(1,1,1))
        call make_aow_1s_s(nb, nc2, ao, wv(1,1,1), aow1(1,1,1), aow21(1,1,1,1))
-       call dgemm('N','N', nb, nGo, nao_g, 1.0_dp, aow1(1,1,1), nb, CHg, nao_g, 0.0_dp, tmp, nb)
-       call dgemm('N','T', nb, nao_g, nGo, 1.0_dp, tmp, nb, CHg, nao_g, 0.0_dp, Amat, nb)
+       call base_amat(nb, aow1(1,1,1), tmp, Amat)
        call probe_reduce_s(nb, nc2, ao, Amat, aow21(1,1,1,1), PhiG, tGth(1,1,v))
     enddo
 
@@ -2345,6 +2534,111 @@ contains
     call dgemm('T','N', nao_g, nocca, nb, 1.0_dp, ao(1,1,1), nb, aowH, nb, 1.0_dp, VHth, nao_g)
 
   end subroutine gpot_q_block
+
+!######################################################################
+! xc_g_potential_q2: xc_g_potential_q plus the terms of the Pi parent:
+! the quadratic form T (nbT, idxT, ST) = T^cv gives
+!   MT(i,nu)  = projection of v[f rho(T)] on the hole MOs    (want_t)
+!   MK2(i,nu) = projection of v[k rho(T) rho(Dg)] on them   (want_t; Dg from xc_set_dgamma)
+!######################################################################
+  subroutine xc_g_potential_q2(nexp, Bexp, maxnb, nbM, idxM, SM, nbS, idxS, SS, nbT, idxT, ST, &
+       want_k, want_t, MM, MK, MT, MK2, VE, VH)
+
+    integer(is), intent(in) :: nexp, maxnb, nbM, nbS, nbT, idxM(maxnb), idxS(maxnb), idxT(maxnb)
+    real(dp), intent(in)    :: Bexp(nao_g,max(nexp,1)), SM(maxnb,maxnb), SS(maxnb,maxnb), ST(maxnb,maxnb)
+    logical, intent(in)     :: want_k, want_t
+    real(dp), intent(out)   :: MM(nocca,nao_g), MK(nocca,nao_g), MT(nocca,nao_g), MK2(nocca,nao_g)
+    real(dp), intent(out)   :: VE(nao_g,max(nexp,1)), VH(nao_g,nocca)
+
+    integer(is)           :: ib, nb, nbmax, nthr, idxDg(2)
+    integer(c_int)        :: prev
+    logical               :: par
+    real(dp)              :: t0, SDg(2,2)
+    real(dp), allocatable :: psiE(:), psiB(:), Tq(:), rhoM(:), rhoS(:), wv(:), Bst(:), Ast(:), aowS(:), &
+                             aowE(:), aowH(:), MthM(:,:), MthK(:,:), VEth(:,:), VHth(:,:), &
+                             rhoT(:), rhoDg(:), MthT(:,:), MthK2(:,:)
+
+    if (.not. g_ready) call mrsf_error('xc_g_potential_q2: G kernel set not installed')
+    if (.not. ao_cached) call mrsf_error('xc_g_potential_q2: the AO values must be cached (raise mem_budget)')
+    if (want_k .and. .not. g_have_kxc) call mrsf_error('xc_g_potential_q2: third derivatives not installed')
+    if (want_t .and. .not. g_have_kxc) call mrsf_error('xc_g_potential_q2: third derivatives not installed')
+    if (want_t .and. .not. dg_set) call mrsf_error('xc_g_potential_q2: Dgamma not set (xc_set_dgamma)')
+    if (want_t .and. maxnb < 2) call mrsf_error('xc_g_potential_q2: maxnb must be at least 2')
+    t0 = wall_time()
+    nbmax = 0
+    do ib = 1, nblocks
+       nbmax = max(nbmax, gend(ib) - gbeg(ib) + 1)
+    enddo
+    nthr = 1
+    !$ nthr = omp_get_max_threads()
+    par = (nthr > 1) .and. (nblocks >= nthr)
+    MM = 0.0_dp; MK = 0.0_dp; MT = 0.0_dp; MK2 = 0.0_dp; VE = 0.0_dp; VH = 0.0_dp
+    idxDg(1) = nocca - 1; idxDg(2) = nocca
+    SDg = dgam_g
+
+    !$omp parallel if(par) default(shared) private(ib, nb, prev, psiE, psiB, Tq, rhoM, rhoS, wv, Bst, Ast, &
+    !$omp aowS, aowE, aowH, MthM, MthK, VEth, VHth, rhoT, rhoDg, MthT, MthK2)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(1_c_int)
+#endif
+    allocate(psiE(nbmax*max(nexp,1)*ncomp), psiB(nbmax*maxnb*ncomp), Tq(nbmax*maxnb), rhoM(nbmax*ndc), &
+         rhoS(nbmax*ndc), wv(nbmax*ndc), Bst(2*nbmax*nao_g), Ast(nocca*2*nbmax), aowS(nbmax*nao_g), &
+         aowE(nbmax*max(nexp,1)), aowH(nbmax*nocca), MthM(nocca,nao_g), MthK(nocca,nao_g), &
+         VEth(nao_g,max(nexp,1)), VHth(nao_g,nocca), rhoT(nbmax*ndc), rhoDg(nbmax*ndc), &
+         MthT(nocca,nao_g), MthK2(nocca,nao_g))
+    MthM = 0.0_dp; MthK = 0.0_dp; VEth = 0.0_dp; VHth = 0.0_dp; MthT = 0.0_dp; MthK2 = 0.0_dp
+    !$omp do schedule(dynamic)
+    do ib = 1, nblocks
+       nb = gend(ib) - gbeg(ib) + 1
+       call gpot_q_block(nb, gbeg(ib), aoc(aoff(ib)+1), psiH(poff(ib)+1), nexp, Bexp, maxnb, nbM, idxM, SM, &
+            nbS, idxS, SS, want_k, psiE, psiB, Tq, rhoM, rhoS, wv, Bst, Ast, aowS, aowE, aowH, &
+            MthM, MthK, VEth, VHth)
+       if (want_t) call gpot_t_block(nb, gbeg(ib), aoc(aoff(ib)+1), psiH(poff(ib)+1), nexp, Bexp, maxnb, &
+            nbT, idxT, ST, idxDg, SDg, psiE, psiB, Tq, rhoT, rhoDg, wv, Bst, Ast, MthT, MthK2)
+    enddo
+    !$omp end do
+    !$omp critical
+    MM = MM + MthM
+    MK = MK + MthK
+    MT = MT + MthT
+    MK2 = MK2 + MthK2
+    VE = VE + VEth
+    VH = VH + VHth
+    !$omp end critical
+    deallocate(psiE, psiB, Tq, rhoM, rhoS, wv, Bst, Ast, aowS, aowE, aowH, MthM, MthK, VEth, VHth, &
+         rhoT, rhoDg, MthT, MthK2)
+#ifdef USE_MKL
+    if (par) prev = mkl_threads_local(0_c_int)
+#endif
+    !$omp end parallel
+    time_xcg = time_xcg + wall_time() - t0
+    nxcg_calls = nxcg_calls + 1
+
+  end subroutine xc_g_potential_q2
+
+  ! the T^cv terms of xc_g_potential_q2 on one block (psiE and the stacked
+  ! operands Bst/Ast have been prepared by gpot_q_block)
+  subroutine gpot_t_block(nb, g0, ao, psiHb, nexp, Bexp, maxnb, nbT, idxT, ST, idxDg, SDg, &
+       psiE, psiB, Tq, rhoT, rhoDg, wv, Bst, Ast, MthT, MthK2)
+
+    integer(is), intent(in) :: nb, g0, nexp, maxnb, nbT, idxT(maxnb), idxDg(2)
+    real(dp), intent(in)    :: ao(nb,nao_g,ncomp), psiHb(nb,nocca,ncomp)
+    real(dp), intent(in)    :: Bexp(nao_g,max(nexp,1)), ST(maxnb,maxnb), SDg(2,2)
+    real(dp), intent(inout) :: psiE(nb,max(nexp,1),ncomp), psiB(nb,maxnb,ncomp), Tq(nb,maxnb)
+    real(dp), intent(inout) :: rhoT(nb,ndc), rhoDg(nb,ndc), wv(nb,ndc)
+    real(dp), intent(inout) :: Bst(2*nb,nao_g), Ast(nocca,2*nb)
+    real(dp), intent(inout) :: MthT(nocca,nao_g), MthK2(nocca,nao_g)
+
+    call qf_density(nb, nbT, maxnb, nexp, idxT, ST, psiHb, psiE, psiB, Tq, rhoT)
+    call qf_density(nb, 2_is, 2_is, nexp, idxDg, SDg, psiHb, psiE, psiB, Tq, rhoDg)
+    ! v[f rho(T)] on the hole MOs
+    call g_wv_f(nb, g0, rhoT, wv)
+    call g_project(nb, ao, psiHb, wv, Bst, Ast, MthT)
+    ! v[k rho(T) rho(Dg)] on the hole MOs
+    call g_wv_k2(nb, g0, rhoT, rhoDg, wv)
+    call g_project(nb, ao, psiHb, wv, Bst, Ast, MthK2)
+
+  end subroutine gpot_t_block
 
   ! psi_B (values + gradients) of a quadratic-form term and its density
   ! rho = sum_ab psi_a S_ab psi_b (value and gradient components)

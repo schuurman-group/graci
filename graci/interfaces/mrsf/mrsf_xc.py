@@ -160,7 +160,7 @@ class XCGrid:
             return t, tG
         return t
 
-    def probe_q(self, Bexp, nb, idx, S, with_g=False, with_kxc=False, nsuper=32):
+    def probe_q(self, Bexp, nb, idx, S, with_g=False, with_kxc=False, nsuper=32, with_w=False):
         """XC probe terms of the gradient for densities given as quadratic
         forms P = B S B^T in the basis [hole MOs (cached) | Bexp (nao, nexp)]:
         nb (4, nst) term lengths, idx (maxnb, 4, nst) 1-based basis indices
@@ -173,14 +173,22 @@ class XCGrid:
         t0 = time.time()
         nao = self.nao
         nb = np.asarray(nb, dtype=np.int32); idx = np.asarray(idx, dtype=np.int32)
+        nkind = nb.shape[0]
         nst = nb.shape[1]; maxnb = idx.shape[0]
         Bexp = np.asfortranarray(np.asarray(Bexp, dtype=np.float64).reshape(nao, -1))
         nexp = Bexp.shape[1]
         if nexp == 0:
             Bexp = mrsf_grad.fzeros(nao, 1)
-        S = np.asfortranarray(np.asarray(S, dtype=np.float64).reshape(maxnb, maxnb, 4, nst))
-        libs.lib_func('mrsf_xc_probe_begin_q', (nst, nexp, Bexp, maxnb, nb.flatten(order='F'),
-                                                idx.flatten(order='F'), S, bool(with_g), bool(with_kxc)))
+        S = np.asfortranarray(np.asarray(S, dtype=np.float64).reshape(maxnb, maxnb, nkind, nst))
+        if nkind == 5:
+            libs.lib_func('mrsf_xc_probe_begin_q2', (nst, nexp, Bexp, maxnb, nb.flatten(order='F'),
+                                                     idx.flatten(order='F'), S, bool(with_g), bool(with_kxc),
+                                                     bool(with_w)))
+        else:
+            if with_w:
+                raise ValueError('probe_q: the E_W terms need the five-kind term arrays')
+            libs.lib_func('mrsf_xc_probe_begin_q', (nst, nexp, Bexp, maxnb, nb.flatten(order='F'),
+                                                    idx.flatten(order='F'), S, bool(with_g), bool(with_kxc)))
         ib = 0
         while ib < self.nblocks:
             ns = min(int(nsuper), self.nblocks - ib)
@@ -327,6 +335,51 @@ class XCGrid:
         libs.lib_func('mrsf_xc_g_potential_q', (nexp, Bexp, maxnb, int(nbM), iM, SMf, int(nbS), iS, SSf,
                                                 bool(want_k), MM, MK, VE, VH))
         return MM, MK, VE[:, :nexp], VH
+
+    def set_hole_weights(self, lam):
+        """base-density weights n_i/2 of the hole MOs (the probe's D_base =
+        2 C_H diag(lam) C_H^T): the published pattern (1 on the first
+        nocca-1, 0 on O2) keeps the original code path"""
+        lam = np.ascontiguousarray(np.asarray(lam, dtype=np.float64).reshape(-1))
+        libs.lib_func('mrsf_xc_set_hole_weights', (int(lam.shape[0]), lam))
+
+    def clear_hole_weights(self):
+        libs.lib_func('mrsf_xc_clear_hole_weights', ())
+
+    def set_dgamma(self, dg):
+        """SOMO-pair density Dgamma (2x2, hole MOs nocca-1, nocca) of the
+        linearised XC term of the Pi parent"""
+        libs.lib_func('mrsf_xc_set_dgamma', (np.asfortranarray(np.asarray(dg, dtype=np.float64).reshape(2, 2)),))
+
+    def clear_dgamma(self):
+        libs.lib_func('mrsf_xc_clear_dgamma', ())
+
+    def potential_g_q2(self, Bexp, termM, termS, termT, want_k, want_t):
+        """potential_g_q plus the T^cv terms of the Pi parent: returns
+        MM, MK, MT, MK2 (nocca, nao) (projections of v[f rho(M)],
+        v[k rho(D_s)^2], v[f rho(T)] and v[k rho(T) rho(Dgamma)] on the
+        hole MOs), VE = V1 Bexp and VH = V1 C_H with V1 = v[f rho(D_s)]"""
+        nocca = self.dims[0]
+        nao = self.nao
+        Bexp = np.asfortranarray(np.asarray(Bexp, dtype=np.float64).reshape(nao, -1))
+        nexp = Bexp.shape[1]
+        if nexp == 0:
+            Bexp = mrsf_grad.fzeros(nao, 1)
+        nbM, idxM, SM = termM; nbS, idxS, SS = termS; nbT, idxT, ST = termT
+        maxnb = max(int(nbM), int(nbS), int(nbT), 2)
+        iM = np.zeros(maxnb, dtype=np.int32); iM[:nbM] = idxM
+        iS = np.zeros(maxnb, dtype=np.int32); iS[:nbS] = idxS
+        iT = np.zeros(maxnb, dtype=np.int32); iT[:nbT] = idxT
+        SMf = mrsf_grad.fzeros(maxnb, maxnb); SMf[:nbM, :nbM] = SM
+        SSf = mrsf_grad.fzeros(maxnb, maxnb); SSf[:nbS, :nbS] = SS
+        STf = mrsf_grad.fzeros(maxnb, maxnb); STf[:nbT, :nbT] = ST
+        MM = mrsf_grad.fzeros(nocca, nao); MK = mrsf_grad.fzeros(nocca, nao)
+        MT = mrsf_grad.fzeros(nocca, nao); MK2 = mrsf_grad.fzeros(nocca, nao)
+        VE = mrsf_grad.fzeros(nao, max(nexp, 1)); VH = mrsf_grad.fzeros(nao, nocca)
+        libs.lib_func('mrsf_xc_g_potential_q2', (nexp, Bexp, maxnb, int(nbM), iM, SMf, int(nbS), iS, SSf,
+                                                 int(nbT), iT, STf, bool(want_k), bool(want_t),
+                                                 MM, MK, MT, MK2, VE, VH))
+        return MM, MK, MT, MK2, VE[:, :nexp], VH
 
     def print_timings(self):
         """library-side timers of the grid kernel (diagnostics)"""

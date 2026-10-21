@@ -633,6 +633,15 @@ def print_mrsfgradient_results(grad_obj, states, res):
                               float(res['somo_gap']),
                               '  (WARNING: small gap, zeta_12 ~ 1/gap)' if res['somo_gap'] < 1.0e-2 else '')+
                           ' '.join('{:.2e}'.format(v) for v in res.get('zeta_12', [])))
+        if res.get('pi', None) is not None:
+            pi = res['pi']
+            outfile.write('\n Extended method, parent Pi: pair-block eigenvalues {:.6f} {:.6f} {:.6f} Ha, '
+                          'w = ({:.5f} {:.5f} {:.5f}), gap {:.4f} Ha{:s}'.format(
+                              *[float(v) for v in pi['pair']], *[float(v) for v in pi['w']], float(pi['gap']),
+                              '  (WARNING: small gap, z_w ~ 1/gap)' if float(pi['gap']) < 1.0e-2 else ''))
+            outfile.write('\n   per state: |z_w| '+' '.join('{:.2e}'.format(v) for v in pi['zw_norm'])+
+                          ';  Q_12 = F_12 - F_21 (0 by invariance) '+
+                          ' '.join('{:.1e}'.format(v) for v in pi['q12']))
         t = res['times']
         outfile.write('\n Timings (s): reference gradient {:.2f}, '
                       'RHS {:.2f}, Z-vector {:.2f}, families {:.2f}, '
