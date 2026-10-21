@@ -2,11 +2,11 @@
 # states of formaldehyde (BHHLYP/6-31G*, C2v symmetry).
 #
 # The reference is the ROKS triplet (mult = 3 in $scf). Each $mrsftddft
-# section computes one spin manifold; the $mrsfgradient sections refer to
-# a $mrsftddft section by its label and list the adiabatic states (1-based,
-# in the energy order of that section) to differentiate. The gradients are
-# printed in Hartree/Bohr, stored in the checkpoint file and can be written
-# to files with  gextract ch2o_mrsf_gradient.chkpt.h5 -grad <label>.
+# section computes one spin manifold; grad_states lists the adiabatic
+# states (1-based, in the energy order of the section) to differentiate.
+# The gradients are printed in Hartree/Bohr after the states of the
+# section, stored with the section in the checkpoint file and can be
+# written to files with  gextract ch2o_mrsf_gradient.chkpt.h5 -grad <label>.
 # nac_pairs adds the derivative couplings <I|d/dR J> between pairs of
 # states of the same section, printed in 1/Bohr (full, ETF-corrected and
 # ETF+ERF-corrected) and stored with the section in the checkpoint file.
@@ -27,38 +27,27 @@ $scf section
 $end
 
 # singlet states: 2 x A1 (S0 and a valence state), 1 x A2 (the n -> pi*
-# state S1), 1 x B1, 1 x B2
+# state S1), 1 x B1, 1 x B2; gradients of S0 (1A1, ground state), S1
+# (1A2, n -> pi*) and S2 (1B1), and the derivative couplings
+# <S0|d/dR S1> (A2), <S0|d/dR S2> (B1) and <S1|d/dR S2> (B2). nac_pairs
+# is a nested list of pairs (one pair: [1 2] or [[1 2]]); the gradients
+# of the paired states are computed in the same response pass: without
+# grad_states these are the states whose gradients are reported.
 $mrsftddft section
- label    = singlets
- mult     = 1
- nstates  = [2 1 1 1]
- diag_tol = 1e-6
+ label       = singlets
+ mult        = 1
+ nstates     = [2 1 1 1]
+ diag_tol    = 1e-6
+ grad_states = [1 2 3]
+ nac_pairs   = [[1 2] [1 3] [2 3]]
+ zvec_tol    = 1e-8
 $end
 
+# triplet states; gradient of the lowest triplet (T1, 3A2, n -> pi*)
 $mrsftddft section
- label    = triplets
- mult     = 3
- nstates  = [1 1 1 1]
- diag_tol = 1e-6
-$end
-
-# gradients of S0 (1A1, ground state), S1 (1A2, n -> pi*) and S2 (1B1),
-# and the derivative couplings <S0|d/dR S1> (A2), <S0|d/dR S2> (B1) and
-# <S1|d/dR S2> (B2). nac_pairs is a nested list of pairs (one pair:
-# [1 2] or [[1 2]]); the gradients of the paired states are computed in
-# the same response pass: without a states keyword these are the states
-# whose gradients are reported.
-$mrsfgradient section
- label      = grad_singlets
- mrsf_label = singlets
- states     = [1 2 3]
- nac_pairs  = [[1 2] [1 3] [2 3]]
- zvec_tol   = 1e-8
-$end
-
-# gradient of the lowest triplet (T1, 3A2, n -> pi*)
-$mrsfgradient section
- label      = grad_triplets
- mrsf_label = triplets
- states     = [1]
+ label       = triplets
+ mult        = 3
+ nstates     = [1 1 1 1]
+ diag_tol    = 1e-6
+ grad_states = [1]
 $end

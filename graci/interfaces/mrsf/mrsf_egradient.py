@@ -55,12 +55,12 @@ def _nz(v):
 # ----------------------------------------------------------------------
 class EMRSFGradientDriver(GradientDriver):
 
-    def __init__(self, ci, grad_obj):
+    def __init__(self, ci):
         self.space = str(getattr(ci, 'ext_space', 'published')).lower()
         if self.space == 'published' and str(getattr(ci, 'fprime', 'covariant')).lower() != 'covariant':
-            sys.exit('$mrsfgradient: gradients of the extended method need the covariant '
+            sys.exit('$mrsftddft: gradients of the extended method need the covariant '
                      "F' correction (fprime = covariant in the $mrsftddft section)")
-        super().__init__(ci, grad_obj)
+        super().__init__(ci)
         # explicit amplitude vectors (derivative couplings): stacked (nvirb, nocca + nC)
         # arrays [X~ | Y with zero SOMO rows], see expanded_amplitudes
         self.supports_xts = True
@@ -123,7 +123,7 @@ class EMRSFGradientDriver(GradientDriver):
                     self.U[:, 0] = -self.U[:, 0]
                 pinfo = getattr(ci, 'pi_info', None)
                 if pinfo is not None and np.abs(np.asarray(pinfo['w'], float) - w).max() > 1e-7:
-                    sys.exit('$mrsfgradient: the parent weights of the energy section differ from the '
+                    sys.exit('$mrsftddft: the parent weights of the energy section differ from the '
                              'recomputed pair block (max difference %.2e)' %
                              np.abs(np.asarray(pinfo['w'], float) - w).max())
                 self.w = w

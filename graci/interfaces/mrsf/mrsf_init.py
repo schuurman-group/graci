@@ -168,3 +168,11 @@ def report_timings():
     libs.lib_func('mrsf_report_timings', ())
 
     return
+
+#
+def reset_timings():
+    """reset the library timing counters without printing them"""
+
+    libs.lib_func('mrsf_reset_timings', ())
+
+    return

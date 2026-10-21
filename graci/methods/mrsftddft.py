@@ -1,7 +1,7 @@
 """
 Module for computing MRSF-TDDFT (mixed-reference spin-flip TDDFT)
-energies, densities and transition densities from an ROKS/ROHF triplet
-reference
+energies, densities, transition densities, analytic nuclear gradients and
+derivative couplings from an ROKS/ROHF triplet reference
 """
 import copy as copy
 import sys as sys
@@ -71,8 +71,10 @@ class Mrsftddft(cimethod.Cimethod):
         self.conf_thresh    = 0.05
         # integral precision
         self.precision      = 'double'
-        # memory budget (GB) for the sigma-vector work arrays
-        self.mem_budget     = 1.0
+        # memory budget (GB) for the sigma-vector work arrays, the AO values
+        # cached on the XC grid and the auxiliary blocks of the gradient
+        # derivative-integral contraction
+        self.mem_budget     = 2.0
         # storage of the virtual-virtual DF block: 'paired' or 'full'
         self.vv_storage     = 'paired'
         # MO energy cutoff: all MOs are kept by default
@@ -115,6 +117,30 @@ class Mrsftddft(cimethod.Cimethod):
         self.precond        = 'inner'
         # MINRES steps per inner correction equation
         self.inner_iter     = 6
+        # analytic nuclear gradients: adiabatic state indices (1-based in
+        # the input; None = no gradients, or the states of nac_pairs)
+        self.grad_states    = None
+        # derivative couplings <I|d/dR J> between states of the section:
+        # nested list of 1-based adiabatic state pairs, e.g. [[1 2] [2 3]],
+        # one pair: [1 2] or [[1 2]] (None = none); the gradients of the
+        # paired states come with the couplings
+        self.nac_pairs      = None
+        # Z-vector solver: residual norm threshold (absolute 2-norm; the
+        # gradient error is about 0.1-0.2 times, the coupling error about
+        # 0.3-0.5 times this value), max. iterations; 'native' (default:
+        # the library's shared-subspace minimal-residual solver), 'pcg'
+        # (Python conjugate gradients, reference) or 'dense' (debugging,
+        # small systems only); preconditioner of the native solver: 'auto'
+        # (kernel-free inner steps with an XC kernel, else the diagonal),
+        # 'inner' or 'diag', and the number of inner steps
+        self.zvec_tol       = 1e-6
+        self.zvec_iter      = 100
+        self.zvec_solver    = 'native'
+        self.zvec_precond   = 'auto'
+        self.zvec_inner     = 2
+        # include the quadrature-grid response in the reference (ROKS)
+        # XC gradient (PySCF grid_response)
+        self.grid_response  = False
 
         # computed quantities
         # reference occupation vector (first nmo MOs)
@@ -150,6 +176,31 @@ class Mrsftddft(cimethod.Cimethod):
         # the next geometry
         self.guess_vecs     = None
         self.guess_ener     = None
+        # gradients (n, natm, 3) of the states grad_state_list (0-based
+        # adiabatic indices), Hartree/Bohr, in the PySCF frame, and the
+        # gradient of the ROKS reference (natm, 3)
+        self.grad           = None
+        self.grad_ref       = None
+        self.grad_state_list = None
+        # Z-vector iterations and residual norms per state
+        self.zvec_niter     = None
+        self.zvec_resid     = None
+        # converged Z-vectors (lzdim, nvec): start vectors of a
+        # warm-started gradient pass at the next geometry
+        self.zvec           = None
+        # largest canonical multiplier of the frozen-core rotations per state
+        self.zeta_max       = None
+        # extended method: canonical multiplier of the O1-O2 rotation per
+        # state and the SOMO gap (Hartree) it is divided by
+        self.zeta_12        = None
+        self.somo_gap       = None
+        # extended method with the Pi parent: pair-block eigenvalues, parent
+        # weights, pair gap, |z_w| and Q_12 per state
+        self.grad_pi        = None
+        # timings of the gradient stages
+        self.grad_times     = None
+        # derivative couplings: list of dicts (pair, etf, d, dE, ...)
+        self.nac            = None
 
         if isinstance(ci_obj, cimethod.Cimethod):
             for name,obj in ci_obj.__dict__.items():
@@ -182,8 +233,10 @@ class Mrsftddft(cimethod.Cimethod):
         """compute the MRSF-TDDFT states for all irreps"""
 
         # guess: a previous Mrsftddft object (another geometry) whose
-        # tracked Davidson vectors, aligned to the present MOs, start the
-        # Davidson iterations (warm start); validated in warm_vectors
+        # tracked Davidson vectors and Z-vectors, aligned to the present
+        # MOs, start the Davidson and Z-vector iterations (warm start);
+        # validated in warm_vectors and mrsf_gradient.align_zvec
+        guess = self.resolve_guess(guess)
         scf_energy = self.set_scf(scf, ci_guess=None, mo_ints=mo_ints)
 
         if scf_energy is None:
@@ -281,14 +334,7 @@ class Mrsftddft(cimethod.Cimethod):
         # weights the density kernel receives
         dmat_sym = mrsf_density.rdm(self)
 
-        # the library (and the loaded integrals) is kept alive so that a
-        # following mrsftddft section on the same SCF object (e.g. the
-        # other spin manifold) does not re-read the integrals; it is
-        # released by mrsf_init.finalize() when the integrals change or
-        # at the end of the run
         mrsf_init.report_timings()
-        if not self.keep_ints:
-            mrsf_init.finalize()
 
         # weight of the CV configurations per state (extended method)
         if self.extended:
@@ -322,14 +368,143 @@ class Mrsftddft(cimethod.Cimethod):
         # print the moments
         self.print_moments()
 
+        # analytic gradients and derivative couplings
+        if self.grad_states is not None or self.nac_pairs is not None:
+            self.gradients(guess)
+
+        # the library (and the loaded integrals) is kept alive so that a
+        # following mrsftddft section on the same SCF object (e.g. the
+        # other spin manifold) does not re-read the integrals; it is
+        # released by mrsf_init.finalize() when the integrals change or
+        # at the end of the run
+        if not self.keep_ints:
+            mrsf_init.finalize()
+
         return True
+
+    #
+    def resolve_guess(self, guess):
+        """
+        the guess object of the warm starts: the previous Mrsftddft object
+        passed by the driver, or, when guess_label names an object that is
+        not in memory, the one read from the checkpoint (None if neither
+        exists)
+        """
+        if guess is None and self.guess_label is not None:
+            import graci.io.chkpt as chkpt
+            try:
+                guess = chkpt.read('Mrsftddft.' + str(self.guess_label))
+            except Exception:
+                guess = None
+        return guess
+
+    #
+    @staticmethod
+    def parse_pairs(value, nst_avail):
+        """nac_pairs as parsed from the input ([[I J] [K L] ...], a list
+        of integer arrays) -> list of 0-based (I, J) tuples. Each pair must
+        hold two different existing states (1-based in the input)."""
+        usage = ('$mrsftddft: nac_pairs must be a nested list of pairs of '
+                 'different existing states, e.g. nac_pairs = [[1 2] [2 3]] '
+                 '(one pair: [1 2] or [[1 2]])')
+        if isinstance(value, np.ndarray) and value.ndim == 1 and value.size == 2:
+            value = [value]                 # a single pair written as [1 2]
+        if not isinstance(value, list) or len(value) == 0:
+            sys.exit(usage)
+        pairs = []
+        for pair in value:
+            pair = np.asarray(pair).reshape(-1)
+            if pair.size != 2 or not np.issubdtype(pair.dtype, np.integer) or pair[0] == pair[1]:
+                sys.exit(usage)
+            I, J = int(pair[0]) - 1, int(pair[1]) - 1
+            if min(I, J) < 0 or max(I, J) >= nst_avail:
+                sys.exit(usage)
+            pairs.append((I, J))
+        return pairs
+
+    #
+    @timing.timed
+    def gradients(self, guess=None):
+        """
+        analytic nuclear gradients of the states grad_states and the
+        derivative couplings of the pairs nac_pairs (one response pass),
+        computed with the density-fitted integrals of the MRSF library and
+        PySCF's derivative integrals and XC machinery; guess: a previous
+        Mrsftddft object whose Z-vectors (aligned to the present MOs) start
+        the Z-vector iterations
+        """
+        import graci.interfaces.mrsf.mrsf_gradient as mrsf_gradient
+
+        output.print_mrsftddft_gradient_header(self.label)
+
+        # derivative couplings (0-based pairs)
+        nst_avail = self.n_states()
+        pairs = None
+        if self.nac_pairs is not None:
+            pairs = self.parse_pairs(self.nac_pairs, nst_avail)
+
+        # states (0-based after parsing); with only nac_pairs given, the
+        # states of the pairs (their gradients come with the couplings)
+        if self.grad_states is None:
+            states = sorted({s for pair in pairs for s in pair})
+        else:
+            states = [int(s) for s in np.atleast_1d(self.grad_states)]
+            for st in states:
+                if st < 0 or st >= nst_avail:
+                    sys.exit('$mrsftddft: grad_states: state %d does not exist (the %s section has %d states)'
+                             % (st + 1, self.label, nst_avail))
+
+        # Z-vector warm start from the guess object (another geometry)
+        zguess = None
+        if guess is not None:
+            # with couplings: one start vector per state vector of the pass
+            vec_states = states if pairs is None else mrsf_gradient.nac_vectors(states, pairs)[0]
+            zguess = mrsf_gradient.align_zvec(guess, self, vec_states)
+            if zguess is None:
+                output.print_message('  Z-vector warm start: no usable Z-vectors in '
+                                     + str(getattr(guess, 'label', self.guess_label)) + '; cold start')
+
+        if self.extended:
+            import graci.interfaces.mrsf.mrsf_egradient as mrsf_egradient
+            driver = mrsf_egradient.EMRSFGradientDriver(self)
+        else:
+            driver = mrsf_gradient.GradientDriver(self)
+        if pairs is None:
+            res = driver.run(states, zguess=zguess)
+            self.nac = None
+        else:
+            # gradients and couplings in one response pass
+            res, self.nac = driver.gradients_and_nacs(states, pairs, zguess=zguess)
+        driver.finalise()
+        # the stage timings are printed below: keep the library calls of the
+        # gradient pass out of the timing report of the next section
+        mrsf_init.reset_timings()
+
+        self.grad            = res['grad']
+        self.grad_ref        = res['grad_ref']
+        self.grad_state_list = np.array(states)
+        self.zvec_niter      = np.array(res['zvec_niter'])
+        self.zvec_resid      = np.array(res['zvec_resid'])
+        self.zeta_max        = np.array(res.get('zeta_max', []))
+        self.zeta_12         = np.array(res.get('zeta_12', []))
+        self.somo_gap        = res.get('somo_gap', None)
+        self.grad_pi         = res.get('pi', None)
+        self.grad_times      = res['times']
+        self.zvec            = np.array(res['zvec'])
+
+        if self.verbose:
+            output.print_mrsftddft_gradient_results(self, states, res)
+            output.print_mrsftddft_gradient_nacs(self)
+
+        return
 
     #
     def warm_vectors(self, guess):
         """
         start vectors for the Davidson iterations from a previous Mrsftddft
-        object of the same manifold (in memory, or read from the checkpoint
-        when guess_label names an object that is not in memory): all its
+        object of the same manifold (resolve_guess: in memory, or read from
+        the checkpoint when guess_label names an object that is not in
+        memory): all its
         tracked Davidson vectors (guess_vecs; the converged amplitudes of
         objects from older checkpoints), in ascending energy, aligned to the
         present MOs (orthogonal Procrustes rotations of the MO overlap
@@ -337,12 +512,6 @@ class Mrsftddft(cimethod.Cimethod):
         for extended objects). Returns the (xdim, nguess) array or None.
         """
         from pyscf import gto
-        if guess is None and self.guess_label is not None:
-            import graci.io.chkpt as chkpt
-            try:
-                guess = chkpt.read('Mrsftddft.' + str(self.guess_label))
-            except Exception:
-                guess = None
         if guess is None:
             return None
         if type(guess).__name__ != 'Mrsftddft' or guess.amps.get('adiabatic') is None:
@@ -517,6 +686,22 @@ class Mrsftddft(cimethod.Cimethod):
         self.ext_model = str(self.ext_model).lower()
         if self.ext_model not in ('kernel', 'kappa'):
             sys.exit('\n ERROR: ext_model must be kernel or kappa')
+        self.zvec_solver = str(self.zvec_solver).lower()
+        if self.zvec_solver not in ('native', 'pcg', 'dense'):
+            sys.exit('\n ERROR: zvec_solver must be native, pcg or dense')
+        self.zvec_precond = str(self.zvec_precond).lower()
+        if self.zvec_precond not in ('auto', 'inner', 'diag'):
+            sys.exit('\n ERROR: zvec_precond must be auto, inner or diag')
+        # gradient states and coupling pairs against the requested number of
+        # states (checked again after the run, when roots may be reduced)
+        ntot = int(np.sum(self.nstates))
+        if self.grad_states is not None:
+            for st in np.atleast_1d(self.grad_states):
+                if int(st) < 0 or int(st) >= ntot:
+                    sys.exit('$mrsftddft: grad_states: state %d does not exist (the %s section '
+                             'requests %d states)' % (int(st) + 1, self.label, ntot))
+        if self.nac_pairs is not None:
+            self.parse_pairs(self.nac_pairs, ntot)
 
         return
 

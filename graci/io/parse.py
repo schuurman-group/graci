@@ -20,7 +20,6 @@ import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
 import graci.interaction.dyson as dyson
-import graci.interaction.mrsfgradient as mrsfgradient
 
 from pyscf import gto
 
@@ -272,6 +271,13 @@ def check_sections(input_file):
         if header[0] != '#':
             section_name = header[1:header.index('section')].lower().strip()
 
+            if section_name == 'mrsfgradient':
+                sys.exit('The $mrsfgradient section has been merged into '
+                         '$mrsftddft: request gradients and derivative '
+                         'couplings there with grad_states and nac_pairs '
+                         '(options zvec_tol, zvec_iter, zvec_solver, '
+                         'zvec_precond, zvec_inner, grid_response)')
+
             if section_name not in valid_objs:
                 sys.exit('Invalid section found: $'+section_name)
 
@@ -389,11 +395,12 @@ def check_input(run_list):
             obj.init_states  -= 1
             obj.final_states -= 1            
 
-        if type(obj).__name__ == 'Mrsfgradient':
-            if obj.states is not None:
-                if not isinstance(obj.states, (list, np.ndarray)):
-                    obj.states = np.array([obj.states])
-                obj.states = np.array(obj.states) - 1
+        if type(obj).__name__ == 'Mrsftddft':
+            # shift the gradient states by 1 to internal/C ordering
+            if obj.grad_states is not None:
+                if not isinstance(obj.grad_states, (list, np.ndarray)):
+                    obj.grad_states = np.array([obj.grad_states])
+                obj.grad_states = np.array(obj.grad_states) - 1
 
         if type(obj).__name__ == 'Overlap':
             # shift states by 1 to internal/C ordering (None = all states)

@@ -159,25 +159,18 @@ mrsftddft_kword = {'mult'           : int,
                    'ref_state'      : int,
                    'verbose'        : bool,
                    'guess_label'    : str,
+                   'grad_states'    : int,
+                   'nac_pairs'      : int,
+                   'zvec_tol'       : float,
+                   'zvec_iter'      : int,
+                   'zvec_solver'    : str,
+                   'zvec_precond'   : str,
+                   'zvec_inner'     : int,
+                   'grid_response'  : bool,
                    'scf_label'      : str,
                    'label'          : str}
 
 #---------------------------------------------------
-
-# MRSF-TDDFT analytic nuclear gradients
-mrsfgradient_kword = {'mrsf_label'    : str,
-                      'guess_label'   : str,
-                      'states'        : int,
-                      'zvec_tol'      : float,
-                      'zvec_iter'     : int,
-                      'zvec_solver'   : str,
-                      'zvec_precond'  : str,
-                      'zvec_inner'    : int,
-                      'grid_response' : bool,
-                      'nac_pairs'     : int,
-                      'mem_budget'    : float,
-                      'verbose'       : bool,
-                      'label'         : str}
 
 # spinorbit section input keywords and data typess
 spinorbit_kword = {'couple_groups'     : str,
@@ -254,9 +247,8 @@ base_objs    = ['Molecule', 'Rydano', 'Scf', 'Parameterize']
 ci_objs      = ['Dftmrci', 'Dftmrci2', 'Mrsftddft']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap', 'Dyson']
-grad_objs    = ['Mrsfgradient']
 support_objs = ['Bitciwfn','Moments', 'Cigroup']
-valid_objs   = base_objs + ci_objs + postci_objs + si_objs + grad_objs
+valid_objs   = base_objs + ci_objs + postci_objs + si_objs
 
 # maximum number of processors: we set this as a distinct variable, since
 # we can't depend on mpirun/mpiexec -n X, since spawn-based parallelism
@@ -274,7 +266,6 @@ kwords = {'Molecule'     : molecule_kword,
           'Spinorbit'    : spinorbit_kword,
           'Transition'   : transition_kword,
           'Overlap'      : overlap_kword,
-          'Dyson'        : dyson_kword,
-          'Mrsfgradient' : mrsfgradient_kword}
+          'Dyson'        : dyson_kword}
 
 

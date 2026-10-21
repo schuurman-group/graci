@@ -366,6 +366,17 @@ contains
 
   end subroutine mrsf_report_timings
 
+!######################################################################
+! mrsf_reset_timings: resets the accumulated timings without printing
+! them (the gradient pass reports its own stage timings, so its library
+! calls must not show up in the report of the next section)
+!######################################################################
+  subroutine mrsf_reset_timings() bind(c, name='mrsf_reset_timings')
+
+    call reset_timings()
+
+  end subroutine mrsf_reset_timings
+
   subroutine free_orbital_data()
 
     if (allocated(occ)) deallocate(occ)
@@ -443,6 +454,12 @@ contains
             ' s (', novl_calls, ' calls)'
     endif
 
+    call reset_timings()
+
+  end subroutine report_timings
+
+  subroutine reset_timings()
+
     time_load = 0.0_dp; time_sigma = 0.0_dp; time_exch = 0.0_dp
     time_ext = 0.0_dp; time_xcs = 0.0_dp; nxcs_vecs = 0
     nsigma_calls = 0; nsigma_vecs = 0
@@ -451,7 +468,7 @@ contains
     time_xc = 0.0_dp; nxc_calls = 0; nxc_vecs = 0; time_probe = 0.0_dp; nprobe_calls = 0
     time_ovl = 0.0_dp; novl_calls = 0
 
-  end subroutine report_timings
+  end subroutine reset_timings
 
   ! grid dimensions for the kernel flop count (kept out of the use list
   ! of mrsf_xcgrid to avoid name clashes)

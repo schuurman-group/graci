@@ -56,19 +56,18 @@ def rotation_pairs(occ):
     return np.array([p for p, q in R], int), np.array([q for p, q in R], int), (Cidx, Oidx, Vidx)
 
 
-def align_zvec(grad_old, ci_new, states):
+def align_zvec(ci_old, ci_new, states):
     """start vectors of the Z-vector equations of the states (0-based
     adiabatic indices) of ci_new from the Z-vectors of a previous
-    Mrsfgradient object grad_old (another geometry): the Z-vector of the
+    Mrsftddft object ci_old (another geometry): the Z-vector of the
     state with the same adiabatic index, as the local (nvirb, nocca) matrix,
     rotated to the present MOs by the class alignment of the MO overlap
     blocks (mrsf_overlap.align_vectors, mode 1). Returns the (lzdim, nst)
     array (zero columns for states without a counterpart) or None."""
     import graci.interfaces.mrsf.mrsf_overlap as mrsf_overlap
     from pyscf import gto
-    zold = getattr(grad_old, 'zvec', None)
-    ci_old = getattr(grad_old, 'ci', None)
-    if zold is None or ci_old is None or grad_old.state_list is None:
+    zold = getattr(ci_old, 'zvec', None)
+    if zold is None or getattr(ci_old, 'grad_state_list', None) is None:
         return None
     for attr in ('mult', 'nmo', 'nocca', 'nvirb', 'nel'):
         if getattr(ci_old, attr, None) != getattr(ci_new, attr):
@@ -83,7 +82,7 @@ def align_zvec(grad_old, ci_new, states):
     Hloc_o = {p: k for k, p in enumerate(Ho)}; Ploc_o = {p: k for k, p in enumerate(Po)}
     Hloc_n = {p: k for k, p in enumerate(Hn)}; Ploc_n = {p: k for k, p in enumerate(Pn)}
     nocca, nvirb = len(Hn), len(Pn)
-    old_states = [int(st) for st in np.atleast_1d(grad_old.state_list)]
+    old_states = [int(st) for st in np.atleast_1d(ci_old.grad_state_list)]
     Zloc = np.zeros((nvirb*nocca, len(states)))
     have = np.zeros(len(states), bool)
     for k, ist in enumerate(states):
@@ -184,10 +183,10 @@ class _Timers:
 
 class GradientDriver:
 
-    def __init__(self, ci, grad_obj):
-        """ci: converged Mrsftddft object; grad_obj: the Mrsfgradient section"""
-        self.ci, self.scf, self.opt = ci, ci.scf, grad_obj
-        self.verbose = grad_obj.verbose
+    def __init__(self, ci):
+        """ci: converged Mrsftddft object (also holds the gradient options)"""
+        self.ci, self.scf, self.opt = ci, ci.scf, ci
+        self.verbose = ci.verbose
         self.tm = _Timers()
         scf = self.scf
         self.mol = scf.mol.pymol()
@@ -281,23 +280,20 @@ class GradientDriver:
             mrsf_init.set_frozen_core(0)
             mrsf_init.init(ci, fock_mo)
             mrsf_init.set_exchange(getattr(ci, 'exchange', 'auto'))
-            # the full-hole exchange tensor of the Z-vector operator may use
-            # the larger of the two sections' memory budgets
-            mrsf_init.init_ints(ci, ci.eri_file(),
-                                mem_budget=max(float(ci.mem_budget), float(grad_obj.mem_budget)))
+            mrsf_init.init_ints(ci, ci.eri_file())
         # Z-vector operator = orbital Hessian of the reference (hole-particle
         # DF block, Fock couplings and diagonal in the library; the XC
         # kernel on the grid, where the library grid module caches the AO
         # values, weights and libxc derivatives once)
         with self.tm('setup: grid session'):
-            self.session = mrsf_xc.get_session(ci, grad_obj.mem_budget)
+            self.session = mrsf_xc.get_session(ci, ci.mem_budget)
             if not getattr(self.session, 'reported', False):
                 self.tm.add('setup: AO cache fill', self.session.time_init)
                 self.session.reported = True
         with self.tm('setup: Hessian/grid'):
             try:
                 self.hess = mrsf_hessian.RoksHessian(mf, C, occ, self.fa, self.fb, self.x_ref,
-                                                     ci.eri_file(), self.dims, grad_obj.mem_budget,
+                                                     ci.eri_file(), self.dims, ci.mem_budget,
                                                      session=self.session)
             except RuntimeError as err:
                 sys.exit(str(err))
@@ -329,7 +325,7 @@ class GradientDriver:
         # reference XC gradient: from the grid probe pass (in run) unless
         # the quadrature-weight response is requested (PySCF only)
         self.dexc_ref = np.zeros((self.mol.natm, 3))
-        if self.is_dft and grad_obj.grid_response:
+        if self.is_dft and ci.grid_response:
             from pyscf.grad import uks as uks_grad
             excsum, vmat = uks_grad.get_vxc_full_response(self.ni, self.mol, mf.grids, mf.xc,
                                                           np.array([self.Da, self.Db]))

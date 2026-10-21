@@ -247,6 +247,7 @@ mrsf_registry = {
                              'int32','int32','dptr','int32','dptr','dptr','dptr'],
     'mrsf_finalise'       : [],
     'mrsf_report_timings' : [],
+    'mrsf_reset_timings'  : [],
     # gradient kernels: 'dptr' = pointer to an F-contiguous float64 array
     # (passed by address, filled in place for 'out'/'inout')
     'mrsf_grad_init'      : ['string','int32'],
@@ -335,6 +336,7 @@ mrsf_intent = {
     'mrsf_tdm'            : ['in']*12 + ['out'],
     'mrsf_finalise'       : [],
     'mrsf_report_timings' : [],
+    'mrsf_reset_timings'  : [],
     'mrsf_grad_init'      : ['in','out'],
     'mrsf_grad_free'      : [],
     'mrsf_grad_bso'       : ['out'],

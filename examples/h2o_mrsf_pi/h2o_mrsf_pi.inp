@@ -16,21 +16,29 @@ $end
 # (ext_space = pi): the C->V configurations are the singles of the lowest
 # pair state Pi = w_G G + w_D D + w_S S instead of G = |C^2 O1^2|; the
 # energies, densities and transition densities do not depend on the
-# rotation between the two SOMOs
+# rotation between the two SOMOs.
+# Analytic gradients of Pi states: no canonical multiplier of the O1-O2
+# rotation is needed (the Pi energy is invariant); the response of the
+# parent weights w to the orbitals enters through the pair-block density
+# (the pair-block eigenvalues, w, the gap and |z_w| per state are printed).
+# nac_pairs adds the derivative coupling <S0|d/dR S1> (same response pass)
 $mrsftddft section
- label     = singlets
- mult      = 1
- nstates   = [3 1 1 2]
- extended  = True
- ext_space = pi
+ label       = singlets
+ mult        = 1
+ nstates     = [3 1 1 2]
+ extended    = True
+ ext_space   = pi
+ grad_states = [1 2]
+ nac_pairs   = [1 2]
 $end
 
 $mrsftddft section
- label     = triplets
- mult      = 3
- nstates   = [2 1 1 2]
- extended  = True
- ext_space = pi
+ label       = triplets
+ mult        = 3
+ nstates     = [2 1 1 2]
+ extended    = True
+ ext_space   = pi
+ grad_states = [1]
 $end
 
 $transition section
@@ -40,22 +48,4 @@ $transition section
  init_states    = [1]
  final_states   = [2:7]
  print_orbitals = True
-$end
-
-# analytic gradients of Pi states: no canonical multiplier of the O1-O2
-# rotation is needed (the Pi energy is invariant); the response of the
-# parent weights w to the orbitals enters through the pair-block density
-# (the pair-block eigenvalues, w, the gap and |z_w| per state are printed).
-# nac_pairs adds the derivative coupling <S0|d/dR S1> (same response pass)
-$mrsfgradient section
- label      = grad_singlets
- mrsf_label = singlets
- states     = [1 2]
- nac_pairs  = [1 2]
-$end
-
-$mrsfgradient section
- label      = grad_triplets
- mrsf_label = triplets
- states     = [1]
 $end

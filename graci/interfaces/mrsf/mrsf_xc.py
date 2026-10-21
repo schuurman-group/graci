@@ -393,7 +393,7 @@ class XCGrid:
 # per-SCF grid session: one library grid initialisation (AO cache, hole
 # MOs; kernels installed lazily), the closed-shell Fock matrix of the
 # configuration G and the G-density kernel arrays, shared by the extended
-# energy sections, the stability check and the gradient sections of one
+# energy sections, the stability check and the gradients of one
 # SCF object. The grid module is a process singleton, so one session is
 # live at a time; a new geometry or new orbitals (stamp) replace it.
 # ----------------------------------------------------------------------

@@ -580,8 +580,8 @@ def print_moments(states, irr, momts):
     return
 
 #
-def print_mrsfgradient_header(label):
-    """ print out Mrsfgradient section header"""
+def print_mrsftddft_gradient_header(label):
+    """ print out the header of the MRSF-TDDFT gradients"""
 
     LLEN = 76
 
@@ -601,10 +601,9 @@ def print_mrsfgradient_header(label):
     return
 
 #
-def print_mrsfgradient_results(grad_obj, states, res):
+def print_mrsftddft_gradient_results(ci, states, res):
     """ print the gradients of the MRSF states (Hartree/Bohr)"""
 
-    ci   = grad_obj.ci
     mol  = ci.scf.mol
     asym = mol.asym
     with output_file(file_names['out_file'], 'a+') as outfile:
@@ -613,8 +612,8 @@ def print_mrsfgradient_results(grad_obj, states, res):
         outfile.write('\n Reference (ROKS) energy: '+
                       '{:16.10f}'.format(ci.scf.energy)+' Ha')
         zs = res.get('zvec_stats', {}) or {}
-        outfile.write('\n Z-vector solver: '+str(zs.get('solver', grad_obj.zvec_solver))+
-                      ', tolerance '+'{:.1e}'.format(grad_obj.zvec_tol))
+        outfile.write('\n Z-vector solver: '+str(zs.get('solver', ci.zvec_solver))+
+                      ', tolerance '+'{:.1e}'.format(ci.zvec_tol))
         if zs.get('solver') == 'native':
             outfile.write('\n Z-vector: shared subspace, minimal residual, preconditioner {:s}; '
                           '{:d} operator products{:s}, basis {:d}{:s}; lowest Ritz value of '
@@ -651,7 +650,7 @@ def print_mrsfgradient_results(grad_obj, states, res):
             outfile.write('\n   of which XC grid kernel {:.2f} ({:d} calls), XC probe {:.2f}; AO values {:s}'.format(
                           t['xc_kernel'], int(t['xc_calls']), t['xc_probe'],
                           'cached' if t['xc_cached'] else 'streamed (raise mem_budget to cache)'))
-        if grad_obj.verbose and 'detail' in t:
+        if ci.verbose and 'detail' in t:
             det = t['detail']
             for grp in ('setup', 'rhs', 'zvec', 'fam', 'ao', '1e'):
                 items = [(k, v) for k, v in det.items() if k.startswith(grp + ':')]
@@ -684,18 +683,18 @@ def print_mrsfgradient_results(grad_obj, states, res):
     return
 
 #
-def print_mrsfgradient_nacs(grad_obj):
-    """Print derivative couplings requested by a $mrsfgradient section."""
+def print_mrsftddft_gradient_nacs(ci):
+    """Print the derivative couplings requested by nac_pairs in an
+    $mrsftddft section."""
 
-    if not grad_obj.nac:
+    if not ci.nac:
         return
 
-    ci = grad_obj.ci
     mol = ci.scf.mol
     asym = mol.asym
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n\n Derivative couplings (1/bohr)')
-        for result in grad_obj.nac:
+        for result in ci.nac:
             I, J = result['pair']
             outfile.write('\n\n <{:d}|d/dR {:d}>, |d| = {:.6f}, '
                           'E_J - E_I = {:.6f} Eh'.format(

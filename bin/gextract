@@ -430,35 +430,42 @@ def extract_adiabpot(chkpt_file, extract_list):
 
 #
 def extract_grad(chkpt_file, extract_list):
-    """Write the gradients of an Mrsfgradient object (Hartree/Bohr) to
-    files grad/grad_<label>_<state>"""
+    """Write the gradients stored with an Mrsftddft object (Hartree/Bohr)
+    to files grad/<label>_state<n>"""
 
     if extract_list['-grad'] is None:
         return
 
     label = extract_list['-grad']
     chkpt_objs = chkpt.contents(file_name=chkpt_file)
-    names = [name for name in chkpt_objs if name.startswith('Mrsfgradient.')]
-    if label == 'default' and len(names) == 1:
-        name = names[0]
+    names = [name for name in chkpt_objs if name.startswith('Mrsftddft.')]
+    cand = [n for n in names if n.split('.', 1)[1] == label]
+    if len(cand) == 1:
+        obj = chkpt.read(cand[0], file_name=chkpt_file, build_subobj=True,
+                         make_mol=False)
+    elif label == 'default':
+        # no label given: the only Mrsftddft object with gradients
+        objs = [chkpt.read(n, file_name=chkpt_file, build_subobj=True,
+                           make_mol=False) for n in names]
+        objs = [o for o in objs if o is not None and o.grad is not None]
+        obj = objs[0] if len(objs) == 1 else None
     else:
-        cand = [n for n in names if n.endswith('.'+label)]
-        if len(cand) != 1:
-            print('gextract -grad: cannot identify the Mrsfgradient object '
-                  '(available: '+str(names)+')')
-            return
-        name = cand[0]
-    obj = chkpt.read(name, file_name=chkpt_file, build_subobj=True,
-                     make_mol=False)
-    asym = obj.ci.scf.mol.asym
+        obj = None
+    if obj is None or obj.grad is None:
+        print('gextract -grad: cannot identify an Mrsftddft object with '
+              'gradients (available: '+str(names)+')')
+        return
+    asym = obj.scf.mol.asym
     if not os.path.isdir('grad'):
         os.mkdir('grad')
-    for k, st in enumerate(obj.state_list):
-        fname = 'grad/'+str(obj.label)+'_state'+str(int(st)+1)
+    for k, st in enumerate(obj.grad_state_list):
+        st = int(st)
+        sym = obj.scf.mol.irreplbl[obj.state_sym(st)[0]]
+        fname = 'grad/'+str(obj.label)+'_state'+str(st+1)
         with open(fname, 'w') as f:
             f.write('# MRSF-TDDFT gradient, section '+str(obj.label)+
-                    ', state '+str(int(st)+1)+' ('+str(obj.state_syms[k])+
-                    '), E = '+'{:.10f}'.format(obj.energies[k])+
+                    ', state '+str(st+1)+' ('+str(sym)+
+                    '), E = '+'{:.10f}'.format(obj.energy(st))+
                     ' Ha, Hartree/Bohr\n')
             for A in range(len(asym)):
                 f.write('{:3s}'.format(asym[A])+

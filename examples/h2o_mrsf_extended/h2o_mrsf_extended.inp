@@ -12,18 +12,24 @@ $scf section
  xc     = bhlyp
 $end
 
+# analytic gradients of the extended states: S0, S1 and the lowest
+# triplet (the extended energy depends on the rotation between the two
+# SOMOs; the corresponding canonical multiplier zeta_12 is printed with
+# the SOMO gap)
 $mrsftddft section
- label    = singlets
- mult     = 1
- nstates  = [3 1 1 2]
- extended = True
+ label       = singlets
+ mult        = 1
+ nstates     = [3 1 1 2]
+ extended    = True
+ grad_states = [1 2]
 $end
 
 $mrsftddft section
- label    = triplets
- mult     = 3
- nstates  = [2 1 1 2]
- extended = True
+ label       = triplets
+ mult        = 3
+ nstates     = [2 1 1 2]
+ extended    = True
+ grad_states = [1]
 $end
 
 $transition section
@@ -33,20 +39,4 @@ $transition section
  init_states    = [1]
  final_states   = [2:7]
  print_orbitals = True
-$end
-
-# analytic gradients of the extended states: S0, S1 and the lowest
-# triplet (the extended energy depends on the rotation between the two
-# SOMOs; the corresponding canonical multiplier zeta_12 is printed with
-# the SOMO gap)
-$mrsfgradient section
- label      = grad_singlets
- mrsf_label = singlets
- states     = [1 2]
-$end
-
-$mrsfgradient section
- label      = grad_triplets
- mrsf_label = triplets
- states     = [1]
 $end
