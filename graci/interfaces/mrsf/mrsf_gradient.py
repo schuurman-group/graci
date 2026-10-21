@@ -859,7 +859,8 @@ class GradientDriver:
         couplings, which carry the symmetry of the pair of states).
         names: optional labels of the vectors in the messages ('state n').
         xts: optional explicit expanded amplitude matrices X~ (nvirb, nocca),
-        one per entry of states, used instead of the states' amplitudes
+        one per entry of states (extended objects: the stacked arrays of
+        expanded_amplitudes), used instead of the states' amplitudes
         (states then only label the vectors). Every term of the response
         part is quadratic in X~ (no excitation-energy term), which nac()
         relies on. extra_rhs: optional per-vector MO matrices (or None)
@@ -1059,16 +1060,9 @@ class GradientDriver:
         etf_IJ = sum_{mu nu} gamma^IJ_{mu nu} 1/2 (<mu|d nu> - <d mu|nu>),
         gamma^IJ_{pq} = <I|E_pq|J> (spin-summed, unrelaxed).
         """
-        import graci.interfaces.mrsf.mrsf_density as mrsf_density
         mol, C = self.mol, self.C
-        nirr = self.ci.n_irrep()
-        # transition densities <I|E_pq|J> (MO basis)
-        gam_mo = []
-        for I, J in pairs:
-            irrI, stI = self.ci.state_sym(I); irrJ, stJ = self.ci.state_sym(J)
-            tl = [[[] for _ in range(nirr)] for _ in range(nirr)]
-            tl[irrI][irrJ] = [[stI, stJ]]
-            gam_mo.append(np.array(mrsf_density.tdm(self.ci, self.ci, tl)[irrI][irrJ][:, :, 0]))
+        # transition densities <I|E_pq|J> (MO basis), one library call
+        gam_mo = self.pair_tdms(pairs)
         # per pair: X_I + X_J and X_I - X_J (h_IJ by polarisation) and a
         # zero-amplitude vector whose Z-vector right-hand side is the
         # antisymmetrised transition density on the rotation space: it
@@ -1077,7 +1071,7 @@ class GradientDriver:
         # (gamma^IJ has C-O, O-V and C-V elements on the non-redundant
         # ROKS rotations)
         xts, labels, extra = [], [], []
-        zero = np.zeros((self.nvirb, self.nocca))
+        zero = np.zeros_like(self.expanded_amplitudes(pairs[0][0])) if pairs else None
         for k, (I, J) in enumerate(pairs):
             XI, XJ = self.expanded_amplitudes(I), self.expanded_amplitudes(J)
             xts += [XI + XJ, XI - XJ, zero]
@@ -1086,23 +1080,12 @@ class GradientDriver:
         res = self.run(labels, xts=xts, extra_rhs=extra, symmetrize=False)
         g = res['grad']
         gref = np.asarray(self.grad_ref)
-        # AO half-derivative overlaps: ip[x, mu, nu] = <d_x mu | nu> (electron
-        # coordinate); d/dR_A chi_mu = -d_x chi_mu for mu on atom A
-        ip = mol.intor('int1e_ipovlp', comp=3)
-        aoslices = mol.aoslice_by_atom()
         out = []
         for k, (I, J) in enumerate(pairs):
             h = 0.25*(np.asarray(g[3*k]) - np.asarray(g[3*k + 1]))
             dU = np.asarray(g[3*k + 2]) - gref
             gam = C @ gam_mo[k] @ C.T
-            etf = np.zeros((mol.natm, 3))
-            for A in range(mol.natm):
-                p0, p1 = aoslices[A, 2], aoslices[A, 3]
-                for x in range(3):
-                    # <mu|d_A nu> = -<d nu|mu> (nu on A); <d_A mu|nu> = -<d mu|nu> (mu on A)
-                    dket = -np.einsum('mn,nm->', gam[:, p0:p1], ip[x, p0:p1, :])
-                    dbra = -np.einsum('mn,mn->', gam[p0:p1, :], ip[x, p0:p1, :])
-                    etf[A, x] = 0.5*(dket - dbra)
+            etf = self.etf_term(gam)
             erf = self.erf_term(gam)
             # the pieces carry the symmetry of the pair (run() did not symmetrise)
             (h, dU, etf, erf), sym_resid, sym = self.project_pair(I, J, (h, dU, etf, erf))
@@ -1144,19 +1127,13 @@ class GradientDriver:
         a pair vector starts from z_I + z_J when both are available (its
         cross terms change sign with the relative phase of the states).
         Returns (grad result dict of run() for states, nac list)."""
-        import graci.interfaces.mrsf.mrsf_density as mrsf_density
         mol, C = self.mol, self.C
-        nirr = self.ci.n_irrep()
         need, pos = nac_vectors(states, pairs)
         xts = [self.expanded_amplitudes(s) for s in need]
         extra = [None]*len(need)
         labels = list(need)
         gams = {}
-        for I, J in pairs:
-            irrI, stI = self.ci.state_sym(I); irrJ, stJ = self.ci.state_sym(J)
-            tl = [[[] for _ in range(nirr)] for _ in range(nirr)]
-            tl[irrI][irrJ] = [[stI, stJ]]
-            gam_mo = np.array(mrsf_density.tdm(self.ci, self.ci, tl)[irrI][irrJ][:, :, 0])
+        for (I, J), gam_mo in zip(pairs, self.pair_tdms(pairs)):
             dE = self.ci.energy(J) - self.ci.energy(I)
             xts.append(xts[pos[I]] + xts[pos[J]])
             extra.append(2.0*dE*gam_mo)
@@ -1175,20 +1152,12 @@ class GradientDriver:
         res = self.run(labels, zguess=x0, xts=xts, extra_rhs=extra, symmetrize=False, names=names)
         g = np.asarray(res['grad'])
         gref = np.asarray(self.grad_ref)
-        ip = mol.intor('int1e_ipovlp', comp=3)
-        aoslices = mol.aoslice_by_atom()
         out = []
         for k, (I, J) in enumerate(pairs):
             v = len(need) + k
             hdu = 0.5*((g[v] - gref) - (g[pos[I]] - gref) - (g[pos[J]] - gref))
             gam = C @ gams[(I, J)] @ C.T
-            etf = np.zeros((mol.natm, 3))
-            for A in range(mol.natm):
-                p0, p1 = aoslices[A, 2], aoslices[A, 3]
-                for x in range(3):
-                    dket = -np.einsum('mn,nm->', gam[:, p0:p1], ip[x, p0:p1, :])
-                    dbra = -np.einsum('mn,mn->', gam[p0:p1, :], ip[x, p0:p1, :])
-                    etf[A, x] = 0.5*(dket - dbra)
+            etf = self.etf_term(gam)
             erf = self.erf_term(gam)
             # the pieces carry the symmetry of the pair (run() did not symmetrise)
             (hdu, etf, erf), sym_resid, sym = self.project_pair(I, J, (hdu, etf, erf))
@@ -1226,46 +1195,96 @@ class GradientDriver:
         gres['P_ao'] = [res['P_ao'][i] for i in sel]
         return gres, out
 
+    def pair_tdms(self, pairs):
+        """transition densities <I|E_pq|J> (MO basis) of all pairs with one
+        library call (pairs of 0-based adiabatic indices)"""
+        import graci.interfaces.mrsf.mrsf_density as mrsf_density
+        nirr = self.ci.n_irrep()
+        tl = [[[] for _ in range(nirr)] for _ in range(nirr)]
+        where = []
+        for I, J in pairs:
+            irrI, stI = self.ci.state_sym(I); irrJ, stJ = self.ci.state_sym(J)
+            where.append((irrI, irrJ, len(tl[irrI][irrJ])))
+            tl[irrI][irrJ].append([stI, stJ])
+        if not pairs:
+            return []
+        rho = mrsf_density.tdm(self.ci, self.ci, tl)
+        return [np.array(rho[a][b][:, :, k]) for a, b, k in where]
+
+    def etf_term(self, gam):
+        """basis-function (half-derivative overlap) term of the coupling of
+        an AO transition density gam (natm, 3):
+          etf_A = 1/2 sum_mn gam_mn (<m|d_A n> - <d_A m|n>),
+        with ip[x, m, n] = <d_x m|n> (electron coordinate) and d/dR_A chi =
+        -d_x chi for the AOs of atom A"""
+        mol = self.mol
+        if getattr(self, '_ipovlp', None) is None:
+            self._ipovlp = mol.intor('int1e_ipovlp', comp=3)
+        ip = self._ipovlp
+        gam = np.asarray(gam)
+        # per AO: ket[x, n] = sum_m gam[m, n] ip[x, n, m], bra[x, m] = sum_n gam[m, n] ip[x, m, n]
+        ket = np.einsum('mn,xnm->xn', gam, ip)
+        bra = np.einsum('mn,xmn->xm', gam, ip)
+        out = np.zeros((mol.natm, 3))
+        for A, (s0, s1, p0, p1) in enumerate(mol.aoslice_by_atom()):
+            out[A] = 0.5*(-ket[:, p0:p1].sum(axis=1) + bra[:, p0:p1].sum(axis=1))
+        return out
+
     def erf_term(self, gam_ao, w=0.3):
         """one-electron electron rotation factor Gamma''^A (natm, 3) of an AO
         transition density (Qiu, Bhati, Tao, Bian, Rawlinson, Littlejohn,
         Subotnik, JCP 160, 124102 (2024), eqs. 45-47 and 52):
           Gamma''^A_mn = z^A_mn (X_A - X0_mn) x (K_mn^-1 J_mn),
-          J_mn = -1/2 <m|(r - X_B) x grad + (r - X_C) x grad|n>
+          J_mn = 1/2 <m|(r - X_B) x grad + (r - X_C) x grad|n>
         (m on atom B, n on atom C), z^A_mn the semi-local weight with
         locality w (bohr^-2), X0_mn the z-weighted centre and K_mn the
         z-weighted massless inertia. sum_A Gamma'' = 0 and
         sum_A X_A x Gamma'' = sum_mn D_mn J_mn; d_ETF - Gamma'' then conserves
         linear and angular momentum. D_mn = gam_ao[n, m] (the orientation in
-        which the etf term is sum D_mn Gamma'_mn)."""
+        which the etf term is sum D_mn Gamma'_mn).
+        The angular-momentum integrals are never stored per atom: libcint's
+        int1e_cg_irxp(O) = <m|(r - O) x grad|n> = L0 - O x N with L0 at the
+        origin and N = <m|grad n> = -int1e_ipovlp, so
+          sum_{blk BC} D J = sum_blk D L0 - 1/2 (X_B + X_C) x sum_blk D N;
+        the weights and the inertia pseudo-inverse of every atom pair are
+        computed once per driver (maps[B, C, A] j = z_A (X_A - X0) x K^+ j)."""
         mol = self.mol
         X = mol.atom_coords(); nat = mol.natm
-        if not hasattr(self, '_Lat'):
-            # PySCF int1e_cg_irxp = -<m|(r - O) x grad|n>
-            L = []
+        data = getattr(self, '_erf_data', None)
+        if data is None or data[0] != w:
+            with mol.with_common_origin(np.zeros(3)):
+                L0 = mol.intor('int1e_cg_irxp', comp=3)
+            N = -mol.intor('int1e_ipovlp', comp=3)
+            maps = np.zeros((nat, nat, nat, 3, 3))
             for B in range(nat):
-                with mol.with_common_origin(X[B]):
-                    L.append(-mol.intor('int1e_cg_irxp', comp=3))
-            self._Lat = np.array(L)
-        Lat = self._Lat
+                for Cc in range(B, nat):
+                    a = np.sum((X - X[B])**2, axis=1); c = np.sum((X - X[Cc])**2, axis=1)
+                    den = np.where(a + c > 1e-14, a + c, 1.0)
+                    z = np.where(a + c > 1e-14, np.exp(-w*2.0*a*c/den), 1.0)
+                    X0 = (z[:, None]*X).sum(0)/z.sum(); dX = X - X0
+                    K = -np.einsum('a,ai,ai->', z, dX, dX)*np.eye(3) + np.einsum('a,ai,aj->ij', z, dX, dX)
+                    Kp = np.linalg.pinv(K, rcond=1e-10)
+                    for A in range(nat):
+                        d = dX[A]
+                        skew = np.array([[0.0, -d[2], d[1]], [d[2], 0.0, -d[0]], [-d[1], d[0], 0.0]])
+                        maps[B, Cc, A] = z[A]*(skew @ Kp)
+                    maps[Cc, B] = maps[B, Cc]
+            data = (w, L0, N, maps)
+            self._erf_data = data
+        _, L0, N, maps = data
         D = np.asarray(gam_ao).T
         sl = mol.aoslice_by_atom()[:, 2:4]
         out = np.zeros((nat, 3))
         for B in range(nat):
             b0, b1 = sl[B]
+            DL = np.einsum('mn,xmn->xn', D[b0:b1], L0[:, b0:b1])
+            DN = np.einsum('mn,xmn->xn', D[b0:b1], N[:, b0:b1])
             for Cc in range(nat):
                 c0, c1 = sl[Cc]
-                Jm = -0.5*(Lat[B][:, b0:b1, c0:c1] + Lat[Cc][:, b0:b1, c0:c1])
-                j = np.einsum('mn,xmn->x', D[b0:b1, c0:c1], Jm)
+                j = DL[:, c0:c1].sum(axis=1) - 0.5*np.cross(X[B] + X[Cc], DN[:, c0:c1].sum(axis=1))
                 if not np.any(j):
                     continue
-                a = np.sum((X - X[B])**2, axis=1); c = np.sum((X - X[Cc])**2, axis=1)
-                den = np.where(a + c > 1e-14, a + c, 1.0)
-                z = np.where(a + c > 1e-14, np.exp(-w*2.0*a*c/den), 1.0)
-                X0 = (z[:, None]*X).sum(0)/z.sum(); dX = X - X0
-                K = -np.einsum('a,ai,ai->', z, dX, dX)*np.eye(3) + np.einsum('a,ai,aj->ij', z, dX, dX)
-                v = np.linalg.lstsq(K, j, rcond=1e-10)[0]
-                out += z[:, None]*np.cross(dX, v)
+                out += maps[B, Cc] @ j
         return out
 
     def grad_xc_probe(self, Pa_ao, Pb_ao):
@@ -1439,5 +1458,7 @@ class GradientDriver:
         return self._xc_probe_contract(f1vo, vxc1, P_list)
 
     def finalise(self):
+        self._erf_data = None
+        self._ipovlp = None
         mrsf_grad.aograd_free()
         self.hess.free()

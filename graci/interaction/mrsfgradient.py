@@ -102,7 +102,9 @@ class Mrsfgradient:
         hold two different existing states (1-based in the input)."""
         usage = ('$mrsfgradient: nac_pairs must be a nested list of pairs of '
                  'different existing states, e.g. nac_pairs = [[1 2] [2 3]] '
-                 '(one pair: [[1 2]])')
+                 '(one pair: [1 2] or [[1 2]])')
+        if isinstance(value, np.ndarray) and value.ndim == 1 and value.size == 2:
+            value = [value]                 # a single pair written as [1 2]
         if not isinstance(value, list) or len(value) == 0:
             sys.exit(usage)
         pairs = []
@@ -134,9 +136,17 @@ class Mrsfgradient:
 
         output.print_mrsfgradient_header(self.label)
 
-        # states (0-based after parsing)
+        # derivative couplings (0-based pairs)
         nst_avail = ci.n_states()
-        if self.states is None:
+        pairs = None
+        if self.nac_pairs is not None:
+            pairs = self.parse_pairs(self.nac_pairs, nst_avail)
+
+        # states (0-based after parsing); with only nac_pairs given, the
+        # states of the pairs (their gradients come with the couplings)
+        if self.states is None and pairs is not None:
+            states = sorted({s for pair in pairs for s in pair})
+        elif self.states is None:
             states = list(range(nst_avail))
         else:
             states = [int(s) for s in np.atleast_1d(self.states)]
@@ -144,14 +154,6 @@ class Mrsfgradient:
                 if st < 0 or st >= nst_avail:
                     sys.exit('$mrsfgradient: state %d does not exist (the %s section has %d states)'
                              % (st + 1, ci.label, nst_avail))
-
-        # derivative couplings (0-based pairs)
-        pairs = None
-        if self.nac_pairs is not None:
-            if getattr(ci, 'extended', False):
-                sys.exit('$mrsfgradient: nac_pairs are not yet available for the '
-                         'extended MRSF-TDDFT method')
-            pairs = self.parse_pairs(self.nac_pairs, nst_avail)
 
         # Z-vector warm start from a previous gradient section (in memory,
         # or read from the checkpoint when guess_label names one that is

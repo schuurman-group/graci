@@ -667,11 +667,18 @@ class Mrsftddft(cimethod.Cimethod):
         (2019)); align: align the ket MOs to the bra MOs within each orbital
         class before the evaluation. Standard and extended objects can be
         combined (a standard object is an extended one without CV
-        amplitudes). Returns (overlap list, ierr).
+        amplitudes); two extended objects need the same ext_space (parent
+        Pi: exact method only, each object with its own parent weights).
+        Returns (overlap list, ierr).
         """
-        for obj in (self, ket):
-            if getattr(obj, 'extended', False) and str(getattr(obj, 'ext_space', 'published')).lower() == 'pi':
-                sys.exit('\n ERROR: state overlaps are not yet available for ext_space = pi')
+        spaces = [str(getattr(o, 'ext_space', 'published')).lower() for o in (self, ket)
+                  if getattr(o, 'extended', False)]
+        if len(spaces) == 2 and spaces[0] != spaces[1]:
+            sys.exit('\n ERROR: MRSF overlaps between extended objects require the same '
+                     'extension space (ext_space) for the bra and ket objects')
+        if 'pi' in spaces and str(method).lower() != 'exact':
+            sys.exit('\n ERROR: state overlaps for ext_space = pi are available with '
+                     'mrsf_method = exact only')
 
         if type(ket).__name__ != 'Mrsftddft':
             sys.exit('\n ERROR: MRSF overlaps require two Mrsftddft objects')

@@ -45,8 +45,9 @@ $end
 # gradients of S0 (1A1, ground state), S1 (1A2, n -> pi*) and S2 (1B1),
 # and the derivative couplings <S0|d/dR S1> (A2), <S0|d/dR S2> (B1) and
 # <S1|d/dR S2> (B2). nac_pairs is a nested list of pairs (one pair:
-# [[1 2]]); the gradients of all paired states are computed in the same
-# response pass, so list them in states.
+# [1 2] or [[1 2]]); the gradients of the paired states are computed in
+# the same response pass: without a states keyword these are the states
+# whose gradients are reported.
 $mrsfgradient section
  label      = grad_singlets
  mrsf_label = singlets

@@ -24,7 +24,7 @@ warning_codes = {2: 'near-singular core/hole MO overlap block; explicit minors u
                     '(TLF overlaps of extended objects unreliable)'}
 
 
-def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align=True):
+def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align=True, wpib=None, wpik=None):
     """overlap matrix (nb, nk) between the bra states with compressed
     amplitudes xb (xdim, nb) in the MOs Cb (nao_b, nmo) and the ket states
     xk (xdim, nk) in Ck (nao_k, nmo); Sao (nao_b, nao_k) is the AO overlap
@@ -34,12 +34,17 @@ def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align
     blocks, ket amplitudes transformed accordingly). Each side is standard
     (xdim = nvirb*nocca) or extended (xdim = nvirb*(nocca+nC), the CV
     amplitudes in the last nC columns); a standard side paired with an
-    extended one counts as an extended state without CV part. Returns
-    (S, ierr): ierr 0 ok, 1 orbital-class mismatch, 2 explicit minors used
-    (near-singular core/hole/G block), 3 bad method, 4 SVD failure in the
-    alignment, 5 SOMO pair rotated/swapped (extended objects, warning),
-    6 TLF closed forms of the extended blocks need the orbital classes in
-    index order, 7 = 2 and 5, 8 invalid amplitude dimension."""
+    extended one counts as an extended state without CV part. wpib/wpik:
+    parent weights (w_G, w_D, w_S) of the extension space Pi of the bra and
+    ket objects (ext_space = pi; exact method only; each side its own
+    weights), None for the published parent G. Returns (S, ierr): ierr 0
+    ok, 1 orbital-class mismatch, 2 explicit minors used (near-singular
+    core/hole/G block), 3 bad method, 4 SVD failure in the alignment, 5 SOMO
+    pair rotated/swapped (extended objects, warning), 6 TLF closed forms of
+    the extended blocks need the orbital classes in index order, 7 = 2 and
+    5, 8 invalid amplitude dimension, 9 TLF requested for the parent Pi,
+    10 singular hole block for the parent Pi with too many CV slots for the
+    explicit fallback."""
     if method not in methods:
         sys.exit('MRSF overlaps: unknown method ' + str(method) + ' (exact|tlf0|tlf1|tlf2)')
     Cb = np.asfortranarray(Cb, dtype=np.float64)
@@ -64,8 +69,11 @@ def state_overlap(Sao, Cb, Ck, occ_b, occ_k, mult, xb, xk, method='exact', align
                      + str(nvirb*(nocca + nC)) + ' (extended)')
         ncol.append(n)
     S = np.zeros((nb, nk), dtype=np.float64, order='F')
+    pimode = 0 if (wpib is None and wpik is None) else 1
+    wb = np.asfortranarray(wpib if wpib is not None else (1.0, 0.0, 0.0), dtype=np.float64)
+    wk = np.asfortranarray(wpik if wpik is not None else (1.0, 0.0, 0.0), dtype=np.float64)
     args = (nao_b, nao_k, nmo, occ_b, occ_k, int(mult), methods[method], int(bool(align)), nb, nk,
-            ncol[0], ncol[1], Cb, Ck, Sao, xb, xk, S, 0)
+            ncol[0], ncol[1], pimode, wb, wk, Cb, Ck, Sao, xb, xk, S, 0)
     S, ierr = libs.lib_func('mrsf_state_overlap', args)
     return np.array(S), int(ierr)
 
@@ -140,9 +148,16 @@ def overlap(bra, ket, trans_list, method='exact', align=True, rep='adiabatic'):
             continue
         koff[ki] = sum(b.shape[1] for b in xk_blocks)
         xk_blocks.append(x)
+    # parent Pi of the extension space: each side with its own weights
+    pi = [getattr(o, 'extended', False) and str(getattr(o, 'ext_space', 'published')).lower() == 'pi'
+          for o in (bra, ket)]
+    wpib = wpik = None
+    if any(pi):
+        from graci.interfaces.mrsf.mrsf_density import _wpi
+        wpib, wpik = _wpi(bra), _wpi(ket)
     S, ierr = state_overlap(Sao, Cb, Ck, bra.occ_ref, ket.occ_ref, bra.mult,
                             np.concatenate(xb_blocks, axis=1), np.concatenate(xk_blocks, axis=1),
-                            method, align)
+                            method, align, wpib, wpik)
     if ierr == 1:
         sys.exit('MRSF overlaps: the bra and ket objects have different orbital-class structures')
     if ierr == 3:
@@ -154,6 +169,12 @@ def overlap(bra, ket, trans_list, method='exact', align=True, rep='adiabatic'):
                  'classes in index order (core, SOMOs, virtuals); use mrsf_method = exact')
     if ierr == 8:
         sys.exit('MRSF overlaps: inconsistent amplitude dimensions')
+    if ierr == 9:
+        sys.exit('MRSF overlaps: only mrsf_method = exact is available for ext_space = pi')
+    if ierr == 10:
+        sys.exit('MRSF overlaps: the occupied MO spaces of the two geometries are (nearly) '
+                 'orthogonal (singular hole block); the Pi overlaps are not available for this '
+                 'pair of geometries')
     for bi in range(nirr_bra):
         for ki in range(nirr_ket):
             pairs = trans_list[bi][ki]

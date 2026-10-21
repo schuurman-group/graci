@@ -61,7 +61,9 @@ class EMRSFGradientDriver(GradientDriver):
             sys.exit('$mrsfgradient: gradients of the extended method need the covariant '
                      "F' correction (fprime = covariant in the $mrsftddft section)")
         super().__init__(ci, grad_obj)
-        self.supports_xts = False
+        # explicit amplitude vectors (derivative couplings): stacked (nvirb, nocca + nC)
+        # arrays [X~ | Y with zero SOMO rows], see expanded_amplitudes
+        self.supports_xts = True
         C, nmo, nao = self.C, self.nmo, self.nao
         self.ncol = int(ci.ncol)
         self.singlet = (self.mult == 1)
@@ -198,7 +200,21 @@ class EMRSFGradientDriver(GradientDriver):
         return Xm, Y
 
     def expanded_amplitudes(self, istate):
-        return self.amplitudes(istate)[0]
+        """the stacked expanded amplitudes (nvirb, nocca + nC) of a state:
+        [X~ | Y] with the CV amplitudes Y in the virtual rows of the last nC
+        columns (SOMO rows zero); every term of the extended response
+        functional is a quadratic form in this array (no excitation-energy
+        term), so sums and differences of states define the couplings"""
+        Xm, Y = self.amplitudes(istate)
+        V = np.zeros((self.nvirb, self.nocca + self.nC))
+        V[:, :self.nocca] = Xm
+        V[2:, self.nocca:] = Y
+        return V
+
+    def split_amplitudes(self, V):
+        """stacked array -> (X~, Y)"""
+        V = np.asarray(V)
+        return np.array(V[:, :self.nocca]), np.array(V[2:, self.nocca:])
 
     def slices(self, Xt):
         """compressed MRSF amplitudes of the coupling classes from X~"""
@@ -879,6 +895,8 @@ class EMRSFGradientDriver(GradientDriver):
         with self.tm('rhs: amplitudes'):
             if Xt is None:
                 Xt, Y = self.amplitudes(ist)
+            elif np.shape(Xt)[1] == self.nocca + self.nC and Y is None:
+                Xt, Y = self.split_amplitudes(Xt)          # stacked explicit vector
             sd = {'ist': ist, 'Xt': np.array(Xt), 'Y': np.array(Y)}
         self._cur = sd
         with self.tm('rhs: exchange pass (all)'):
@@ -1179,12 +1197,29 @@ class EMRSFGradientDriver(GradientDriver):
         return sd['M']
 
     def run(self, states, **kw):
+        self.pi_diag = []
         res = super().run(states, **kw)
         if self.pi is not None:
             res['pi'] = {'w': np.array(self.w), 'pair': np.array(self.lam_pair), 'gap': self.pair_gap,
                          'zw_norm': np.array([d['zw'] for d in self.pi_diag]),
                          'q12': np.array([d['q12'] for d in self.pi_diag])}
         return res
+
+    def gradients_and_nacs(self, states, pairs, **kw):
+        """gradients and derivative couplings (see GradientDriver): the
+        per-vector diagnostics of the parent Pi (|z_w|, Q_12) reported for
+        the state vectors only (Q_12 of a pair vector is not zero: its
+        extra right-hand side is not invariant)"""
+        from graci.interfaces.mrsf.mrsf_gradient import nac_vectors
+        gres, out = super().gradients_and_nacs(states, pairs, **kw)
+        if gres.get('pi', None) is not None:
+            need, pos = nac_vectors(states, pairs)
+            sel = [pos[s] for s in states]
+            pi = dict(gres['pi'])
+            pi['zw_norm'] = np.asarray(pi['zw_norm'])[sel]
+            pi['q12'] = np.asarray(pi['q12'])[sel]
+            gres['pi'] = pi
+        return gres, out
 
     def finalise(self):
         if self.is_dft:

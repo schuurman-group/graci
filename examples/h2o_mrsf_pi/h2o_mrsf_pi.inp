@@ -45,11 +45,13 @@ $end
 # analytic gradients of Pi states: no canonical multiplier of the O1-O2
 # rotation is needed (the Pi energy is invariant); the response of the
 # parent weights w to the orbitals enters through the pair-block density
-# (the pair-block eigenvalues, w, the gap and |z_w| per state are printed)
+# (the pair-block eigenvalues, w, the gap and |z_w| per state are printed).
+# nac_pairs adds the derivative coupling <S0|d/dR S1> (same response pass)
 $mrsfgradient section
  label      = grad_singlets
  mrsf_label = singlets
  states     = [1 2]
+ nac_pairs  = [1 2]
 $end
 
 $mrsfgradient section
