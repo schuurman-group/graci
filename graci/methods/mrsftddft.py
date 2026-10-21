@@ -141,6 +141,10 @@ class Mrsftddft(cimethod.Cimethod):
         # include the quadrature-grid response in the reference (ROKS)
         # XC gradient (PySCF grid_response)
         self.grid_response  = False
+        # not a keyword: divide the couplings by the gap (d = h/dE); the
+        # MECI optimiser sets it False and uses the finite gap-scaled
+        # coupling vectors only
+        self.nac_divide_gap = True
 
         # computed quantities
         # reference occupation vector (first nmo MOs)
@@ -315,7 +319,7 @@ class Mrsftddft(cimethod.Cimethod):
             if iconv != 1:
                 output.print_message('  WARNING: Davidson not converged '
                                      'for irrep '+str(irrep))
-        if gvecs is not None:
+        if gvecs is not None and self.verbose:
             output.print_message('  warm start: Davidson iterations per irrep: '
                                  + ' '.join(str(self.diag_info[i][0])
                                             for i in self.irreps_nonzero()))
@@ -334,7 +338,10 @@ class Mrsftddft(cimethod.Cimethod):
         # weights the density kernel receives
         dmat_sym = mrsf_density.rdm(self)
 
-        mrsf_init.report_timings()
+        if self.verbose:
+            mrsf_init.report_timings()
+        else:
+            mrsf_init.reset_timings()
 
         # weight of the CV configurations per state (extended method)
         if self.extended:
@@ -435,7 +442,8 @@ class Mrsftddft(cimethod.Cimethod):
         """
         import graci.interfaces.mrsf.mrsf_gradient as mrsf_gradient
 
-        output.print_mrsftddft_gradient_header(self.label)
+        if self.verbose:
+            output.print_mrsftddft_gradient_header(self.label)
 
         # derivative couplings (0-based pairs)
         nst_avail = self.n_states()
@@ -460,7 +468,7 @@ class Mrsftddft(cimethod.Cimethod):
             # with couplings: one start vector per state vector of the pass
             vec_states = states if pairs is None else mrsf_gradient.nac_vectors(states, pairs)[0]
             zguess = mrsf_gradient.align_zvec(guess, self, vec_states)
-            if zguess is None:
+            if zguess is None and self.verbose:
                 output.print_message('  Z-vector warm start: no usable Z-vectors in '
                                      + str(getattr(guess, 'label', self.guess_label)) + '; cold start')
 
@@ -473,8 +481,16 @@ class Mrsftddft(cimethod.Cimethod):
             res = driver.run(states, zguess=zguess)
             self.nac = None
         else:
-            # gradients and couplings in one response pass
-            res, self.nac = driver.gradients_and_nacs(states, pairs, zguess=zguess)
+            # gradients and couplings in one response pass; the couplings
+            # are divided by the gap unless nac_divide_gap is False (MECI
+            # optimisation) or a gap is zero
+            divide = self.nac_divide_gap
+            if divide and min(abs(self.energy(J) - self.energy(I)) for I, J in pairs) <= 1.e-10:
+                divide = False
+                output.print_message('  zero energy gap: the derivative couplings are '
+                                     'not divided by the gap')
+            res, self.nac = driver.gradients_and_nacs(states, pairs, divide_gap=divide,
+                                                      zguess=zguess)
         driver.finalise()
         # the stage timings are printed below: keep the library calls of the
         # gradient pass out of the timing report of the next section
@@ -555,7 +571,8 @@ class Mrsftddft(cimethod.Cimethod):
                + ' '.join('{:.4f}'.format(v) for v in dmin))
         if ierr == 5:
             msg += '  (WARNING: the SOMO pair has rotated or swapped between the geometries)'
-        output.print_message(msg)
+        if self.verbose or ierr == 5:
+            output.print_message(msg)
         return xk
 
     #

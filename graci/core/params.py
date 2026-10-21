@@ -217,6 +217,30 @@ dyson_kword     = {'init_states'       : int,
 
 #----------------------------------------------------
 
+# minimum-energy conical intersection optimisation
+meciopt_kword   = {'method_label'      : str,
+                   'states'            : int,
+                   'max_iter'          : int,
+                   'trust_radius'      : float,
+                   'trust_min'         : float,
+                   'trust_max'         : float,
+                   'conv_gap'          : float,
+                   'conv_grad_max'     : float,
+                   'conv_grad_rms'     : float,
+                   'conv_step_max'     : float,
+                   'conv_step_rms'     : float,
+                   'conv_energy'       : float,
+                   'hess_guess'        : str,
+                   'hess_update'       : str,
+                   'hess_window'       : int,
+                   'warm_start'        : bool,
+                   'step_output'       : bool,
+                   'traj_file'         : str,
+                   'verbose'           : bool,
+                   'label'             : str}
+
+#----------------------------------------------------
+
 # used to parameterize new Hamiltonians
 parameterize_kword = {'label'          : str,     
                       'job_type'       : str,
@@ -247,8 +271,9 @@ base_objs    = ['Molecule', 'Rydano', 'Scf', 'Parameterize']
 ci_objs      = ['Dftmrci', 'Dftmrci2', 'Mrsftddft']
 postci_objs  = ['Spinorbit']
 si_objs      = ['Transition', 'Overlap', 'Dyson']
+opt_objs     = ['Meciopt']
 support_objs = ['Bitciwfn','Moments', 'Cigroup']
-valid_objs   = base_objs + ci_objs + postci_objs + si_objs
+valid_objs   = base_objs + ci_objs + postci_objs + si_objs + opt_objs
 
 # maximum number of processors: we set this as a distinct variable, since
 # we can't depend on mpirun/mpiexec -n X, since spawn-based parallelism
@@ -266,6 +291,7 @@ kwords = {'Molecule'     : molecule_kword,
           'Spinorbit'    : spinorbit_kword,
           'Transition'   : transition_kword,
           'Overlap'      : overlap_kword,
-          'Dyson'        : dyson_kword}
+          'Dyson'        : dyson_kword,
+          'Meciopt'      : meciopt_kword}
 
 

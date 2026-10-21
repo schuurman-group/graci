@@ -693,6 +693,23 @@ def print_mrsftddft_gradient_nacs(ci):
     mol = ci.scf.mol
     asym = mol.asym
     with output_file(file_names['out_file'], 'a+') as outfile:
+        if any(result['d'] is None for result in ci.nac):
+            # couplings not divided by the gap (MECI optimisation): the
+            # gap-scaled, translation-invariant coupling vector
+            outfile.write('\n\n Interstate coupling vectors <I|dH/dR|J> + (E_J - E_I) dU (Eh/bohr)')
+            for result in ci.nac:
+                I, J = result['pair']
+                h = result['scaled_h_etf']
+                outfile.write('\n\n <{:d}|dH/dR|{:d}>, |h| = {:.6f}, '
+                              'E_J - E_I = {:.6f} Eh'.format(I + 1, J + 1,
+                              np.linalg.norm(h), result['dE']))
+                outfile.write('\n   Atom          x                y                z')
+                for A, row in enumerate(h):
+                    outfile.write('\n   {:3d} {:2s}'.format(A + 1, asym[A]) +
+                                  ''.join('{:17.10f}'.format(v) for v in row))
+            outfile.write('\n')
+            outfile.flush()
+            return
         outfile.write('\n\n Derivative couplings (1/bohr)')
         for result in ci.nac:
             I, J = result['pair']
@@ -729,6 +746,158 @@ def print_mrsftddft_gradient_nacs(ci):
                                   ''.join('{:17.10f}'.format(v) for v in row))
         outfile.write('\n')
         outfile.flush()
+
+    return
+
+#
+def print_meciopt_header(label):
+    """print the header of a MECI optimisation"""
+
+    LLEN = 76
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        title = 'MECI optimisation, label = '+str(label)
+        lpad = int(0.5*(max(0,LLEN-len(title))))
+        pstr = str('*'.ljust(lpad)+title)
+        pstr = pstr.ljust(LLEN-1)+'*'
+
+        outfile.write('\n\n '+str('*'*LLEN))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str(pstr))
+        outfile.write(  '\n '+str('*'.ljust(LLEN-1))+'*')
+        outfile.write(  '\n '+str('*'*LLEN))
+        outfile.flush()
+
+    return
+
+#
+def print_meciopt_setup(opt, method, I, J):
+    """print the settings of a MECI optimisation"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n Method section:   $'+type(method).__name__.lower()+
+                      ' '+str(method.label))
+        outfile.write('\n States:           {:d} and {:d} (adiabatic, energy order)'.format(I + 1, J + 1))
+        outfile.write('\n Coordinates:      Cartesian, translations and rotations '
+                      'projected out')
+        outfile.write('\n Hessian:          '+str(opt.hess_guess)+' guess, '+
+                      str(opt.hess_update)+' update (window '+str(opt.hess_window)+')')
+        outfile.write('\n Trust radius:     {:.3f} Bohr (range {:.3f} - {:.3f})'.format(
+                      opt.trust_radius, opt.trust_min, opt.trust_max))
+        outfile.write('\n Convergence:      gap {:.1e} Eh, seam gradient max/rms '
+                      '{:.1e}/{:.1e} Eh/Bohr,'.format(opt.conv_gap, opt.conv_grad_max,
+                                                    opt.conv_grad_rms))
+        outfile.write('\n                   step max/rms {:.1e}/{:.1e} Bohr '
+                      'or average-energy change {:.1e} Eh'.format(
+                      opt.conv_step_max, opt.conv_step_rms, opt.conv_energy))
+        outfile.write('\n Warm starts:      '+('on' if opt.warm_start else 'off'))
+        outfile.write('\n')
+        outfile.flush()
+
+    return
+
+#
+def print_meciopt_iter_header():
+    """print the header of the MECI iteration table"""
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n iter        E_I (Eh)          E_J (Eh)    gap (eV)  '
+                      'seam grad max/rms     step max/rms     trust     rho   conv  notes')
+        outfile.write('\n '+'-'*124)
+        outfile.flush()
+
+    return
+
+#
+def print_meciopt_iter(row):
+    """print one row of the MECI iteration table: convergence flags in
+    the order gap, seam gradient, step, average-energy change (Y = met);
+    notes: rejected trial steps, Davidson (D) or Z-vector (Z) not
+    converged, a neighbouring state within 0.1 eV (N), SCF cycles"""
+
+    f = row['flags']
+    conv = ''.join('Y' if c else '.' for c in
+                   (f['gap'], f['grad_max'] and f['grad_rms'],
+                    f['step_max'] and f['step_rms'], f['energy']))
+    info = row['info']
+    notes = []
+    if row['nrej'] > 0:
+        notes.append('rejected '+str(row['nrej']))
+    if not info.get('davidson_conv', True):
+        notes.append('D')
+    if not info.get('zvec_conv', True):
+        notes.append('Z')
+    gaps = [g for g in (info.get('gap_below'), info.get('gap_above')) if g is not None]
+    if gaps and min(gaps)*constants.au2ev < 0.1:
+        notes.append('N')
+    if info.get('scf_cycles') is not None and row['it'] > 0:
+        notes.append('scf '+str(info['scf_cycles']))
+    rho = '    ---' if row['rho'] is None else '{:7.2f}'.format(row['rho'])
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n {:4d} {:17.10f} {:17.10f} {:10.6f}  {:9.2e} {:9.2e}  {:8.1e} {:8.1e} '
+                      '{:7.4f} {:s}  {:s}  {:s}'.format(
+                      row['it'], row['e'][0], row['e'][1], row['de']*constants.au2ev,
+                      row['grad_max'], row['grad_rms'], row['step_max'], row['step_rms'],
+                      row['trust'], rho, conv, ' '.join(notes)))
+        outfile.flush()
+
+    return
+
+#
+def print_meciopt_summary(opt, I, J, au2ev):
+    """print the result of a MECI optimisation"""
+
+    status = {'converged': 'converged',
+              'max_iter':  'NOT converged: maximum number of iterations reached',
+              'rejected':  'NOT converged: too many rejected steps',
+              'failed':    'NOT converged: the electronic structure failed at the trial geometries'}
+
+    with output_file(file_names['out_file'], 'a+') as outfile:
+        outfile.write('\n\n MECI optimisation '+status.get(opt.status, str(opt.status))+
+                      ' after {:d} steps'.format(opt.niter))
+        e = opt.energies[-1]
+        outfile.write('\n\n E_{:<3d} = {:17.10f} Eh'.format(I + 1, e[0]))
+        outfile.write('\n E_{:<3d} = {:17.10f} Eh'.format(J + 1, e[1]))
+        outfile.write('\n gap    = {:17.10f} Eh = {:.6f} eV'.format(e[1] - e[0],
+                                                                   (e[1] - e[0])*au2ev))
+        outfile.write('\n\n Final geometry ('+str(opt.units)+')')
+        for A, row in enumerate(opt.crds_final):
+            outfile.write('\n {:<3s}'.format(opt.asym[A]) +
+                          ''.join('{:16.10f}'.format(v) for v in row))
+
+        c = opt.ci_char
+        if opt.converged:
+            outfile.write('\n\n Intersection parameters (first order, Fdez. Galvan et al., '
+                          'JCTC 12, 3636 (2016))')
+            outfile.write('\n   pitch          {:12.6f} Eh/Bohr'.format(c['pitch']))
+            outfile.write('\n   asymmetry      {:12.6f}'.format(c['asymmetry']))
+            outfile.write('\n   relative tilt  {:12.6f}'.format(c['rel_tilt']))
+            outfile.write('\n   tilt heading   {:12.6f} rad'.format(c['heading']))
+            outfile.write('\n   P              {:12.6f}  ({:s})'.format(
+                          c['P'], 'peaked' if c['P'] < 1. else 'sloped'))
+            outfile.write('\n   B              {:12.6f}  ({:s})'.format(
+                          c['B'], 'bifurcating' if c['B'] < 1. else 'single path'))
+
+        nstep = max(len(opt.step_eval) - 1, 1)
+        outfile.write('\n\n Mean wall time per step {:.2f} s (SCF, integrals and method {:.2f} s); '
+                      'optimiser {:.3f} s in total'.format(float(np.sum(opt.step_eval))/nstep,
+                      float(np.sum(opt.step_wall))/nstep, opt.opt_wall))
+        traj = opt.traj_file if opt.traj_file is not None else 'meciopt_'+str(opt.label)+'.xyz'
+        outfile.write('\n Trajectory: '+traj+' (Angstrom)\n')
+        outfile.flush()
+
+    return
+
+#
+def write_xyz(fname, asym, crds, comment, mode):
+    """write (append) one xyz frame"""
+
+    with open(fname, mode) as f:
+        f.write('{:d}\n{:s}\n'.format(len(asym), comment))
+        for A, row in enumerate(crds):
+            f.write('{:<3s}'.format(asym[A]) +
+                    ''.join('{:16.10f}'.format(v) for v in row) + '\n')
 
     return
 

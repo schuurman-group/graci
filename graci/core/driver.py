@@ -30,6 +30,7 @@ class Driver:
         ci_objs     = []
         postci_objs = []
         si_objs     = []
+        opt_objs    = []
         param_objs  = []
 
         for obj in calc_array:
@@ -45,6 +46,8 @@ class Driver:
                 postci_objs.append(obj)
             elif type(obj).__name__ in params.si_objs:
                 si_objs.append(obj)
+            elif type(obj).__name__ in params.opt_objs:
+                opt_objs.append(obj)
             elif type(obj).__name__ == 'Parameterize':
                 param_objs.append(obj)
        
@@ -56,6 +59,7 @@ class Driver:
         self.check_labels(ci_objs)
         self.check_labels(postci_objs)
         self.check_labels(si_objs)
+        self.check_labels(opt_objs)
         
         # Load required libraries
         #-----------------------------------------------------
@@ -95,6 +99,26 @@ class Driver:
             # if we need to perform run-time basis set modifications
             if mol_obj.add_rydberg is not None:
                 mol_obj = self.modify_basis(calc_array, mol_obj)
+
+        # Geometry optimisations
+        # -----------------------------------------------------
+        # resolve the method section of each optimisation and let it
+        # request what the run at the input geometry has to provide
+        opt_methods = []
+        for opt_obj in opt_objs:
+            method = self.get_opt_method(opt_obj, ci_objs)
+            scf_obj = self.match_sections(method.scf_label, 'label',
+                                          scf_objs, match_all=False)
+            if scf_obj is None:
+                sys.exit('$'+type(opt_obj).__name__.lower()+': no $scf section '
+                         'for the method section '+str(method.label))
+            mol_obj = self.match_sections(scf_obj.mol_label, 'label',
+                                          mol_objs, match_all=False)
+            if mol_obj is None:
+                sys.exit('$'+type(opt_obj).__name__.lower()+': no $molecule '
+                         'section for the $scf section '+str(scf_obj.label))
+            opt_obj.prepare(method, scf_obj, mol_obj)
+            opt_methods.append(method)
 
         # SCF Sections 
         # -----------------------------------------------------
@@ -227,6 +251,19 @@ class Driver:
             if save_to_chkpt:
                 chkpt.write(si_obj)
 
+        # Geometry optimisations
+        # -- these start from the method objects at the input geometry
+        #    (the step-0 runs above) and work on copies of them
+        #------------------------------------------------------------
+        for opt_obj, method in zip(opt_objs, opt_methods):
+            opt_obj.run(method)
+            if save_to_chkpt:
+                # the final-geometry objects first: links to objects are
+                # only written when absent from the checkpoint
+                for obj in opt_obj.result_objs():
+                    chkpt.write(obj)
+                chkpt.write(opt_obj)
+
         # Hamiltonian Parameterization
         # -- this is a special case for now
         #-------------------------------------------------------------
@@ -277,6 +314,24 @@ class Driver:
             return secs
         else:
             return secs[0]
+
+    #
+    def get_opt_method(self, opt_obj, ci_objs):
+        """the method section named by method_label of an optimisation
+        section (None: the only method section of the input)"""
+
+        name = '$'+type(opt_obj).__name__.lower()
+        if opt_obj.method_label is None:
+            if len(ci_objs) != 1:
+                sys.exit(name+': several method sections in the input; '
+                         'name one with method_label')
+            return ci_objs[0]
+        method = self.match_sections(opt_obj.method_label, 'label',
+                                     ci_objs, match_all=False)
+        if method is None:
+            sys.exit(name+': method_label = '+str(opt_obj.method_label)+
+                     ' does not name a method section')
+        return method
 
     # 
     def check_labels(self, obj_lst):

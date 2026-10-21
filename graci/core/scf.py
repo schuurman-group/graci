@@ -453,6 +453,8 @@ class Scf:
 
         # run the scf computation
         self.energy = mf.kernel(dm0=dm)
+        # number of SCF cycles (reported by the MECI optimiser per step)
+        self.scf_info = {'cycles': int(getattr(mf, 'cycles', 0))}
        
         # if not converged, kill things
         if not mf.converged:

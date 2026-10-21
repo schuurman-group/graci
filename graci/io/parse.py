@@ -20,6 +20,7 @@ import graci.interaction.transition as transition
 import graci.interaction.spinorbit as spinorbit
 import graci.interaction.overlap as overlap
 import graci.interaction.dyson as dyson
+import graci.opt.meciopt as meciopt
 
 from pyscf import gto
 
@@ -42,6 +43,13 @@ def parse_input():
         # parse all section keywords
         run_list.extend(parse_section(obj_name, 
                                       input_file))
+
+    # a MECI optimisation starts from one geometry
+    if any(type(obj).__name__ in params.opt_objs for obj in run_list) and \
+       any(type(obj).__name__ == 'Molecule' and obj.multi_geom
+           for obj in run_list):
+        sys.exit('$meciopt: the optimisation starts from a single geometry; '
+                 'the xyz file holds several')
 
     # check for multiple-geometry molecule sections
     # and create all required replicate class objects
