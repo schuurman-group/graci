@@ -7,7 +7,7 @@ import copy as copy
 import ctypes as ctypes
 import graci.io.convert as convert
 
-libraries      = ['bitci','bitsi','bitwf','overlap','mrsf','scf']
+libraries      = ['bitci','bitsi','bitwf','overlap','mrsf','scf','grid']
 
 # registry of bitci functions
 bitci_registry = {
@@ -428,6 +428,49 @@ scf_intent = {
     'scf_free'          : []
 }
 
+# registry of grid (molecular quadrature grid) functions: 'dptr' = pointer
+# to an F-contiguous float64 array, 'iptr' = pointer to an F-contiguous
+# int32 array (both zero copy, read/written in place)
+grid_registry = {
+    # natm, Z, level, radial, prune, nrad_user, nang_user, npts, ierr
+    'grid_size'            : ['int32','iptr','int32','int32','int32','iptr','iptr','int32','int32'],
+    # natm, R(3,natm), Z, level, radial, prune, nrad_user, nang_user, npts,
+    # xyz(3,npts), iatom, vol, ierr
+    'grid_atomic'          : ['int32','dptr','iptr','int32','int32','int32','iptr','iptr','int32',
+                              'dptr','iptr','dptr','int32'],
+    # natm, R, tol, nnb(natm), nb(natm-1,natm), ierr
+    'grid_neighbours'      : ['int32','dptr','double','iptr','iptr','int32'],
+    # natm, R, Z, adjust, step, mu, cells, weights, npts, xyz, iatom, vol,
+    # nnb, nb, w, knear, ierr
+    'grid_partition'       : ['int32','dptr','iptr','int32','int32','double','int32','int32','int32',
+                              'dptr','iptr','dptr','iptr','iptr','dptr','iptr','int32'],
+    # natm, R, npts, xyz, perm, ierr
+    'grid_sort'            : ['int32','dptr','int32','dptr','iptr','int32'],
+    # natm, R, Z, adjust, step, mu, cells, npts, xyz, iatom, nnb, nb, sigma, ierr
+    'grid_sigma'           : ['int32','dptr','iptr','int32','int32','double','int32','int32',
+                              'dptr','iptr','iptr','iptr','dptr','int32'],
+    # natm, R, Z, adjust, step, mu, cells, weights, npts, xyz, iatom, vol,
+    # nnb, nb, nq, q(npts,nq), grad(3,natm,nq), ierr
+    'grid_wderiv_contract' : ['int32','dptr','iptr','int32','int32','double','int32','int32','int32',
+                              'dptr','iptr','dptr','iptr','iptr','int32','dptr','dptr','int32'],
+    # n, xyzw(4,n), ierr
+    'grid_lebedev'         : ['int32','dptr','int32'],
+    # scheme, n, z, r, dr, ierr
+    'grid_radial'          : ['int32','int32','int32','dptr','dptr','int32']
+}
+
+grid_intent = {
+    'grid_size'            : ['in']*7 + ['out','out'],
+    'grid_atomic'          : ['in']*9 + ['out']*4,
+    'grid_neighbours'      : ['in']*3 + ['out']*3,
+    'grid_partition'       : ['in']*14 + ['out']*3,
+    'grid_sort'            : ['in']*4 + ['out']*2,
+    'grid_sigma'           : ['in']*12 + ['out']*2,
+    'grid_wderiv_contract' : ['in']*16 + ['out']*2,
+    'grid_lebedev'         : ['in','out','out'],
+    'grid_radial'          : ['in']*3 + ['out']*3
+}
+
 # list of existing library objects
 lib_objs = {}
 
@@ -458,6 +501,7 @@ def lib_func(name, args):
     global overlap_registry, overlap_intent
     global mrsf_registry, mrsf_intent
     global scf_registry, scf_intent
+    global grid_registry, grid_intent
     global lib_objs
 
     if name in bitci_registry:
@@ -478,6 +522,9 @@ def lib_func(name, args):
     elif name in scf_registry:
         arg_list   = scf_registry[name]
         arg_intent = scf_intent[name]
+    elif name in grid_registry:
+        arg_list   = grid_registry[name]
+        arg_intent = grid_intent[name]
     else:
         sys.exit('function: '+str(name)+' not found.') 
 
@@ -486,13 +533,15 @@ def lib_func(name, args):
     for i in range(len(args)):
 
         # zero-copy array arguments: pass the address of an F-contiguous
-        # float64 ndarray (the Fortran side reads/writes it in place)
-        if arg_list[i] == 'dptr':
+        # float64 ('dptr') or int32 ('iptr') ndarray (the Fortran side
+        # reads/writes it in place)
+        if arg_list[i] in ('dptr', 'iptr'):
             arr = args[i]
-            if not (isinstance(arr, np.ndarray) and arr.dtype == np.float64
+            want = np.float64 if arg_list[i] == 'dptr' else np.int32
+            if not (isinstance(arr, np.ndarray) and arr.dtype == want
                     and arr.flags['F_CONTIGUOUS']):
-                sys.exit('lib_func: dptr argument '+str(i)+' of '+name+
-                         ' must be an F-contiguous float64 ndarray')
+                sys.exit('lib_func: '+arg_list[i]+' argument '+str(i)+' of '+name+
+                         ' must be an F-contiguous '+np.dtype(want).name+' ndarray')
             c_arg = arr.ctypes.data_as(ctypes.c_void_p)
             arg_ctype.append(c_arg)
             arg_ptr.append(c_arg)
@@ -546,10 +595,15 @@ def lib_func(name, args):
             getattr(lib_objs['scf'], name)(*arg_ptr)
         else:
             getattr(lib_objs['scf'], name)()
+    elif name in grid_registry:
+        if len(args) > 0:
+            getattr(lib_objs['grid'], name)(*arg_ptr)
+        else:
+            getattr(lib_objs['grid'], name)()
             
     args_out = ()
     for i in range(len(args)):
-        if arg_intent[i] in ('out', 'inout') and arg_list[i] == 'dptr':
+        if arg_intent[i] in ('out', 'inout') and arg_list[i] in ('dptr', 'iptr'):
             args_out += (args[i],)
         elif arg_intent[i] == 'out':
             if isinstance(args[i], list):

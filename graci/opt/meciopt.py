@@ -6,7 +6,8 @@ $mrsftddft section) and a pair of its adiabatic states (states = [I J]).
 The step-0 run of the method section, at the input geometry, provides
 the first energies, gradients and coupling (the driver requests them
 through prepare before the CI sections run). From there the constrained
-optimiser of graci.opt.meci_step takes Cartesian steps; each new geometry
+optimiser of graci.opt.meci_step takes steps in Cartesian or in redundant
+internal coordinates (graci.opt.internal_coords); each new geometry
 is evaluated by the method adapter of graci.opt.method_adapter on copies
 of the method objects, warm-started from the previous geometry. The
 step-0 objects are left unchanged, so other sections that use them see
@@ -24,6 +25,7 @@ import graci.core.params as params
 import graci.io.output as output
 import graci.opt.meci_step as meci_step
 import graci.opt.model_hessian as model_hessian
+import graci.opt.internal_coords as internal_coords
 import graci.opt.method_adapter as method_adapter
 
 
@@ -38,8 +40,9 @@ class Meciopt:
         self.states         = None
         # maximum number of optimisation steps
         self.max_iter       = 50
-        # initial, smallest and largest trust radius (Bohr, norm of the
-        # Cartesian step)
+        # initial, smallest and largest trust radius: norm of the step in
+        # the coordinates of the optimisation (Bohr; Bohr and rad for
+        # internal coordinates)
         self.trust_radius   = 0.3
         self.trust_min      = 0.01
         self.trust_max      = 0.5
@@ -54,9 +57,33 @@ class Meciopt:
         self.conv_energy    = 1.e-6
         # starting Hessian: 'lindh' (model Hessian) or 'unit'
         self.hess_guess     = 'lindh'
-        # Hessian update: 'bfgs' or 'none', and the number of steps used
+        # Hessian update: 'bfgs' or 'none', and the number of secant pairs
+        # used (0 = all since the last reset: with 5 pairs the optimiser
+        # stalled on seams of dimension ~50 in the model tests)
         self.hess_update    = 'bfgs'
-        self.hess_window    = 5
+        self.hess_window    = 0
+        # algorithm: 'lagrangian' (composite steps of the constrained
+        # problem, with approach steps far from the seam) or 'projected'
+        # (two-phase projected-gradient algorithm of Sicilia, Blancafort,
+        # Bearpark and Robb: quasi-Newton steps on the composite gradient
+        # while the gap is above gap_switch (Eh), then steps on the
+        # projected gradient with a Newton step of the gap)
+        self.algorithm      = 'lagrangian'
+        self.gap_switch     = 5.e-3
+        # coordinates of the steps: 'cartesian' or 'internal' (redundant
+        # internal coordinates)
+        self.coordinates    = 'internal'
+        # the next two keywords act for algorithm = lagrangian only.
+        # steps far from the seam: 'penalty' (steps on the exact penalty
+        # function Ebar + mu dE, which close the gap along the cheapest
+        # coordinates) or 'newton' (Newton steps of the gap along its
+        # gradient)
+        self.approach       = 'penalty'
+        # second-order correction of the gap step from the curvature of the
+        # seam measured on the previous step; off by default: on ethylene it
+        # lowered the typical re-opening of the gap but not the largest
+        # swings, because the curvature changes too much from step to step
+        self.gap_correction = False
         # Davidson and Z-vector warm starts from the previous geometry
         self.warm_start     = True
         # full SCF and method output at every step
@@ -96,6 +123,30 @@ class Meciopt:
         self.step_dav_iter  = None
         self.step_zvec_iter = None
         self.step_scf_cycles = None
+        # the accepted step into each geometry: kind (2 = far-phase step
+        # of the projected algorithm, 1 = step on the penalty function,
+        # 0 = composite step, -1 at the start), penalty weight mu,
+        # curvature of the model and of the secant pair along the step
+        # (Eh/Bohr^2), lowest eigenvalue of the reduced Hessian and number
+        # of secant pairs in the Hessian, the length of the second-order
+        # gap correction (Bohr) and the iterations of the
+        # back-transformation from internal coordinates
+        self.step_kind      = None
+        self.step_bt_iter   = None
+        self.step_gap_corr  = None
+        self.step_mu        = None
+        self.step_curv_model = None
+        self.step_curv_secant = None
+        self.step_hess_min  = None
+        self.step_npairs    = None
+        # internal coordinates: number of primitives at the end, rebuilds
+        # of the primitives and failed back-transformations; coord_final
+        # is 'cartesian' if the run started or ended in Cartesian
+        # coordinates
+        self.n_prim         = 0
+        self.n_rebuild      = 0
+        self.n_bt_fail      = 0
+        self.coord_final    = None
         # final geometry in the units of the $molecule section, symbols
         self.crds_final     = None
         self.asym           = None
@@ -156,6 +207,16 @@ class Meciopt:
             sys.exit('$meciopt: hess_guess must be lindh or unit')
         if str(self.hess_update).lower() not in ('bfgs', 'none'):
             sys.exit('$meciopt: hess_update must be bfgs or none')
+        if str(self.approach).lower() not in ('penalty', 'newton'):
+            sys.exit('$meciopt: approach must be penalty or newton')
+        if str(self.algorithm).lower() not in ('lagrangian', 'projected'):
+            sys.exit('$meciopt: algorithm must be lagrangian or projected')
+        if str(self.coordinates).lower() not in ('cartesian', 'internal'):
+            sys.exit('$meciopt: coordinates must be cartesian or internal')
+        if self.hess_window < 0:
+            sys.exit('$meciopt: hess_window must be 0 (all steps) or positive')
+        if self.gap_switch < 0.:
+            sys.exit('$meciopt: gap_switch must not be negative')
 
         # the step-0 run computes the pair's gradients and coupling
         method_adapter.adapter_class(method).request(method, I, J)
@@ -194,12 +255,33 @@ class Meciopt:
         conv = {'gap': self.conv_gap, 'grad_max': self.conv_grad_max,
                 'grad_rms': self.conv_grad_rms, 'step_max': self.conv_step_max,
                 'step_rms': self.conv_step_rms, 'energy': self.conv_energy}
+
+        # coordinates of the steps: the primitives are set up at the
+        # input geometry; if they do not span the internal motions the
+        # optimisation runs in Cartesian coordinates
+        raw0 = adapter.point0()
+        coords = None
+        if str(self.coordinates).lower() == 'internal':
+            coords = internal_coords.RedundantInternals(
+                Z, guess=str(self.hess_guess).lower())
+            try:
+                coords.build(raw0[0])
+            except meci_step.CoordinateFailure as err:
+                output.print_message('$meciopt: '+str(err)+
+                                     '; the optimisation runs in Cartesian coordinates')
+                coords = None
+
         solver = meci_step.MeciSolver(hess, conv, trust=self.trust_radius,
                                       trust_min=self.trust_min,
                                       trust_max=self.trust_max,
                                       hess_update=str(self.hess_update).lower(),
                                       hess_window=self.hess_window,
-                                      max_iter=self.max_iter)
+                                      max_iter=self.max_iter,
+                                      approach=str(self.approach).lower(),
+                                      gap_correction=bool(self.gap_correction),
+                                      coords=coords,
+                                      algorithm=str(self.algorithm).lower(),
+                                      gap_switch=self.gap_switch)
 
         traj = self.traj_file if self.traj_file is not None \
             else 'meciopt_'+str(self.label)+'.xyz'
@@ -208,19 +290,25 @@ class Meciopt:
 
         if self.verbose:
             output.print_meciopt_header(self.label)
-            output.print_meciopt_setup(self, method, I, J)
+            output.print_meciopt_setup(self, method, I, J, coords)
             output.print_meciopt_iter_header()
 
         rows = []
+        nevent = [0]
 
-        def callback(it, pt, stp, flags, rho, nrej):
+        def callback(it, pt, stp, flags, rho, nrej, acc):
+            # the step statistics are those of the Cartesian displacement;
+            # events: messages of the solver since the last row (rebuilt
+            # or abandoned internal coordinates)
             row = {'it': it, 'e': pt.e, 'ebar': pt.ebar, 'de': pt.de,
                    'grad_max': float(np.max(np.abs(pt.gseam))),
                    'grad_rms': float(np.linalg.norm(pt.gseam)/np.sqrt(pt.x.size)),
-                   'step_max': float(np.max(np.abs(stp.dx))),
-                   'step_rms': float(np.linalg.norm(stp.dx)/np.sqrt(pt.x.size)),
+                   'step_max': float(np.max(np.abs(stp.dx_cart))),
+                   'step_rms': float(np.linalg.norm(stp.dx_cart)/np.sqrt(pt.x.size)),
                    'trust': stp.trust, 'rho': rho, 'nrej': nrej, 'flags': flags,
+                   'acc': acc, 'events': solver.events[nevent[0]:],
                    'info': pt.info, 'lam': pt.lam.copy(), 'x': pt.x.copy()}
+            nevent[0] = len(solver.events)
             rows.append(row)
             if self.verbose:
                 output.print_meciopt_iter(row)
@@ -231,7 +319,7 @@ class Meciopt:
             output.write_xyz(traj, self.asym, X, comment, 'a')
             output.write_xyz(last, self.asym, X, comment, 'w')
 
-        res = solver.run(adapter.evaluate, adapter.point0(), callback=callback,
+        res = solver.run(adapter.evaluate, raw0, callback=callback,
                          on_accept=adapter.accept, on_reject=adapter.reject)
 
         # results
@@ -265,6 +353,27 @@ class Meciopt:
         self.step_scf_cycles = np.array([-1 if r['info'].get('scf_cycles') is None
                                          else r['info']['scf_cycles'] for r in rows],
                                         dtype=int)
+        # the accepted steps (numbers only: the checkpoint holds no
+        # strings or None in arrays)
+        acc = [r['acc'] for r in rows]
+        kinds = {'composite': 0, 'penalty': 1, 'far': 2}
+        self.step_kind = np.array([-1 if a is None else kinds[a['kind']]
+                                   for a in acc], dtype=int)
+        self.step_npairs = np.array([-1 if a is None else a['npairs'] for a in acc],
+                                    dtype=int)
+        self.step_bt_iter = np.array([0 if a is None else a['bt_iter'] for a in acc],
+                                     dtype=int)
+        self.coord_final = str(solver.coords.name)
+        self.n_prim = int(solver.coords.nprim)
+        self.n_rebuild = int(solver.coords.nrebuild) if coords is None \
+            else int(coords.nrebuild)
+        self.n_bt_fail = int(solver.nbt_fail)
+        for attr, key in (('step_mu', 'mu'), ('step_curv_model', 'curv_model'),
+                          ('step_curv_secant', 'curv_secant'),
+                          ('step_hess_min', 'hess_min'),
+                          ('step_gap_corr', 'gap_corr')):
+            setattr(self, attr, np.array([np.nan if a is None else a[key] for a in acc],
+                                         dtype=float))
         X = pt.x.reshape(natm, 3)
         self.crds_final = X.copy() if self.units.lower().startswith(('b', 'au')) \
             else X*param.BOHR

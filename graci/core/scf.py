@@ -46,6 +46,16 @@ class Scf:
         self.mult           = 0
         self.charge         = 0
         self.grid_level     = 2
+        # quadrature partition (libgrid): the local 'delaunay' cells and
+        # weights of Gill & Tsoukalas (O(N) in the grid points, default) or
+        # 'becke'; step function 'b3' (Becke) or 'g8'; atomic size
+        # adjustment 'treutler', 'becke', 'none'
+        self.grid_partition = 'delaunay'
+        self.grid_step      = 'b3'
+        self.grid_adjust    = 'treutler'
+        # neighbour shells of the Delaunay partition (1 = the paper's lists;
+        # 2 adds the neighbours of neighbours, needed for planar molecules)
+        self.grid_shells    = 2
         self.x2c            = False
         self.conv_tol       = 1e-8
         # orbital-gradient convergence threshold (None: PySCF's default,
@@ -372,10 +382,8 @@ class Scf:
             # set the XC functional
             mf.xc = self.xc
         
-            # set the quadrature grids
-            mf.grids.level = self.grid_level
-            #mf.grids.prune = dft.sg1_prune
-            mf.grids.prune = dft.nwchem_prune
+            # set the quadrature grids (libgrid)
+            self.make_grids(mf)
 
         # convergence threshold
         mf.conv_tol = self.conv_tol
@@ -584,8 +592,7 @@ class Scf:
         else:
             mf = dft.RKS(pymol) if self.mol.mult == 1 else dft.ROKS(pymol)
             mf.xc = self.xc
-            mf.grids.level = self.grid_level
-            mf.grids.prune = dft.nwchem_prune
+            self.make_grids(mf)
         if self.x2c:
             mf = mf.x2c()
         if self.mol.use_df:
@@ -598,6 +605,23 @@ class Scf:
         return self.fock_ao
 
     #
+    def make_grids(self, mf):
+        """
+        installs the libgrid quadrature grid object (GraciGrids: PySCF's
+        level tables and NWChem pruning, Becke or Delaunay partition) on
+        the PySCF KS object; built lazily by PySCF or explicitly by the
+        caller
+        """
+        from graci.interfaces.grid.grid import GraciGrids
+        mf.grids = GraciGrids(mf.mol, partition=str(self.grid_partition).lower(),
+                              step=str(self.grid_step).lower(), adjust=str(self.grid_adjust).lower(),
+                              shells=int(self.grid_shells))
+        mf.grids.level = self.grid_level
+        mf.grids.prune = dft.nwchem_prune
+        # GRACI_GRID_BUILDER=pyscf: PySCF's own grid builder (comparisons)
+        mf.grids.builder = os.environ.get('GRACI_GRID_BUILDER', 'graci').lower()
+        return mf.grids
+
     def pyscf_obj(self):
         """
         returns a PySCF SCF object with the settings of run_pyscf, holding
@@ -631,8 +655,7 @@ class Scf:
         else:
             mf = dft.RKS(pymol) if self.mol.mult == 1 else dft.ROKS(pymol)
             mf.xc = self.xc
-            mf.grids.level = self.grid_level
-            mf.grids.prune = dft.nwchem_prune
+            self.make_grids(mf)
             mf.grids.build()
         if self.x2c:
             mf = mf.x2c()

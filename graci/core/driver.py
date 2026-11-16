@@ -81,6 +81,10 @@ class Driver:
                for obj in scf_objs):
             libs.lib_load('scf')
 
+        # molecular quadrature grids (libgrid) of every DFT calculation
+        if any(str(getattr(obj, 'xc', 'hf')).lower() != 'hf' for obj in scf_objs):
+            libs.lib_load('grid')
+
         # Generate PySCF objects 
         # ----------------------------------------------------
         # generate the pyscf GTO Mole objects

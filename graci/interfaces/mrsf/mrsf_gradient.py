@@ -322,21 +322,39 @@ class GradientDriver:
         self.Da = (C*self.occ_a) @ C.T
         self.Db = (C*self.occ_b) @ C.T
         self.W_ref = self.Da @ fock_ao[0] @ self.Da + self.Db @ fock_ao[1] @ self.Db
-        # reference XC gradient: from the grid probe pass (in run) unless
-        # the quadrature-weight response is requested (PySCF only)
+        # reference XC gradient: the fixed-grid part comes from the grid
+        # probe pass (in run); with grid_response the derivative of the
+        # weights and the motion of the grid points with their atoms are
+        # added (libgrid, Becke or Delaunay partition, O(N) grid points)
         self.dexc_ref = np.zeros((self.mol.natm, 3))
+        self.dexc_wresp = None
         if self.is_dft and ci.grid_response:
-            from pyscf.grad import uks as uks_grad
-            excsum, vmat = uks_grad.get_vxc_full_response(self.ni, self.mol, mf.grids, mf.xc,
-                                                          np.array([self.Da, self.Db]))
-            t = np.zeros((3, self.nao))
-            for sdm, D in ((0, self.Da), (1, self.Db)):
-                t += 2.0*np.einsum('xpq,pq->xp', vmat[sdm], D)
-            self.dexc_ref = excsum + np.add.reduceat(t, self.aoslices[:, 2], axis=1).T
-        elif self.is_dft:
+            self.dexc_wresp = self.grid_weight_response(mf)
+        if self.is_dft:
             self.dexc_ref = None
         self.time_ref = time.time() - t0
         self.tm.add('setup: reference pieces', self.time_ref)
+
+    # ------------------------------------------------------------------
+    # quadrature-weight response of the reference XC energy
+    # ------------------------------------------------------------------
+    def grid_weight_response(self, mf):
+        """
+        grid response of the reference XC energy (libgrid): the nuclear
+        derivatives of the quadrature weights and the translation of the
+        grid points with their atoms (PySCF's `excsum` of the full-response
+        gradient, at O(N) cost); the fixed-grid part comes from the probe
+        """
+        from graci.interfaces.grid.grid import GraciGrids, xc_grid_response
+        grids = mf.grids
+        if not isinstance(grids, GraciGrids):
+            sys.exit('MRSF gradients: grid_response needs the libgrid quadrature grid (GraciGrids)')
+        if grids.coords is None:
+            grids.build()
+        xctype = self.ni._xc_type(mf.xc)
+        if xctype not in ('LDA', 'GGA'):
+            sys.exit('MRSF gradients: grid_response is implemented for LDA and GGA functionals')
+        return xc_grid_response(self.ni, self.mol, grids, mf.xc, (self.Da, self.Db))
 
     # ------------------------------------------------------------------
     # amplitudes and densities
@@ -951,6 +969,8 @@ class GradientDriver:
             dexc_ref_probe, dexc_all = self.grad_xc_probe_multi(fac_list, gfac_list)
             if self.dexc_ref is None:
                 self.dexc_ref = dexc_ref_probe
+                if self.dexc_wresp is not None:
+                    self.dexc_ref = self.dexc_ref + self.dexc_wresp
         else:
             dexc_all = [np.zeros((mol.natm, 3)) for _ in range(nst)]
         # one-electron (core Hamiltonian) and overlap derivative terms of the

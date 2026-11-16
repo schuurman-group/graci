@@ -771,19 +771,43 @@ def print_meciopt_header(label):
     return
 
 #
-def print_meciopt_setup(opt, method, I, J):
-    """print the settings of a MECI optimisation"""
+def print_meciopt_setup(opt, method, I, J, coords=None):
+    """print the settings of a MECI optimisation; coords: the redundant
+    internal coordinates, None for Cartesian coordinates"""
+
+    projected = str(opt.algorithm).lower() == 'projected'
 
     with output_file(file_names['out_file'], 'a+') as outfile:
         outfile.write('\n\n Method section:   $'+type(method).__name__.lower()+
                       ' '+str(method.label))
         outfile.write('\n States:           {:d} and {:d} (adiabatic, energy order)'.format(I + 1, J + 1))
-        outfile.write('\n Coordinates:      Cartesian, translations and rotations '
-                      'projected out')
+        outfile.write('\n Algorithm:        '+('projected gradient, two phases (Sicilia, '
+                      'Blancafort, Bearpark, Robb 2008)' if projected
+                      else 'Lagrangian (composite steps)'))
+        if coords is None:
+            outfile.write('\n Coordinates:      Cartesian, translations and rotations '
+                          'projected out')
+        else:
+            outfile.write('\n Coordinates:      redundant internal, '+str(coords.nprim)+
+                          ' primitives')
+            outfile.write('\n                   ('+coords.summary()+')')
         outfile.write('\n Hessian:          '+str(opt.hess_guess)+' guess, '+
-                      str(opt.hess_update)+' update (window '+str(opt.hess_window)+')')
-        outfile.write('\n Trust radius:     {:.3f} Bohr (range {:.3f} - {:.3f})'.format(
-                      opt.trust_radius, opt.trust_min, opt.trust_max))
+                      str(opt.hess_update)+' update ('+('all steps' if opt.hess_window == 0
+                      else 'window '+str(opt.hess_window))+')')
+        if projected:
+            outfile.write('\n Far phase:        quasi-Newton steps on the composite gradient '
+                          'above a gap of {:.1e} Eh'.format(opt.gap_switch))
+            outfile.write('\n Near phase:       Newton step of the gap and step on the '
+                          'projected gradient')
+        else:
+            outfile.write('\n Approach:         '+('steps on the penalty function Ebar + mu dE '
+                          'far from the seam' if str(opt.approach).lower() == 'penalty'
+                          else 'Newton steps of the gap'))
+            outfile.write('\n Gap step:         '+('second-order correction from the measured '
+                          'seam curvature' if opt.gap_correction else 'first order'))
+        outfile.write('\n Trust radius:     {:.3f} {:s} (range {:.3f} - {:.3f})'.format(
+                      opt.trust_radius, 'Bohr' if coords is None else '(Bohr, rad)',
+                      opt.trust_min, opt.trust_max))
         outfile.write('\n Convergence:      gap {:.1e} Eh, seam gradient max/rms '
                       '{:.1e}/{:.1e} Eh/Bohr,'.format(opt.conv_gap, opt.conv_grad_max,
                                                     opt.conv_grad_rms))
@@ -812,8 +836,12 @@ def print_meciopt_iter_header():
 def print_meciopt_iter(row):
     """print one row of the MECI iteration table: convergence flags in
     the order gap, seam gradient, step, average-energy change (Y = met);
-    notes: rejected trial steps, Davidson (D) or Z-vector (Z) not
-    converged, a neighbouring state within 0.1 eV (N), SCF cycles"""
+    notes: the step into this geometry was a step on the penalty
+    function (pen) or a far-phase step of the projected algorithm
+    (far), rejected trial steps, Davidson (D) or Z-vector (Z) not
+    converged, a neighbouring state within 0.1 eV (N), SCF cycles.
+    Messages of the optimiser about the coordinates are printed above
+    the row"""
 
     f = row['flags']
     conv = ''.join('Y' if c else '.' for c in
@@ -821,6 +849,10 @@ def print_meciopt_iter(row):
                     f['step_max'] and f['step_rms'], f['energy']))
     info = row['info']
     notes = []
+    if row.get('acc') is not None and row['acc']['kind'] == 'penalty':
+        notes.append('pen')
+    if row.get('acc') is not None and row['acc']['kind'] == 'far':
+        notes.append('far')
     if row['nrej'] > 0:
         notes.append('rejected '+str(row['nrej']))
     if not info.get('davidson_conv', True):
@@ -835,6 +867,8 @@ def print_meciopt_iter(row):
     rho = '    ---' if row['rho'] is None else '{:7.2f}'.format(row['rho'])
 
     with output_file(file_names['out_file'], 'a+') as outfile:
+        for event in row.get('events', []):
+            outfile.write('\n      '+str(event))
         outfile.write('\n {:4d} {:17.10f} {:17.10f} {:10.6f}  {:9.2e} {:9.2e}  {:8.1e} {:8.1e} '
                       '{:7.4f} {:s}  {:s}  {:s}'.format(
                       row['it'], row['e'][0], row['e'][1], row['de']*constants.au2ev,
@@ -878,6 +912,15 @@ def print_meciopt_summary(opt, I, J, au2ev):
                           c['P'], 'peaked' if c['P'] < 1. else 'sloped'))
             outfile.write('\n   B              {:12.6f}  ({:s})'.format(
                           c['B'], 'bifurcating' if c['B'] < 1. else 'single path'))
+
+        if str(opt.coordinates).lower() == 'internal':
+            if opt.coord_final == 'internal':
+                outfile.write('\n\n Internal coordinates: {:d} primitives, rebuilt {:d} times, '
+                              '{:d} failed back-transformations'.format(
+                              opt.n_prim, opt.n_rebuild, opt.n_bt_fail))
+            else:
+                outfile.write('\n\n Internal coordinates were abandoned: the optimisation '
+                              'ended in Cartesian coordinates')
 
         nstep = max(len(opt.step_eval) - 1, 1)
         outfile.write('\n\n Mean wall time per step {:.2f} s (SCF, integrals and method {:.2f} s); '
